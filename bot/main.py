@@ -27,8 +27,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     запуск бота, настройку вебхука и очистку при завершении работы.
     """
     logger.info("Запуск настройки бота...")
-    dp.message.middleware(ErrorHandlerMiddleware)
-    dp.callback_query.middleware(ErrorHandlerMiddleware)
+    dp.message.middleware(ErrorHandlerMiddleware())
+    dp.callback_query.middleware(ErrorHandlerMiddleware())
     dp.include_router(help_router)
     await start_bot()
     webhook_url: str = str(settings_bot.WEBHOOK_URL)

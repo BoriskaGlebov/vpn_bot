@@ -30,6 +30,7 @@ pydocstyle = "^6.3.0"
 pre-commit = "^4.3.0"
 ruff = "^0.12.11"
 types-pyyaml = "^6.0.12.20250822"
+pytest-asyncio = "^1.1.0"
 
 [build-system]
 requires = ["poetry-core"]
