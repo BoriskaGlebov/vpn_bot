@@ -36,4 +36,4 @@ def load_dialogs(
 dialogs = load_dialogs()
 
 if __name__ == "__main__":
-    pprint(dialogs["description"])
+    pprint(dialogs["general"]["echo"].format(text="test"))

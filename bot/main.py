@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     logger.info("Запуск настройки бота...")
     dp.include_router(help_router)
     await start_bot()
-    webhook_url: str = settings_bot.get_webhook_url()
+    webhook_url: str = settings_bot.WEBHOOK_URL
     await bot.set_webhook(
         url=webhook_url,
         allowed_updates=dp.resolve_used_update_types(),
@@ -81,13 +81,6 @@ API предоставляет доступ к функционалу бота �
     },
     lifespan=lifespan,
 )
-
-
-# static_dir = os.path.abspath(os.path.join(settings.BASE_DIR, "api", "static"))
-# app.mount("/static", StaticFiles(directory=static_dir), name="static")
-#
-# app.include_router(public_offer_router)
-# app.include_router(payments_router)
 
 
 @app.post("/webhook")

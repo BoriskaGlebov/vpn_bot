@@ -1,3 +1,6 @@
+include .env
+export $(shell sed 's/=.*//' .env)
+
 # ==== Простая Makefile для Alembic и Docker ==================================
 
 DC ?= docker compose
@@ -58,7 +61,7 @@ rev-up:
 	$(ALEMBIC) upgrade head
 
 rev-down:
-	$(DC_EXEC_APP) $(ALEMBIC) downgrade -1
+	$(ALEMBIC) downgrade -1
 
 up-to:
 	@if [ -z "$(V)" ]; then echo "V required"; exit 1; fi
@@ -70,10 +73,10 @@ down-to:
 
 # Database reset
 db-reset:
-	$(DC_EXEC_DB) psql -U $$POSTGRES_USER -d postgres -c "DROP DATABASE IF EXISTS \"$$POSTGRES_DB\";"
-	$(DC_EXEC_DB) psql -U $$POSTGRES_USER -d postgres -c "CREATE DATABASE \"$$POSTGRES_DB\" WITH OWNER \"$$POSTGRES_USER\";"
+	$(DC_EXEC_DB) psql -U $(DB_USER) -d postgres -c "DROP DATABASE IF EXISTS \"$(DB_DATABASE)\";"
+	$(DC_EXEC_DB) psql -U $(DB_USER) -d postgres -c "CREATE DATABASE \"$(DB_DATABASE)\" WITH OWNER \"$(DB_USER)\";"
 
-hard-reset: db-reset up
+hard-reset: db-reset rev-up
 	@echo "DB reset and migrations applied"
 
 # Pre-commit

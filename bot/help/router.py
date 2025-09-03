@@ -35,4 +35,4 @@ async def help_cmd(message: Message, state: FSMContext) -> None:
 
     except Exception as e:
         logger.error(f"Ошибка при выполнении команды /help: {e}")
-        await message.answer(settings_bot.MESSAGES["messages"]["error"])
+        await message.answer(settings_bot.MESSAGES["general"]["common_error"])

@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Mapping, Optional
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 from loguru import logger
 from pydantic import SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -29,6 +29,8 @@ class SettingsBot(BaseSettings):
         MESSAGES (dict): Конфиг файл с диалогами бота.
         model_config (SettingsConfigDict): Конфигурация pydantic settings
             (путь до .env, кодировка и поведение при лишних переменных).
+    Properties
+        WEBHOOK_URL (str): URL вебхука. Формируется автоматически на основе BASE_SITE.
 
     """
 
@@ -52,7 +54,9 @@ class SettingsBot(BaseSettings):
         extra="ignore",
     )
 
-    def get_webhook_url(self) -> str:
+    @computed_field
+    @property
+    def WEBHOOK_URL(self) -> str:
         """Возвращает URL вебхука."""
         return f"{self.BASE_SITE}/webhook"
 
@@ -67,11 +71,19 @@ class SettingsDB(BaseSettings):
         DB_PASSWORD (SecretStr): Пароль пользователя для подключения к базе данных.
         DB_DATABASE (str): Имя базы данных.
         REDIS_PASSWORD (SecretStr): Пароль для подключения к Redis.
+        REDIS_HOST (str): Хост Redis-сервера. По умолчанию "localhost".
+        REDIS_PORT (int): Порт Redis-сервера. По умолчанию 6379.
+        NUM_DB (int): Номер базы данных Redis. По умолчанию 0.
 
     Properties
         DATABASE_URL (str): Строка подключения к PostgreSQL в формате
             `postgresql+asyncpg://user:password@host:port/database`.
             Формируется автоматически из указанных выше атрибутов.
+        REDIS_URL (str): Строка подключения к Redis в формате
+            `redis://:password@host:port/db_number`.
+    Configuration
+        model_config (SettingsConfigDict): Конфигурация pydantic settings
+            (путь до .env, кодировка и поведение при лишних переменных).
 
     """
 
@@ -82,6 +94,9 @@ class SettingsDB(BaseSettings):
     DB_DATABASE: str
 
     REDIS_PASSWORD: SecretStr
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    NUM_DB: int = 0
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parent.parent / ".env"),
@@ -101,6 +116,20 @@ class SettingsDB(BaseSettings):
         return (
             f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@"
             f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
+        )
+
+    @computed_field  # новое поле, которое будет вести себя как обычное
+    @property
+    def REDIS_URL(self) -> str:
+        """Строка подключения к Redis.
+
+        Returns
+           str: URL подключения к базе данных.
+
+        """
+        return (
+            f"redis://:{self.REDIS_PASSWORD.get_secret_value()}@"
+            f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.NUM_DB}"
         )
 
 
@@ -278,8 +307,12 @@ bot: Bot = Bot(
     token=settings_bot.BOT_TOKEN.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
 )
+# Хранилище FSM
+storage = RedisStorage.from_url(settings_db.REDIS_URL)
 # Это если работать без Redis
-dp = Dispatcher(storage=MemoryStorage())
+# dp = Dispatcher(storage=MemoryStorage())
+# Это если работать через Redis
+dp = Dispatcher(storage=storage)
 
 if __name__ == "__main__":
     logger.bind(user="Boris").debug("Сообщение")
