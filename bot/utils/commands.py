@@ -1,7 +1,7 @@
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefault
 
-from bot.config import (  # Убедись, что settings.ADMIN_IDS содержит ID админов
+from bot.config import (
     bot,
     logger,
     settings_bot,

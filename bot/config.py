@@ -12,6 +12,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from bot.dialogs.dialogs_text import dialogs
 
+__all__ = [
+    "logger",
+]
+
 
 class SettingsBot(BaseSettings):
     """Конфигурация бота и логирования.
@@ -46,7 +50,7 @@ class SettingsBot(BaseSettings):
     LOGGER_LEVEL_FILE: str = "DEBUG"
     LOGGER_ERROR_FILE: str = "WARNING"
 
-    MESSAGES: Dict = dialogs
+    MESSAGES: Dict[str, Any] = dialogs
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parent.parent / ".env"),
@@ -55,7 +59,6 @@ class SettingsBot(BaseSettings):
     )
 
     @computed_field
-    @property
     def WEBHOOK_URL(self) -> str:
         """Возвращает URL вебхука."""
         return f"{self.BASE_SITE}/webhook"
@@ -104,8 +107,7 @@ class SettingsDB(BaseSettings):
         extra="ignore",
     )
 
-    @computed_field  # новое поле, которое будет вести себя как обычное
-    @property
+    @computed_field
     def DATABASE_URL(self) -> str:
         """Строка подключения к PostgreSQL через asyncpg.
 
@@ -118,8 +120,7 @@ class SettingsDB(BaseSettings):
             f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
         )
 
-    @computed_field  # новое поле, которое будет вести себя как обычное
-    @property
+    @computed_field
     def REDIS_URL(self) -> str:
         """Строка подключения к Redis.
 
@@ -315,11 +316,13 @@ storage = RedisStorage.from_url(settings_db.REDIS_URL)
 dp = Dispatcher(storage=storage)
 
 if __name__ == "__main__":
-    logger.bind(user="Boris").debug("Сообщение")
-    logger.bind(filename="Boris_file.txt").debug("Сообщение")
-    logger.bind(user="Boris", filename="Boris_file.txt").warning("Сообщение")
-    logger.debug("Сообщение")
-    logger.error("wasd")
-    logger.bind(user="Boris").warning("Сообщение")
-    logger.bind(filename="Boris_file.txt").error("Сообщение")
-    print(settings_db)
+    # logger.bind(user="Boris").debug("Сообщение")
+    # logger.bind(filename="Boris_file.txt").debug("Сообщение")
+    # logger.bind(user="Boris", filename="Boris_file.txt").warning("Сообщение")
+    # logger.debug("Сообщение")
+    # logger.error("wasd")
+    # logger.bind(user="Boris").warning("Сообщение")
+    # logger.bind(filename="Boris_file.txt").error("Сообщение")
+    print(settings_bot.WEBHOOK_URL)
+    print(settings_db.model_dump())
+    # print(settings_db.model_dump_json())

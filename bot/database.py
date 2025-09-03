@@ -1,8 +1,8 @@
 from datetime import datetime
 from functools import wraps
-from typing import Any
+from typing import Any, Awaitable, Callable, Optional, TypeVar, cast
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
     AsyncSession,
@@ -16,7 +16,7 @@ from bot.config import settings_db
 
 # DATABASE_URL = settings_bot.get_db_url()
 
-engine = create_async_engine(settings_db.DATABASE_URL)
+engine = create_async_engine(cast(str, settings_db.DATABASE_URL))
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -28,8 +28,10 @@ updated_at = Annotated[
 str_uniq = Annotated[str, mapped_column(unique=True, nullable=False)]
 str_null_true = Annotated[str, mapped_column(nullable=True)]
 
+F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
 
-def connection(isolation_level: str = None):
+
+def connection(isolation_level: Optional[str] = None) -> Callable[[F], F]:
     """Декоратор для автоматического управления асинхронной сессией базы данных и транзакцией.
 
     Этот декоратор создаёт сессию `AsyncSession`, оборачивает выполнение функции в транзакцию,
@@ -52,14 +54,14 @@ def connection(isolation_level: str = None):
 
     """
 
-    def decorator(method):
+    def decorator(method: F) -> F:
         @wraps(method)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             async with async_session() as session:
                 try:
                     if isolation_level:
                         await session.execute(
-                            f"SET TRANSACTION ISOLATION LEVEL {isolation_level}"
+                            text(f"SET TRANSACTION ISOLATION LEVEL {isolation_level}")
                         )
                     return await method(*args, session=session, **kwargs)
                 except Exception as e:
@@ -68,7 +70,7 @@ def connection(isolation_level: str = None):
                 finally:
                     await session.close()
 
-        return wrapper
+        return wrapper  # type: ignore[return-value]
 
     return decorator
 

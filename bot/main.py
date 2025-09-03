@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List
+from typing import Any, AsyncGenerator, Dict, List
 
 import uvicorn
 from aiogram.types import Update
@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 
 from bot.config import bot, dp, logger, settings_bot
 from bot.help.router import help_router
+from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.utils.start_stop_bot import start_bot, stop_bot
 
 # API теги и их описание
@@ -19,16 +20,18 @@ tags_metadata: List[Dict[str, Any]] = [
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Менеджер жизненного цикла для FastAPI-приложения.
 
     Эта функция управляет настройкой и завершением работы бота, включая регистрацию роутеров,
     запуск бота, настройку вебхука и очистку при завершении работы.
     """
     logger.info("Запуск настройки бота...")
+    dp.message.middleware(ErrorHandlerMiddleware)
+    dp.callback_query.middleware(ErrorHandlerMiddleware)
     dp.include_router(help_router)
     await start_bot()
-    webhook_url: str = settings_bot.WEBHOOK_URL
+    webhook_url: str = str(settings_bot.WEBHOOK_URL)
     await bot.set_webhook(
         url=webhook_url,
         allowed_updates=dp.resolve_used_update_types(),
@@ -83,7 +86,7 @@ API предоставляет доступ к функционалу бота �
 )
 
 
-@app.post("/webhook")
+@app.post("/webhook")  # type: ignore[misc]
 async def webhook(request: Request) -> None:
     """Обработчик вебхуков от Telegram.
 

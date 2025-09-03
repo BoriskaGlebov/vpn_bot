@@ -10,8 +10,7 @@ from bot.utils.commands import admin_commands, user_commands
 help_router = Router()
 
 
-@logger.catch
-@help_router.message(Command("help"))
+@help_router.message(Command("help"))  # type: ignore
 async def help_cmd(message: Message, state: FSMContext) -> None:
     """Обрабатывает команду /help и отправляет пользователю список доступных команд.
 

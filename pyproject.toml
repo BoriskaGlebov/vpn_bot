@@ -29,6 +29,7 @@ isort = "^6.0.1"
 pydocstyle = "^6.3.0"
 pre-commit = "^4.3.0"
 ruff = "^0.12.11"
+types-pyyaml = "^6.0.12.20250822"
 
 [build-system]
 requires = ["poetry-core"]
@@ -73,3 +74,17 @@ fix = true
 convention = "google"
 #exclude = ["tests/*",]  # Исключить тесты из проверки
 #ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D107"]
+
+[tool.mypy]
+exclude = '(venv|test|tests|build|dist|\.venv|bot/migrations/)'
+plugins = [
+    "pydantic.mypy",
+    "sqlalchemy.ext.mypy.plugin"
+]
+follow_imports = "silent"
+warn_redundant_casts = true
+ignore_missing_imports = true
+warn_unused_ignores = false
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true

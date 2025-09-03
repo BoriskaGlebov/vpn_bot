@@ -44,5 +44,20 @@ repos:
     rev: 6.3.0
     hooks:
       - id: pydocstyle
-        args: [ "--ignore=D100,D104,D107,D213,D203,D407"]
+        args: [ "--ignore=D100,D104,D107,D213,D203,D407" ]
         files: '^(?!(tests/|bot/migrations/)).*\.py$'
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.17.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - types-atomicwrites
+          - types-tabulate
+          - types-freezegun
+          - types-pyyaml
+          - pydantic>=2.8
+          - pydantic-settings
+          - sqlalchemy
+          - tokenize-rt
+        args: [ --strict, --ignore-missing-imports ]

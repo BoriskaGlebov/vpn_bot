@@ -1,17 +1,18 @@
 from pathlib import Path
 from pprint import pprint
+from typing import Any, Dict, cast
 
 import yaml
 from loguru import logger
 
 
 def load_dialogs(
-    filename=Path(__file__).resolve().parent / "dialog_messages.yaml",
-) -> dict:
+    filename: Path = Path(__file__).resolve().parent / "dialog_messages.yaml",
+) -> Dict[str, Any]:
     """Загрузка базовых настроек диалогов Бота.
 
     Args:
-        filename: путь в конфиг файлу по умолчанию dialog_messages.yaml.
+        filename (Path): путь в конфиг файлу по умолчанию dialog_messages.yaml.
 
     Returns словарь диалогов.
 
@@ -30,7 +31,7 @@ def load_dialogs(
         logger.warning(f"Ключ 'bot' отсутствует в файле {filename}")
         raise KeyError("Ключ 'bot' отсутствует в файле {filename}")
 
-    return data["bot"]
+    return cast(Dict[str, Any], data["bot"])
 
 
 dialogs = load_dialogs()

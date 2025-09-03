@@ -3,7 +3,7 @@ from bot.utils.commands import set_bot_commands
 from bot.utils.set_description_file import set_description
 
 
-async def start_bot():
+async def start_bot() -> None:
     """Инициализация и запуск бота.
 
     Эта функция устанавливает команды для бота с помощью `set_commands()`,
@@ -23,8 +23,7 @@ async def start_bot():
     logger.info("Бот успешно запущен.")
 
 
-# Функция, которая выполнится, когда бот завершит свою работу
-async def stop_bot():
+async def stop_bot() -> None:
     """Остановка бота.
 
     Эта функция отправляет сообщение администраторам, уведомляя их о том,
