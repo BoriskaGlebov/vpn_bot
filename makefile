@@ -28,6 +28,7 @@ help:
 	@echo "  down-to V=rev       — downgrade to revision"
 	@echo "  db-reset            — drop & create DB"
 	@echo "  hard-reset          — drop & create DB + migrate"
+	@echo " pre-commit — run all pre-commit hooks on all files"
 
 # Docker
 compose-up:
@@ -74,3 +75,8 @@ db-reset:
 
 hard-reset: db-reset up
 	@echo "DB reset and migrations applied"
+
+# Pre-commit
+pre-commit:
+	@echo "Running pre-commit hooks on all files..."
+	pre-commit run --all-files
