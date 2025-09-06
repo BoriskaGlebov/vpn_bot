@@ -5,7 +5,6 @@ from bot.utils.commands import set_bot_commands
 from bot.utils.set_description_file import set_description
 
 
-@logger.catch  # type: ignore[misc]
 async def start_bot() -> None:
     """Инициализация и запуск бота.
 
@@ -22,11 +21,10 @@ async def start_bot() -> None:
             logger.bind(user=admin_id).error(
                 f"Не удалось отправить сообщение админу {admin_id}: {e}"
             )
-            # pass
+            pass
     logger.info("Бот успешно запущен.")
 
 
-@logger.catch  # type: ignore[misc]
 async def stop_bot() -> None:
     """Остановка бота.
 
@@ -40,5 +38,5 @@ async def stop_bot() -> None:
             logger.bind(user=admin_id).error(
                 f"Не удалось отправить сообщение админу {admin_id} об остановке бота: {e}"
             )
-            # pass
+            pass
     logger.error("Бот остановлен!")
