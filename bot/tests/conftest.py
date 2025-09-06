@@ -1,36 +1,33 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from aiogram import Bot
+from loguru import logger as real_logger
 
-from bot.middleware import exception_middleware
+from bot.config import settings_bot
 from bot.utils import commands
 
 
 @pytest.fixture
 def fake_bot():
-    bot = AsyncMock()
+    bot = AsyncMock(spec=Bot)
+    bot.get_me.return_value.first_name = "TestBot"
+    bot.set_my_description.return_value = None
     return bot
 
 
 @pytest.fixture
-def fake_logger():
-    logger = MagicMock()
-    # чтобы logger.bind(...) не ломало цепочку, пусть возвращает себя же
+def fake_logger(monkeypatch):
+    logger = MagicMock(spec=real_logger)
     logger.bind.return_value = logger
+    monkeypatch.setattr("bot.config.logger", logger)
     return logger
 
 
 @pytest.fixture
 def patch_deps(fake_bot, fake_logger, monkeypatch):
-    """
-    Подменяет в bot.commands бот и логгер на фейковые объекты.
-    Через monkeypatch — pytest сам откатит изменения после теста.
-    """
     monkeypatch.setattr(commands, "bot", fake_bot)
     monkeypatch.setattr(commands, "logger", fake_logger)
-
-    # Мокаем middleware, чтобы он не ловил исключения
-    monkeypatch.setattr(
-        exception_middleware, "ErrorHandlerMiddleware", lambda *a, **kw: None
-    )
+    monkeypatch.setattr(settings_bot, "MESSAGES", {"description": "описание"})
+    monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123, 456])
     return fake_bot, fake_logger

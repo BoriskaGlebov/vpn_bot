@@ -1,6 +1,3 @@
-include .env
-export $(shell sed 's/=.*//' .env)
-
 # ==== Простая Makefile для Alembic и Docker ==================================
 
 DC ?= docker compose
@@ -31,7 +28,8 @@ help:
 	@echo "  down-to V=rev       — downgrade to revision"
 	@echo "  db-reset            — drop & create DB"
 	@echo "  hard-reset          — drop & create DB + migrate"
-	@echo " pre-commit — run all pre-commit hooks on all files"
+	@echo " pre-commit           — run all pre-commit hooks on all files"
+	@echo " pytest               — run tests in bot/tests"
 
 # Docker
 compose-up:
@@ -54,6 +52,8 @@ bash:
 
 # Alembic
 rev:
+	include .env
+	export $(shell sed 's/=.*//' .env)
 	@if [ -z "$(MSG)" ]; then echo "MSG required"; exit 1; fi
 	$(ALEMBIC) revision -m "$(MSG)" --autogenerate
 
@@ -83,3 +83,7 @@ hard-reset: db-reset rev-up
 pre-commit:
 	@echo "Running pre-commit hooks on all files..."
 	pre-commit run --all-files
+
+pytest:
+	@echo "Running tests on all files in test directory..."
+	pytest bot/tests
