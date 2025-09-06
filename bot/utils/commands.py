@@ -20,7 +20,6 @@ admin_commands: list[BotCommand] = [
 ]
 
 
-@logger.catch  # type: ignore[misc]
 async def set_bot_commands() -> None:
     """Устанавливает команды для пользователей и администраторов.
 

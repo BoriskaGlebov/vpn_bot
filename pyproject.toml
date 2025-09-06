@@ -31,6 +31,7 @@ pre-commit = "^4.3.0"
 ruff = "^0.12.11"
 types-pyyaml = "^6.0.12.20250822"
 pytest-asyncio = "^1.1.0"
+mypy = "^1.17.1"
 
 [build-system]
 requires = ["poetry-core"]
@@ -77,7 +78,15 @@ convention = "google"
 #ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D107"]
 
 [tool.mypy]
-exclude = '(venv|test|tests|build|dist|\.venv|bot/migrations/)'
+exclude = [
+    "^venv/",
+    "^bot/tests/integration/",
+    "^bot/tests/unit/",
+    "^build/",
+    "^dist/",
+    "^\\.venv/",
+    "^bot/migrations/",
+]
 plugins = [
     "pydantic.mypy",
     "sqlalchemy.ext.mypy.plugin"

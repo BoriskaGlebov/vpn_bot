@@ -20,6 +20,7 @@ tags_metadata: List[Dict[str, Any]] = [
 
 
 @asynccontextmanager
+@logger.catch  # type: ignore[misc]
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Менеджер жизненного цикла для FastAPI-приложения.
 
@@ -87,6 +88,7 @@ API предоставляет доступ к функционалу бота �
 
 
 @app.post("/webhook")  # type: ignore[misc]
+@logger.catch  # type: ignore[misc]
 async def webhook(request: Request) -> None:
     """Обработчик вебхуков от Telegram.
 
