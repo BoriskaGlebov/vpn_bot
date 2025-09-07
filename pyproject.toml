@@ -67,7 +67,7 @@ multi_line_output = 3
 include_trailing_comma = true
 
 [tool.ruff]
-extend-exclude = ["*/tests/*", "*.venv/*", "*/migrations/*"]
+extend-exclude = ["*/bot/tests/*", "*.venv/*", "*/migrations/*"]
 line-length = 88
 select = ["E", "F", "W", "C", "D", "T"]
 fix = true
