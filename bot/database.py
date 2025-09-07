@@ -14,8 +14,6 @@ from typing_extensions import Annotated
 
 from bot.config import settings_db
 
-# DATABASE_URL = settings_bot.get_db_url()
-
 engine = create_async_engine(cast(str, settings_db.DATABASE_URL))
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

@@ -15,7 +15,6 @@ async def test_start_and_stop(test_bot):
     except TelegramBadRequest as e:
         pytest.fail(f"start_bot() вызвал ошибку при работе с Telegram API: {e}")
 
-    # Проверяем команды
     commands_response = await bot(GetMyCommands())
     commands_texts = [cmd.command for cmd in commands_response]
     assert len(commands_texts) > 0, "Команды не были установлены"
@@ -23,7 +22,6 @@ async def test_start_and_stop(test_bot):
         test_settings.MESSAGES["commands"]["users"].keys()
     ), "Команды не соответствуют ожидаемым"
 
-    # Проверяем описание
     description_response = await bot(GetMyDescription())
     description_text = description_response.description
     assert description_text, "Описание бота не установлено"
@@ -34,6 +32,4 @@ async def test_start_and_stop(test_bot):
     try:
         await stop_bot()
     except TelegramBadRequest as e:
-        pytest.fail(
-            f"stop_bot() вызвал ошибку при работе TelegramApi: {e}"
-        )  # Проверяем, что администратор получил сообщение о запуске
+        pytest.fail(f"stop_bot() вызвал ошибку при работе TelegramApi: {e}")

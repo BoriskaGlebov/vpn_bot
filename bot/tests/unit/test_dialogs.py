@@ -9,7 +9,6 @@ from bot.dialogs.dialogs_text import load_dialogs
 @pytest.mark.parametrize("filename", ["dummy.yaml"])
 @pytest.mark.dialogs
 def test_load_dialogs_success(monkeypatch, filename):
-    # Мокаем open
     def mock_open(*args, **kwargs):
         from io import StringIO
 
@@ -17,7 +16,6 @@ def test_load_dialogs_success(monkeypatch, filename):
 
     monkeypatch.setattr(builtins, "open", mock_open)
 
-    # Мокаем yaml.safe_load
     monkeypatch.setattr(
         yaml, "safe_load", lambda f: {"bot": {"general": {"echo": "Hello {text}"}}}
     )

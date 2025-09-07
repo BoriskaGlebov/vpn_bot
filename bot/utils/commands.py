@@ -28,10 +28,8 @@ async def set_bot_commands() -> None:
     Returns: None.
 
     """
-    # Устанавливаем команды по умолчанию для всех (обычные пользователи)
     await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
 
-    # Устанавливаем команды для администраторов
     for admin_id in settings_bot.ADMIN_IDS:
         try:
             await bot.set_my_commands(

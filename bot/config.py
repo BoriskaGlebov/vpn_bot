@@ -24,6 +24,7 @@ class SettingsBot(BaseSettings):
         BOT_TOKEN (SecretStr): Токен бота, используемый для подключения к Telegram Bot API.
         ADMIN_IDS (List[int]): Список ID администраторов, имеющих доступ к расширенным функциям.
         BASE_SITE (str): Адрес куда webhook слать.
+        USE_POLING (boo) : Использования полинга в тестах  False по умолчанию
         DEBUG_FAST_API (bool): Режим debug вкл или выкл.
         RELOAD_FAST_API (bool): Режим перезагрузки сервера при внесении изменений вкл или выкл.
         BASE_DIR (Path): Базовая директория проекта, вычисляется относительно текущего файла.

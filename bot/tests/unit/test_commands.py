@@ -66,12 +66,10 @@ async def test_set_bot_commands_other_telegram_error_raises(
 
         return None
 
-    assert commands.bot is fake_bot
-
     fake_bot.set_my_commands.side_effect = side_effect
     monkeypatch.setattr(commands.settings_bot, "ADMIN_IDS", admin_ids)
-
+    # act
     with pytest.raises(TelegramBadRequest):
         await commands.set_bot_commands()
-
+    # assert
     fake_logger.error.assert_not_called()

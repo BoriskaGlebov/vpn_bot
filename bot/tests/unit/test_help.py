@@ -10,21 +10,19 @@ from bot.utils.commands import admin_commands, user_commands
 @pytest.mark.asyncio
 @pytest.mark.help
 async def test_help_cmd_for_admin(monkeypatch):
-    # Подготовка фиктивного сообщения и состояния
     message = AsyncMock()
     message.from_user.id = 123
     state = AsyncMock()
 
-    # Подменяем список админов
     monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
     monkeypatch.setattr(
         settings_bot, "MESSAGES", {"general": {"common_error": "Ошибка"}}
     )
 
-    # Вызов корутины
+    # act
     await help_cmd(message, state)
 
-    # Проверяем, что state.clear был вызван
+    # assert
     state.clear.assert_awaited_once()
 
     # Проверяем, что message.answer вызван с командами админа
@@ -41,14 +39,14 @@ async def test_help_cmd_for_user(monkeypatch, fake_logger):
     message.from_user.id = 999
     state = AsyncMock()
 
-    # Подменяем список админов
     monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
     monkeypatch.setattr(
         settings_bot, "MESSAGES", {"general": {"common_error": "Ошибка"}}
     )
-
+    # act
     await help_cmd(message, state)
 
+    # assert
     state.clear.assert_awaited_once()
 
     expected_text = "\n".join(
@@ -60,13 +58,11 @@ async def test_help_cmd_for_user(monkeypatch, fake_logger):
 @pytest.mark.asyncio
 @pytest.mark.help
 async def test_help_cmd_handles_exception(monkeypatch, fake_logger):
-    # Создаём моки
     message = AsyncMock()
     message.from_user.id = 123
     state = AsyncMock()
     state.clear.return_value = AsyncMock()
 
-    # Настраиваем тестовые данные
     monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
     monkeypatch.setattr(
         settings_bot, "MESSAGES", {"general": {"common_error": "Ошибка"}}
@@ -74,7 +70,6 @@ async def test_help_cmd_handles_exception(monkeypatch, fake_logger):
 
     monkeypatch.setattr("bot.help.router.logger", fake_logger)
 
-    # force Exception в message.answer для проверки блока except
     call_count = 0
 
     async def answer_side_effect(*args, **kwargs):
@@ -86,18 +81,15 @@ async def test_help_cmd_handles_exception(monkeypatch, fake_logger):
 
     message.answer.side_effect = answer_side_effect
 
-    # Запускаем корутину
+    # act
     await help_cmd(message, state)
 
-    # Проверяем, что state.clear был вызван
+    # assert
     state.clear.assert_awaited_once()
 
-    # Проверяем, что логгер отработал
     fake_logger.error.assert_called_once()
     logged_msg = fake_logger.error.call_args[0][0]
     assert "Ошибка при выполнении команды /help" in logged_msg
 
-    # Проверяем, что message.answer был вызван дважды
     assert message.answer.await_count == 2
-    # Второй вызов должен содержать текст ошибки
     assert message.answer.await_args_list[1].args[0] == "Ошибка"
