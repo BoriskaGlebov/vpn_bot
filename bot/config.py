@@ -41,6 +41,7 @@ class SettingsBot(BaseSettings):
     BOT_TOKEN: SecretStr
     ADMIN_IDS: List[int]
     BASE_SITE: str
+    USE_POLING: bool = False
     DEBUG_FAST_API: bool = True
     RELOAD_FAST_API: bool = True
 
