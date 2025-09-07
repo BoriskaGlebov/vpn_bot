@@ -86,4 +86,4 @@ pre-commit:
 
 pytest:
 	@echo "Running tests on all files in test directory..."
-	pytest bot/tests
+	pytest -vs bot/tests

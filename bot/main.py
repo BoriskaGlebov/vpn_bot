@@ -32,13 +32,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.callback_query.middleware(ErrorHandlerMiddleware())
     dp.include_router(help_router)
     await start_bot()
-    webhook_url: str = str(settings_bot.WEBHOOK_URL)
-    await bot.set_webhook(
-        url=webhook_url,
-        allowed_updates=dp.resolve_used_update_types(),
-        drop_pending_updates=True,
-    )
-    logger.info(f"Вебхук установлен на {webhook_url}")
+    if settings_bot.USE_POLING:
+        logger.warning("Используется поллинг вместо вебхуков!")
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
+    else:
+        webhook_url: str = str(settings_bot.WEBHOOK_URL)
+        await bot.set_webhook(
+            url=webhook_url,
+            allowed_updates=dp.resolve_used_update_types(),
+            drop_pending_updates=True,
+        )
+        logger.info(f"Вебхук установлен на {webhook_url}")
 
     yield
 
