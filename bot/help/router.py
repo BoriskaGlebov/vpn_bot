@@ -17,12 +17,12 @@ async def help_cmd(message: Message, state: FSMContext) -> None:
     Показывает разные команды для обычных пользователей и администраторов.
     """
     try:
+        user_id = message.from_user.id if message.from_user is not None else None
+
         command_list = [
             f"/{cmd.command} - {cmd.description}"
             for cmd in (
-                admin_commands
-                if message.from_user.id in settings_bot.ADMIN_IDS
-                else user_commands
+                admin_commands if user_id in settings_bot.ADMIN_IDS else user_commands
             )
         ]
 

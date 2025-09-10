@@ -1753,6 +1753,39 @@ typing-extensions = {version = ">=4.10.0", markers = "python_version < \"3.13\""
 full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
 
 [[package]]
+name = "tokenize-rt"
+version = "6.2.0"
+description = "A wrapper around the stdlib `tokenize` which roundtrips."
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "tokenize_rt-6.2.0-py2.py3-none-any.whl", hash = "sha256:a152bf4f249c847a66497a4a95f63376ed68ac6abf092a2f7cfb29d044ecff44"},
+    {file = "tokenize_rt-6.2.0.tar.gz", hash = "sha256:8439c042b330c553fdbe1758e4a05c0ed460dbbbb24a606f11f0dee75da4cad6"},
+]
+
+[[package]]
+name = "types-atomicwrites"
+version = "1.4.5.1"
+description = "Typing stubs for atomicwrites"
+optional = false
+python-versions = "*"
+files = [
+    {file = "types-atomicwrites-1.4.5.1.tar.gz", hash = "sha256:9e9f0923ebf93524b28bcece5a23ac8c3820f39b060df29f671936d2e4bc04bc"},
+    {file = "types_atomicwrites-1.4.5.1-py3-none-any.whl", hash = "sha256:2f1febbdc78b55453b189fa5b136dce34bab7d1d82319163d470e404aab55c83"},
+]
+
+[[package]]
+name = "types-freezegun"
+version = "1.1.10"
+description = "Typing stubs for freezegun"
+optional = false
+python-versions = "*"
+files = [
+    {file = "types-freezegun-1.1.10.tar.gz", hash = "sha256:cb3a2d2eee950eacbaac0673ab50499823365ceb8c655babb1544a41446409ec"},
+    {file = "types_freezegun-1.1.10-py3-none-any.whl", hash = "sha256:fadebe72213e0674036153366205038e1f95c8ca96deb4ef9b71ddc15413543e"},
+]
+
+[[package]]
 name = "types-pyyaml"
 version = "6.0.12.20250822"
 description = "Typing stubs for PyYAML"
@@ -1761,6 +1794,17 @@ python-versions = ">=3.9"
 files = [
     {file = "types_pyyaml-6.0.12.20250822-py3-none-any.whl", hash = "sha256:1fe1a5e146aa315483592d292b72a172b65b946a6d98aa6ddd8e4aa838ab7098"},
     {file = "types_pyyaml-6.0.12.20250822.tar.gz", hash = "sha256:259f1d93079d335730a9db7cff2bcaf65d7e04b4a56b5927d49a612199b59413"},
+]
+
+[[package]]
+name = "types-tabulate"
+version = "0.9.0.20241207"
+description = "Typing stubs for tabulate"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "types_tabulate-0.9.0.20241207-py3-none-any.whl", hash = "sha256:b8dad1343c2a8ba5861c5441370c3e35908edd234ff036d4298708a1d4cf8a85"},
+    {file = "types_tabulate-0.9.0.20241207.tar.gz", hash = "sha256:ac1ac174750c0a385dfd248edc6279fa328aaf4ea317915ab879a2ec47833230"},
 ]
 
 [[package]]
@@ -1961,4 +2005,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "6409dfce0e82a0baf4d10e900dabab76f6544d7011b74e9691959c9890c48711"
+content-hash = "298a50305ec49b4d74585932535cb5d329256aab364cb9604ef664b3e03b7601"

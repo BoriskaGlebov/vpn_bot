@@ -311,7 +311,7 @@ bot: Bot = Bot(
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
 )
 # Хранилище FSM
-storage = RedisStorage.from_url(settings_db.REDIS_URL)
+storage = RedisStorage.from_url(str(settings_db.REDIS_URL))
 # Это если работать без Redis
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis

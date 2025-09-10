@@ -55,10 +55,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             return await handler(event, data)
 
         except Exception as exception:
-            user_id = None
-            if isinstance(event, Message):
+            user_id: int | None = None
+            if isinstance(event, Message) and event.from_user is not None:
                 user_id = event.from_user.id
-            elif isinstance(event, CallbackQuery):
+            elif isinstance(event, CallbackQuery) and event.from_user is not None:
                 user_id = event.from_user.id
 
             user_message = settings_bot.MESSAGES.get("general", {}).get(
@@ -94,7 +94,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             try:
                 if isinstance(event, Message):
                     await event.reply(user_message)
-                elif isinstance(event, CallbackQuery):
+                elif isinstance(event, CallbackQuery) and event.message is not None:
                     await event.message.answer(user_message)
             except Exception:
                 logger.exception("Не удалось отправить сообщение пользователю")
