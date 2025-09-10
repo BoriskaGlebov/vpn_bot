@@ -40,20 +40,20 @@ jobs:
           python -m pip install --upgrade pip
           poetry install --no-root --with dev
       - name: Run Black
-        run: black --check .
+        run: poetry run black --check .
       - name: Run isort
-        run: isort --check-only --profile black .
+        run: poetry run isort --check-only --profile black .
       - name: Run Ruff
-        run: ruff check .
+        run: poetry run ruff check .
 
       - name: Run Ruff Format
-        run: ruff format --check .
+        run: poetry run ruff format --check .
 
       - name: Run pydocstyle
-        run: pydocstyle --ignore=D100,D104,D107,D213,D203,D407 \
+        run: poetry run pydocstyle --ignore=D100,D104,D107,D213,D203,D407 \
                   --match-dir='^(?!(bot/tests/|bot/migrations/|\.venv/)).*\.py$' .
       - name: Run mypy
-        run: mypy .
+        run: poetry run mypy .
 
 #  test:
 #    runs-on: ubuntu-latest
