@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          poetry install --with dev
+          poetry install --no-root --with dev
       - name: Run Black
         run: black --check .
       - name: Run isort
