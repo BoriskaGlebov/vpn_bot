@@ -32,8 +32,8 @@ jobs:
       - name: View poetry --help
         run: poetry --help
 
-      - name: Activate virtualenv
-        run: source $(poetry env info --path)/bin/activate
+#      - name: Activate virtualenv
+#        run: source $(poetry env info --path)/bin/activate
 
       - name: Install dependencies
         run: |
