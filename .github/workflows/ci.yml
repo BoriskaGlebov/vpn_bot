@@ -77,4 +77,22 @@ jobs:
           python -m pip install --upgrade pip
           poetry install --no-root --with dev
       - name: Run tests
+        env:
+          ENV_FILE: .env.test
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          BASE_SITE: ${{ secrets.BASE_SITE }}
+          USE_POLING: true
+          DEBUG_FAST_API: true
+          RELOAD_FAST_API: true
+          LOGGER_LEVEL_STDOUT: "DEBUG"
+          LOGGER_LEVEL_FILE: "DEBUG"
+          LOGGER_ERROR_FILE: "WARNING"
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{secrets.DB_PORT }}
+          DB_USER: ${{secrets.DB_USER}}
+          DB_PASSWORD: ${{secrets.DB_PASSWORD}}
+          DB_DATABASE: ${{secrets.DB_DATABASE}}
+          REDIS_PASSWORD: ${{secrets.REDIS_PASSWORD}}
+
         run: poetry run pytest -vs .
