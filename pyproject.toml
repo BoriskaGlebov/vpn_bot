@@ -1,0 +1,108 @@
+[tool.poetry]
+name = "vpn-bot"
+version = "0.1.0"
+description = ""
+authors = ["BoriskaGlebov <boristheblade.glebov@yandex.ru>"]
+readme = "README.md"
+
+
+[tool.poetry.dependencies]
+python = "^3.12"
+poetry-core = "^2.1.3"
+sqlalchemy = "^2.0.43"
+asyncpg = "^0.30.0"
+psycopg2-binary = "^2.9.10"
+alembic = "^1.16.5"
+uvicorn = "^0.35.0"
+aiogram = "^3.22.0"
+fastapi = "^0.116.1"
+loguru = "^0.7.3"
+pydantic = "^2.11.7"
+pydantic-settings = "^2.10.1"
+redis = "^6.4.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.4.1"
+black = "^25.1.0"
+isort = "^6.0.1"
+pydocstyle = "^6.3.0"
+pre-commit = "^4.3.0"
+ruff = "^0.12.11"
+types-pyyaml = "^6.0.12.20250822"
+pytest-asyncio = "^1.1.0"
+mypy = "^1.17.1"
+types-atomicwrites = "^1.4.5.1"
+types-tabulate = "^0.9.0.20241207"
+types-freezegun = "^1.1.10"
+pydantic = "^2.11.7"
+pydantic-settings = "^2.10.1"
+sqlalchemy = "^2.0.43"
+tokenize-rt = "^6.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+skip-string-normalization = false
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.tox
+  | \.nox
+  | \.coverage
+  | \.hypothesis
+  | \.pytest_cache
+  | __pycache__
+  | build
+  | dist
+  | migrations
+  | \.venv
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+known_third_party = []
+known_first_party = []
+skip_gitignore = true
+multi_line_output = 3
+include_trailing_comma = true
+
+[tool.ruff]
+extend-exclude = ["*/bot/tests/*", "*.venv/*", "*/migrations/*"]
+line-length = 88
+select = ["E", "F", "W", "C", "D", "T"]
+fix = true
+
+[tool.pydocstyle]
+convention = "google"
+#exclude = ["tests/*",]  # Исключить тесты из проверки
+#ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D107"]
+
+[tool.mypy]
+exclude = [
+    "^venv/",
+    "^bot/tests/integration/",
+    "^bot/tests/unit/",
+    "^build/",
+    "^dist/",
+    "^\\.venv/",
+    "^bot/migrations/",
+]
+plugins = [
+    "pydantic.mypy",
+    "sqlalchemy.ext.mypy.plugin"
+]
+follow_imports = "silent"
+warn_redundant_casts = true
+ignore_missing_imports = true
+warn_unused_ignores = false
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
