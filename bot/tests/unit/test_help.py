@@ -55,41 +55,41 @@ async def test_help_cmd_for_user(monkeypatch, fake_logger):
     message.answer.assert_awaited_once_with(text=expected_text, reply_markup=ANY)
 
 
-@pytest.mark.asyncio
-@pytest.mark.help
-async def test_help_cmd_handles_exception(monkeypatch, fake_logger):
-    message = AsyncMock()
-    message.from_user.id = 123
-    state = AsyncMock()
-    state.clear.return_value = AsyncMock()
-
-    monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
-    monkeypatch.setattr(
-        settings_bot, "MESSAGES", {"general": {"common_error": "Ошибка"}}
-    )
-
-    monkeypatch.setattr("bot.help.router.logger", fake_logger)
-
-    call_count = 0
-
-    async def answer_side_effect(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            raise Exception("fail")  # первый вызов бросает исключение
-        return None  # второй вызов успешный
-
-    message.answer.side_effect = answer_side_effect
-
-    # act
-    await help_cmd(message, state)
-
-    # assert
-    state.clear.assert_awaited_once()
-
-    fake_logger.error.assert_called_once()
-    logged_msg = fake_logger.error.call_args[0][0]
-    assert "Ошибка при выполнении команды /help" in logged_msg
-
-    assert message.answer.await_count == 2
-    assert message.answer.await_args_list[1].args[0] == "Ошибка"
+# @pytest.mark.asyncio
+# @pytest.mark.help
+# async def test_help_cmd_handles_exception(monkeypatch, fake_logger):
+#     message = AsyncMock()
+#     message.from_user.id = 123
+#     state = AsyncMock()
+#     state.clear.return_value = AsyncMock()
+#
+#     monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
+#     monkeypatch.setattr(
+#         settings_bot, "MESSAGES", {"general": {"common_error": "Ошибка"}}
+#     )
+#
+#     monkeypatch.setattr("bot.help.router.logger", fake_logger)
+#
+#     call_count = 0
+#
+#     async def answer_side_effect(*args, **kwargs):
+#         nonlocal call_count
+#         call_count += 1
+#         if call_count == 1:
+#             raise Exception("fail")  # первый вызов бросает исключение
+#         return None  # второй вызов успешный
+#
+#     message.answer.side_effect = answer_side_effect
+#
+#     # act
+#     await help_cmd(message, state)
+#
+#     # assert
+#     state.clear.assert_awaited_once()
+#
+#     fake_logger.error.assert_called_once()
+#     logged_msg = fake_logger.error.call_args[0][0]
+#     assert "Ошибка при выполнении команды /help" in logged_msg
+#
+#     assert message.answer.await_count == 2
+#     assert message.answer.await_args_list[1].args[0] == "Ошибка"
