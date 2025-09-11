@@ -44,6 +44,23 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.error_messages: dict[type[Exception], str] = {
+            TelegramRetryAfter: "⚠️ Слишком много запросов. Попробуйте позже.",
+            TelegramForbiddenError: "⚠️ Доступ запрещён. Возможно, бот был удалён или заблокирован.",
+            TelegramUnauthorizedError: "⚠️ Неверный токен бота.",
+            TelegramNotFound: "⚠️ Не удалось найти чат или сообщение.",
+            TelegramBadRequest: "⚠️ Неверный запрос.",
+            TelegramEntityTooLarge: "⚠️ Файл слишком большой для отправки.",
+            TelegramNetworkError: "⚠️ Проблемы на стороне Telegram. Попробуйте позже.",
+            TelegramServerError: "⚠️ Проблемы на стороне Telegram. Попробуйте позже.",
+            RestartingTelegram: "⚠️ Проблемы на стороне Telegram. Попробуйте позже.",
+            TelegramMigrateToChat: "⚠️ Чат был перемещен. Попробуйте повторно.",
+            TelegramConflictError: "⚠️ Конфликт токена бота. Попробуйте позже.",
+            TelegramAPIError: "⚠️ Ошибка Telegram API. Попробуйте повторить действие.",
+        }
+
     async def __call__(
         self,
         handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
@@ -65,31 +82,15 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                 "common_error", "⚠️ Произошла ошибка. Попробуйте позже."
             )
 
-            if isinstance(exception, TelegramRetryAfter):
-                user_message = f"⚠️ Слишком много запросов. Попробуйте через {exception.retry_after} секунд."
-            elif isinstance(exception, TelegramForbiddenError):
-                user_message = (
-                    "⚠️ Доступ запрещён. Возможно, бот был удалён или заблокирован."
-                )
-            elif isinstance(exception, TelegramUnauthorizedError):
-                user_message = "⚠️ Неверный токен бота."
-            elif isinstance(exception, TelegramNotFound):
-                user_message = "⚠️ Не удалось найти чат или сообщение."
-            elif isinstance(exception, TelegramBadRequest):
-                user_message = f"⚠️ Неверный запрос: {exception.message}"
-            elif isinstance(exception, TelegramEntityTooLarge):
-                user_message = "⚠️ Файл слишком большой для отправки."
-            elif isinstance(
-                exception,
-                (TelegramNetworkError, TelegramServerError, RestartingTelegram),
-            ):
-                user_message = "⚠️ Проблемы на стороне Telegram. Попробуйте позже."
-            elif isinstance(exception, TelegramMigrateToChat):
-                user_message = "⚠️ Чат был перемещен. Попробуйте повторно."
-            elif isinstance(exception, TelegramConflictError):
-                user_message = "⚠️ Конфликт токена бота. Попробуйте позже."
-            elif isinstance(exception, TelegramAPIError):
-                user_message = "⚠️ Ошибка Telegram API. Попробуйте повторить действие."
+            for exc_type, message in self.error_messages.items():
+                if isinstance(exception, exc_type):
+                    if isinstance(exception, TelegramRetryAfter):
+                        user_message = f"⚠️ Слишком много запросов. Попробуйте через {exception.retry_after} секунд."
+                    elif isinstance(exception, TelegramBadRequest):
+                        user_message = f"⚠️ Неверный запрос: {exception.message}"
+                    else:
+                        user_message = message
+                    break
 
             try:
                 if isinstance(event, Message):
