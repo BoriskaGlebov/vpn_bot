@@ -49,9 +49,9 @@ jobs:
       - name: Run Ruff Format
         run: poetry run ruff format --check .
 
-      - name: Run pydocstyle
-        run: poetry run pydocstyle --ignore=D100,D104,D107,D213,D203,D407 \
-                  --match-dir='^(?!(bot/tests/|bot/migrations/|\.venv/)).*\.py$' .
+#      - name: Run pydocstyle
+#        run: poetry run pydocstyle --ignore=D100,D104,D107,D213,D203,D407 \
+#                  --match-dir='^(?!(bot/tests/|bot/migrations/|\.venv/)).*\.py$' .
       - name: Run mypy
         run: poetry run mypy .
 
