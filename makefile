@@ -5,13 +5,14 @@ SERVICE ?= app # Имя сервиса приложения в docker-compose.ym
 DB_SERVICE ?= db
 ALEMBIC ?= alembic
 ENV_FILE ?= .env
+include $(ENV_FILE)
 MSG ?= auto
 V ?=
 
 DC_EXEC_APP = $(DC) exec -T $(SERVICE)
 DC_EXEC_DB  = $(DC) exec -T $(DB_SERVICE)
 
-.PHONY: help compose-up compose-down compose-down-v compose-stop compose-start compose-restart compose-logs bash rev rev-up rev-down up-to down-to db-reset hard-reset
+.PHONY: help compose-up compose-down compose-down-v compose-restart compose-logs bash rev rev-up rev-down up-to down-to db-reset hard-reset pre-commit pytest ci-checks
 
 help:
 	@echo "Commands:"
@@ -28,8 +29,9 @@ help:
 	@echo "  down-to V=rev       — downgrade to revision"
 	@echo "  db-reset            — drop & create DB"
 	@echo "  hard-reset          — drop & create DB + migrate"
-	@echo " pre-commit           — run all pre-commit hooks on all files"
-	@echo " pytest               — run tests in bot/tests"
+	@echo "  pre-commit          — run all pre-commit hooks on all files"
+	@echo "  pytest              — run tests in bot/tests"
+	@echo "  ci-checks           — run CI checks in with pre-commit bot/tests  "
 
 # Docker
 compose-up:
@@ -52,8 +54,6 @@ bash:
 
 # Alembic
 rev:
-	include .env
-	export $(shell sed 's/=.*//' .env)
 	@if [ -z "$(MSG)" ]; then echo "MSG required"; exit 1; fi
 	$(ALEMBIC) revision -m "$(MSG)" --autogenerate
 
@@ -84,6 +84,15 @@ pre-commit:
 	@echo "Running pre-commit hooks on all files..."
 	pre-commit run --all-files
 
+
 pytest:
 	@echo "Running tests on all files in test directory..."
 	pytest -vs bot/tests
+ci-checks: pre-commit
+	@echo "Running CI checks..."
+	poetry run black --check .
+	poetry run isort --check-only --profile black .
+	poetry run ruff check .
+	poetry run ruff format --check .
+	poetry run mypy .
+	@echo "All CI checks passed! ✅"
