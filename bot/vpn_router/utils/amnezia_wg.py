@@ -4,6 +4,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import AsyncGenerator, List, Optional, Tuple, Type
 
+import aiofiles  # type: ignore
 import asyncssh
 
 from bot.config import logger
@@ -24,6 +25,9 @@ class AsyncSSHClient:
             будут выполняться команды. По умолчанию "amnezia-awg".
 
     """
+
+    WG_DIR = "/opt/amnezia/awg"
+    WG_CONF = f"{WG_DIR}/wg0.conf"
 
     def __init__(
         self,
@@ -48,7 +52,7 @@ class AsyncSSHClient:
 
         Raises
            OSError: Ошибка на уровне сокета или ОС.
-           asyncssh.Error: Ошибка внутри библиотеки ``asyncssh``.
+           Asyncssh.Error: Ошибка внутри библиотеки ``asyncssh``.
 
         """
         if self._conn is not None:
@@ -88,10 +92,13 @@ class AsyncSSHClient:
                 - exit_code (int): Код возврата команды.
                 - cmd (str): Выполненная команда.
 
+        Raises
+            RuntimeError: Если shell-сессия не запущена.
+
         """
-        marker = "__EXIT__"
         if self._process is None:
             raise RuntimeError("AsyncSSH: shell-сессия не запущена. Вызови connect()")
+        marker = "__EXIT__"
         self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
         await self._process.stdin.drain()
         output = await self._process.stdout.readuntil("\n")
@@ -100,7 +107,6 @@ class AsyncSSHClient:
         stdout, _, exit_info = output.rpartition("__EXIT__")
         try:
             exit_code = int(exit_info.split(":")[-1])
-
         except ValueError:
             exit_code = 0
         stderr = ""
@@ -118,12 +124,11 @@ class AsyncSSHClient:
         return stdout.strip(), stderr.strip(), exit_code, cmd
 
     async def run_commands_in_container(
-        self, container: str, commands: List[str]
+        self, commands: List[str]
     ) -> AsyncGenerator[Tuple[str, str, int, str], None]:
         """Выполняет список команд внутри контейнера.
 
         Args:
-            container (str): Имя контейнера.
             commands (List[str]): Список команд для выполнения.
 
         Yields
@@ -157,13 +162,17 @@ class AsyncSSHClient:
 
         """
         cmd = [
-            "cd opt/amnezia/awg/",
+            f"cd {self.WG_DIR}",
             "wg genkey > privetkey",
             "cat privetkey",
         ]
-        async for stdout, *_ in self.run_commands_in_container(self.container, cmd):
+        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
             if stdout:
                 return stdout
+            if stderr:
+                logger.bind(user=self.username).error(
+                    f"Ошибка при генерации ключа: {stderr}"
+                )
         return None
 
     async def generate_public_key(self) -> Optional[str]:
@@ -177,9 +186,13 @@ class AsyncSSHClient:
             "cat privetkey | wg pubkey > publickey",
             "cat publickey",
         ]
-        async for stdout, *_ in self.run_commands_in_container(self.container, cmd):
+        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
             if stdout:
                 return stdout
+            if stderr:
+                logger.bind(user=self.username).error(
+                    f"Ошибка при генерации публичного ключа: {stderr}"
+                )
         return None
 
     async def get_correct_ip(self) -> Optional[str]:
@@ -190,38 +203,227 @@ class AsyncSSHClient:
 
         """
         cmd = [
-            "cat wg0.conf | grep 'AllowedIPs =' | tail -n 1 | awk '{print $3}'>lastip",
+            f"cat {self.WG_CONF} | grep 'AllowedIPs =' | tail -n 1 | awk '{{print $3}}'>lastip",
             "cat lastip",
         ]
-        async for stdout, *_ in self.run_commands_in_container(self.container, cmd):
+        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
             if stdout:
-                ip_correct = ipaddress.ip_address(stdout.rpartition("/")[0]) + 1
-                return f"{ip_correct}/32"
+                try:
+                    ip_str = stdout.rpartition("/")[0]
+                    ip_correct = ipaddress.ip_address(ip_str) + 1
+                    return f"{ip_correct}/32"
+                except ValueError:
+                    logger.bind(user=self.username).error(f"Некорректный IP: {stdout}")
+                    return None
+            if stderr:
+                logger.bind(user=self.username).error(
+                    f"Ошибка при получении IP: {stderr}"
+                )
         return None
 
-    async def add_user_config(self, public_key: str, correct_ip: str) -> Optional[str]:
+    async def get_psk_key(self) -> Optional[str]:
+        """Определяет preshared_key от  WireGuard.
+
+        Returns
+           Optional[str]: preshared_key или None.
+
+        """
+        stdout, stderr, *_ = await self.write_single_cmd("cat wireguard_psk.key")
+        if stdout:
+            return stdout
+        if stderr:
+            logger.bind(user=self.username).error(f"Ошибка при получении PSK: {stderr}")
+        return None
+
+    async def get_public_server_key(self) -> Optional[str]:
+        """Определяет public_key от  WireGuard сервера.
+
+        Returns
+           Optional[str]: public_key или None.
+
+        """
+        stdout, stderr, *_ = await self.write_single_cmd(
+            "cat wireguard_server_public_key.key"
+        )
+        if stdout:
+            return stdout
+        if stderr:
+            logger.bind(user=self.username).error(
+                f"Ошибка при получении public key сервера: {stderr}"
+            )
+        return None
+
+    async def add_user_in_config(
+        self, public_server_key: str, correct_ip: str, psk_key: str
+    ) -> Optional[str]:
         """Добавляет конфигурацию пользователя в `wg0.conf`.
 
         Args:
-            public_key (str): Публичный ключ клиента.
+            public_server_key (str): Публичный ключ клиента.
             correct_ip (str): IP-адрес клиента.
+            psk_key (str): preshared key.
 
         Returns
-            Optional[str]: Ответ от контейнера или None.
+            Optional[str]: "OK", если успешно, иначе None.
 
         """
         cmd = [
-            'echo " " >> wg0.conf',
-            'echo "[Peer]" >> wg0.conf',
-            f'echo "PublicKey = {public_key}" >> wg0.conf',
-            'echo "PresharedKey = $(cat wireguard_psk.key)" >> wg0.conf',
-            f'echo "AllowedIPs = {correct_ip}" >> wg0.conf',
+            f'echo " " >> {self.WG_CONF}',
+            f'echo "[Peer]" >> {self.WG_CONF}',
+            f'echo "PublicKey = {public_server_key}" >> {self.WG_CONF}',
+            f'echo "PresharedKey = {psk_key}" >> {self.WG_CONF}',
+            f'echo "AllowedIPs = {correct_ip}" >> {self.WG_CONF}',
             "echo OK",
         ]
-        async for stdout, *_ in self.run_commands_in_container(self.container, cmd):
+        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
             if stdout:
                 return stdout
+            if stderr:
+                logger.bind(user=self.username).error(
+                    f"Ошибка при добавлении пользователя: {stderr}"
+                )
+
         return None
+
+    async def generate_wg_config(
+        self, new_ip: str, private_key: str, pub_server_key: str, preshared_key: str
+    ) -> str:
+        """Создает содержимое пользовательского файла конфигурации WireGuard.
+
+        Args:
+            new_ip (str): корректный IP-адрес для пользователя
+            private_key (str): приватный ключ пользователя
+            pub_server_key (str): публичный ключ сервера
+            preshared_key (str): PSK ключ сервера
+
+        Returns
+            str: Текст конфигурации WireGuard.
+
+        """
+        interface_data = {
+            "Address": new_ip,
+            "DNS": "1.1.1.1, 1.0.0.1",
+            "PrivateKey": private_key,
+            "Jc": "2",
+            "Jmin": "10",
+            "Jmax": "50",
+            "S1": "74",
+            "S2": "24",
+            "H1": "68176856",
+            "H2": "957687737",
+            "H3": "1446683041",
+            "H4": "922412326",
+        }
+
+        peer_data = {
+            "PublicKey": pub_server_key,
+            "PresharedKey": preshared_key,
+            "AllowedIPs": "0.0.0.0/0, ::/0",
+            "Endpoint": f"{self.host}:48079",
+            "PersistentKeepalive": "25",
+        }
+
+        lines = ["[Interface]"]
+        for key, value in interface_data.items():
+            lines.append(f"{key} = {value}")
+
+        lines.append("")
+
+        lines.append("[Peer]")
+        for key, value in peer_data.items():
+            lines.append(f"{key} = {value}")
+
+        return "\n".join(lines)
+
+    async def save_wg_config(
+        self,
+        filename: str,
+        new_ip: str,
+        private_key: str,
+        pub_server_key: str,
+        preshared_key: str,
+    ) -> bool:
+        """Создает и сохраняет пользовательский конфиг, затем перезапускает интерфейс.
+
+        Args:
+            filename (str): Название файла конфигурации.
+            new_ip (str): IP-адрес пользователя.
+            private_key (str): Приватный ключ пользователя.
+            pub_server_key (str): Публичный ключ сервера.
+            preshared_key (str): PSK ключ сервера.
+
+        Returns
+            bool: True, если конфиг создан и интерфейс перезапущен.
+
+        """
+        config_text = await self.generate_wg_config(
+            new_ip, private_key, pub_server_key, preshared_key
+        )
+        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir.mkdir(parents=True, exist_ok=True)
+        file_cfg = (
+            file_dir / filename
+            if filename.rsplit(".", 1)[-1] == "conf"
+            else file_dir / f"{filename}.conf"
+        )
+        async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
+            await f.write(config_text)
+        cmd = [f"wg-quick down {self.WG_CONF}", f"wg-quick up {self.WG_CONF}"]
+        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
+            if stdout:
+                logger.bind(user=self.username).success(
+                    f"Интерфейс выключен/включен:\n{stdout}"
+                )
+            if stderr:
+                logger.bind(user=self.username).error(
+                    f"Ошибка при перезапуске интерфейса: {stderr}"
+                )
+            await asyncio.sleep(3)
+            await asyncio.sleep(3)
+        return True
+
+    async def add_new_user_gen_config(self, file_name: str) -> None:
+        """Добавляет нового пользователя и генерирует конфигурационный файл.
+
+        Args:
+            file_name (str): Имя файла конфигурации.
+
+        """
+        if not await self.check_container():
+            return
+        private_key = await self.generate_private_key()
+        pub_key = await self.generate_public_key()
+        pub_server_key = await self.get_public_server_key()
+        correct_ip = await self.get_correct_ip()
+        psk = await self.get_psk_key()
+
+        if (
+            private_key is None
+            or pub_key is None
+            or pub_server_key is None
+            or correct_ip is None
+            or psk is None
+        ):
+            logger.bind(user=self.username).error(
+                "Не удалось получить все данные для нового пользователя"
+            )
+            return
+        stdout = await self.add_user_in_config(pub_key, correct_ip, psk)
+        if stdout == "OK":
+            logger.bind(user=self.username).success("Новый конфиг добавлен в wg0.conf")
+        else:
+            logger.bind(user=self.username).error(
+                f"Ошибка при добавлении новой записи: {stdout}"
+            )
+
+        if await self.save_wg_config(
+            file_name, correct_ip, private_key, pub_server_key, psk
+        ):
+            logger.bind(user=self.username).success(f"Создан файл конфиг: {file_name}")
+        else:
+            logger.bind(user=self.username).error(
+                "Произошла ошибка при создании файла конфига"
+            )
 
     async def close(self) -> None:
         """Закрывает shell-сессию и соединение."""
@@ -270,61 +472,6 @@ if __name__ == "__main__":
             key_filename=key_path.as_posix(),
             known_hosts=None,  # Отключить проверку known_hosts
         ) as ssh_client:
-            # print(await ssh_client.check_container())
-            if await ssh_client.check_container():
-                print(f"PRIVATE_KEY: {await ssh_client.generate_private_key()}")
-                # print(f"PUBLIC_KEY: {await ssh_client.generate_public_key()}")
-                # print(f"CORRECT_IP: {await ssh_client.get_correct_ip()}")
-
-                pub_key = await ssh_client.generate_public_key()
-                correct_ip = await ssh_client.get_correct_ip()
-                if pub_key and correct_ip:
-                    print(
-                        f"ADD_USER: {await ssh_client.add_user_config(pub_key, correct_ip)}"
-                    )
-            # cmd1 = await ssh_client.write_single_cmd("whoami")
-            # cmd2 = await ssh_client.write_single_cmd("cd opt/amnezia/awg/")
-            #
-            # print("STDOUT:\n" + cmd1[0])
-            # print("STDDERR:\n" + cmd1[1])
-            # print("EXITCODE:\n" + str(cmd1[2]))
-            # print("CMD:\n" + cmd1[3])
-            # print('-' * 40)
-            #
-            # print("STDOUT:\n" + cmd2[0])
-            # print("STDDERR:\n" + cmd2[1])
-            # print("EXITCODE:\n" + str(cmd2[2]))
-            # print("CMD:\n" + cmd2[3])
-            # print('-' * 40)
-            #
-            # input()
-            #
-            # commands2 = [
-            #     "whoami",
-            #     "cd opt/amnezia/awg/",
-            #     "wg genkey > privetkey",
-            #     "cat privetkey",
-            #     "cat privetkey | wg pubkey > publickey",
-            #     "cat publickey",
-            #     # "cat wg0.conf | grep 'AllowedIPs =' | tail -n 1 | awk '{print $3}'>lastip",
-            #     # "cat lastip",
-            #     # 'echo " " >> wg0.conf',
-            #     # 'echo "[Peer]" >> wg0.conf',
-            #     # 'echo "PublicKey = $(cat publickey)" >> wg0.conf',
-            #     # 'echo "PresharedKey = $(cat wireguard_psk.key)" >> wg0.conf',
-            #     # f'echo "AllowedIPs = $(cat {correct_ip})" >> wg0.conf',
-            #     # "rm privetkey publickey lastip",
-            # ]
-            # result = {}
-            #
-            # async for stdout, stderr, exit_code, cmd in ssh_client.run_commands_in_container("amnezia-awg",
-            #                                                                                  commands2):
-            #     print(f"$ {cmd} (exit {exit_code})")
-            #     print("stdout:\n", stdout)
-            #     result[cmd] = stdout
-            #     if stderr:
-            #         print("stderr:\n", stderr)
-            #     print("-" * 40)
-            # pprint(result)
+            await ssh_client.add_new_user_gen_config("boris123.conf")
 
     asyncio.run(main())
