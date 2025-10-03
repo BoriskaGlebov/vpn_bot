@@ -1,5 +1,9 @@
 import asyncio
 import ipaddress
+import json
+import random
+import shlex
+from datetime import datetime
 from pathlib import Path
 from types import TracebackType
 from typing import AsyncGenerator, List, Optional, Tuple, Type
@@ -37,6 +41,7 @@ class AsyncSSHClient:
         key_filename: Optional[str] = None,
         known_hosts: Optional[str] = None,
         container: str = "amnezia-awg",
+        config_port: int = 32349,
     ) -> None:
         self.host = host
         self.username = username
@@ -44,6 +49,7 @@ class AsyncSSHClient:
         self.key_filename = key_filename
         self.known_hosts = known_hosts
         self.container = container
+        self.config_port = config_port
         self._conn: Optional[asyncssh.SSHClientConnection] = None
         self._process: Optional[asyncssh.SSHClientProcess] = None
 
@@ -304,22 +310,22 @@ class AsyncSSHClient:
             "Address": new_ip,
             "DNS": "1.1.1.1, 1.0.0.1",
             "PrivateKey": private_key,
-            "Jc": "2",
+            "Jc": "4",
             "Jmin": "10",
             "Jmax": "50",
-            "S1": "74",
-            "S2": "24",
-            "H1": "68176856",
-            "H2": "957687737",
-            "H3": "1446683041",
-            "H4": "922412326",
+            "S1": "18",
+            "S2": "55",
+            "H1": "1424794322",
+            "H2": "642222786",
+            "H3": "149027654",
+            "H4": "180190564",
         }
 
         peer_data = {
             "PublicKey": pub_server_key,
             "PresharedKey": preshared_key,
             "AllowedIPs": "0.0.0.0/0, ::/0",
-            "Endpoint": f"{self.host}:48079",
+            "Endpoint": f"{self.host}:{self.config_port}",
             "PersistentKeepalive": "25",
         }
 
@@ -382,6 +388,59 @@ class AsyncSSHClient:
             await asyncio.sleep(3)
         return True
 
+    async def add_to_clients_table(self, public_key: str, client_name: str) -> bool:
+        """Добавляет запись в clientsTable Amnezia.
+
+        Args:
+            public_key (str): Публичный ключ клиента (clientId).
+            client_name (str): Имя клиента (userData.clientName).
+
+        Returns
+            bool: True если запись добавлена.
+
+        """
+        clients_table = f"{self.WG_DIR}/clientsTable"
+        # Считаем текущий JSON
+        stdout, stderr, code, _ = await self.write_single_cmd(f"cat {clients_table}")
+        if code != 0 or not stdout:
+            logger.error(f"Не удалось прочитать clientsTable: {stderr}")
+            return False
+
+        try:
+            data = json.loads(stdout)
+        except json.JSONDecodeError as e:
+            logger.error(f"Ошибка парсинга clientsTable: {e}")
+            return False
+        # Добавим, если нет дубликата
+        if any(item.get("clientId") == public_key for item in data):
+            logger.info("Клиент уже в clientsTable")
+            return True
+
+        # Добавляем новую запись с датой создания
+        creation_date = datetime.now().strftime("%a %b %d %H:%M:%S %Y")
+        data.append(
+            {
+                "clientId": public_key,
+                "userData": {"clientName": client_name, "creationDate": creation_date},
+            }
+        )
+        new_json = json.dumps(data, indent=4, ensure_ascii=False)
+
+        cmd = f"cat > {clients_table} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
+        escaped_cmd = shlex.quote(cmd)
+        assert self._conn is not None
+        # Запускаем одноразовую команду через docker exec
+        result = await self._conn.run(
+            f"docker exec -i {self.container} sh -c {escaped_cmd}"
+        )
+
+        if result.exit_status == 0:
+            logger.success("clientsTable успешно обновлён")
+            return True
+        else:
+            logger.error(f"Ошибка записи clientsTable: {result.stderr}")
+            return False
+
     async def add_new_user_gen_config(self, file_name: str) -> None:
         """Добавляет нового пользователя и генерирует конфигурационный файл.
 
@@ -415,6 +474,8 @@ class AsyncSSHClient:
             logger.bind(user=self.username).error(
                 f"Ошибка при добавлении новой записи: {stdout}"
             )
+        user_name = f"{file_name.rsplit('.', 1)[0]}_{random.randint(1, 1000)}"
+        await self.add_to_clients_table(pub_key, user_name)
 
         if await self.save_wg_config(
             file_name, correct_ip, private_key, pub_server_key, psk
@@ -471,7 +532,9 @@ if __name__ == "__main__":
             username="vpn_user",
             key_filename=key_path.as_posix(),
             known_hosts=None,  # Отключить проверку known_hosts
+            config_port=32349,
         ) as ssh_client:
-            await ssh_client.add_new_user_gen_config("boris123.conf")
+            await ssh_client.add_new_user_gen_config("boris33.conf")
+            # await ssh_client.add_to_clients_table("your_public_sssskey_here", "boris123")
 
     asyncio.run(main())
