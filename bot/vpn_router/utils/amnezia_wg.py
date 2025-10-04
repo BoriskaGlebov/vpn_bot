@@ -572,10 +572,14 @@ class AsyncSSHClientWG:
                 "Ошибка при записи clientsTable",
                 cmd=cmd,
                 stdout=(
-                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
+                    result.stdout.decode()
+                    if isinstance(result.stdout, bytes)
+                    else (result.stdout or "")
                 ),
                 stderr=(
-                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
+                    result.stderr.decode()
+                    if isinstance(result.stderr, bytes)
+                    else (result.stderr or "")
                 ),
             )
 
