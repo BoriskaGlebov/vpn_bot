@@ -111,7 +111,7 @@ class AsyncSSHClient:
                 "AsyncSSH: shell-сессия не запущена. Вызови connect()"
             )
         marker = "__EXIT__"
-        await self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
+        self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
         await self._process.stdin.drain()
         output = await self._process.stdout.readuntil("\n")
         while marker not in output:

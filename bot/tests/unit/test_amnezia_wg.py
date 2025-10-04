@@ -60,13 +60,25 @@ async def test_write_single_cmd_no_process(ssh_client):
 
 
 @pytest.mark.asyncio
-async def test_check_container_success(ssh_client):
-    ssh_client.write_single_cmd = AsyncMock(return_value=("root", "", 0, "whoami"))
+async def test_write_single_cmd_success(ssh_client):
+    mock_stdin = MagicMock()  # <--- write() синхронный
+    mock_stdin.drain = AsyncMock()  # drain() — асинхронный
 
-    result = await ssh_client._check_container()
+    mock_stdout = AsyncMock()
+    mock_stdout.readuntil = AsyncMock(return_value="__EXIT__:0\n")
 
-    ssh_client.write_single_cmd.assert_awaited_once_with("whoami")
-    assert result is True
+    mock_stderr = AsyncMock()
+    mock_stderr.readline = AsyncMock(return_value="")
+
+    ssh_client._process = MagicMock()
+    ssh_client._process.stdin = mock_stdin
+    ssh_client._process.stdout = mock_stdout
+    ssh_client._process.stderr = mock_stderr
+
+    result = await ssh_client.write_single_cmd("echo test")
+    assert result[0] == ""  # stdout
+    assert result[1] == ""  # stderr
+    assert result[2] == 0  # exit code
 
 
 @pytest.mark.asyncio
