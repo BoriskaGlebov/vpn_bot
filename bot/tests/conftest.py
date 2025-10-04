@@ -6,6 +6,7 @@ from loguru import logger as real_logger
 
 from bot.config import settings_bot
 from bot.utils import commands
+from bot.vpn_router.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
 
 
@@ -51,6 +52,18 @@ def mock_asyncssh_connect():
 def ssh_client():
     """Создаёт экземпляр клиента"""
     return AsyncSSHClientWG(
+        host="127.0.0.1",
+        username="testuser",
+        key_filename=None,
+        known_hosts=None,
+        container="test-container",
+    )
+
+
+@pytest.fixture
+def ssh_client_vpn():
+    """Создаёт экземпляр клиента"""
+    return AsyncSSHClientVPN(
         host="127.0.0.1",
         username="testuser",
         key_filename=None,
