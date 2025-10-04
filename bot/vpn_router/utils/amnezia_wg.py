@@ -111,7 +111,7 @@ class AsyncSSHClient:
                 "AsyncSSH: shell-сессия не запущена. Вызови connect()"
             )
         marker = "__EXIT__"
-        self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
+        await self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
         await self._process.stdin.drain()
         output = await self._process.stdout.readuntil("\n")
         while marker not in output:
@@ -361,7 +361,7 @@ class AsyncSSHClient:
         if stdout:
             return stdout
         elif stderr:
-            AmneziaConfigError(
+            raise AmneziaConfigError(
                 message=f"Ошибка при получении public key сервера: {stderr}",
                 file="wireguard_server_public_key.key",
                 stderr=stderr,
@@ -470,6 +470,7 @@ class AsyncSSHClient:
                     logger.bind(user=self.username).warning(
                         f"Предупреждение при перезапуске интерфейса, можно продолжать: {stderr}"
                     )
+                    return True
                 else:
                     raise AmneziaSSHError(
                         message="Ошибка при перезапуске интерфейса",
