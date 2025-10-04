@@ -55,7 +55,7 @@ class AsyncSSHClientWG:
         self.known_hosts = known_hosts
         self.container = container
         self._conn: Optional[asyncssh.SSHClientConnection] = None
-        self._process: Optional[asyncssh.SSHClientProcess] = None
+        self._process: Optional[asyncssh.SSHClientProcess[str]] = None
 
     async def connect(self) -> None:
         """Устанавливает SSH-соединение и открывает shell-сессию.
@@ -571,8 +571,12 @@ class AsyncSSHClientWG:
             raise AmneziaSSHError(
                 "Ошибка при записи clientsTable",
                 cmd=cmd,
-                stdout=result.stdout,
-                stderr=result.stderr,
+                stdout=(
+                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
+                ),
+                stderr=(
+                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
+                ),
             )
 
     async def _delete_temp_files(self) -> None:
@@ -718,11 +722,21 @@ class AsyncSSHClientWG:
                 logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
                 return True
             else:
+                stdout_str = (
+                    result.stdout.decode()
+                    if isinstance(result.stdout, bytes)
+                    else (result.stdout or "")
+                )
+                stderr_str = (
+                    result.stderr.decode()
+                    if isinstance(result.stderr, bytes)
+                    else (result.stderr or "")
+                )
                 raise AmneziaSSHError(
-                    message=f"Ошибка записи wg0.conf: {result.stderr}",
+                    message=f"Ошибка записи wg0.conf: {stderr_str}",
                     cmd=cmd,
-                    stdout=result.stdout,
-                    stderr=result.stderr,
+                    stdout=stdout_str,
+                    stderr=stderr_str,
                 )
 
         elif stderr:
@@ -797,8 +811,16 @@ class AsyncSSHClientWG:
             raise AmneziaSSHError(
                 message=f"Ошибка при удалении ключа из {clients_table}",
                 cmd=cmd,
-                stdout=result.stdout,
-                stderr=result.stderr,
+                stdout=(
+                    result.stdout.decode()
+                    if isinstance(result.stdout, bytes)
+                    else (result.stdout or "")
+                ),
+                stderr=(
+                    result.stderr.decode()
+                    if isinstance(result.stderr, bytes)
+                    else (result.stderr or "")
+                ),
             )
 
     async def full_delete_user(self, public_key: str) -> bool | None:
