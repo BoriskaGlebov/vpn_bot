@@ -6,7 +6,7 @@ from loguru import logger as real_logger
 
 from bot.config import settings_bot
 from bot.utils import commands
-from bot.vpn_router.utils.amnezia_wg import AsyncSSHClient
+from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def mock_asyncssh_connect():
 @pytest.fixture
 def ssh_client():
     """Создаёт экземпляр клиента"""
-    return AsyncSSHClient(
+    return AsyncSSHClientWG(
         host="127.0.0.1",
         username="testuser",
         key_filename=None,

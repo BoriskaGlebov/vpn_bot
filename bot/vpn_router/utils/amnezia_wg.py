@@ -19,7 +19,7 @@ from bot.vpn_router.utils.amnezia_exceptions import (
 )
 
 
-class AsyncSSHClient:
+class AsyncSSHClientWG:
     """Асинхронный SSH-клиент с поддержкой работы через Docker-контейнер.
 
     Args:
@@ -470,7 +470,6 @@ class AsyncSSHClient:
                     logger.bind(user=self.username).warning(
                         f"Предупреждение при перезапуске интерфейса, можно продолжать: {stderr}"
                     )
-                    return True
                 else:
                     raise AmneziaSSHError(
                         message="Ошибка при перезапуске интерфейса",
@@ -848,7 +847,7 @@ class AsyncSSHClient:
             logger.bind(user=self.username).debug("AsyncSSH: соединение закрыто")
             self._conn = None
 
-    async def __aenter__(self) -> "AsyncSSHClient":
+    async def __aenter__(self) -> "AsyncSSHClientWG":
         """Открывает соединение в асинхронном контекстном менеджере.
 
         Returns
@@ -874,7 +873,7 @@ if __name__ == "__main__":
 
     async def main() -> None:
         """Пример использования AsyncSSHClient."""
-        async with AsyncSSHClient(
+        async with AsyncSSHClientWG(
             host="help-blocks.ru",
             username="vpn_user",
             key_filename=key_path.as_posix(),

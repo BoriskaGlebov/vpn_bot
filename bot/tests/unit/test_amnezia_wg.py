@@ -9,7 +9,7 @@ from bot.vpn_router.utils.amnezia_exceptions import (
     AmneziaError,
     AmneziaSSHError,
 )
-from bot.vpn_router.utils.amnezia_wg import AsyncSSHClient
+from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
 
 
 @pytest.mark.asyncio
@@ -412,7 +412,7 @@ async def test_reboot_interface_warning(ssh_client):
     ssh_client.run_commands_in_container = mock_gen
 
     result = await ssh_client._reboot_interface()
-    assert result is True
+    assert result is None
 
 
 @pytest.mark.asyncio
