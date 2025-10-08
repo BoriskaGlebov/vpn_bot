@@ -1,3 +1,4 @@
+
 # ==== Простая Makefile для Alembic и Docker ==================================
 
 DC ?= docker compose
@@ -7,6 +8,10 @@ ALEMBIC ?= alembic
 ENV_FILE ?= .env
 MSG ?= auto
 V ?=
+# Дефолтные значения, можно переопределить
+DB_USER ?= user
+DB_DATABASE ?= vpn_boriska_bot
+
 
 DC_EXEC_APP = $(DC) exec -T $(SERVICE)
 DC_EXEC_DB  = $(DC) exec -T $(DB_SERVICE)
@@ -28,8 +33,8 @@ help:
 	@echo "  down-to V=rev       — downgrade to revision"
 	@echo "  db-reset            — drop & create DB"
 	@echo "  hard-reset          — drop & create DB + migrate"
-	@echo " pre-commit           — run all pre-commit hooks on all files"
-	@echo " pytest               — run tests in bot/tests"
+	@echo "  pre-commit          — run all pre-commit hooks on all files"
+	@echo "  pytest              — run tests in bot/tests"
 
 # Docker
 compose-up:
@@ -52,8 +57,6 @@ bash:
 
 # Alembic
 rev:
-	include .env
-	export $(shell sed 's/=.*//' .env)
 	@if [ -z "$(MSG)" ]; then echo "MSG required"; exit 1; fi
 	$(ALEMBIC) revision -m "$(MSG)" --autogenerate
 
