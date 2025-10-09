@@ -12,10 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import bot, logger, settings_bot
 from bot.database import connection
-from bot.users.dao import UserDAO
+from bot.users.dao import RoleDAO, UserDAO
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.models import User
-from bot.users.schemas import SUser, SUserTelegramID
+from bot.users.schemas import SRole, SUser, SUserTelegramID
 
 m_admin = settings_bot.MESSAGES["modes"]["admin"]
 m_start = settings_bot.MESSAGES["modes"]["start"]
@@ -38,7 +38,10 @@ class StartCommand(StatesGroup):  # type: ignore[misc]
 
 
 @user_router.message(Command("admin"))  # type: ignore[misc]
-async def admin_start(message: Message, state: FSMContext, **kwargs: Any) -> None:
+@connection()
+async def admin_start(
+    message: Message, session: AsyncSession, state: FSMContext, **kwargs: Any
+) -> None:
     """Обработчик команды /admin.
 
     Проверяет, является ли пользователь администратором.
@@ -48,6 +51,7 @@ async def admin_start(message: Message, state: FSMContext, **kwargs: Any) -> Non
 
     Args:
         message (Message): Объект сообщения Telegram, который вызвал обработчик.
+        session (AsyncSession): Асинхронная сессия базы данных.
         state (FSMContext): Контекст конечного автомата для работы с состояниями пользователя.
         **kwargs (Any): Дополнительные аргументы (не используются напрямую, но могут быть переданы).
 
@@ -124,7 +128,13 @@ async def cmd_start(
             )
         else:
             schema_add = SUser.model_validate(user)
+            if schema_add.telegram_id in settings_bot.ADMIN_IDS:
+                schema_role = SRole(name="admin")
+            else:
+                schema_role = SRole(name="user")
+            await RoleDAO.find_one_or_none(session=session, filters=schema_role)
             await UserDAO.add(session=session, values=schema_add)
+            await UserDAO.add_role(session=session, role=schema_role, user=schema_add)
             response_message = welcome_messages["first"][0].format(
                 username=message.from_user.full_name or user.username or "Гость"
             )

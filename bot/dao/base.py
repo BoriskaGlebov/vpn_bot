@@ -143,18 +143,20 @@ class BaseDAO(Generic[T]):
             raise
 
     @classmethod
-    async def find_all(cls, session: AsyncSession, filters: BaseModel) -> List[T]:
+    async def find_all(
+        cls, session: AsyncSession, filters: Optional[BaseModel] = None
+    ) -> List[T]:
         """Находит все записи по фильтрам.
 
         Args:
             session (AsyncSession): Сессия для взаимодействия с БД.
-            filters (BaseModel): Фильтры для поиска.
+            filters (BaseModel): Фильтры для поиска./или без фильтар
 
         Returns
             List[T]: Список найденных записей.
 
         """
-        filter_dict = filters.model_dump(exclude_unset=True)
+        filter_dict = filters.model_dump(exclude_unset=True) if filters else {}
         # noinspection PyTypeChecker
         logger.info(
             f"Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
