@@ -10,6 +10,7 @@ from bot.config import bot, dp, logger, settings_bot
 from bot.help.router import help_router
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.users.router import user_router
+from bot.utils.init_default_roles import init_default_roles
 from bot.utils.start_stop_bot import start_bot, stop_bot
 
 # API теги и их описание
@@ -34,6 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.callback_query.middleware(ErrorHandlerMiddleware())
     dp.include_router(help_router)
     dp.include_router(user_router)
+    await init_default_roles()  # type: ignore
     await start_bot()
     if settings_bot.USE_POLING:
         await bot.delete_webhook(drop_pending_updates=True)

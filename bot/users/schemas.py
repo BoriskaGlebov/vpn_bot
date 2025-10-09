@@ -32,3 +32,12 @@ class SUser(SUserTelegramID):
     username: Optional[str] = Field(None, description="Имя пользователя в Telegram")
     first_name: Optional[str] = Field(None, description="Имя пользователя")
     last_name: Optional[str] = Field(None, description="Фамилия пользователя")
+
+
+class SRole(BaseModel):
+    """Схема роли пользователя."""
+
+    name: str = Field(..., description="Уникальное имя роли")
+    description: str | None = Field(None, description="Описание роли")
+
+    model_config = ConfigDict(from_attributes=True)

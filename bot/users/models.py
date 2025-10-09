@@ -1,18 +1,61 @@
-from sqlalchemy import BigInteger
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import Any, List
+
+from sqlalchemy import BigInteger, ForeignKey
+from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bot.database import Base, int_pk, str_null_true, str_uniq
 
 
+class UserRole(Base):
+    """Модель связи пользователей и ролей.
+
+    Представляет промежуточную таблицу для связи многие-ко-многим
+    между пользователями и ролями.
+
+    Attributes
+        user_id (int): Идентификатор пользователя (внешний ключ на users.id).
+        role_id (int): Идентификатор роли (внешний ключ на roles.id).
+        user (User): Связанный пользователь.
+        role (Role): Связанная роль.
+
+    """
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_id: Mapped[int] = mapped_column(
+        ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    user: Mapped["User"] = relationship(back_populates="user_roles")
+    role: Mapped["Role"] = relationship(back_populates="role_users")
+
+
+def create_user_role(role: "Role") -> "UserRole":
+    """Создаёт объект связи между пользователем и ролью.
+
+    Args:
+        role (Role): Роль, которую нужно связать с пользователем.
+
+    Returns
+        UserRole: Новый объект связи для добавления в коллекцию `user_roles`.
+
+    """
+    return UserRole(role=role)
+
+
 class User(Base):
-    """Модель пользователя, представляющая запись в таблице пользователей базы данных.
+    """Модель пользователя, представляющая запись в таблице пользователей.
 
     Attributes
         id (int): Уникальный идентификатор пользователя.
-        telegram_id (int): Уникальный идентификатор пользователя в Telegram.
-        username (Optional[str]): Имя пользователя в Telegram (необязательное поле).
-        first_name (Optional[str]): Имя пользователя (необязательное поле).
-        last_name (Optional[str]): Фамилия пользователя (необязательное поле).
+        telegram_id (int): Идентификатор пользователя в Telegram.
+        username (str | None): Имя пользователя в Telegram.
+        first_name (str | None): Имя пользователя.
+        last_name (str | None): Фамилия пользователя.
+        user_roles (List[UserRole]): Промежуточные связи между пользователем и ролями.
+        roles (List[Role]): Роли пользователя (association proxy).
 
     """
 
@@ -22,27 +65,42 @@ class User(Base):
     first_name: Mapped[str_null_true]
     last_name: Mapped[str_null_true]
 
+    user_roles: Mapped[List["UserRole"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        passive_deletes=True,
+    )
+    roles: AssociationProxy[Any] = association_proxy(
+        "user_roles", "role", creator=create_user_role
+    )
 
-# class AuthGroup(Base):
-#     """
-#     Модель группы авторизации, представляющая запись в таблице групп авторизации базы данных.
-#
-#     Attributes:
-#         id (int): Уникальный идентификатор группы.
-#         name (str): Название группы (уникальное и не может быть пустым).
-#         description (Optional[str]): Описание группы (необязательное поле).
-#         is_active (bool): Флаг активности группы, по умолчанию True.
-#     """
-#
-#     id: Mapped[int_pk]
-#     name: Mapped[str_uniq]
-#     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-#     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-#
-#     # Двусторонняя связь с User
-#     users = relationship(
-#         "User",
-#         secondary="user_auth_group",
-#         back_populates="auth_groups",
-#         lazy="selectin",
-#     )
+    def __str__(self) -> str:
+        """Строковое представление для записи."""
+        return f"{self.first_name} {self.last_name} (@{self.username})"
+
+
+class Role(Base):
+    """Модель роли пользователя.
+
+    Attributes
+        id (int): Уникальный идентификатор роли.
+        name (str): Уникальное имя роли.
+        description (str | None): Описание роли.
+        role_users (List[UserRole]): Промежуточные связи между ролями и пользователями.
+        users (List[User]): Пользователи, связанные с ролью (association proxy).
+
+    """
+
+    id: Mapped[int_pk]
+    name: Mapped[str_uniq]
+    description: Mapped[str_null_true]
+
+    role_users: Mapped[list["UserRole"]] = relationship(
+        back_populates="role", cascade="all, delete-orphan", lazy="selectin"
+    )
+    users: AssociationProxy[List["User"]] = association_proxy("role_users", "user")
+
+    def __str__(self) -> str:
+        """Строковое представление для записи."""
+        return f"{self.name} - {self.description}"
