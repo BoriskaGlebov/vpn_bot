@@ -25,7 +25,7 @@ def main_kb(user_telegram_id: Optional[int] = None) -> ReplyKeyboardMarkup:
         [KeyboardButton(text="🔑 Получить VPN-конфиг AmneziaVPN")],
         [KeyboardButton(text="🌐 Получить VPN-конфиг AmneziaWG")],
         [KeyboardButton(text="📈 Проверить статус подписки")],
-        [KeyboardButton(text="❓ Задать вопрос / помощь")],
+        [KeyboardButton(text="❓ Помощь в настройке VPN")],
     ]
 
     if user_telegram_id in settings_bot.ADMIN_IDS:
