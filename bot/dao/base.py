@@ -267,8 +267,11 @@ class BaseDAO(Generic[T]):
         try:
             result = await session.execute(query)
             await session.commit()
-            logger.info(f"Обновлено {result.rowcount} записей.")
-            return result.rowcount or 0
+            rowcount: int = getattr(result, "rowcount", 0) or 0
+            if rowcount:
+                logger.info(f"Обновлено {rowcount} записей.")
+
+            return rowcount or 0
         except SQLAlchemyError as e:
             await session.rollback()
             logger.error(f"Ошибка при обновлении записей: {e}")
@@ -297,8 +300,10 @@ class BaseDAO(Generic[T]):
         try:
             result = await session.execute(query)
             await session.commit()
-            logger.info(f"Удалено {result.rowcount} записей.")
-            return result.rowcount or 0
+            rowcount: int = getattr(result, "rowcount", 0) or 0
+            if rowcount:
+                logger.info(f"Удалено {rowcount} записей.")
+            return rowcount or 0
         except SQLAlchemyError as e:
             await session.rollback()
             logger.error(f"Ошибка при удалении записей: {e}")
@@ -471,7 +476,8 @@ class BaseDAO(Generic[T]):
                     .values(**update_data)
                 )
                 result = await session.execute(stmt)
-                updated_count += result.rowcount
+                rowcount: int = getattr(result, "rowcount", 0) or 0
+                updated_count += rowcount
 
             await session.commit()
             logger.info(f"Обновлено {updated_count} записей")

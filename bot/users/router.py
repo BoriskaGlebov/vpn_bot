@@ -66,6 +66,11 @@ async def admin_start(
             text=m_admin.get("off", "У вас нет доступа к этой команде!"),
             reply_markup=ReplyKeyboardRemove(),
         )
+        await bot.send_message(
+            text=m_error.get("admin_only", "У вас нет доступа к этой команде!"),
+            reply_markup=ReplyKeyboardRemove(),
+            chat_id=message.chat.id,
+        )
         return
 
     await bot.send_message(
