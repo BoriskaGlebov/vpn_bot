@@ -3,8 +3,8 @@ from itertools import zip_longest
 
 from aiogram import Bot
 from aiogram.types import FSInputFile
-from config import settings_bot
 
+from bot.config import settings_bot
 from bot.help.utils.common_device import Device
 
 

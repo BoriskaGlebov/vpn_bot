@@ -5,13 +5,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
 from aiogram.utils.chat_action import ChatActionSender
-from help.keyboards.inline_kb import device_keyboard
-from help.utils.android_device import AndroidDevice
-from help.utils.iphone_device import IphoneDevice
-from help.utils.pc_device import PCDevice
-from help.utils.tv_device import TVDevice
 
 from bot.config import bot, settings_bot
+from bot.help.keyboards.inline_kb import device_keyboard
+from bot.help.utils.android_device import AndroidDevice
+from bot.help.utils.iphone_device import IphoneDevice
+from bot.help.utils.pc_device import PCDevice
+from bot.help.utils.tv_device import TVDevice
 
 help_router = Router()
 
