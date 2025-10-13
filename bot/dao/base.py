@@ -424,7 +424,7 @@ class BaseDAO(Generic[T]):
         logger.info(f"Upsert для {cls.model.__name__}")
         try:
             existing = await cls.find_one_or_none(
-                session, BaseModel.model_construct(**filter_dict)
+                session, values.__class__(**filter_dict)
             )
             if existing:
                 # Обновляем существующую запись
