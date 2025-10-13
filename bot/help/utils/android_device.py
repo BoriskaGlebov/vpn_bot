@@ -3,8 +3,8 @@ from itertools import zip_longest
 
 from aiogram import Bot
 from aiogram.types import FSInputFile
-from config import settings_bot
 
+from bot.config import settings_bot
 from bot.help.utils.common_device import Device
 
 
@@ -30,6 +30,7 @@ class AndroidDevice(Device):
         """
         media = settings_bot.BASE_DIR / "bot" / "help" / "media" / "amnezia_android"
         m_android = settings_bot.MESSAGES["modes"]["help"]["instructions"]["android"]
+        print(media)
         if not media.exists():
             raise FileNotFoundError(media)
         for file, answertext in zip_longest(sorted(media.iterdir()), m_android):
