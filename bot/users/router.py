@@ -37,51 +37,6 @@ class StartCommand(StatesGroup):  # type: ignore[misc]
     press_admin: State = State()
 
 
-@user_router.message(Command("admin"))  # type: ignore[misc]
-@connection()
-async def admin_start(
-    message: Message, session: AsyncSession, state: FSMContext, **kwargs: Any
-) -> None:
-    """Обработчик команды /admin.
-
-    Проверяет, является ли пользователь администратором.
-    Если пользователь не админ — отправляет уведомление об отсутствии доступа.
-    Если админ — очищает текущее состояние FSM, отправляет приветственное сообщение
-    и переводит пользователя в состояние `press_admin`.
-
-    Args:
-        message (Message): Объект сообщения Telegram, который вызвал обработчик.
-        session (AsyncSession): Асинхронная сессия базы данных.
-        state (FSMContext): Контекст конечного автомата для работы с состояниями пользователя.
-        **kwargs (Any): Дополнительные аргументы (не используются напрямую, но могут быть переданы).
-
-    Returns
-        None
-
-    """
-    await state.clear()
-
-    if message.from_user.id not in settings_bot.ADMIN_IDS:
-        await message.answer(
-            text=m_admin.get("off", "У вас нет доступа к этой команде!"),
-            reply_markup=ReplyKeyboardRemove(),
-        )
-        await bot.send_message(
-            text=m_error.get("admin_only", "У вас нет доступа к этой команде!"),
-            reply_markup=ReplyKeyboardRemove(),
-            chat_id=message.chat.id,
-        )
-        return
-
-    await bot.send_message(
-        chat_id=message.from_user.id,
-        text=m_admin.get("on", "Кажись не придумал сюда сообщение!"),
-        reply_markup=ReplyKeyboardRemove(),
-    )
-
-    await state.set_state(StartCommand.press_admin)
-
-
 @user_router.message(CommandStart())  # type: ignore[misc]
 @connection()
 async def cmd_start(
@@ -149,6 +104,51 @@ async def cmd_start(
                 follow_up_message, reply_markup=main_kb(user.telegram_id)
             )
         await state.set_state(StartCommand.press_start)
+
+
+@user_router.message(Command("admin"))  # type: ignore[misc]
+@connection()
+async def admin_start(
+    message: Message, session: AsyncSession, state: FSMContext, **kwargs: Any
+) -> None:
+    """Обработчик команды /admin.
+
+    Проверяет, является ли пользователь администратором.
+    Если пользователь не админ — отправляет уведомление об отсутствии доступа.
+    Если админ — очищает текущее состояние FSM, отправляет приветственное сообщение
+    и переводит пользователя в состояние `press_admin`.
+
+    Args:
+        message (Message): Объект сообщения Telegram, который вызвал обработчик.
+        session (AsyncSession): Асинхронная сессия базы данных.
+        state (FSMContext): Контекст конечного автомата для работы с состояниями пользователя.
+        **kwargs (Any): Дополнительные аргументы (не используются напрямую, но могут быть переданы).
+
+    Returns
+        None
+
+    """
+    await state.clear()
+
+    if message.from_user.id not in settings_bot.ADMIN_IDS:
+        await message.answer(
+            text=m_admin.get("off", "У вас нет доступа к этой команде!"),
+            reply_markup=ReplyKeyboardRemove(),
+        )
+        await bot.send_message(
+            text=m_error.get("admin_only", "У вас нет доступа к этой команде!"),
+            reply_markup=ReplyKeyboardRemove(),
+            chat_id=message.chat.id,
+        )
+        return
+
+    await bot.send_message(
+        chat_id=message.from_user.id,
+        text=m_admin.get("on", "Кажись не придумал сюда сообщение!"),
+        reply_markup=ReplyKeyboardRemove(),
+    )
+
+    await state.set_state(StartCommand.press_admin)
 
 
 @user_router.message(

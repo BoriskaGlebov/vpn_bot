@@ -2,6 +2,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram import Bot
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Chat, Message, User
 from loguru import logger as real_logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -61,6 +63,31 @@ async def session(test_engine):
     async with async_session() as session:
 
         yield session
+
+
+@pytest.fixture
+def fake_state():
+    """Мокаем FSMContext."""
+    fsm = AsyncMock(spec=FSMContext)
+    return fsm
+
+
+@pytest.fixture
+def fake_message():
+    """Создаёт поддельное сообщение Telegram."""
+    user = User(
+        id=12345,
+        is_bot=False,
+        first_name="Test",
+        username="tester",
+    )
+    chat = Chat(id=12345, type="private")
+    message = AsyncMock(spec=Message)
+    message.from_user = user
+    message.chat = chat
+    message.text = "/start"
+    message.answer = AsyncMock()
+    return message
 
 
 @pytest.fixture

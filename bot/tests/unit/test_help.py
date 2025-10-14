@@ -14,7 +14,7 @@ from bot.help.utils.tv_device import TVDevice
 
 
 @pytest.mark.asyncio
-async def test_help_cmd(monkeypatch, fake_bot):
+async def test_help_cmd(monkeypatch, fake_bot, fake_state):
     """Проверяет, что help_cmd отправляет все сообщения и ставит состояния FSM."""
 
     # --- Arrange ---
@@ -22,7 +22,7 @@ async def test_help_cmd(monkeypatch, fake_bot):
     message.chat = MagicMock()
     message.chat.id = 111
     message.answer = AsyncMock()
-    state = AsyncMock()
+    # state = AsyncMock()
     m_help = {
         "start_block": [
             "Первое сообщение",
@@ -46,11 +46,11 @@ async def test_help_cmd(monkeypatch, fake_bot):
     expected_keyboard = device_keyboard()
     assert isinstance(expected_keyboard, InlineKeyboardMarkup)
     # --- Act ---
-    await help_cmd(message, state)
+    await help_cmd(message, fake_state)
 
     # --- Assert ---
-    state.set_state.assert_any_await(HelpStates.cmd_help)
-    state.set_state.assert_any_await(HelpStates.device_state)
+    fake_state.set_state.assert_any_await(HelpStates.cmd_help)
+    fake_state.set_state.assert_any_await(HelpStates.device_state)
 
     # Проверяем, что сообщение о старте отправлено
     message.answer.assert_any_await(
@@ -82,7 +82,7 @@ async def test_help_cmd(monkeypatch, fake_bot):
         ("tv", "TVDevice"),
     ],
 )
-async def test_device_cb(monkeypatch, fake_bot, device_name, device_class):
+async def test_device_cb(monkeypatch, fake_bot, device_name, device_class, fake_state):
     """Проверяет, что при выборе устройства вызывается нужный метод .send_message()."""
 
     call = AsyncMock(spec=CallbackQuery)
@@ -91,7 +91,7 @@ async def test_device_cb(monkeypatch, fake_bot, device_name, device_class):
     call.message.chat.id = 999
     call.answer = AsyncMock()
 
-    state = AsyncMock()
+    # state = AsyncMock()
 
     fake_ctx = AsyncMock()
     fake_ctx.__aenter__.return_value = None
@@ -104,7 +104,7 @@ async def test_device_cb(monkeypatch, fake_bot, device_name, device_class):
     fake_device_cls = AsyncMock()
     monkeypatch.setattr(f"bot.help.router.{device_class}", fake_device_cls)
 
-    await device_cb(call, state)
+    await device_cb(call, fake_state)
 
     call.answer.assert_awaited_once_with(
         text=f"Ты выбрал {device_name}", show_alert=False
@@ -112,7 +112,7 @@ async def test_device_cb(monkeypatch, fake_bot, device_name, device_class):
     fake_device_cls.send_message.assert_awaited_once_with(
         fake_bot, call.message.chat.id
     )
-    state.clear.assert_awaited_once()
+    fake_state.clear.assert_awaited_once()
 
 
 @pytest.mark.asyncio
