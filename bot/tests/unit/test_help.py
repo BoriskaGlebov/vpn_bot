@@ -22,7 +22,6 @@ async def test_help_cmd(monkeypatch, fake_bot, fake_state):
     message.chat = MagicMock()
     message.chat.id = 111
     message.answer = AsyncMock()
-    # state = AsyncMock()
     m_help = {
         "start_block": [
             "Первое сообщение",
@@ -31,11 +30,9 @@ async def test_help_cmd(monkeypatch, fake_bot, fake_state):
         ]
     }
 
-    # Подменяем зависимости внутри router.py
     monkeypatch.setattr("bot.help.router.m_help", m_help)
     monkeypatch.setattr("bot.help.router.bot", fake_bot)
 
-    # ChatActionSender.typing — контекстный менеджер
     fake_ctx = AsyncMock()
     fake_ctx.__aenter__.return_value = None
     fake_ctx.__aexit__.return_value = None
@@ -52,18 +49,15 @@ async def test_help_cmd(monkeypatch, fake_bot, fake_state):
     fake_state.set_state.assert_any_await(HelpStates.cmd_help)
     fake_state.set_state.assert_any_await(HelpStates.device_state)
 
-    # Проверяем, что сообщение о старте отправлено
     message.answer.assert_any_await(
         "🚀 Супер, что выбрали этот пункт",
         reply_markup=ANY,
     )
 
-    # Проверяем, что последнее сообщение имеет клавиатуру
     message.answer.assert_any_await(
         "Последнее сообщение",
         reply_markup=expected_keyboard,
     )
-    # Дополнительно — проверим состав кнопок клавиатуры
     buttons = [btn for row in expected_keyboard.inline_keyboard for btn in row]
     texts = [b.text for b in buttons]
     callbacks = [b.callback_data for b in buttons]
@@ -90,8 +84,6 @@ async def test_device_cb(monkeypatch, fake_bot, device_name, device_class, fake_
     call.data = f"device_{device_name}"
     call.message.chat.id = 999
     call.answer = AsyncMock()
-
-    # state = AsyncMock()
 
     fake_ctx = AsyncMock()
     fake_ctx.__aenter__.return_value = None
@@ -131,7 +123,6 @@ async def test_device_send_message(
     """Проверяет, что все классы устройств корректно отправляют сообщения."""
 
     # --- Arrange ---
-    # Создаём временную директорию с файлами
     media_dir_path = tmp_path / "bot" / "help" / "media" / media_dir
     media_dir_path.mkdir(parents=True)
     (media_dir_path / "1.png").write_text("fake image")
@@ -147,7 +138,6 @@ async def test_device_send_message(
         }
     }
 
-    # Мокаем настройки и утилиты
     monkeypatch.setattr("bot.config.settings_bot.BASE_DIR", tmp_path)
     monkeypatch.setattr("bot.config.settings_bot.MESSAGES", messages)
     monkeypatch.setattr(
@@ -166,25 +156,20 @@ async def test_device_send_message(
     await device_class.send_message(fake_bot, chat_id)
 
     # --- Assert ---
-    # Проверяем, что send_photo вызывался столько же раз, сколько файлов
     assert fake_bot.send_photo.await_count == 2
 
-    # Проверяем, что передаются правильные подписи
     calls = fake_bot.send_photo.await_args_list
     captions = [c.kwargs["caption"] for c in calls]
     assert captions == ["Шаг 1", "Шаг 2"]
 
-    # Проверяем, что используется корректный chat_id
     for c in calls:
         assert c.kwargs["chat_id"] == chat_id
 
-    # Проверяем, что sleep был вызван после каждой отправки
     asyncio.sleep.assert_awaited()
 
 
 @pytest.mark.asyncio
 async def test_device_send_message_raises_file_not_found(tmp_path):
-    # создаём мок настроек
     settings_mock = SimpleNamespace(
         BASE_DIR=tmp_path,
         MESSAGES={"modes": {"help": {"instructions": {"android": ["тест"]}}}},
@@ -192,17 +177,13 @@ async def test_device_send_message_raises_file_not_found(tmp_path):
 
     fake_bot = AsyncMock()
 
-    # Патчим settings_bot там, где он реально используется
     with patch("bot.help.utils.android_device.settings_bot", settings_mock):
-        # Импортируем AndroidDevice после патча
         from bot.help.utils.android_device import AndroidDevice
 
         expected_dir = tmp_path / "bot" / "help" / "media" / "amnezia_android"
         assert not expected_dir.exists()  # убедимся, что папки нет
 
-        # Проверяем, что поднимается FileNotFoundError
         with pytest.raises(FileNotFoundError) as exc_info:
             await AndroidDevice.send_message(fake_bot, 999)
 
-        # Проверяем, что путь указан в ошибке
         assert str(expected_dir) in str(exc_info.value)

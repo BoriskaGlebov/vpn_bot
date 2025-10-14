@@ -50,7 +50,6 @@ async def setup_database(test_engine):
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-        # после тестов можно удалить файл
     await test_engine.dispose()
     os.remove("./test.db")
 
@@ -66,14 +65,12 @@ async def session(test_engine):
 
 @pytest.fixture
 def fake_state():
-    """Мокаем FSMContext."""
     fsm = AsyncMock(spec=FSMContext)
     return fsm
 
 
 @pytest.fixture
 def fake_message():
-    """Создаёт поддельное сообщение Telegram."""
     user = User(
         id=12345,
         is_bot=False,

@@ -14,13 +14,11 @@ async def test_cmd_start_new_user(
     mock_chat_action, mock_role_dao, mock_user_dao, fake_message, session, fake_state
 ):
     """Тест: новый пользователь впервые пишет /start."""
-    # Настраиваем поведение DAO
     mock_user_dao.find_one_or_none = AsyncMock(return_value=None)
     mock_user_dao.add = AsyncMock()
     mock_user_dao.add_role = AsyncMock()
     mock_role_dao.find_one_or_none = AsyncMock()
 
-    # Подменяем тексты сообщений
     from bot.config import settings_bot
 
     settings_bot.MESSAGES = {
@@ -35,11 +33,10 @@ async def test_cmd_start_new_user(
         },
         "errors": {},
     }
-    settings_bot.ADMIN_IDS = [9999]  # текущий пользователь не админ
+    settings_bot.ADMIN_IDS = [9999]
 
     await cmd_start(message=fake_message, command=None, state=fake_state)
 
-    # Проверки
     mock_user_dao.find_one_or_none.assert_awaited_once()
     mock_user_dao.add.assert_awaited_once()
     mock_user_dao.add_role.assert_awaited_once()
@@ -92,7 +89,6 @@ async def test_admin_start_not_admin(mock_bot, fake_state):
     fake_message.chat = fake_chat
     fake_message.answer = AsyncMock()
 
-    # Подменяем m_error
     m_error.clear()
     m_error.update({"admin_only": "Ошибка доступа"})
 
@@ -114,7 +110,6 @@ async def test_admin_start_not_admin(mock_bot, fake_state):
 async def test_admin_start_is_admin(mock_bot, fake_state):
     """Юнит-тест: пользователь является админом — получает сообщение и переходит в состояние."""
 
-    # Замокаем асинхронный метод бота
     mock_bot.send_message = AsyncMock()
 
     # Создаём from_user и chat
@@ -125,7 +120,6 @@ async def test_admin_start_is_admin(mock_bot, fake_state):
     fake_message.chat = fake_chat
     fake_message.answer = AsyncMock()  # не будет вызвано, но на всякий случай
 
-    # Настройка конфигурации
     from bot.config import settings_bot
 
     settings_bot.ADMIN_IDS = [9999]
@@ -134,10 +128,8 @@ async def test_admin_start_is_admin(mock_bot, fake_state):
         "errors": {"admin_only": "Ошибка доступа"},
     }
 
-    # Запуск обработчика
     await admin_start(message=fake_message, state=fake_state)
 
-    # Проверки
     mock_bot.send_message.assert_awaited_once_with(
         chat_id=9999,
         text="Режим АДМИНА включён. Ты можешь использовать дополнительные функции.",
