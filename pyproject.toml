@@ -76,8 +76,10 @@ skip_gitignore = true
 multi_line_output = 3
 include_trailing_comma = true
 
+
+#extend-exclude = ["*/bot/tests/*", "*.venv/*", "*/migrations/*"]
 [tool.ruff]
-extend-exclude = ["*/bot/tests/*", "*.venv/*", "*/migrations/*"]
+extend-exclude = ["*.venv/*", "*/migrations/*"]
 line-length = 88
 select = ["E", "F", "W", "C", "D", "T"]
 fix = true

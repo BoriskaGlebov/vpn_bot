@@ -1,18 +1,14 @@
-import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from aiogram.types import Chat, Message, User
-from mypy.types import names
-from pydantic.v1.schema import schema
 from sqlalchemy import select
-from users.schemas import SUser, SUserTelegramID
 
 from bot.users.dao import RoleDAO, UserDAO
 from bot.users.models import Role
 from bot.users.models import User as DBUser
 from bot.users.router import StartCommand, admin_start
 from bot.users.router import cmd_start as user_router
+from bot.users.schemas import SUserTelegramID
 
 
 @pytest.mark.asyncio
