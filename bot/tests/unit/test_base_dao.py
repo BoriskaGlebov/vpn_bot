@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel
 from sqlalchemy import String
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 from bot.dao.base import BaseDAO
 from bot.database import Base
@@ -16,7 +16,6 @@ from bot.database import Base
 
 # === 2. Тестовая модель ===
 class TmpModel(Base):
-
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     value: Mapped[Optional[int]] = mapped_column(nullable=True)

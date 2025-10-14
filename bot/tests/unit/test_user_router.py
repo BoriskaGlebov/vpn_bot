@@ -2,7 +2,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Chat, Message, ReplyKeyboardRemove, User
-from config import settings_bot
 
 from bot.users.router import StartCommand, admin_start, cmd_start, m_error
 

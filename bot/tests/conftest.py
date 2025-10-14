@@ -62,7 +62,6 @@ async def session(test_engine):
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
     async with async_session() as session:
-
         yield session
 
 
