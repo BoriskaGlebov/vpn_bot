@@ -9,19 +9,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from bot.dao.base import BaseDAO
 from bot.database import Base
 
-# # === 1. Временная тестовая база ===
-# class TestBase(DeclarativeBase):
-#     pass
 
-
-# === 2. Тестовая модель ===
 class TmpModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     value: Mapped[Optional[int]] = mapped_column(nullable=True)
 
 
-# === 3. Pydantic-схема ===
 class TmpSchema(BaseModel):
     id: Optional[int] = None
     name: str
@@ -33,24 +27,18 @@ class FilterSchema(BaseModel):
     value: Optional[int] = None
 
 
-# === 4. DAO для тестов ===
 class TmpDAO(BaseDAO[TmpModel]):
     model = TmpModel
 
 
-# === 5. Фикстура, создающая таблицу перед тестом ===
 @pytest.fixture(autouse=True)
 async def setup_test_table(session: AsyncSession):
     """Создаёт таблицу test_models перед каждым тестом и удаляет после."""
     async with session.bind.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    # async with session.bind.begin() as conn:
-    #     await conn.run_sync(Base.metadata.drop_all)
 
 
-# === 6. Набор тестов для базового DAO ===
-# --- Тесты ---
 @pytest.mark.asyncio
 async def test_add_and_find_by_id(session):
     item = await TmpDAO.add(session, TmpSchema(name="item1", value=10))
@@ -140,7 +128,6 @@ async def test_find_by_ids(session):
 async def test_upsert_creates_and_updates(session):
     dao = TmpDAO()
 
-    # создаёт
     created = await dao.upsert(
         session,
         [
@@ -150,7 +137,6 @@ async def test_upsert_creates_and_updates(session):
     )
     assert created.value == 1
 
-    # обновляет
     updated = await dao.upsert(
         session,
         [

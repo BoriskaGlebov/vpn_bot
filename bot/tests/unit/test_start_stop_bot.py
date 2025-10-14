@@ -16,7 +16,7 @@ async def test_start_bot_sends_messages_and_logs(monkeypatch, fake_bot, fake_log
 
     fake_bot.send_message = AsyncMock(
         side_effect=[
-            None,  # для первого админа успешно
+            None,
             TelegramBadRequest(method="send_message", message="ошибка"),  # для второго
         ]
     )
