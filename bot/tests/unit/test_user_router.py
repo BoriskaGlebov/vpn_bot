@@ -1,9 +1,17 @@
+import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Chat, Message, ReplyKeyboardRemove, User
+from users import router
 
-from bot.users.router import StartCommand, admin_start, cmd_start, m_error
+from bot.users.router import (
+    StartCommand,
+    admin_start,
+    cmd_start,
+    m_error,
+    mistake_handler_user,
+)
 
 
 @pytest.mark.asyncio
@@ -138,3 +146,80 @@ async def test_admin_start_is_admin(mock_bot, fake_state):
 
     fake_state.clear.assert_awaited_once()
     fake_state.set_state.assert_awaited_once_with(StartCommand.press_admin)
+
+
+@pytest.mark.asyncio
+@patch("bot.users.router.main_kb")
+async def test_mistake_handler_user_press_start(mock_main_kb, fake_state):
+    """Тест: пользователь в состоянии press_start отправляет некорректное сообщение."""
+
+    # Мокаем клавиатуру
+    mock_main_kb.return_value = "keyboard"
+
+    # Создаем реальные объекты
+    fake_user = User(id=1234, is_bot=False, first_name="Test")
+    fake_chat = Chat(id=1234, type="private")
+    fake_message = MagicMock(spec=Message)
+    fake_message.from_user = MagicMock()
+    fake_message.from_user.id = 1234
+    fake_message.chat = MagicMock()
+    fake_message.chat.id = 1234
+    fake_message.delete = AsyncMock()
+    fake_message.answer = AsyncMock()
+
+    # Мокаем FSMContext
+    fake_state.get_state.return_value = "FSM:press_start"
+    router.m_error.clear()
+    router.m_error.update(
+        {
+            "unknown_command": "Неверная команда",
+            "unknown_command_admin": "Неверная команда для админа",
+            "admin_only": "Ошибка доступа",
+        }
+    )
+    # Запуск обработчика
+    await mistake_handler_user(message=fake_message, state=fake_state)
+
+    # Проверки
+    fake_message.delete.assert_awaited_once()
+    fake_message.answer.assert_awaited_once_with(
+        text=router.m_error["unknown_command"],
+        reply_markup="keyboard",
+    )
+
+
+@pytest.mark.asyncio
+@patch("bot.users.router.main_kb")
+async def test_mistake_handler_user_press_admin(mock_main_kb, fake_state):
+    """Тест: пользователь в состоянии press_admin отправляет некорректное сообщение."""
+
+    # Мокаем клавиатуру
+    mock_main_kb.return_value = "keyboard"
+    router.m_error.clear()
+    router.m_error.update(
+        {
+            "unknown_command": "Неверная команда",
+            "unknown_command_admin": "Неверная команда для админа",
+            "admin_only": "Ошибка доступа",
+        }
+    )
+    # Создаем реальные объекты User и Chat
+    fake_user = User(id=1234, is_bot=False, first_name="Test")
+    fake_chat = Chat(id=1234, type="private")
+    fake_message = MagicMock(spec=Message)
+    fake_message.from_user = MagicMock()
+    fake_message.from_user.id = 1234
+    fake_message.chat = MagicMock()
+    fake_message.chat.id = 1234
+    fake_message.delete = AsyncMock()
+    fake_message.answer = AsyncMock()
+    fake_state.get_state.return_value = "FSM:press_admin"
+    # Запуск обработчика
+    await mistake_handler_user(message=fake_message, state=fake_state)
+
+    # Проверки
+    fake_message.delete.assert_awaited_once()
+    fake_message.answer.assert_awaited_once_with(
+        text=router.m_error["unknown_command_admin"],
+        reply_markup="keyboard",
+    )
