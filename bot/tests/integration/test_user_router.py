@@ -6,7 +6,7 @@ from sqlalchemy import select
 from bot.users.dao import RoleDAO, UserDAO
 from bot.users.models import Role
 from bot.users.models import User as DBUser
-from bot.users.router import StartCommand, admin_start
+from bot.users.router import UserStates, admin_start
 from bot.users.router import cmd_start as user_router
 from bot.users.schemas import SUserTelegramID
 
@@ -49,7 +49,7 @@ async def test_cmd_start_new_user_real_db(fake_message, session, fake_state):
     roles = await RoleDAO.find_all(session=session)
     assert any(r.name == "user" for r in roles)
 
-    fake_state.set_state.assert_awaited_once_with(StartCommand.press_start)
+    fake_state.set_state.assert_awaited_once_with(UserStates.press_start)
     assert fake_message.answer.await_count == 2
 
 
@@ -96,7 +96,7 @@ async def test_cmd_start_existing_user_real_db(fake_message, session, fake_state
     users_after = await UserDAO.find_all(session=session)
     assert len(users_after) == 1  # запись та же, новых нет
 
-    fake_state.set_state.assert_awaited_once_with(StartCommand.press_start)
+    fake_state.set_state.assert_awaited_once_with(UserStates.press_start)
     assert fake_message.answer.await_count == 2
 
 
@@ -165,7 +165,7 @@ async def test_admin_start_is_admin_real_db(session, fake_state, monkeypatch):
     await row_admin_start(message=fake_message, session=session, state=fake_state)
 
     fake_state.clear.assert_awaited_once()
-    fake_state.set_state.assert_awaited_once_with(StartCommand.press_admin)
+    fake_state.set_state.assert_awaited_once_with(UserStates.press_admin)
 
     fake_send_message.assert_awaited_once()
 
