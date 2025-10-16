@@ -3,10 +3,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram.types import Chat, Message, ReplyKeyboardRemove, User
-from users import router
 
+from bot.users import router
 from bot.users.router import (
-    StartCommand,
+    UserStates,
     admin_start,
     cmd_start,
     m_error,
@@ -48,7 +48,7 @@ async def test_cmd_start_new_user(
     mock_user_dao.find_one_or_none.assert_awaited_once()
     mock_user_dao.add.assert_awaited_once()
     mock_user_dao.add_role.assert_awaited_once()
-    fake_state.set_state.assert_awaited_once_with(StartCommand.press_start)
+    fake_state.set_state.assert_awaited_once_with(UserStates.press_start)
     assert fake_message.answer.await_count == 2
 
 
@@ -79,7 +79,7 @@ async def test_cmd_start_existing_user(
     await cmd_start(message=fake_message, command=None, state=fake_state)
 
     mock_user_dao.find_one_or_none.assert_awaited_once()
-    fake_state.set_state.assert_awaited_once_with(StartCommand.press_start)
+    fake_state.set_state.assert_awaited_once_with(UserStates.press_start)
     assert fake_message.answer.await_count == 2
 
 
@@ -145,7 +145,7 @@ async def test_admin_start_is_admin(mock_bot, fake_state):
     )
 
     fake_state.clear.assert_awaited_once()
-    fake_state.set_state.assert_awaited_once_with(StartCommand.press_admin)
+    fake_state.set_state.assert_awaited_once_with(UserStates.press_admin)
 
 
 @pytest.mark.asyncio

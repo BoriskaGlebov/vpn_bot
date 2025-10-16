@@ -24,7 +24,7 @@ m_error = settings_bot.MESSAGES["errors"]
 user_router = Router()
 
 
-class StartCommand(StatesGroup):  # type: ignore[misc]
+class UserStates(StatesGroup):  # type: ignore[misc]
     """Состояния FSM для начального меню бота.
 
     Attributes
@@ -103,7 +103,7 @@ async def cmd_start(
             await message.answer(
                 follow_up_message, reply_markup=main_kb(user.telegram_id)
             )
-        await state.set_state(StartCommand.press_start)
+        await state.set_state(UserStates.press_start)
 
 
 @user_router.message(Command("admin"))  # type: ignore[misc]
@@ -148,18 +148,18 @@ async def admin_start(
         reply_markup=ReplyKeyboardRemove(),
     )
 
-    await state.set_state(StartCommand.press_admin)
+    await state.set_state(UserStates.press_admin)
 
 
 @user_router.message(
-    StartCommand.press_admin,
+    UserStates.press_admin,
     ~F.text.startswith("/")
     & ~(
         F.text.contains("⚙️ Админ-панель") | F.text.contains("❓ Задать вопрос / помощь")
     ),
 )  # type: ignore[misc]
 @user_router.message(
-    StartCommand.press_start,
+    UserStates.press_start,
     ~F.text.startswith("/")
     & ~(
         F.text.contains("🔑 Получить VPN-конфиг AmneziaVPN")

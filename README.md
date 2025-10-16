@@ -36,6 +36,8 @@ DB_PASSWORD=your_password
 DB_DATABASE=your_database
 
 REDIS_PASSWORD=your_redis_password
+
+USE_POLLING=True
 ```
 Описание переменных
 - BOT_TOKEN — токен Telegram-бота.
@@ -52,6 +54,7 @@ REDIS_PASSWORD=your_redis_password
 - DB_PASSWORD — пароль пользователя базы данных.
 - DB_DATABASE — имя базы данных.
 - REDIS_PASSWORD — пароль для Redis.
+- USE_POLLING — использовать polling или webhook
 
 
 ## Запуск
