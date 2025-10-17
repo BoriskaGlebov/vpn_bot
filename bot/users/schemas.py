@@ -41,3 +41,10 @@ class SRole(BaseModel):
     description: str | None = Field(None, description="Описание роли")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SSubscription(BaseModel):
+    """Схема для создания подписки."""
+
+    user_id: int = Field(..., description="Идентификатор пользователя")
+    model_config = ConfigDict(from_attributes=True)

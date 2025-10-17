@@ -12,6 +12,7 @@ from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.users.router import user_router
 from bot.utils.init_default_roles import init_default_roles
 from bot.utils.start_stop_bot import start_bot, stop_bot
+from bot.vpn.router import vpn_router
 
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
@@ -33,8 +34,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Запуск настройки бота...")
     dp.message.middleware(ErrorHandlerMiddleware())
     dp.callback_query.middleware(ErrorHandlerMiddleware())
+    dp.include_router(vpn_router)
     dp.include_router(help_router)
     dp.include_router(user_router)
+
     await init_default_roles()  # type: ignore
     await start_bot()
     if settings_bot.USE_POLING:

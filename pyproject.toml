@@ -62,7 +62,7 @@ exclude = '''
   | __pycache__
   | build
   | dist
-  | migrations
+  | bot/migrations
   | \.venv
 )/
 '''

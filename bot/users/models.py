@@ -29,8 +29,8 @@ class UserRole(Base):
         ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
     )
 
-    user: Mapped["User"] = relationship(back_populates="user_roles")
-    role: Mapped["Role"] = relationship(back_populates="role_users")
+    user: Mapped["User"] = relationship(back_populates="user_roles", lazy="selectin")
+    role: Mapped["Role"] = relationship(back_populates="role_users", lazy="selectin")
 
 
 def create_user_role(role: "Role") -> "UserRole":
@@ -79,6 +79,7 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         uselist=False,
+        lazy="selectin",
     )
 
     def __str__(self) -> str:
