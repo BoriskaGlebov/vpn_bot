@@ -3,6 +3,7 @@ from typing import Any
 
 from aiogram import F
 from aiogram.dispatcher.router import Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -12,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import bot, logger, settings_bot
 from bot.database import connection
-from bot.users.dao import RoleDAO, UserDAO
+from bot.users.dao import UserDAO
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.models import User
 from bot.users.schemas import SRole, SUser, SUserTelegramID
@@ -20,6 +21,7 @@ from bot.users.schemas import SRole, SUser, SUserTelegramID
 m_admin = settings_bot.MESSAGES["modes"]["admin"]
 m_start = settings_bot.MESSAGES["modes"]["start"]
 m_error = settings_bot.MESSAGES["errors"]
+m_echo = settings_bot.MESSAGES["general"]["echo"]
 
 user_router = Router()
 
@@ -92,9 +94,9 @@ async def cmd_start(
                 schema_role = SRole(name="admin")
             else:
                 schema_role = SRole(name="user")
-            await RoleDAO.find_one_or_none(session=session, filters=schema_role)
-            await UserDAO.add(session=session, values=schema_add)
-            await UserDAO.add_role(session=session, role=schema_role, user=schema_add)
+            new_user = await UserDAO.add_role_subscription(
+                session=session, values_user=schema_add, values_role=schema_role
+            )
             response_message = welcome_messages["first"][0].format(
                 username=message.from_user.full_name or user.username or "Гость"
             )
@@ -103,6 +105,26 @@ async def cmd_start(
             await message.answer(
                 follow_up_message, reply_markup=main_kb(user.telegram_id)
             )
+
+            if schema_add.telegram_id not in settings_bot.ADMIN_IDS:
+                for admin_id in settings_bot.ADMIN_IDS:
+                    try:
+                        await bot.send_message(
+                            admin_id,
+                            m_admin["new_registration"].format(
+                                first_name=new_user.first_name or "—",
+                                last_name=new_user.last_name or "",
+                                username=new_user.username or "—",
+                                telegram_id=new_user.telegram_id,
+                                roles=", ".join(role.name for role in new_user.roles),
+                                subscription=str(new_user.subscription),
+                            ),
+                        )
+                    except TelegramBadRequest as e:
+                        logger.bind(user=admin_id).error(
+                            f"Не удалось отправить сообщение админу {admin_id}: {e}"
+                        )
+                        pass
         await state.set_state(UserStates.press_start)
 
 
@@ -198,3 +220,9 @@ async def mistake_handler_user(message: Message, state: FSMContext) -> None:
         answer_text = m_error["unknown_command_admin"]
     kb = main_kb(message.from_user.id)
     await message.answer(text=answer_text, reply_markup=kb)
+
+
+@user_router.message()  # type: ignore[misc]
+async def echo(message: Message) -> None:
+    """Отпрвить эхо сообщение об ошибке."""
+    await message.reply(text=m_echo.format(text=message.text))

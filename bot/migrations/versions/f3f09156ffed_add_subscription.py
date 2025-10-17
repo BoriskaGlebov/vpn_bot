@@ -1,8 +1,8 @@
 """add subscription
 
-Revision ID: f3575ddd1a35
+Revision ID: f3f09156ffed
 Revises: ae519bb0c72e
-Create Date: 2025-10-16 22:58:54.717406
+Create Date: 2025-10-17 10:20:27.566190
 
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "f3575ddd1a35"
+revision: str = "f3f09156ffed"
 down_revision: Union[str, Sequence[str], None] = "ae519bb0c72e"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
