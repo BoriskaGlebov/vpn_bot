@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.utils.chat_action import ChatActionSender
+from redis_manager import redis_manager
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.start_stop_bot import send_to_admins
 
@@ -129,8 +130,8 @@ async def cmd_start(
                     bot=bot,
                     message_text=admin_message,
                     reply_markup=admin_user_control_kb(message.from_user.id),
-                    state=state,
                     telegram_id=message.from_user.id,
+                    redis_manager=redis_manager,
                 )
         await state.set_state(UserStates.press_start)
 
