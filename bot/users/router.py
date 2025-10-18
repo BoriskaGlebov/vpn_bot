@@ -1,21 +1,21 @@
 import asyncio
 from typing import Any
 
+from admin.keyboards.inline_kb import admin_user_control_kb
 from aiogram import F
 from aiogram.dispatcher.router import Router
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.utils.chat_action import ChatActionSender
 from sqlalchemy.ext.asyncio import AsyncSession
+from utils.start_stop_bot import send_to_admins
 
 from bot.config import bot, logger, settings_bot
 from bot.database import connection
 from bot.users.dao import UserDAO
 from bot.users.keyboards.markup_kb import main_kb
-from bot.users.models import User
 from bot.users.schemas import SRole, SUser, SUserTelegramID
 
 m_admin = settings_bot.MESSAGES["modes"]["admin"]
@@ -51,7 +51,7 @@ async def cmd_start(
     """Обработчик команды /start.
 
     Проверяет, существует ли пользователь в базе данных.
-    Если пользователь новый — добавляет его в БД.
+    Если пользователь новый — добавляет его в БД, назначает роль User и формирует подписку.
     Отправляет приветственные сообщения и формирует клавиатуру главного меню.
 
     Args:
@@ -66,13 +66,7 @@ async def cmd_start(
 
     """
     async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-        user = User(
-            telegram_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-            last_name=message.from_user.last_name,
-        )
-        schema_telegram_id = SUserTelegramID.model_validate(user)
+        schema_telegram_id = SUserTelegramID(telegram_id=message.chat.id)
         await state.clear()
         user_info = await UserDAO.find_one_or_none(
             session=session, filters=schema_telegram_id
@@ -80,56 +74,66 @@ async def cmd_start(
         welcome_messages = m_start["welcome"]
         if user_info:
             response_message = welcome_messages["again"][0].format(
-                username=message.from_user.full_name or user.username or "Гость"
+                username=message.from_user.full_name
+                or message.from_user.username
+                or "Гость"
             )
             follow_up_message = welcome_messages["again"][1]
 
             await message.answer(response_message, reply_markup=ReplyKeyboardRemove())
             await message.answer(
-                follow_up_message, reply_markup=main_kb(user.telegram_id)
+                follow_up_message,
+                reply_markup=main_kb(
+                    active_subscription=user_info.subscription.is_active,
+                    user_telegram_id=message.from_user.id,
+                ),
             )
         else:
-            schema_add = SUser.model_validate(user)
-            if schema_add.telegram_id in settings_bot.ADMIN_IDS:
+            schema_user = SUser(
+                telegram_id=message.from_user.id,
+                username=message.from_user.username,
+                first_name=message.from_user.first_name,
+                last_name=message.from_user.last_name,
+            )
+            if schema_user.telegram_id in settings_bot.ADMIN_IDS:
                 schema_role = SRole(name="admin")
             else:
                 schema_role = SRole(name="user")
             new_user = await UserDAO.add_role_subscription(
-                session=session, values_user=schema_add, values_role=schema_role
+                session=session, values_user=schema_user, values_role=schema_role
             )
             response_message = welcome_messages["first"][0].format(
-                username=message.from_user.full_name or user.username or "Гость"
+                username=message.from_user.full_name
+                or message.from_user.username
+                or "Гость"
             )
             follow_up_message = welcome_messages["first"][1]
             await message.answer(response_message, reply_markup=ReplyKeyboardRemove())
             await message.answer(
-                follow_up_message, reply_markup=main_kb(user.telegram_id)
+                follow_up_message,
+                reply_markup=main_kb(
+                    active_subscription=new_user.subscription.is_active,
+                    user_telegram_id=message.from_user.id,
+                ),
             )
-
-            if schema_add.telegram_id not in settings_bot.ADMIN_IDS:
-                for admin_id in settings_bot.ADMIN_IDS:
-                    try:
-                        await bot.send_message(
-                            admin_id,
-                            m_admin["new_registration"].format(
-                                first_name=new_user.first_name or "—",
-                                last_name=new_user.last_name or "",
-                                username=new_user.username or "—",
-                                telegram_id=new_user.telegram_id,
-                                roles=", ".join(role.name for role in new_user.roles),
-                                subscription=str(new_user.subscription),
-                            ),
-                        )
-                    except TelegramBadRequest as e:
-                        logger.bind(user=admin_id).error(
-                            f"Не удалось отправить сообщение админу {admin_id}: {e}"
-                        )
-                        pass
+            if schema_user.telegram_id not in settings_bot.ADMIN_IDS:
+                admin_message = m_admin["new_registration"].format(
+                    first_name=new_user.first_name or "—",
+                    last_name=new_user.last_name or "",
+                    username=new_user.username or "—",
+                    telegram_id=new_user.telegram_id,
+                    roles=", ".join(role.name for role in new_user.roles),
+                    subscription=str(new_user.subscription),
+                )
+                await send_to_admins(
+                    bot=bot,
+                    message_text=admin_message,
+                    reply_markup=admin_user_control_kb(message.from_user.id),
+                )
         await state.set_state(UserStates.press_start)
 
 
 @user_router.message(Command("admin"))  # type: ignore[misc]
-@connection()
 async def admin_start(
     message: Message, session: AsyncSession, state: FSMContext, **kwargs: Any
 ) -> None:
@@ -177,7 +181,7 @@ async def admin_start(
     UserStates.press_admin,
     ~F.text.startswith("/")
     & ~(
-        F.text.contains("⚙️ Админ-панель") | F.text.contains("❓ Задать вопрос / помощь")
+        F.text.contains("⚙️ Админ-панель") | F.text.contains("❓ Помощь в настройке VPN")
     ),
 )  # type: ignore[misc]
 @user_router.message(
@@ -187,7 +191,8 @@ async def admin_start(
         F.text.contains("🔑 Получить VPN-конфиг AmneziaVPN")
         | F.text.contains("🌐 Получить VPN-конфиг AmneziaWG")
         | F.text.contains("📈 Проверить статус подписки")
-        | F.text.contains("❓ Задать вопрос / помощь")
+        | F.text.contains("❓ Помощь в настройке VPN")
+        | F.text.contains("💰 Выбрать подписку VPN-Boriska")
     ),
 )  # type: ignore[misc]
 async def mistake_handler_user(message: Message, state: FSMContext) -> None:
@@ -213,16 +218,8 @@ async def mistake_handler_user(message: Message, state: FSMContext) -> None:
 
     current_state = await state.get_state()
     state_me = current_state.split(":")[1] if current_state else None
-
     if state_me == "press_start":
         answer_text = m_error["unknown_command"]
     else:
         answer_text = m_error["unknown_command_admin"]
-    kb = main_kb(message.from_user.id)
-    await message.answer(text=answer_text, reply_markup=kb)
-
-
-@user_router.message()  # type: ignore[misc]
-async def echo(message: Message) -> None:
-    """Отпрвить эхо сообщение об ошибке."""
-    await message.reply(text=m_echo.format(text=message.text))
+    await message.answer(text=answer_text)
