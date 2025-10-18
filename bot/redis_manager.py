@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, cast
 
 from redis.asyncio import Redis
 
-from bot.config import logger
+from bot.config import logger, settings_db
 
 
 class SettingsRedis:
@@ -79,3 +79,6 @@ class SettingsRedis:
         key = f"admin_messages:{user_id}"
         await redis.delete(key)
         logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
+
+
+redis_manager = SettingsRedis(str(settings_db.REDIS_URL))
