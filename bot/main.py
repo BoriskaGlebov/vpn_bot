@@ -3,8 +3,11 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
+from admin.router import admin_router
 from aiogram.types import Update
 from fastapi import FastAPI, Request
+from redis_manager import redis_manager
+from subscription.router import subscription_router
 
 from bot.config import bot, dp, logger, settings_bot
 from bot.help.router import help_router
@@ -32,11 +35,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     запуск бота, настройку вебхука и очистку при завершении работы.
     """
     logger.info("Запуск настройки бота...")
+    await redis_manager.connect()
     dp.message.middleware(ErrorHandlerMiddleware())
     dp.callback_query.middleware(ErrorHandlerMiddleware())
+    dp.include_router(user_router)
+    dp.include_router(subscription_router)
+    dp.include_router(admin_router)
     dp.include_router(vpn_router)
     dp.include_router(help_router)
-    dp.include_router(user_router)
 
     await init_default_roles()  # type: ignore
     await start_bot()
@@ -67,6 +73,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Бот остановлен")
     except Exception as e:
         logger.exception(f"Ошибка при остановке бота: {e}")
+    try:
+        await redis_manager.disconnect()
+    except Exception as e:
+        logger.exception(f"Ошибка при отключении от Redis: {e}")
 
 
 # Метаданные для OpenAPI
