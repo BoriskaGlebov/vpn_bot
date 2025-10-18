@@ -66,7 +66,7 @@ async def cmd_start(
 
     """
     async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
-        schema_telegram_id = SUserTelegramID(telegram_id=message.chat.id)
+        schema_telegram_id = SUserTelegramID(telegram_id=message.from_user.id)
         await state.clear()
         user_info = await UserDAO.find_one_or_none(
             session=session, filters=schema_telegram_id
