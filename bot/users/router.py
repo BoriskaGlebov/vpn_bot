@@ -129,14 +129,14 @@ async def cmd_start(
                     bot=bot,
                     message_text=admin_message,
                     reply_markup=admin_user_control_kb(message.from_user.id),
+                    state=state,
+                    telegram_id=message.from_user.id,
                 )
         await state.set_state(UserStates.press_start)
 
 
 @user_router.message(Command("admin"))  # type: ignore[misc]
-async def admin_start(
-    message: Message, session: AsyncSession, state: FSMContext, **kwargs: Any
-) -> None:
+async def admin_start(message: Message, state: FSMContext, **kwargs: Any) -> None:
     """Обработчик команды /admin.
 
     Проверяет, является ли пользователь администратором.
@@ -146,7 +146,6 @@ async def admin_start(
 
     Args:
         message (Message): Объект сообщения Telegram, который вызвал обработчик.
-        session (AsyncSession): Асинхронная сессия базы данных.
         state (FSMContext): Контекст конечного автомата для работы с состояниями пользователя.
         **kwargs (Any): Дополнительные аргументы (не используются напрямую, но могут быть переданы).
 
