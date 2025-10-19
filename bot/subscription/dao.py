@@ -2,12 +2,12 @@ from typing import Optional
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from subscription.models import Subscription
-from users.dao import UserDAO
-from users.schemas import SSubscription, SUser, SUserTelegramID
 
 from bot.config import logger
 from bot.dao.base import BaseDAO
+from bot.subscription.models import Subscription
+from bot.users.dao import UserDAO
+from bot.users.schemas import SSubscription, SUser, SUserTelegramID
 
 
 class SubscriptionDAO(BaseDAO[Subscription]):

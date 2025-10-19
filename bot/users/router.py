@@ -1,7 +1,6 @@
 import asyncio
 from typing import Any
 
-from admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from aiogram import F
 from aiogram.dispatcher.router import Router
 from aiogram.filters import Command, CommandObject, CommandStart
@@ -9,15 +8,16 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.utils.chat_action import ChatActionSender
-from redis_manager import redis_manager
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.start_stop_bot import send_to_admins
 
+from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.config import bot, logger, settings_bot
 from bot.database import connection
+from bot.redis_manager import redis_manager
 from bot.users.dao import UserDAO
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SRole, SUser, SUserTelegramID
+from bot.utils.start_stop_bot import send_to_admins
 
 m_admin = settings_bot.MESSAGES["modes"]["admin"]
 m_start = settings_bot.MESSAGES["modes"]["start"]

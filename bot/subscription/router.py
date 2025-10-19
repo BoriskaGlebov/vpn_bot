@@ -4,19 +4,20 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.chat_action import ChatActionSender
-from config import bot, settings_bot
-from database import connection
-from redis_manager import redis_manager
 from sqlalchemy.ext.asyncio import AsyncSession
-from subscription.dao import SubscriptionDAO
-from subscription.keyboards.inline_kb import (
+
+from bot.config import bot, settings_bot
+from bot.database import connection
+from bot.redis_manager import redis_manager
+from bot.subscription.dao import SubscriptionDAO
+from bot.subscription.keyboards.inline_kb import (
     admin_payment_kb,
     payment_confirm_kb,
     subscription_options_kb,
 )
-from users.keyboards.markup_kb import main_kb
-from users.schemas import SUserTelegramID
-from utils.start_stop_bot import edit_admin_messages, send_to_admins
+from bot.users.keyboards.markup_kb import main_kb
+from bot.users.schemas import SUserTelegramID
+from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
 
 subscription_router = Router()
 
@@ -50,7 +51,7 @@ async def start_subscription(message: Message, state: FSMContext) -> None:
 @subscription_router.callback_query(
     SubscriptionStates.subscription_start, lambda c: c.data.startswith("sub_select:")
 )  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def subscription_selected(
     query: CallbackQuery, state: FSMContext, session: AsyncSession
 ) -> None:
@@ -166,7 +167,7 @@ async def cancel_subscription(query: CallbackQuery, state: FSMContext) -> None:
 
 
 @subscription_router.callback_query(F.data.startswith("admin_confirm:"))  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def admin_confirm_payment(
     query: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:

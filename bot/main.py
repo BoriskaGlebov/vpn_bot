@@ -3,15 +3,15 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
-from admin.router import admin_router
 from aiogram.types import Update
 from fastapi import FastAPI, Request
-from redis_manager import redis_manager
-from subscription.router import subscription_router
 
+from bot.admin.router import admin_router
 from bot.config import bot, dp, logger, settings_bot
 from bot.help.router import help_router
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
+from bot.redis_manager import redis_manager
+from bot.subscription.router import subscription_router
 from bot.users.router import user_router
 from bot.utils.init_default_roles import init_default_roles
 from bot.utils.start_stop_bot import start_bot, stop_bot

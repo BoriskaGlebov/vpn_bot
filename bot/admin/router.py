@@ -3,7 +3,16 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING, List
 
-from admin.keyboards.inline_kb import (
+from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery
+from aiogram.utils.chat_action import ChatActionSender
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from bot.admin.keyboards.inline_kb import (
     AdminCB,
     UserPageCB,
     admin_user_control_kb,
@@ -11,23 +20,15 @@ from admin.keyboards.inline_kb import (
     subscription_selection_kb,
     user_navigation_kb,
 )
-from aiogram import F, Router
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery
-from aiogram.utils.chat_action import ChatActionSender
-from config import bot
-from database import connection
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from users.dao import RoleDAO, UserDAO
+from bot.config import bot
+from bot.database import connection
+from bot.users.dao import RoleDAO, UserDAO
 
 if TYPE_CHECKING:
     from bot.users.models import User
 
-from users.router import m_admin
-from users.schemas import SRole, SUserTelegramID
+from bot.users.router import m_admin
+from bot.users.schemas import SRole, SUserTelegramID
 
 admin_router = Router()
 
@@ -71,7 +72,7 @@ async def _format_user_text(user: User, key: str = "user") -> str:
 
 @admin_router.callback_query(UserPageCB.filter(F.action == "role_change"))  # type: ignore[misc]
 @admin_router.callback_query(UserPageCB.filter(F.action == "sub_manage"))  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def admin_action_callback(
     query: CallbackQuery,
     state: FSMContext,
@@ -93,9 +94,13 @@ async def admin_action_callback(
     """
     async with ChatActionSender.typing(bot=bot, chat_id=query.from_user.id):
         await query.answer("Отработал")
-        user_id: int = callback_data.telegram_id
+        user_id: int | None = callback_data.telegram_id
+        if user_id is None:
+            raise ValueError("Необходимо передать в запрос telegram_id")
         user_schema = SUserTelegramID(telegram_id=user_id)
         user = await UserDAO.find_one_or_none(session=session, filters=user_schema)
+        if user is None:
+            raise ValueError(f"Не нашел пользователя с указанным telegram_id {user_id}")
         old_text = await _format_user_text(user, "edit_user")
         if callback_data.action == "role_change":
             await state.set_state(AdminStates.select_role)
@@ -122,7 +127,7 @@ async def admin_action_callback(
 @admin_router.callback_query(
     AdminStates.select_role, UserPageCB.filter(F.action == "role_select")
 )  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def role_select_callback(
     query: CallbackQuery, callback_data: UserPageCB, session: AsyncSession
 ) -> None:
@@ -140,6 +145,8 @@ async def role_select_callback(
     async with ChatActionSender.typing(bot=bot, chat_id=query.from_user.id):
         role_name = callback_data.filter_type
         user_id = callback_data.telegram_id
+        if user_id is None:
+            raise ValueError("Необходимо передать в запрос telegram_id")
         user_schema = SUserTelegramID(telegram_id=int(user_id))
         user = await UserDAO.find_one_or_none(session=session, filters=user_schema)
         user_id = int(user_id)
@@ -172,7 +179,7 @@ async def role_select_callback(
 
 
 @admin_router.callback_query(UserPageCB.filter(F.action == "sub_select"))  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def sub_select_callback(
     query: CallbackQuery, session: AsyncSession, callback_data: UserPageCB
 ) -> None:
@@ -189,7 +196,9 @@ async def sub_select_callback(
     """
     async with ChatActionSender.typing(bot=bot, chat_id=query.from_user.id):
         months = callback_data.month
-        user_id = int(callback_data.telegram_id)
+        user_id = callback_data.telegram_id
+        if user_id is None or months is None:
+            raise ValueError("Необходимо передать в запрос telegram_id/month")
         user_schema = SUserTelegramID(telegram_id=int(user_id))
         user = await UserDAO.find_one_or_none(session=session, filters=user_schema)
         if user is None:
@@ -229,7 +238,7 @@ async def sub_select_callback(
 
 @admin_router.callback_query(UserPageCB.filter(F.action == "role_cancel"))  # type: ignore[misc]
 @admin_router.callback_query(UserPageCB.filter(F.action == "subscr_cancel"))  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def cansel_callback(
     query: CallbackQuery, session: AsyncSession, callback_data: UserPageCB
 ) -> None:
@@ -258,7 +267,7 @@ async def cansel_callback(
 
 
 @admin_router.callback_query(AdminCB.filter())  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def show_filtered_users(
     query: CallbackQuery, callback_data: AdminCB, session: AsyncSession
 ) -> None:
@@ -295,7 +304,7 @@ async def show_filtered_users(
 
 
 @admin_router.callback_query(UserPageCB.filter(F.action == "navigate"))  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def user_page_callback(
     query: CallbackQuery, callback_data: UserPageCB, session: AsyncSession
 ) -> None:

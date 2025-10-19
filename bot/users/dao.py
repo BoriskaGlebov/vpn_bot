@@ -2,10 +2,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from subscription.models import Subscription
 
 from bot.config import logger
 from bot.dao.base import BaseDAO
+from bot.subscription.models import Subscription
 from bot.users.models import Role, User, UserRole
 from bot.users.schemas import SRole, SUser
 

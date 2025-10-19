@@ -4,14 +4,15 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.utils.chat_action import ChatActionSender
-from config import bot
-from database import connection
 from sqlalchemy.ext.asyncio import AsyncSession
-from users.dao import UserDAO
-from users.schemas import SUserTelegramID
+
+from bot.config import bot
+from bot.database import connection
+from bot.users.dao import UserDAO
+from bot.users.schemas import SUserTelegramID
 
 if TYPE_CHECKING:
-    from bot.users.models import User
+    pass
 vpn_router = Router()
 
 
@@ -42,14 +43,16 @@ async def get_config_amnezia_wg(message: Message, state: FSMContext) -> None:
 
 
 @vpn_router.message(F.text.contains("📈 Проверить статус подписки"))  # type: ignore[misc]
-@connection()  # type: ignore[misc]
+@connection()
 async def check_subscription(
     message: Message, session: AsyncSession, state: FSMContext
 ) -> None:
     """Проверка статуса подписки пользователем."""
     async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
         s_user = SUserTelegramID(telegram_id=message.from_user.id)
-        user: "User" = await UserDAO.find_one_or_none(session=session, filters=s_user)
+        user = await UserDAO.find_one_or_none(session=session, filters=s_user)
+        if user is None:
+            raise ValueError(f"Не удалось найти пользователя {s_user.telegram_id} ")
         await message.answer(
             "Проверка статуса подписки", reply_markup=ReplyKeyboardRemove()
         )
