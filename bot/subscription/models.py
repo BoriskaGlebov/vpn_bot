@@ -75,6 +75,31 @@ class Subscription(Base):
 
         logger.info(f"Активирована подписка с {self.start_date} до {self.end_date}")
 
+    def extend(self, days: int = 0, months: int = 0) -> None:
+        """Продлевает подписку на указанное количество дней или месяцев.
+
+        Args:
+            days (int): Количество дней для продления.
+            months (int): Количество месяцев для продления.
+
+        """
+        if not self.end_date or self.end_date < datetime.datetime.now(
+            datetime.timezone.utc
+        ):
+            # если подписка бессрочная или уже истекла → начинаем с текущей даты
+            new_start = datetime.datetime.now(datetime.timezone.utc)
+        else:
+            # если подписка активна → начинаем с текущей даты окончания
+            new_start = self.end_date
+
+        new_end = (
+            new_start + datetime.timedelta(days=days) + relativedelta(months=months)
+        )
+        self.end_date = new_end
+        self.is_active = True
+
+        logger.info(f"Подписка продлена до {self.end_date}")
+
     def deactivate(self) -> None:
         """Деактивирует подписку."""
         self.is_active = False

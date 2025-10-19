@@ -1,7 +1,7 @@
 import asyncio
 from typing import Any
 
-from admin.keyboards.inline_kb import admin_user_control_kb
+from admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from aiogram import F
 from aiogram.dispatcher.router import Router
 from aiogram.filters import Command, CommandObject, CommandStart
@@ -129,7 +129,9 @@ async def cmd_start(
                 await send_to_admins(
                     bot=bot,
                     message_text=admin_message,
-                    reply_markup=admin_user_control_kb(message.from_user.id),
+                    reply_markup=admin_user_control_kb(
+                        filter_type=schema_role.name, telegram_id=message.from_user.id
+                    ),
                     telegram_id=message.from_user.id,
                     redis_manager=redis_manager,
                 )
@@ -137,6 +139,7 @@ async def cmd_start(
 
 
 @user_router.message(Command("admin"))  # type: ignore[misc]
+@user_router.message(F.text.contains("⚙️ Панель администратора"))  # type: ignore[misc]
 async def admin_start(message: Message, state: FSMContext, **kwargs: Any) -> None:
     """Обработчик команды /admin.
 
@@ -170,8 +173,13 @@ async def admin_start(message: Message, state: FSMContext, **kwargs: Any) -> Non
 
     await bot.send_message(
         chat_id=message.from_user.id,
-        text=m_admin.get("on", "Кажись не придумал сюда сообщение!"),
+        text=m_admin.get("on", "Кажись не придумал сюда сообщение!")[0],
         reply_markup=ReplyKeyboardRemove(),
+    )
+    await bot.send_message(
+        chat_id=message.from_user.id,
+        text=m_admin.get("on", "Кажись не придумал сюда сообщение!")[1],
+        reply_markup=admin_main_kb(),
     )
 
     await state.set_state(UserStates.press_admin)

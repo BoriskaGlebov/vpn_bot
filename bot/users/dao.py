@@ -58,6 +58,9 @@ class UserDAO(BaseDAO[User]):
         session.add(new_user)
         await session.flush()
         subscription = Subscription(user_id=new_user.id)
+        if role.name == "admin":
+            subscription.is_active = True
+            subscription.end_date = None
         session.add(subscription)
         user_role = UserRole(user_id=new_user.id, role_id=role.id)
         session.add(user_role)
