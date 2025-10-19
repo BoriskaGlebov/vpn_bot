@@ -1,3 +1,4 @@
+
 # ==== Простая Makefile для Alembic и Docker ==================================
 
 DC ?= docker compose
@@ -15,7 +16,7 @@ DB_DATABASE ?= vpn_boriska_bot
 DC_EXEC_APP = $(DC) exec -T $(SERVICE)
 DC_EXEC_DB  = $(DC) exec -T $(DB_SERVICE)
 
-.PHONY: help compose-up compose-down compose-down-v compose-restart compose-logs bash rev rev-up rev-down up-to down-to db-reset hard-reset pre-commit pytest ci-checks
+.PHONY: help compose-up compose-down compose-down-v compose-stop compose-start compose-restart compose-logs bash rev rev-up rev-down up-to down-to db-reset hard-reset
 
 help:
 	@echo "Commands:"
@@ -34,7 +35,6 @@ help:
 	@echo "  hard-reset          — drop & create DB + migrate"
 	@echo "  pre-commit          — run all pre-commit hooks on all files"
 	@echo "  pytest              — run tests in bot/tests"
-	@echo "  ci-checks           — run CI checks in with pre-commit bot/tests  "
 
 # Docker
 compose-up:
@@ -87,10 +87,13 @@ pre-commit:
 	@echo "Running pre-commit hooks on all files..."
 	pre-commit run --all-files
 
-
 pytest:
-	@echo "Running tests on all files in test directory..."
-	pytest -vs bot/tests
+	@echo "Running tests in bot/tests..."
+	@if [ -z "$(MARK)" ]; then \
+		pytest -vs bot/tests; \
+	else \
+		pytest -vs -m $(MARK) bot/tests; \
+	fi
 ci-checks: pre-commit
 	@echo "Running CI checks..."
 	poetry run black --check .
