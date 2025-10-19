@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy import select
 
+from bot.subscription.models import Subscription
 from bot.users.dao import RoleDAO, UserDAO
 from bot.users.models import Role
 from bot.users.models import User as DBUser
@@ -68,6 +69,9 @@ async def test_cmd_start_existing_user_real_db(fake_message, session, fake_state
     if exists_user is None:
         user = DBUser(telegram_id=12345, username="test_user", first_name="Test User")
         session.add(user)
+        await session.flush()
+        subscription = Subscription(user_id=user.id)
+        session.add(subscription)
         await session.commit()
 
     users = await UserDAO.find_all(session=session)
@@ -124,8 +128,7 @@ async def test_admin_start_not_admin_real_db(session, fake_state, monkeypatch):
     fake_send_message = AsyncMock()
     monkeypatch.setattr("bot.users.router.bot.send_message", fake_send_message)
 
-    row_admin_start = admin_start.__wrapped__
-    await row_admin_start(message=fake_message, session=session, state=fake_state)
+    await admin_start(message=fake_message, state=fake_state)
 
     fake_message.answer.assert_awaited_once()
     fake_state.clear.assert_awaited_once()
@@ -143,6 +146,9 @@ async def test_admin_start_is_admin_real_db(session, fake_state, monkeypatch):
 
     test_user = DBUser(telegram_id=9999, username="adminuser", first_name="Admin")
     session.add(test_user)
+    await session.flush()
+    subscription = Subscription(user_id=test_user.id)
+    session.add(subscription)
     await session.commit()
 
     fake_message = MagicMock()
@@ -161,14 +167,12 @@ async def test_admin_start_is_admin_real_db(session, fake_state, monkeypatch):
     fake_send_message = AsyncMock()
     monkeypatch.setattr("bot.users.router.bot.send_message", fake_send_message)
 
-    row_admin_start = admin_start.__wrapped__
-    await row_admin_start(message=fake_message, session=session, state=fake_state)
+    await admin_start(message=fake_message, state=fake_state)
 
     fake_state.clear.assert_awaited_once()
     fake_state.set_state.assert_awaited_once_with(UserStates.press_admin)
 
-    fake_send_message.assert_awaited_once()
-
+    assert fake_send_message.await_count == 2
     schema = SUserTelegramID(telegram_id=9999)
     db_user = await UserDAO.find_one_or_none(session=session, filters=schema)
     assert db_user is not None
