@@ -14,6 +14,7 @@ from bot.help.utils.tv_device import TVDevice
 
 
 @pytest.mark.asyncio
+@pytest.mark.help
 async def test_help_cmd(monkeypatch, fake_bot, fake_state):
     """Проверяет, что help_cmd отправляет все сообщения и ставит состояния FSM."""
 
@@ -76,6 +77,7 @@ async def test_help_cmd(monkeypatch, fake_bot, fake_state):
         ("tv", "TVDevice"),
     ],
 )
+@pytest.mark.help
 async def test_device_cb(monkeypatch, fake_bot, device_name, device_class, fake_state):
     """Проверяет, что при выборе устройства вызывается нужный метод .send_message()."""
 
@@ -117,6 +119,7 @@ async def test_device_cb(monkeypatch, fake_bot, device_name, device_class, fake_
         (TVDevice, "amnezia_wg", "tv"),
     ],
 )
+@pytest.mark.help
 async def test_device_send_message(
     monkeypatch, fake_bot, tmp_path, device_class, media_dir, msg_key
 ):
@@ -169,6 +172,7 @@ async def test_device_send_message(
 
 
 @pytest.mark.asyncio
+@pytest.mark.help
 async def test_device_send_message_raises_file_not_found(tmp_path):
     settings_mock = SimpleNamespace(
         BASE_DIR=tmp_path,

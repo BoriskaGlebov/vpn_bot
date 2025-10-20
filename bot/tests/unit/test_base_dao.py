@@ -40,6 +40,7 @@ async def setup_test_table(session: AsyncSession):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_add_and_find_by_id(session):
     item = await TmpDAO.add(session, TmpSchema(name="item1", value=10))
 
@@ -50,6 +51,7 @@ async def test_add_and_find_by_id(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_find_one_or_none(session):
     await TmpDAO.add(session, TmpSchema(name="unique", value=5))
 
@@ -59,6 +61,7 @@ async def test_find_one_or_none(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_find_all_with_filters(session):
     await TmpDAO.add(session, TmpSchema(name="a", value=1))
     await TmpDAO.add(session, TmpSchema(name="a", value=2))
@@ -70,6 +73,7 @@ async def test_find_all_with_filters(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_find_all_without_filters(session):
     await TmpDAO.add(session, TmpSchema(name="x"))
     await TmpDAO.add(session, TmpSchema(name="y"))
@@ -79,6 +83,7 @@ async def test_find_all_without_filters(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_update_records(session):
     dao = TmpDAO()
     await dao.add(session, TmpSchema(name="to_update", value=1))
@@ -93,6 +98,7 @@ async def test_update_records(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_delete_records(session):
     dao = TmpDAO()
     await dao.add(session, TmpSchema(name="to_delete"))
@@ -105,6 +111,7 @@ async def test_delete_records(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_count_records(session):
     dao = TmpDAO()
     await dao.add(session, TmpSchema(name="c1"))
@@ -115,6 +122,7 @@ async def test_count_records(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_find_by_ids(session):
     dao = TmpDAO()
     i1 = await dao.add(session, TmpSchema(name="one"))
@@ -125,6 +133,7 @@ async def test_find_by_ids(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_upsert_creates_and_updates(session):
     dao = TmpDAO()
 
@@ -148,6 +157,7 @@ async def test_upsert_creates_and_updates(session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.dao
 async def test_bulk_update(session):
     dao = TmpDAO()
     item1 = await dao.add(session, TmpSchema(name="bulk1", value=1))
