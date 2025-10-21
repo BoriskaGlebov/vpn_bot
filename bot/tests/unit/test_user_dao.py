@@ -18,9 +18,8 @@ from bot.users.schemas import SRole, SUser
         (6, "nigan", "admin"),
     ],
 )
-async def test_add_role(session, telegram_id, username, role_name):
-    user = User(telegram_id=telegram_id, username=username)
-    session.add(user)
+@pytest.mark.users
+async def test_add_role_subscription(session, telegram_id, username, role_name):
 
     existing_role = await session.scalar(select(Role).where(Role.name == role_name))
     if not existing_role:
@@ -33,8 +32,10 @@ async def test_add_role(session, telegram_id, username, role_name):
 
     user_schema = SUser(telegram_id=telegram_id, username=username)
     role_schema = SRole(name=role_name)
-
-    updated_user = await UserDAO.add_role(session, role_schema, user_schema)
+    #
+    updated_user = await UserDAO.add_role_subscription(
+        session=session, values_user=user_schema, values_role=role_schema
+    )
 
     assert updated_user is not None
     assert any(

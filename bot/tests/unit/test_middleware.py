@@ -4,12 +4,13 @@ import pytest
 from aiogram.exceptions import TelegramBadRequest, TelegramRetryAfter
 from aiogram.types import CallbackQuery, Message
 
+from bot.config import settings_bot
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 
 
 @pytest.mark.asyncio
 @pytest.mark.middleware
-async def test_middleware_handles_message_exception():
+async def test_middleware_handles_message_exception(monkeypatch):
     mw = ErrorHandlerMiddleware()
 
     async def fake_handler(event, data):
@@ -22,17 +23,19 @@ async def test_middleware_handles_message_exception():
     fake_message = MagicMock(spec=Message)
     fake_message.from_user = fake_from_user
     fake_message.reply = AsyncMock()
-
+    monkeypatch.setattr(
+        settings_bot, "MESSAGES", {"general": {"common_error": "Тестовая ошибка"}}
+    )
     await mw(fake_handler, fake_message, {})
 
     fake_message.reply.assert_awaited_once()
     sent_text = fake_message.reply.call_args[0][0]
-    assert "Что-то пошло не так" in sent_text
+    assert "Тестовая ошибка" in sent_text
 
 
 @pytest.mark.asyncio
 @pytest.mark.middleware
-async def test_middleware_handles_callback_query_exception():
+async def test_middleware_handles_callback_query_exception(monkeypatch):
     mw = ErrorHandlerMiddleware()
 
     async def fake_handler(event, data):
@@ -47,12 +50,14 @@ async def test_middleware_handles_callback_query_exception():
     fake_query = MagicMock(spec=CallbackQuery)
     fake_query.from_user = fake_from_user
     fake_query.message = fake_message
-
+    monkeypatch.setattr(
+        settings_bot, "MESSAGES", {"general": {"common_error": "Тестовая ошибка"}}
+    )
     await mw(fake_handler, fake_query, {})
 
     fake_message.answer.assert_awaited_once()
     sent_text = fake_message.answer.call_args[0][0]
-    assert "Что-то пошло не так" in sent_text
+    assert "Тестовая ошибка" in sent_text
 
 
 @pytest.mark.asyncio

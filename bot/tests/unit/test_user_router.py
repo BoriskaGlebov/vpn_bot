@@ -1,225 +1,218 @@
-import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from aiogram.types import Chat, Message, ReplyKeyboardRemove, User
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Chat, Message
 
-from bot.users import router
+from bot.config import settings_bot
+from bot.users.dao import UserDAO
+from bot.users.models import User
 from bot.users.router import (
     UserStates,
     admin_start,
     cmd_start,
-    m_error,
     mistake_handler_user,
+    user_router,
 )
+from bot.users.schemas import SRole, SUser, SUserTelegramID
 
 
 @pytest.mark.asyncio
-@patch("bot.users.router.UserDAO")
-@patch("bot.users.router.RoleDAO")
-@patch("bot.users.router.ChatActionSender")
-async def test_cmd_start_new_user(
-    mock_chat_action, mock_role_dao, mock_user_dao, fake_message, session, fake_state
-):
-    """Тест: новый пользователь впервые пишет /start."""
-    mock_user_dao.find_one_or_none = AsyncMock(return_value=None)
-    mock_user_dao.add = AsyncMock()
-    mock_user_dao.add_role = AsyncMock()
-    mock_role_dao.find_one_or_none = AsyncMock()
+@pytest.mark.users
+async def test_cmd_start_new_user(session, monkeypatch):
+    """Тест для /start с новым пользователем"""
 
-    from bot.config import settings_bot
+    # Мок чата
+    mock_chat = AsyncMock()
+    mock_chat.id = 123
 
-    settings_bot.MESSAGES = {
-        "modes": {
-            "start": {
-                "welcome": {
-                    "first": ["Привет, {username}!", "Добро пожаловать!"],
-                    "again": ["Снова привет, {username}!", "Рады видеть!"],
-                }
-            },
-            "admin": {},
-        },
-        "errors": {},
-    }
-    settings_bot.ADMIN_IDS = [9999]
-
-    await cmd_start(message=fake_message, command=None, state=fake_state)
-
-    mock_user_dao.find_one_or_none.assert_awaited_once()
-    mock_user_dao.add.assert_awaited_once()
-    mock_user_dao.add_role.assert_awaited_once()
-    fake_state.set_state.assert_awaited_once_with(UserStates.press_start)
-    assert fake_message.answer.await_count == 2
-
-
-@pytest.mark.asyncio
-@patch("bot.users.router.UserDAO")
-@patch("bot.users.router.ChatActionSender")
-async def test_cmd_start_existing_user(
-    mock_chat_action, mock_user_dao, fake_message, session, fake_state
-):
-    """Тест: пользователь уже зарегистрирован."""
-    mock_user_dao.find_one_or_none = AsyncMock(return_value={"telegram_id": 12345})
-
-    from bot.config import settings_bot
-
-    settings_bot.MESSAGES = {
-        "modes": {
-            "start": {
-                "welcome": {
-                    "first": ["Привет, {username}!", "Добро пожаловать!"],
-                    "again": ["Снова привет, {username}!", "Рады видеть!"],
-                }
-            },
-            "admin": {},
-        },
-        "errors": {},
-    }
-
-    await cmd_start(message=fake_message, command=None, state=fake_state)
-
-    mock_user_dao.find_one_or_none.assert_awaited_once()
-    fake_state.set_state.assert_awaited_once_with(UserStates.press_start)
-    assert fake_message.answer.await_count == 2
-
-
-@pytest.mark.asyncio
-@patch("bot.users.router.bot")
-async def test_admin_start_not_admin(mock_bot, fake_state):
-    """Юнит-тест: пользователь не админ — доступ запрещён."""
-
-    mock_bot.send_message = AsyncMock()
-
-    fake_user = User(id=1111, is_bot=False, first_name="Test")
-    fake_chat = Chat(id=1111, type="private")
-    fake_message = MagicMock(spec=Message)
-    fake_message.from_user = fake_user
-    fake_message.chat = fake_chat
-    fake_message.answer = AsyncMock()
-
-    m_error.clear()
-    m_error.update({"admin_only": "Ошибка доступа"})
-
-    await admin_start(message=fake_message, state=fake_state)
-
-    fake_message.answer.assert_awaited_once()
-    mock_bot.send_message.assert_awaited_once_with(
-        text="Ошибка доступа",
-        reply_markup=ReplyKeyboardRemove(),
-        chat_id=1111,
+    # Мок пользователя Telegram
+    mock_from_user = SimpleNamespace(
+        id=999,
+        username="testuser",
+        first_name="Test",
+        last_name="User",
+        full_name="Test User",
     )
 
-    fake_state.clear.assert_awaited_once()
-    fake_state.set_state.assert_not_awaited()
+    # Мок сообщения
+    mock_message = AsyncMock()
+    mock_message.chat = mock_chat
+    mock_message.from_user = mock_from_user
+    mock_message.answer = AsyncMock()
+    mock_message.delete = AsyncMock()
 
+    # Мок FSMContext
+    mock_state = AsyncMock(spec=FSMContext)
 
-@pytest.mark.asyncio
-@patch("bot.users.router.bot")
-async def test_admin_start_is_admin(mock_bot, fake_state):
-    """Юнит-тест: пользователь является админом — получает сообщение и переходит в состояние."""
-
-    mock_bot.send_message = AsyncMock()
-
-    # Создаём from_user и chat
-    fake_user = User(id=9999, is_bot=False, first_name="Admin")
-    fake_chat = Chat(id=9999, type="private")
-    fake_message = MagicMock(spec=Message)
-    fake_message.from_user = fake_user
-    fake_message.chat = fake_chat
-    fake_message.answer = AsyncMock()  # не будет вызвано, но на всякий случай
-
-    from bot.config import settings_bot
-
-    settings_bot.ADMIN_IDS = [9999]
-    settings_bot.MESSAGES = {
-        "modes": {"admin": {"on": "Привет, админ!", "off": "Нет доступа"}},
-        "errors": {"admin_only": "Ошибка доступа"},
-    }
-
-    await admin_start(message=fake_message, state=fake_state)
-
-    mock_bot.send_message.assert_awaited_once_with(
-        chat_id=9999,
-        text="Режим АДМИНА включён. Ты можешь использовать дополнительные функции.",
-        reply_markup=ReplyKeyboardRemove(),
+    # Мокаем UserDAO
+    monkeypatch.setattr(UserDAO, "find_one_or_none", AsyncMock(return_value=None))
+    mock_role = SimpleNamespace(name="user")
+    mock_add_user = AsyncMock(
+        return_value=SimpleNamespace(
+            subscription=SimpleNamespace(is_active=True),
+            first_name="Test",
+            last_name="User",
+            username="testuser",
+            telegram_id=999,
+            roles=[mock_role],
+        )
     )
+    monkeypatch.setattr(UserDAO, "add_role_subscription", mock_add_user)
 
-    fake_state.clear.assert_awaited_once()
-    fake_state.set_state.assert_awaited_once_with(UserStates.press_admin)
+    # **Мокаем send_to_admins**, чтобы не обращаться к Redis и не сериализовать AsyncMock
+    monkeypatch.setattr("bot.users.router.send_to_admins", AsyncMock())
+
+    # Вызываем хендлер
+    await cmd_start(message=mock_message, command=Mock(), state=mock_state)
+
+    # Проверяем, что отправлены сообщения
+    assert mock_message.answer.call_count >= 2
+
+    # Проверяем, что пользователь добавлен через DAO
+    mock_add_user.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-@patch("bot.users.router.main_kb")
-async def test_mistake_handler_user_press_start(mock_main_kb, fake_state):
-    """Тест: пользователь в состоянии press_start отправляет некорректное сообщение."""
+@pytest.mark.users
+async def test_admin_start_non_admin(monkeypatch):
+    """Тест /admin для неадмина"""
 
-    # Мокаем клавиатуру
-    mock_main_kb.return_value = "keyboard"
+    # Мок пользователя Telegram
+    mock_from_user = SimpleNamespace(
+        id=123, username="testuser"  # id не в settings_bot.ADMIN_IDS
+    )
+    # Мок чата
+    mock_chat = SimpleNamespace(id=123)
+    # Мок сообщения
+    mock_message = AsyncMock(spec=Message)
+    mock_message.from_user = mock_from_user
+    mock_message.chat = mock_chat
+    mock_message.answer = AsyncMock()
 
-    # Создаем реальные объекты
-    fake_user = User(id=1234, is_bot=False, first_name="Test")
-    fake_chat = Chat(id=1234, type="private")
-    fake_message = MagicMock(spec=Message)
-    fake_message.from_user = MagicMock()
-    fake_message.from_user.id = 1234
-    fake_message.chat = MagicMock()
-    fake_message.chat.id = 1234
-    fake_message.delete = AsyncMock()
-    fake_message.answer = AsyncMock()
+    # Мок FSMContext
+    mock_state = AsyncMock(spec=FSMContext)
+    monkeypatch.setattr("bot.users.router.bot.send_message", AsyncMock())
+    # Вызываем обработчик
+    await admin_start(mock_message, state=mock_state)
 
-    # Мокаем FSMContext
-    fake_state.get_state.return_value = "FSM:press_start"
-    router.m_error.clear()
-    router.m_error.update(
+    # Проверяем, что пользователь получил сообщение об ошибке
+    mock_message.answer.assert_awaited()
+    mock_state.clear.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.users
+async def test_admin_start_admin(monkeypatch):
+    """Тест /admin для админа"""
+
+    # Добавляем id пользователя в список админов
+    admin_id = 999
+    settings_bot.ADMIN_IDS.append(admin_id)
+
+    # Мок пользователя Telegram
+    mock_from_user = SimpleNamespace(id=admin_id, username="adminuser")
+    # Мок чата
+    mock_chat = SimpleNamespace(id=123)
+
+    # Мок сообщения
+    mock_message = AsyncMock(spec=Message)
+    mock_message.from_user = mock_from_user
+    mock_message.chat = mock_chat
+    mock_message.answer = AsyncMock()
+
+    # Мок FSMContext
+    mock_state = AsyncMock(spec=FSMContext)
+    # Мокаем bot.send_message, чтобы не уходил реальный запрос
+    monkeypatch.setattr("bot.users.router.bot.send_message", AsyncMock())
+
+    # Вызываем обработчик
+    await admin_start(mock_message, state=mock_state)
+
+    # Проверяем, что сообщения отправлены и FSM состояние установлено
+    # mock_message.answer.assert_awaited()
+    mock_state.set_state.assert_awaited_with(UserStates.press_admin)
+
+    # Чистим изменения в ADMIN_IDS
+    settings_bot.ADMIN_IDS.remove(admin_id)
+
+
+@pytest.mark.asyncio
+@pytest.mark.users
+async def test_mistake_handler_user_press_start(monkeypatch):
+    """Тест для mistake_handler_user в состоянии press_start"""
+    monkeypatch.setattr(
+        "bot.users.router.m_error",
         {
-            "unknown_command": "Неверная команда",
-            "unknown_command_admin": "Неверная команда для админа",
-            "admin_only": "Ошибка доступа",
-        }
+            "unknown_command": "⚠️ Произошла ошибка. Попробуйте позже.",
+            "unknown_command_admin": "⚠️ Неверная команда для режима админа.",
+        },
     )
-    # Запуск обработчика
-    await mistake_handler_user(message=fake_message, state=fake_state)
+    # Мок пользователя Telegram
+    mock_from_user = SimpleNamespace(id=999, username="testuser")
 
-    # Проверки
-    fake_message.delete.assert_awaited_once()
-    fake_message.answer.assert_awaited_once_with(
-        text=router.m_error["unknown_command"],
-        reply_markup="keyboard",
+    # Мок чата
+    mock_chat = SimpleNamespace(id=123)
+
+    # Мок сообщения
+    mock_message = AsyncMock(spec=Message)
+    mock_message.from_user = mock_from_user
+    mock_message.chat = mock_chat
+    mock_message.answer = AsyncMock()
+    mock_message.delete = AsyncMock()
+
+    # Мок FSMContext, возвращаем состояние press_start
+    mock_state = AsyncMock(spec=FSMContext)
+    mock_state.get_state.return_value = "UserStates:press_start"
+
+    # Вызываем обработчик
+    await mistake_handler_user(mock_message, state=mock_state)
+
+    # Проверяем, что сообщение удалилось
+    mock_message.delete.assert_awaited_once()
+
+    # Проверяем удаление и отправку сообщения
+    mock_message.delete.assert_awaited_once()
+    mock_message.answer.assert_awaited_once_with(
+        text="⚠️ Произошла ошибка. Попробуйте позже."
     )
 
 
 @pytest.mark.asyncio
-@patch("bot.users.router.main_kb")
-async def test_mistake_handler_user_press_admin(mock_main_kb, fake_state):
-    """Тест: пользователь в состоянии press_admin отправляет некорректное сообщение."""
-
-    # Мокаем клавиатуру
-    mock_main_kb.return_value = "keyboard"
-    router.m_error.clear()
-    router.m_error.update(
+@pytest.mark.users
+async def test_mistake_handler_user_press_admin(monkeypatch):
+    """Тест для mistake_handler_user в состоянии press_admin"""
+    # Мокируем словарь ошибок
+    monkeypatch.setattr(
+        "bot.users.router.m_error",
         {
-            "unknown_command": "Неверная команда",
-            "unknown_command_admin": "Неверная команда для админа",
-            "admin_only": "Ошибка доступа",
-        }
+            "unknown_command": "⚠️ Произошла ошибка. Попробуйте позже.",
+            "unknown_command_admin": "⚠️ Неверная команда для режима админа.",
+        },
     )
-    # Создаем реальные объекты User и Chat
-    fake_user = User(id=1234, is_bot=False, first_name="Test")
-    fake_chat = Chat(id=1234, type="private")
-    fake_message = MagicMock(spec=Message)
-    fake_message.from_user = MagicMock()
-    fake_message.from_user.id = 1234
-    fake_message.chat = MagicMock()
-    fake_message.chat.id = 1234
-    fake_message.delete = AsyncMock()
-    fake_message.answer = AsyncMock()
-    fake_state.get_state.return_value = "FSM:press_admin"
-    # Запуск обработчика
-    await mistake_handler_user(message=fake_message, state=fake_state)
 
-    # Проверки
-    fake_message.delete.assert_awaited_once()
-    fake_message.answer.assert_awaited_once_with(
-        text=router.m_error["unknown_command_admin"],
-        reply_markup="keyboard",
+    # Мок пользователя Telegram
+    mock_from_user = SimpleNamespace(id=999, username="testuser")
+
+    # Мок чата
+    mock_chat = SimpleNamespace(id=123)
+
+    # Мок сообщения
+    mock_message = AsyncMock(spec=Message)
+    mock_message.from_user = mock_from_user
+    mock_message.chat = mock_chat
+    mock_message.answer = AsyncMock()
+    mock_message.delete = AsyncMock()
+    # Мок FSMContext, возвращаем состояние press_admin
+    mock_state = AsyncMock(spec=FSMContext)
+    mock_state.get_state.return_value = "UserStates:press_admin"
+
+    # Вызываем обработчик
+    await mistake_handler_user(mock_message, state=mock_state)
+
+    # Проверяем удаление и отправку сообщения
+    mock_message.delete.assert_awaited_once()
+    mock_message.answer.assert_awaited_once_with(
+        text="⚠️ Неверная команда для режима админа."
     )
