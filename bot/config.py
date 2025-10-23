@@ -1,6 +1,7 @@
 import sys
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -40,7 +41,7 @@ class SettingsBot(BaseSettings):
     """
 
     BOT_TOKEN: SecretStr
-    ADMIN_IDS: List[int]
+    ADMIN_IDS: list[int]
     BASE_SITE: str
     USE_POLING: bool = False
     DEBUG_FAST_API: bool = True
@@ -52,7 +53,7 @@ class SettingsBot(BaseSettings):
     LOGGER_LEVEL_FILE: str = "DEBUG"
     LOGGER_ERROR_FILE: str = "WARNING"
 
-    MESSAGES: Dict[str, Any] = dialogs
+    MESSAGES: dict[str, Any] = dialogs
 
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parent.parent / ".env"),
@@ -154,7 +155,7 @@ class LoggerConfig:
         logger_level_stdout: str = "INFO",
         logger_level_file: str = "DEBUG",
         logger_error_file: str = "WARNING",
-        extra_defaults: Optional[Dict[str, Any]] = None,
+        extra_defaults: dict[str, Any] | None = None,
     ) -> None:
         self.log_dir = log_dir
         self.logger_level_stdout = logger_level_stdout

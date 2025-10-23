@@ -1,5 +1,6 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Dict, List
+from typing import Any
 
 import uvicorn
 from aiogram.types import Update
@@ -11,7 +12,7 @@ from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.utils.start_stop_bot import start_bot, stop_bot
 
 # API теги и их описание
-tags_metadata: List[Dict[str, Any]] = [
+tags_metadata: list[dict[str, Any]] = [
     {
         "name": "webhook",
         "description": "Получение обновлений телеграмм",

@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram import Bot
@@ -6,6 +6,8 @@ from loguru import logger as real_logger
 
 from bot.config import settings_bot
 from bot.utils import commands
+from bot.vpn_router.utils.amnezia_vpn import AsyncSSHClientVPN
+from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
 
 
 @pytest.fixture
@@ -31,3 +33,40 @@ def patch_deps(fake_bot, fake_logger, monkeypatch):
     monkeypatch.setattr(settings_bot, "MESSAGES", {"description": "описание"})
     monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123, 456])
     return fake_bot, fake_logger
+
+
+@pytest.fixture
+def mock_asyncssh_connect():
+    """Мок для asyncssh.connect"""
+    with patch(
+        "bot.vpn_router.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
+    ) as mock_connect:
+        mock_conn = AsyncMock()
+        mock_process = AsyncMock()
+        mock_connect.return_value = mock_conn
+        mock_conn.create_process.return_value = mock_process
+        yield mock_connect, mock_conn, mock_process
+
+
+@pytest.fixture
+def ssh_client():
+    """Создаёт экземпляр клиента"""
+    return AsyncSSHClientWG(
+        host="127.0.0.1",
+        username="testuser",
+        key_filename=None,
+        known_hosts=None,
+        container="test-container",
+    )
+
+
+@pytest.fixture
+def ssh_client_vpn():
+    """Создаёт экземпляр клиента"""
+    return AsyncSSHClientVPN(
+        host="127.0.0.1",
+        username="testuser",
+        key_filename=None,
+        known_hosts=None,
+        container="test-container",
+    )

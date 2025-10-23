@@ -60,6 +60,7 @@ repos:
           - pydantic-settings
           - sqlalchemy
           - tokenize-rt
+          - types-aiofiles
         args: [ --strict,
                 --ignore-missing-imports,
         ]

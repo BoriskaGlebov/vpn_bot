@@ -38,8 +38,12 @@ target-version = "py312"
 
 [lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
-select = ["E4", "E7", "E9", "F"]
-ignore = []
+select = ["E4", "E7", "E9", "F", "UP", "ANN"]
+ignore = [
+#    "ANN101", # аргументы без аннотаций (если не хочешь жёстко)
+#    "ANN102", # self без типа
+    "ANN401", # использование Any
+]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
@@ -47,6 +51,9 @@ unfixable = []
 
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+# UP007 — требовать современный синтаксис аннотаций (| вместо Optional/Union)
+# UP006 — использовать встроенные типов вместо typing.List, typing.Dict и т. д.
+extend-select = ["UP006", "UP007"]
 
 [format]
 # Like Black, use double quotes for strings.

@@ -1,6 +1,7 @@
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from functools import wraps
-from typing import Any, Awaitable, Callable, Optional, TypeVar, cast
+from typing import Annotated, Any, TypeVar, cast
 
 from sqlalchemy import func, text
 from sqlalchemy.ext.asyncio import (
@@ -10,7 +11,6 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
-from typing_extensions import Annotated
 
 from bot.config import settings_db
 
@@ -29,7 +29,7 @@ str_null_true = Annotated[str, mapped_column(nullable=True)]
 F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
 
 
-def connection(isolation_level: Optional[str] = None) -> Callable[[F], F]:
+def connection(isolation_level: str | None = None) -> Callable[[F], F]:
     """Декоратор для автоматического управления асинхронной сессией базы данных и транзакцией.
 
     Этот декоратор создаёт сессию `AsyncSession`, оборачивает выполнение функции в транзакцию,

@@ -1,6 +1,6 @@
 from pathlib import Path
 from pprint import pprint
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 import yaml
 from loguru import logger
@@ -8,7 +8,7 @@ from loguru import logger
 
 def load_dialogs(
     filename: Path = Path(__file__).resolve().parent / "dialog_messages.yaml",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Загрузка базовых настроек диалогов Бота.
 
     Args:
@@ -18,7 +18,7 @@ def load_dialogs(
 
     """
     try:
-        with open(filename, "r", encoding="utf-8") as f:
+        with open(filename, encoding="utf-8") as f:
             data = yaml.safe_load(f)
     except FileNotFoundError as e:
         logger.error(f"Файл диалогов не найден: {filename}")
@@ -31,7 +31,7 @@ def load_dialogs(
         logger.warning(f"Ключ 'bot' отсутствует в файле {filename}")
         raise KeyError("Ключ 'bot' отсутствует в файле {filename}")
 
-    return cast(Dict[str, Any], data["bot"])
+    return cast(dict[str, Any], data["bot"])
 
 
 dialogs = load_dialogs()
