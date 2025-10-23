@@ -7,16 +7,25 @@ class AmneziaError(Exception):
 
     """
 
-    def __init__(self, message: str, *, cause: Exception | None = None):
+    def __init__(self, message: str, *, cause: Exception | None = None) -> None:
         super().__init__(message)
         self.cause = cause
 
     def __str__(self) -> str:
         """Возвращает строковое представление ошибки, включая причину, если она есть."""
         base = super().__str__()
-        if self.cause:
-            return f"{base} (из-за: {self.cause})"
-        return base
+        details = self._format_details()
+        return f"{base}{details}" if details else base
+
+    def _format_details(self) -> str | None:
+        """Форматирует дополнительные сведения об ошибке.
+
+        Returns
+            str: Строка с подробной информацией об ошибке.
+            Если деталей нет, возвращается пустая строка.
+
+        """
+        pass
 
 
 class AmneziaSSHError(AmneziaError):
@@ -39,17 +48,22 @@ class AmneziaSSHError(AmneziaError):
         stderr: str = "",
         *,
         cause: Exception | None = None,
-    ):
+    ) -> None:
         super().__init__(message, cause=cause)
         self.cmd = cmd
         self.stdout = stdout
         self.stderr = stderr
 
-    def __str__(self) -> str:
-        """Возвращает строковое представление ошибки, включая детали команды и выводы."""
-        base = super().__str__()
-        details = f"\nКоманда: {self.cmd}\nstdout: {self.stdout}\nstderr: {self.stderr}"
-        return f"{base}{details}"
+    def _format_details(self) -> str:
+        parts = []
+
+        if self.cmd:
+            parts.append(f"Команда: {self.cmd}")
+        if self.stdout:
+            parts.append(f"stdout: {self.stdout}")
+        if self.stderr:
+            parts.append(f"stderr: {self.stderr}")
+        return "\n" + "\n".join(parts) if parts else ""
 
 
 class AmneziaConfigError(AmneziaError):
@@ -69,17 +83,19 @@ class AmneziaConfigError(AmneziaError):
         *,
         stderr: str = "",
         cause: Exception | None = None,
-    ):
+    ) -> None:
         super().__init__(message, cause=cause)
         self.file = file
         self.stderr = stderr
 
-    def __str__(self) -> str:
-        """Возвращает строковое представление ошибки, включая путь к файлу и stderr, если они есть."""
-        base = super().__str__()
-        details = f"\nstderr: {self.stderr}" if self.stderr else ""
-        files_inf = f"\nФайл: {self.file}" if self.file else ""
-        return f"{base}{files_inf}{details}"
+    def _format_details(self) -> str:
+        parts = []
+
+        if self.file:
+            parts.append(f"Файл: {self.file}")
+        if self.stderr:
+            parts.append(f"stderr: {self.stderr}")
+        return "\n" + "\n".join(parts) if parts else ""
 
 
 class AmneziaUserError(AmneziaError):
@@ -92,11 +108,14 @@ class AmneziaUserError(AmneziaError):
 
     """
 
-    def __init__(self, message: str, user: str = "", *, cause: Exception | None = None):
+    def __init__(
+        self, message: str, user: str = "", *, cause: Exception | None = None
+    ) -> None:
         super().__init__(message, cause=cause)
         self.user = user
 
-    def __str__(self) -> str:
-        """Возвращает строковое представление ошибки, включая имя пользователя, если оно есть."""
-        base = super().__str__()
-        return f"{base}\nПользователь: {self.user}" if self.user else base
+    def _format_details(self) -> str:
+        parts = []
+        if self.user:
+            parts.append(f"user: {self.user}")
+        return "\n" + "\n".join(parts) if parts else ""

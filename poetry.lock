@@ -1954,6 +1954,17 @@ files = [
 ]
 
 [[package]]
+name = "types-aiofiles"
+version = "25.1.0.20251011"
+description = "Typing stubs for aiofiles"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "types_aiofiles-25.1.0.20251011-py3-none-any.whl", hash = "sha256:8ff8de7f9d42739d8f0dadcceeb781ce27cd8d8c4152d4a7c52f6b20edb8149c"},
+    {file = "types_aiofiles-25.1.0.20251011.tar.gz", hash = "sha256:1c2b8ab260cb3cd40c15f9d10efdc05a6e1e6b02899304d80dfa0410e028d3ff"},
+]
+
+[[package]]
 name = "types-atomicwrites"
 version = "1.4.5.1"
 description = "Typing stubs for atomicwrites"
@@ -2195,4 +2206,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "d435e84e9c671b09390ca6c530c43c730fd339774bbafd80e13ae2460b29fe2f"
+content-hash = "f8219bc44a4f261564aa3074278fbbb0896155560a664ebaaed77ad2f6990582"

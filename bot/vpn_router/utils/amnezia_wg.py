@@ -3,12 +3,13 @@ import ipaddress
 import json
 import shlex
 import uuid
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
 from types import TracebackType
-from typing import Any, AsyncGenerator, List, Optional, Tuple, Type
+from typing import Any
 
-import aiofiles  # type: ignore
+import aiofiles
 import asyncssh
 
 from bot.config import logger
@@ -44,8 +45,8 @@ class AsyncSSHClientWG:
         host: str,
         username: str,
         port: int = 22,
-        key_filename: Optional[str] = None,
-        known_hosts: Optional[str] = None,
+        key_filename: str | None = None,
+        known_hosts: str | None = None,
         container: str = "amnezia-awg",
     ) -> None:
         self.host = host
@@ -54,8 +55,8 @@ class AsyncSSHClientWG:
         self.key_filename = key_filename
         self.known_hosts = known_hosts
         self.container = container
-        self._conn: Optional[asyncssh.SSHClientConnection] = None
-        self._process: Optional[asyncssh.SSHClientProcess[str]] = None
+        self._conn: asyncssh.SSHClientConnection | None = None
+        self._process: asyncssh.SSHClientProcess[str] | None = None
 
     async def connect(self) -> None:
         """Устанавливает SSH-соединение и открывает shell-сессию.
@@ -89,7 +90,7 @@ class AsyncSSHClientWG:
             )
             raise
 
-    async def write_single_cmd(self, cmd: str) -> Tuple[str, str, int, str]:
+    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int, str]:
         """Выполняет одну команду внутри контейнера.
 
         Args:
@@ -130,14 +131,14 @@ class AsyncSSHClientWG:
                 if not line:
                     break
                 stderr += line
-        except asyncio.TimeoutError:
+        except TimeoutError:
             pass
 
         return stdout.strip(), stderr.strip(), exit_code, cmd
 
     async def run_commands_in_container(
-        self, commands: List[str]
-    ) -> AsyncGenerator[Tuple[str, str, int, str], None]:
+        self, commands: list[str]
+    ) -> AsyncGenerator[tuple[str, str, int, str], None]:
         """Выполняет список команд внутри контейнера.
 
         Args:
@@ -173,7 +174,7 @@ class AsyncSSHClientWG:
                 stderr=stderr,
             )
 
-    async def _generate_private_key(self) -> Optional[str]:
+    async def _generate_private_key(self) -> str | None:
         """Генерирует приватный ключ в контейнере.
 
         Returns
@@ -206,7 +207,7 @@ class AsyncSSHClientWG:
                     )
         return None
 
-    async def _generate_public_key(self) -> Optional[str]:
+    async def _generate_public_key(self) -> str | None:
         """Генерирует публичный ключ из приватного.
 
         Returns
@@ -291,7 +292,7 @@ class AsyncSSHClientWG:
 
         return None
 
-    async def _get_correct_ip(self) -> Optional[str]:
+    async def _get_correct_ip(self) -> str | None:
         """Определяет корректный IP-адрес клиента для WireGuard.
 
         Returns
@@ -323,7 +324,7 @@ class AsyncSSHClientWG:
                 )
         return None
 
-    async def _get_psk_key(self) -> Optional[str]:
+    async def _get_psk_key(self) -> str | None:
         """Определяет preshared_key от  WireGuard.
 
         Returns
@@ -345,7 +346,7 @@ class AsyncSSHClientWG:
             )
         return None
 
-    async def _get_public_server_key(self) -> Optional[str]:
+    async def _get_public_server_key(self) -> str | None:
         """Определяет public_key от  WireGuard сервера.
 
         Returns
@@ -370,7 +371,7 @@ class AsyncSSHClientWG:
 
     async def _add_user_in_config(
         self, public_server_key: str, correct_ip: str, psk_key: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """Добавляет конфигурацию пользователя в `wg0.conf`.
 
         Args:
@@ -444,7 +445,7 @@ class AsyncSSHClientWG:
             lines.append(f"{key} = {value}")
         return "\n".join(lines)
 
-    async def _reboot_interface(self) -> Optional[bool]:
+    async def _reboot_interface(self) -> bool | None:
         """Перезапускает интерфейс WireGuard внутри контейнера.
 
         Выполняет команды `wg-quick down` и `wg-quick up` через SSH внутри контейнера.
@@ -885,9 +886,9 @@ class AsyncSSHClientWG:
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         """Закрывает соединение в асинхронном контекстном менеджере."""
         await self.close()

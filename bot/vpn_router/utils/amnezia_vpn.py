@@ -1,9 +1,8 @@
 import asyncio
 import base64
 from pathlib import Path
-from typing import Optional
 
-import aiofiles  # type: ignore
+import aiofiles
 
 from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
 
@@ -32,8 +31,8 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         host: str,
         username: str,
         port: int = 22,
-        key_filename: Optional[str] = None,
-        known_hosts: Optional[str] = None,
+        key_filename: str | None = None,
+        known_hosts: str | None = None,
         container: str = "amnezia-awg",
     ) -> None:
         super().__init__(host, username, port, key_filename, known_hosts, container)
@@ -62,15 +61,15 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         config_text = await self._generate_wg_config(
             new_ip, private_key, pub_server_key, preshared_key
         )
-        encode_conf = base64.b64encode(config_text.encode("utf-8")).decode("utf-8")
+        encode_conf = base64.b64encode(config_text.encode()).decode()
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        file_cfg = (
-            file_dir / filename
-            if filename.rsplit(".", 1)[-1] == "vpn"
-            else file_dir / f"{filename}.vpn"
-        )
-        async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
+        if filename.rsplit(".", 1)[-1] == "vpn":
+            file_cfg = file_dir / filename
+        else:
+            file_cfg = file_dir / f"{filename}.vpn"
+
+        async with aiofiles.open(file_cfg, "w") as f:
             await f.write("vpn://\n")
             await f.write(encode_conf)
 

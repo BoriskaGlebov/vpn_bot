@@ -34,7 +34,7 @@ async def test_save_wg_config_amneziavpn(ssh_client_vpn):
             / "user_cfg"
             / f"{filename}.vpn"
         )
-        mock_aiofiles_open.assert_called_once_with(expected_path, "w", encoding="utf-8")
+        mock_aiofiles_open.assert_called_once_with(expected_path, "w")
 
         written_text = "".join(call.args[0] for call in mock_file.write.call_args_list)
         assert written_text.startswith("vpn://")
