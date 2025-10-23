@@ -5,9 +5,12 @@ SERVICE ?= app # Имя сервиса приложения в docker-compose.ym
 DB_SERVICE ?= db
 ALEMBIC ?= alembic
 ENV_FILE ?= .env
-include $(ENV_FILE)
 MSG ?= auto
 V ?=
+# Дефолтные значения, можно переопределить
+DB_USER ?= user
+DB_DATABASE ?= vpn_boriska_bot
+
 
 DC_EXEC_APP = $(DC) exec -T $(SERVICE)
 DC_EXEC_DB  = $(DC) exec -T $(DB_SERVICE)
