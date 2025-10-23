@@ -1,5 +1,3 @@
-from typing import Optional
-
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup, Message
@@ -13,9 +11,9 @@ from bot.utils.set_description_file import set_description
 async def send_to_admins(
     bot: Bot,
     message_text: str,
-    reply_markup: Optional[InlineKeyboardMarkup] = None,
-    telegram_id: Optional[int] = None,
-    redis_manager: Optional[SettingsRedis] = None,
+    reply_markup: InlineKeyboardMarkup | None = None,
+    telegram_id: int | None = None,
+    redis_manager: SettingsRedis | None = None,
 ) -> None:
     """Отправляет сообщение всем администраторам с возможной inline-клавиатурой.
 

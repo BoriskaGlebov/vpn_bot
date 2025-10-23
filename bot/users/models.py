@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import BigInteger, ForeignKey
 from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
@@ -68,7 +68,7 @@ class User(Base):
     first_name: Mapped[str_null_true]
     last_name: Mapped[str_null_true]
 
-    user_roles: Mapped[List["UserRole"]] = relationship(
+    user_roles: Mapped[list["UserRole"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin",
@@ -109,7 +109,7 @@ class Role(Base):
     role_users: Mapped[list["UserRole"]] = relationship(
         back_populates="role", cascade="all, delete-orphan", lazy="selectin"
     )
-    users: AssociationProxy[List["User"]] = association_proxy("role_users", "user")
+    users: AssociationProxy[list["User"]] = association_proxy("role_users", "user")
 
     def __str__(self) -> str:
         """Строковое представление для записи."""

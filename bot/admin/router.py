@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import datetime
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
@@ -40,7 +40,7 @@ class AdminStates(StatesGroup):  # type: ignore[misc]
     select_period: State = State()
 
 
-async def _get_users_by_filter(session: AsyncSession, filter_type: str) -> List[User]:
+async def _get_users_by_filter(session: AsyncSession, filter_type: str) -> list[User]:
     """Вспомогательная функция: получить пользователей по фильтру."""
     from bot.users.models import Role, User, UserRole
 
@@ -159,8 +159,8 @@ async def role_select_callback(
         user.roles = [role]
         if role.name == "founder":
             if datetime.datetime.now().year == 2025:
-                current_date = datetime.datetime.now(tz=datetime.timezone.utc)
-                new_user = datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc)
+                current_date = datetime.datetime.now(tz=datetime.UTC)
+                new_user = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
                 delta = new_user - current_date
                 user.subscription.activate(days=delta.days)
 

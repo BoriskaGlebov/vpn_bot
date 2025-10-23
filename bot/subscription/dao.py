@@ -1,5 +1,3 @@
-from typing import Optional
-
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,8 +28,8 @@ class SubscriptionDAO(BaseDAO[Subscription]):
         self,
         session: AsyncSession,
         stelegram_id: SUserTelegramID,
-        days: Optional[int] = None,
-        month: Optional[int] = None,
+        days: int | None = None,
+        month: int | None = None,
     ) -> Subscription:
         """Активирует подписку пользователя на указанное количество дней или месяцев.
 

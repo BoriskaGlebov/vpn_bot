@@ -1,8 +1,5 @@
 from typing import (
     Generic,
-    List,
-    Optional,
-    Type,
     TypeVar,
     cast,
 )
@@ -22,7 +19,7 @@ from bot.database import Base
 T = TypeVar("T", bound=Base)
 
 
-class BaseDAO(Generic[T]):
+class BaseDAO(Generic[T]):  # noqa: UP046
     """Общий класс для работы с объектами моделей в базе данных.
 
     Этот класс предоставляет базовые методы для выполнения операций
@@ -77,12 +74,12 @@ class BaseDAO(Generic[T]):
     """
 
     # noinspection PyTypeHints
-    model: Type[T]  # Тип модели, которой управляет этот DAO
+    model: type[T]  # Тип модели, которой управляет этот DAO
 
     @classmethod
     async def find_one_or_none_by_id(
         cls, data_id: int, session: AsyncSession
-    ) -> Optional[T]:
+    ) -> T | None:
         """Находит запись по ID.
 
         Args:
@@ -99,7 +96,7 @@ class BaseDAO(Generic[T]):
             # noinspection PyTypeChecker
             query = select(cls.model).filter_by(id=data_id)
             result = await session.execute(query)
-            record = cast(Optional[T], result.scalar_one_or_none())
+            record = cast(T | None, result.scalar_one_or_none())
             if record:
                 logger.info(f"Запись с ID {data_id} найдена.")
             else:
@@ -112,7 +109,7 @@ class BaseDAO(Generic[T]):
     @classmethod
     async def find_one_or_none(
         cls, session: AsyncSession, filters: BaseModel
-    ) -> Optional[T]:
+    ) -> T | None:
         """Находит одну запись по фильтрам.
 
         Args:
@@ -132,7 +129,7 @@ class BaseDAO(Generic[T]):
             # noinspection PyTypeChecker
             query = select(cls.model).filter_by(**filter_dict)
             result = await session.execute(query)
-            record = cast(Optional[T], result.scalar_one_or_none())
+            record = cast(T | None, result.scalar_one_or_none())
             if record:
                 logger.info(f"Запись найдена по фильтрам: {filter_dict}")
             else:
@@ -144,8 +141,8 @@ class BaseDAO(Generic[T]):
 
     @classmethod
     async def find_all(
-        cls, session: AsyncSession, filters: Optional[BaseModel] = None
-    ) -> List[T]:
+        cls, session: AsyncSession, filters: BaseModel | None = None
+    ) -> list[T]:
         """Находит все записи по фильтрам.
 
         Args:
@@ -165,7 +162,7 @@ class BaseDAO(Generic[T]):
             # noinspection PyTypeChecker
             query = select(cls.model).filter_by(**filter_dict)
             result = await session.execute(query)
-            records = cast(List[T], result.scalars().all())
+            records = cast(list[T], result.scalars().all())
             logger.info(f"Найдено {len(records)} записей.")
             return records
         except SQLAlchemyError as e:
@@ -206,8 +203,8 @@ class BaseDAO(Generic[T]):
 
     @classmethod
     async def add_many(
-        cls, session: AsyncSession, instances: List[BaseModel]
-    ) -> List[T]:
+        cls, session: AsyncSession, instances: list[BaseModel]
+    ) -> list[T]:
         """Добавляет несколько записей в базу данных.
 
         Args:
@@ -344,7 +341,7 @@ class BaseDAO(Generic[T]):
         page: int = 1,
         page_size: int = 10,
         filters: BaseModel | None = None,
-    ) -> List[T]:
+    ) -> list[T]:
         """Пагинирует записи по фильтрам.
 
         Args:
@@ -369,7 +366,7 @@ class BaseDAO(Generic[T]):
             result = await session.execute(
                 query.offset((page - 1) * page_size).limit(page_size)
             )
-            records = cast(List[T], result.scalars().all())
+            records = cast(list[T], result.scalars().all())
             logger.info(f"Найдено {len(records)} записей на странице {page}.")
             return records
         except SQLAlchemyError as e:
@@ -377,7 +374,7 @@ class BaseDAO(Generic[T]):
             raise
 
     @classmethod
-    async def find_by_ids(cls, session: AsyncSession, ids: List[int]) -> List[T]:
+    async def find_by_ids(cls, session: AsyncSession, ids: list[int]) -> list[T]:
         """Находит несколько записей по списку ID.
 
         Args:
@@ -394,7 +391,7 @@ class BaseDAO(Generic[T]):
             # noinspection PyTypeChecker
             query = select(cls.model).filter(cls.model.id.in_(ids))
             result = await session.execute(query)
-            records = cast(List[T], result.scalars().all())
+            records = cast(list[T], result.scalars().all())
             logger.info(f"Найдено {len(records)} записей по списку ID.")
             return records
         except SQLAlchemyError as e:
@@ -403,7 +400,7 @@ class BaseDAO(Generic[T]):
 
     @classmethod
     async def upsert(
-        cls, session: AsyncSession, unique_fields: List[str], values: BaseModel
+        cls, session: AsyncSession, unique_fields: list[str], values: BaseModel
     ) -> T:
         """Создает запись или обновляет существующую.
 
@@ -448,7 +445,7 @@ class BaseDAO(Generic[T]):
             raise
 
     @classmethod
-    async def bulk_update(cls, session: AsyncSession, records: List[BaseModel]) -> int:
+    async def bulk_update(cls, session: AsyncSession, records: list[BaseModel]) -> int:
         """Массовое обновление записей.
 
         Args:

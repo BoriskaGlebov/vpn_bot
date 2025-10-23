@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -29,9 +27,9 @@ class SUser(SUserTelegramID):
 
     """
 
-    username: Optional[str] = Field(None, description="Имя пользователя в Telegram")
-    first_name: Optional[str] = Field(None, description="Имя пользователя")
-    last_name: Optional[str] = Field(None, description="Фамилия пользователя")
+    username: str | None = Field(None, description="Имя пользователя в Telegram")
+    first_name: str | None = Field(None, description="Имя пользователя")
+    last_name: str | None = Field(None, description="Фамилия пользователя")
 
 
 class SRole(BaseModel):

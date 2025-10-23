@@ -1,3 +1,4 @@
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +12,8 @@ from bot.config import settings_bot
 from bot.database import Base
 from bot.redis_manager import SettingsRedis
 from bot.utils import commands
+from bot.vpn_router.utils.amnezia_vpn import AsyncSSHClientVPN
+from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
 
 
 @pytest.fixture

@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, cast
 
 from redis.asyncio import Redis
 
@@ -11,7 +11,7 @@ class SettingsRedis:
 
     def __init__(self, redis_url: str) -> None:
         self.url = redis_url
-        self.client: Optional[Redis] = None
+        self.client: Redis | None = None
 
     async def connect(self) -> Redis:
         """Инициализирует соединение с Redis."""
@@ -39,13 +39,13 @@ class SettingsRedis:
         assert self.client is not None
         return self.client
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         """Возвращает значение по ключу."""
         redis = await self._ensure_connection()
         value = await redis.get(key)
-        return cast(Optional[str], value)
+        return cast(str | None, value)
 
-    async def set(self, key: str, value: str, expire: Optional[int] = None) -> None:
+    async def set(self, key: str, value: str, expire: int | None = None) -> None:
         """Сохраняет значение по ключу."""
         redis = await self._ensure_connection()
         await redis.set(key, value, ex=expire)
@@ -62,11 +62,11 @@ class SettingsRedis:
         redis = await self._ensure_connection()
         key = f"admin_messages:{user_id}"
         existing = await redis.get(key)
-        messages: List[Dict[str, Any]] = json.loads(existing) if existing else []
+        messages: list[dict[str, Any]] = json.loads(existing) if existing else []
         messages.append({"chat_id": admin_id, "message_id": message_id})
         await redis.set(key, json.dumps(messages))
 
-    async def get_admin_messages(self, user_id: int) -> List[Dict[str, Any]]:
+    async def get_admin_messages(self, user_id: int) -> list[dict[str, Any]]:
         """Возвращает список сообщений администраторов для пользователя."""
         redis = await self._ensure_connection()
         key = f"admin_messages:{user_id}"

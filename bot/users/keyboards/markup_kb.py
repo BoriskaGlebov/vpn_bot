@@ -1,5 +1,3 @@
-from typing import Optional
-
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 
 from bot.config import settings_bot
@@ -7,7 +5,7 @@ from bot.config import settings_bot
 
 def main_kb(
     active_subscription: bool = False,
-    user_telegram_id: Optional[int] = None,
+    user_telegram_id: int | None = None,
 ) -> ReplyKeyboardMarkup:
     """Формирует клавиатуру главного меню бота.
 

@@ -1,5 +1,5 @@
 import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from dateutil.relativedelta import relativedelta
 from sqlalchemy import DateTime, ForeignKey
@@ -35,9 +35,9 @@ class Subscription(Base):
     is_active: Mapped[bool] = mapped_column(default=False)
     start_date: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.UTC),
     )
-    end_date: Mapped[Optional[datetime.datetime]] = mapped_column(
+    end_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
@@ -51,9 +51,7 @@ class Subscription(Base):
         )
         return f"{status} (до {until})"
 
-    def activate(
-        self, days: Optional[int] = None, month_num: Optional[int] = None
-    ) -> None:
+    def activate(self, days: int | None = None, month_num: int | None = None) -> None:
         """Активирует подписку на указанное количество дней или месяцев.
 
         Args:
@@ -83,11 +81,9 @@ class Subscription(Base):
             months (int): Количество месяцев для продления.
 
         """
-        if not self.end_date or self.end_date < datetime.datetime.now(
-            datetime.timezone.utc
-        ):
+        if not self.end_date or self.end_date < datetime.datetime.now(datetime.UTC):
             # если подписка бессрочная или уже истекла → начинаем с текущей даты
-            new_start = datetime.datetime.now(datetime.timezone.utc)
+            new_start = datetime.datetime.now(datetime.UTC)
         else:
             # если подписка активна → начинаем с текущей даты окончания
             new_start = self.end_date
@@ -118,7 +114,7 @@ class Subscription(Base):
             return True
         return False
 
-    def remaining_days(self) -> Optional[int]:
+    def remaining_days(self) -> int | None:
         """Возвращает количество оставшихся дней до окончания.
 
         Returns

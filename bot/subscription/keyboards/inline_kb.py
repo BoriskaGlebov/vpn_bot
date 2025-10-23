@@ -1,5 +1,3 @@
-from typing import Tuple
-
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -14,7 +12,7 @@ def subscription_options_kb() -> InlineKeyboardMarkup:
 
     """
     builder = InlineKeyboardBuilder()
-    options: list[Tuple[str, int]] = [
+    options: list[tuple[str, int]] = [
         ("1 месяц — 70₽", 1),
         ("3 месяца — 160₽", 3),
         ("6 месяцев — 300₽", 6),
