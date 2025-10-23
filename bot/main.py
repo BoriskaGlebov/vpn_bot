@@ -10,6 +10,8 @@ from bot.admin.router import admin_router
 from bot.config import bot, dp, logger, settings_bot
 from bot.help.router import help_router
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
+
+# from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.redis_manager import redis_manager
 from bot.subscription.router import subscription_router
 from bot.users.router import user_router
@@ -37,6 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Запуск настройки бота...")
     await redis_manager.connect()
     dp.message.middleware(ErrorHandlerMiddleware())
+    # dp.message.middleware(UserActionLoggingMiddleware(log_data=True, log_time=True))
     dp.callback_query.middleware(ErrorHandlerMiddleware())
     dp.include_router(user_router)
     dp.include_router(subscription_router)
