@@ -4,6 +4,7 @@ from typing import (
     cast,
 )
 
+from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import delete as sqlalchemy_delete
 from sqlalchemy import func
@@ -12,7 +13,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from bot.config import logger
 from bot.database import Base
 
 # Объявляем типовой параметр T с ограничением, что это наследник Base

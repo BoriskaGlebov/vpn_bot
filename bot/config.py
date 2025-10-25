@@ -329,3 +329,4 @@ if __name__ == "__main__":
     print(settings_bot.WEBHOOK_URL)
     print(settings_db.model_dump())
     # print(settings_db.model_dump_json())
+    print(type(logger))

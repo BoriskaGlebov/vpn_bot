@@ -6,17 +6,21 @@ import uvicorn
 from aiogram.types import Update
 from fastapi import FastAPI, Request
 
-from bot.admin.router import admin_router
+# from bot.admin.router import admin_router
 from bot.config import bot, dp, logger, settings_bot
-from bot.help.router import help_router
+
+# from bot.help.router import help_router
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.redis_manager import redis_manager
-from bot.subscription.router import subscription_router
-from bot.users.router import user_router
+
+# from bot.subscription.router import subscription_router
+from bot.users.router import UserRouter
 from bot.utils.init_default_roles import init_default_roles
 from bot.utils.start_stop_bot import start_bot, stop_bot
-from bot.vpn.router import vpn_router
+
+# from bot.vpn.router import vpn_router
+# from bot.vpn.router import VPNRouter
 
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
@@ -43,11 +47,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         UserActionLoggingMiddleware(log_data=True, log_time=True)
     )
     dp.callback_query.middleware(ErrorHandlerMiddleware())
-    dp.include_router(user_router)
-    dp.include_router(subscription_router)
-    dp.include_router(admin_router)
-    dp.include_router(vpn_router)
-    dp.include_router(help_router)
+    user_router = UserRouter(bot=bot, logger=logger, redis_manager=redis_manager)
+    dp.include_router(user_router.router)
+    # dp.include_router(subscription_router)
+    # dp.include_router(admin_router)
+    # vpn_router = VPNRouter()
+    # dp.include_router(vpn_router.router)
+    #
+    #
+    # dp.include_router(help_router)
 
     await init_default_roles()  # type: ignore
     await start_bot()
