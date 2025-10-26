@@ -83,6 +83,7 @@ async def session(test_engine):
 @pytest.fixture
 def fake_state():
     fsm = AsyncMock(spec=FSMContext)
+    fsm.get_data = AsyncMock(return_value={})
     return fsm
 
 

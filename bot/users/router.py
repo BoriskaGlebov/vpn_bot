@@ -132,14 +132,14 @@ class UserRouter(BaseRouter):
             user_info = await UserDAO.find_one_or_none(
                 session=session, filters=schema_telegram_id
             )
-            welcome_messages = m_start["welcome"]
+            welcome_messages = m_start.get("welcome", {})
             if user_info:
-                response_message = welcome_messages["again"][0].format(
+                response_message = welcome_messages.get("again", [])[0].format(
                     username=message.from_user.full_name
-                    or message.from_user.username
-                    or "Гость"
+                    or f"@{message.from_user.username}"
+                    or f"Гость_{message.from_user.id}"
                 )
-                follow_up_message = welcome_messages["again"][1]
+                follow_up_message = welcome_messages.get("again", [])[1]
 
                 await message.answer(
                     response_message, reply_markup=ReplyKeyboardRemove()
@@ -154,7 +154,8 @@ class UserRouter(BaseRouter):
             else:
                 schema_user = SUser(
                     telegram_id=message.from_user.id,
-                    username=message.from_user.username,
+                    username=message.from_user.username
+                    or f"Гость_{message.from_user.id}",
                     first_name=message.from_user.first_name,
                     last_name=message.from_user.last_name,
                 )
@@ -165,12 +166,12 @@ class UserRouter(BaseRouter):
                 new_user = await UserDAO.add_role_subscription(
                     session=session, values_user=schema_user, values_role=schema_role
                 )
-                response_message = welcome_messages["first"][0].format(
+                response_message = welcome_messages.get("first", [])[0].format(
                     username=message.from_user.full_name
                     or message.from_user.username
-                    or "Гость"
+                    or f"Гость_{message.from_user.id}"
                 )
-                follow_up_message = welcome_messages["first"][1]
+                follow_up_message = welcome_messages.get("first", [])[1]
                 await message.answer(
                     response_message, reply_markup=ReplyKeyboardRemove()
                 )
@@ -182,7 +183,7 @@ class UserRouter(BaseRouter):
                     ),
                 )
                 if schema_user.telegram_id not in settings_bot.ADMIN_IDS:
-                    admin_message = m_admin["new_registration"].format(
+                    admin_message = m_admin.get("new_registration", "").format(
                         first_name=new_user.first_name or "—",
                         last_name=new_user.last_name or "",
                         username=new_user.username or "—",
@@ -221,32 +222,50 @@ class UserRouter(BaseRouter):
             None
 
         """
-        await state.clear()
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await state.clear()
 
-        if message.from_user.id not in settings_bot.ADMIN_IDS:
-            await message.answer(
-                text=m_admin.get("off", "У вас нет доступа к этой команде!"),
+            if message.from_user.id not in settings_bot.ADMIN_IDS:
+                await message.answer(
+                    text=m_admin.get("off", "У вас нет доступа к этой команде!"),
+                    reply_markup=ReplyKeyboardRemove(),
+                )
+                await self.bot.send_message(
+                    text=m_error.get("admin_only", "У вас нет доступа к этой команде!"),
+                    reply_markup=ReplyKeyboardRemove(),
+                    chat_id=message.chat.id,
+                )
+                return
+
+            await self.bot.send_message(
+                chat_id=message.from_user.id,
+                text=m_admin.get("on", [])[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
             await self.bot.send_message(
-                text=m_error.get("admin_only", "У вас нет доступа к этой команде!"),
-                reply_markup=ReplyKeyboardRemove(),
-                chat_id=message.chat.id,
+                chat_id=message.from_user.id,
+                text=m_admin.get("on", [])[1],
+                reply_markup=admin_main_kb(),
             )
-            return
 
-        await self.bot.send_message(
-            chat_id=message.from_user.id,
-            text=m_admin.get("on", "Кажись не придумал сюда сообщение!")[0],
-            reply_markup=ReplyKeyboardRemove(),
-        )
-        await self.bot.send_message(
-            chat_id=message.from_user.id,
-            text=m_admin.get("on", "Кажись не придумал сюда сообщение!")[1],
-            reply_markup=admin_main_kb(),
-        )
+            await state.set_state(UserStates.press_admin)
 
-        await state.set_state(UserStates.press_admin)
+    async def counter_handler(self, command_key: str, state: FSMContext) -> int:
+        """Увеличивает счётчик в FSM-контексте пользователя.
+
+        Args:
+            command_key (str): Ключ, под которым хранится счётчик в данных FSM.
+            state (FSMContext): FSM-контекст пользователя.
+
+        Returns
+            int: Обновлённое значение счётчика.
+
+        """
+        data: dict[str, Any] = await state.get_data()
+        counter_value: int = data.get(command_key, 0)
+        counter_value += 1
+        await state.update_data(**{command_key: counter_value})
+        return counter_value
 
     async def mistake_handler_user(self, message: Message, state: FSMContext) -> None:
         """Обработчик некорректных сообщений от пользователя.
@@ -262,17 +281,35 @@ class UserRouter(BaseRouter):
             None
 
         """
-        try:
-            await asyncio.sleep(2)
-            await message.delete()
-        except Exception as e:
-            self.logger.error(e)
-            pass
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            try:
+                await asyncio.sleep(2)
+                await message.delete()
+            except Exception as e:
+                self.logger.error(e)
+                pass
 
-        current_state = await state.get_state()
-        state_me = current_state.split(":")[1] if current_state else None
-        if state_me == "press_start":
-            answer_text = m_error["unknown_command"]
-        else:
-            answer_text = m_error["unknown_command_admin"]
-        await message.answer(text=answer_text)
+            current_state = await state.get_state()
+            state_me = current_state.split(":")[1] if current_state else None
+            if state_me == "press_start":
+                answer_text = m_error.get("unknown_command", "")
+                counter = await self.counter_handler(
+                    command_key="press_start", state=state
+                )
+            else:
+                answer_text = m_error.get("unknown_command_admin", "")
+                counter = await self.counter_handler(
+                    command_key="press_admin", state=state
+                )
+            if counter >= 2:
+                await state.clear()
+                answer_text = m_error.get("help_limit_reached", "").format(
+                    username=f"@{message.from_user.username}"
+                    or message.from_user.full_name
+                    or f"Гость_{message.from_user.id}"
+                )
+                await message.answer(
+                    text=answer_text, reply_markup=ReplyKeyboardRemove()
+                )
+            else:
+                await message.answer(text=answer_text)
