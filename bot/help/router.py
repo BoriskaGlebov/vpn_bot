@@ -68,6 +68,7 @@ class HelpRouter(BaseRouter):
                     await message.answer(mess)
         await state.set_state(HelpStates.device_state)
 
+    @BaseRouter.log_method
     async def device_cb(self, call: CallbackQuery, state: FSMContext) -> None:
         """Обрабатывает выбор устройства пользователем.
 

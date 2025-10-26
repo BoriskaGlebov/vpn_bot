@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
+from admin.router import AdminRouter
 from aiogram.types import Update
 from fastapi import FastAPI, Request
 
@@ -48,10 +49,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.callback_query.middleware(ErrorHandlerMiddleware())
     user_router = UserRouter(bot=bot, logger=logger, redis_manager=redis_manager)
     help_router = HelpRouter(bot=bot, logger=logger)
+    admin_router = AdminRouter(bot=bot, logger=logger)
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
+    dp.include_router(admin_router.router)
     # dp.include_router(subscription_router)
-    # dp.include_router(admin_router)
     # vpn_router = VPNRouter()
     # dp.include_router(vpn_router.router)
     #

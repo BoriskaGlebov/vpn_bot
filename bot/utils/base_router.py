@@ -94,6 +94,7 @@ class BaseRouter(ABC):
         await state.update_data(**{command_key: counter_value})
         return counter_value
 
+    @log_method
     async def mistake_handler_user(self, message: Message, state: FSMContext) -> None:
         """Обработчик некорректных сообщений от пользователя.
 

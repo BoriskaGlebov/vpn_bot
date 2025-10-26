@@ -194,6 +194,7 @@ class UserRouter(BaseRouter):
                     )
             await state.set_state(UserStates.press_start)
 
+    @BaseRouter.log_method
     async def admin_start(
         self, message: Message, state: FSMContext, **kwargs: Any
     ) -> None:
