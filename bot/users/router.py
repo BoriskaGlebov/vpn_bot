@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 from aiogram import Bot, F
@@ -28,10 +27,10 @@ from bot.users.schemas import SRole, SUser, SUserTelegramID
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
 
-m_admin = settings_bot.MESSAGES["modes"]["admin"]
-m_start = settings_bot.MESSAGES["modes"]["start"]
-m_error = settings_bot.MESSAGES["errors"]
-m_echo = settings_bot.MESSAGES["general"]["echo"]
+m_admin = settings_bot.MESSAGES.get("modes", {}).get("admin", {})
+m_start = settings_bot.MESSAGES.get("modes", {}).get("start", {})
+m_error = settings_bot.MESSAGES.get("errors", {})
+m_echo = settings_bot.MESSAGES.get("general", {}).get("echo", {})
 
 
 class UserStates(StatesGroup):  # type: ignore[misc]
@@ -77,29 +76,21 @@ class UserRouter(BaseRouter):
             self.mistake_handler_user,
             and_f(
                 StateFilter(UserStates.press_admin),
-                and_f(
-                    ~F.text.startswith("/"),
-                    or_f(
-                        ~F.text.contains("⚙️ Админ-панель"),
-                        ~F.text.contains("❓ Помощь в настройке VPN"),
-                    ),
-                ),
+                ~F.text.startswith("/"),
+                ~F.text.contains("⚙️ Админ-панель"),
+                ~F.text.contains("❓ Помощь в настройке VPN"),
             ),
         )
         self.router.message.register(
             self.mistake_handler_user,
             and_f(
                 StateFilter(UserStates.press_start),
-                and_f(
-                    ~F.text.startswith("/"),
-                    or_f(
-                        ~F.text.contains("🔑 Получить VPN-конфиг AmneziaVPN"),
-                        ~F.text.contains("🌐 Получить VPN-конфиг AmneziaWG"),
-                        ~F.text.contains("📈 Проверить статус подписки"),
-                        ~F.text.contains("❓ Помощь в настройке VPN"),
-                        ~F.text.contains("💰 Выбрать подписку VPN-Boriska"),
-                    ),
-                ),
+                ~F.text.startswith("/"),
+                ~F.text.contains("🔑 Получить VPN-конфиг AmneziaVPN"),
+                ~F.text.contains("🌐 Получить VPN-конфиг AmneziaWG"),
+                ~F.text.contains("📈 Проверить статус подписки"),
+                ~F.text.contains("❓ Помощь в настройке VPN"),
+                ~F.text.contains("💰 Выбрать подписку VPN-Boriska"),
             ),
         )
 
@@ -249,67 +240,3 @@ class UserRouter(BaseRouter):
             )
 
             await state.set_state(UserStates.press_admin)
-
-    async def counter_handler(self, command_key: str, state: FSMContext) -> int:
-        """Увеличивает счётчик в FSM-контексте пользователя.
-
-        Args:
-            command_key (str): Ключ, под которым хранится счётчик в данных FSM.
-            state (FSMContext): FSM-контекст пользователя.
-
-        Returns
-            int: Обновлённое значение счётчика.
-
-        """
-        data: dict[str, Any] = await state.get_data()
-        counter_value: int = data.get(command_key, 0)
-        counter_value += 1
-        await state.update_data(**{command_key: counter_value})
-        return counter_value
-
-    async def mistake_handler_user(self, message: Message, state: FSMContext) -> None:
-        """Обработчик некорректных сообщений от пользователя.
-
-        Если пользователь вводит текст вместо кнопок, сообщение удаляется,
-        и бот напоминает, что нужно использовать кнопки.
-
-        Args:
-            message (Message): Сообщение пользователя
-            state (FSMContext): Текущее состояние пользователя
-
-        Returns
-            None
-
-        """
-        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            try:
-                await asyncio.sleep(2)
-                await message.delete()
-            except Exception as e:
-                self.logger.error(e)
-                pass
-
-            current_state = await state.get_state()
-            state_me = current_state.split(":")[1] if current_state else None
-            if state_me == "press_start":
-                answer_text = m_error.get("unknown_command", "")
-                counter = await self.counter_handler(
-                    command_key="press_start", state=state
-                )
-            else:
-                answer_text = m_error.get("unknown_command_admin", "")
-                counter = await self.counter_handler(
-                    command_key="press_admin", state=state
-                )
-            if counter >= 2:
-                await state.clear()
-                answer_text = m_error.get("help_limit_reached", "").format(
-                    username=f"@{message.from_user.username}"
-                    or message.from_user.full_name
-                    or f"Гость_{message.from_user.id}"
-                )
-                await message.answer(
-                    text=answer_text, reply_markup=ReplyKeyboardRemove()
-                )
-            else:
-                await message.answer(text=answer_text)

@@ -5,11 +5,17 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from aiogram import Bot, Router
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
+
+from bot.config import settings_bot
 
 T = TypeVar("T")
 F = TypeVar("F", bound=Callable[..., Any])
 SelfT = TypeVar("SelfT", bound="BaseRouter")
+m_error = settings_bot.MESSAGES.get("errors", {})
 
 
 class BaseRouter(ABC):
@@ -70,3 +76,65 @@ class BaseRouter(ABC):
                     raise
 
             return sync_wrapper  # type: ignore[return-value]
+
+    async def counter_handler(self, command_key: str, state: FSMContext) -> int:
+        """Увеличивает счётчик в FSM-контексте пользователя.
+
+        Args:
+            command_key (str): Ключ, под которым хранится счётчик в данных FSM.
+            state (FSMContext): FSM-контекст пользователя.
+
+        Returns
+            int: Обновлённое значение счётчика.
+
+        """
+        data: dict[str, Any] = await state.get_data()
+        counter_value: int = data.get(command_key, 0)
+        counter_value += 1
+        await state.update_data(**{command_key: counter_value})
+        return counter_value
+
+    async def mistake_handler_user(self, message: Message, state: FSMContext) -> None:
+        """Обработчик некорректных сообщений от пользователя.
+
+        Если пользователь вводит текст вместо кнопок, сообщение удаляется,
+        и бот напоминает, что нужно использовать кнопки.
+
+        Args:
+            message (Message): Сообщение пользователя
+            state (FSMContext): Текущее состояние пользователя
+
+        Returns
+            None
+
+        """
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            try:
+                await asyncio.sleep(2)
+                await message.delete()
+            except Exception as e:
+                self.logger.error(e)
+                pass
+
+            current_state = await state.get_state()
+            state_me = current_state.split(":")[1] if current_state else None
+            if state_me:
+                answer_text = m_error.get("unknown_command", "")
+                counter = await self.counter_handler(command_key=state_me, state=state)
+            # else:
+            #     answer_text = m_error.get("unknown_command_admin", "")
+            #     counter = await self.counter_handler(
+            #         command_key=state_me, state=state
+            #     )
+            if counter >= 2:
+                await state.clear()
+                answer_text = m_error.get("help_limit_reached", "").format(
+                    username=f"@{message.from_user.username}"
+                    or message.from_user.full_name
+                    or f"Гость_{message.from_user.id}"
+                )
+                await message.answer(
+                    text=answer_text, reply_markup=ReplyKeyboardRemove()
+                )
+            else:
+                await message.answer(text=answer_text)

@@ -136,7 +136,7 @@ async def test_mistake_handler_user_press_admin(
 
     fake_message.delete.assert_awaited()
 
-    expected_text = settings_bot.MESSAGES["errors"]["unknown_command_admin"]
+    expected_text = settings_bot.MESSAGES["errors"]["unknown_command"]
     fake_message.answer.assert_awaited_with(text=expected_text)
     await router.mistake_handler_user(fake_message, fake_state)
     expected_text = settings_bot.MESSAGES["errors"]["help_limit_reached"].format(

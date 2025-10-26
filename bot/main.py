@@ -8,8 +8,7 @@ from fastapi import FastAPI, Request
 
 # from bot.admin.router import admin_router
 from bot.config import bot, dp, logger, settings_bot
-
-# from bot.help.router import help_router
+from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.redis_manager import redis_manager
@@ -48,14 +47,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     dp.callback_query.middleware(ErrorHandlerMiddleware())
     user_router = UserRouter(bot=bot, logger=logger, redis_manager=redis_manager)
+    help_router = HelpRouter(bot=bot, logger=logger)
     dp.include_router(user_router.router)
+    dp.include_router(help_router.router)
     # dp.include_router(subscription_router)
     # dp.include_router(admin_router)
     # vpn_router = VPNRouter()
     # dp.include_router(vpn_router.router)
     #
     #
-    # dp.include_router(help_router)
 
     await init_default_roles()  # type: ignore
     await start_bot()
