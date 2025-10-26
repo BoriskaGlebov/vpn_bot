@@ -4,7 +4,6 @@ import asyncio
 from typing import Any
 
 from aiogram import Bot, F
-from aiogram.dispatcher.router import Router
 from aiogram.filters import (
     Command,
     CommandStart,
@@ -33,8 +32,6 @@ m_admin = settings_bot.MESSAGES["modes"]["admin"]
 m_start = settings_bot.MESSAGES["modes"]["start"]
 m_error = settings_bot.MESSAGES["errors"]
 m_echo = settings_bot.MESSAGES["general"]["echo"]
-
-user_router = Router()
 
 
 class UserStates(StatesGroup):  # type: ignore[misc]

@@ -7,9 +7,10 @@ from bot.main import start_bot, stop_bot
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_start_and_stop(test_bot):
-    bot, admin_id, test_settings = test_bot
-
+async def test_start_and_stop(test_bot, test_admin_id, test_settings_bot):
+    bot = test_bot
+    admin_id = test_admin_id
+    test_settings = test_settings_bot
     try:
         await start_bot()
     except TelegramBadRequest as e:

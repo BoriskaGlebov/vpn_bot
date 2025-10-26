@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from bot.users.dao import UserDAO
-from bot.users.models import Role, User
+from bot.users.models import Role
 from bot.users.schemas import SRole, SUser
 
 
@@ -20,7 +20,6 @@ from bot.users.schemas import SRole, SUser
 )
 @pytest.mark.users
 async def test_add_role_subscription(session, telegram_id, username, role_name):
-
     existing_role = await session.scalar(select(Role).where(Role.name == role_name))
     if not existing_role:
         role = Role(name=role_name)

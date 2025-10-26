@@ -55,7 +55,7 @@ async def test_start_subscription(fake_message, fake_state, fake_bot):
 async def test_subscription_selected_paid(fake_state, session):
     """Проверяет выбор платной подписки (price != 0)."""
 
-    from bot.subscription.router import m_subscription, subscription_selected
+    from bot.subscription.router import subscription_selected
 
     # Подготовка CallbackQuery
     fake_query = AsyncMock()
@@ -85,7 +85,7 @@ async def test_subscription_selected_paid(fake_state, session):
 async def test_subscription_selected_trial(fake_state, session):
     """Проверяет выбор бесплатного пробного периода (price == 0)."""
 
-    from bot.subscription.router import m_subscription, subscription_selected
+    from bot.subscription.router import subscription_selected
 
     # Подготовка CallbackQuery
     fake_query = AsyncMock()

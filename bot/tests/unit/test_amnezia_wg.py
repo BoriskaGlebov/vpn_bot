@@ -9,7 +9,6 @@ from bot.vpn_router.utils.amnezia_exceptions import (
     AmneziaError,
     AmneziaSSHError,
 )
-from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
 
 
 @pytest.mark.asyncio

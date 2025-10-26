@@ -55,6 +55,8 @@ def connection(isolation_level: str | None = None) -> Callable[[F], F]:
     def decorator(method: F) -> F:
         @wraps(method)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if "session" in kwargs and isinstance(kwargs["session"], AsyncSession):
+                return await method(*args, **kwargs)
             async with async_session() as session:
                 try:
                     if isolation_level:

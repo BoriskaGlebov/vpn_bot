@@ -15,7 +15,6 @@ async def test_init_default_roles_adds_missing_roles():
         patch.object(RoleDAO, "find_all", new_callable=AsyncMock) as mock_find_all,
         patch.object(RoleDAO, "add", new_callable=AsyncMock) as mock_add,
     ):
-
         mock_find_all.return_value = existing_roles
 
         await init_default_roles()

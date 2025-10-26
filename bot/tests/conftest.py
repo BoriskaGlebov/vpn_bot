@@ -87,20 +87,24 @@ def fake_state():
 
 
 @pytest.fixture
-def fake_message():
-    user = User(
-        id=12345,
-        is_bot=False,
-        first_name="Test",
-        username="tester",
-    )
-    chat = Chat(id=12345, type="private")
-    message = AsyncMock(spec=Message)
-    message.from_user = user
-    message.chat = chat
-    message.text = "/start"
-    message.answer = AsyncMock()
-    return message
+def make_fake_message():
+    def _make(user_id: int = 123):
+        user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=f"first_name_{user_id}",
+            username=f"username_{user_id}",
+        )
+        chat = Chat(id=user_id, type="private")
+        message = AsyncMock(spec=Message)
+        message.from_user = user
+        message.chat = chat
+        message.text = "/start"
+        message.answer = AsyncMock()
+        message.delete = AsyncMock()
+        return message
+
+    return _make
 
 
 @pytest.fixture

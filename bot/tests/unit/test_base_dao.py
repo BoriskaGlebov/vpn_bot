@@ -1,5 +1,3 @@
-from typing import Optional
-
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import String
@@ -13,18 +11,18 @@ from bot.database import Base
 class TmpModel(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    value: Mapped[Optional[int]] = mapped_column(nullable=True)
+    value: Mapped[int | None] = mapped_column(nullable=True)
 
 
 class TmpSchema(BaseModel):
-    id: Optional[int] = None
+    id: int | None = None
     name: str
-    value: Optional[int] = None
+    value: int | None = None
 
 
 class FilterSchema(BaseModel):
-    name: Optional[str] = None
-    value: Optional[int] = None
+    name: str | None = None
+    value: int | None = None
 
 
 class TmpDAO(BaseDAO[TmpModel]):
