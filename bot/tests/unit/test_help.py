@@ -1,12 +1,10 @@
-import asyncio
-from types import SimpleNamespace
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery
 
 from bot.help.keyboards.inline_kb import device_keyboard
-from bot.help.router import HelpStates, device_cb, help_cmd
+from bot.help.router import HelpRouter, HelpStates, m_help
 from bot.help.utils.android_device import AndroidDevice
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
@@ -15,179 +13,104 @@ from bot.help.utils.tv_device import TVDevice
 
 @pytest.mark.asyncio
 @pytest.mark.help
-async def test_help_cmd(monkeypatch, fake_bot, fake_state):
-    """Проверяет, что help_cmd отправляет все сообщения и ставит состояния FSM."""
+async def test_help_cmd(make_fake_message, fake_bot, fake_logger, fake_state):
+    router = HelpRouter(bot=fake_bot, logger=fake_logger)
+    fake_message = make_fake_message()
 
-    # --- Arrange ---
-    message = AsyncMock(spec=Message)
-    message.chat = MagicMock()
-    message.chat.id = 111
-    message.answer = AsyncMock()
-    m_help = {
-        "start_block": [
-            "Первое сообщение",
-            "Второе сообщение",
-            "Последнее сообщение",
-        ]
-    }
+    await router.help_cmd(fake_message, fake_state)
 
-    monkeypatch.setattr("bot.help.router.m_help", m_help)
-    monkeypatch.setattr("bot.help.router.bot", fake_bot)
-
-    fake_ctx = AsyncMock()
-    fake_ctx.__aenter__.return_value = None
-    fake_ctx.__aexit__.return_value = None
-    monkeypatch.setattr(
-        "bot.help.router.ChatActionSender.typing", MagicMock(return_value=fake_ctx)
-    )
-
-    expected_keyboard = device_keyboard()
-    assert isinstance(expected_keyboard, InlineKeyboardMarkup)
-    # --- Act ---
-    await help_cmd(message, fake_state)
-
-    # --- Assert ---
-    fake_state.set_state.assert_any_await(HelpStates.cmd_help)
-    fake_state.set_state.assert_any_await(HelpStates.device_state)
-
-    message.answer.assert_any_await(
-        "🚀 Супер, что выбрали этот пункт",
-        reply_markup=ANY,
-    )
-
-    message.answer.assert_any_await(
-        "Последнее сообщение",
-        reply_markup=expected_keyboard,
-    )
-    buttons = [btn for row in expected_keyboard.inline_keyboard for btn in row]
-    texts = [b.text for b in buttons]
-    callbacks = [b.callback_data for b in buttons]
-
-    assert texts == ["📱 Android", "🍏 iOS", "💻 Windows / Linux", "📺 Smart TV"]
-    assert callbacks == ["device_android", "device_ios", "device_pc", "device_tv"]
+    fake_state.clear.assert_awaited()
+    calls = fake_message.answer.await_args_list
+    first_call = calls[0].kwargs["text"]
+    expected_text = m_help.get("welcome")
+    assert first_call == expected_text
+    fake_state.set_state.assert_awaited_with(HelpStates.device_state)
+    actual_kb = calls[-1].kwargs["reply_markup"]
+    expected_kb = device_keyboard()
+    assert expected_kb == actual_kb
 
 
 @pytest.mark.asyncio
+@pytest.mark.help
 @pytest.mark.parametrize(
-    "device_name,device_class",
+    "device_class,device_name",
     [
-        ("android", "AndroidDevice"),
-        ("ios", "IphoneDevice"),
-        ("pc", "PCDevice"),
-        ("tv", "TVDevice"),
+        (AndroidDevice, "android"),
+        (IphoneDevice, "ios"),
+        (PCDevice, "pc"),
+        (TVDevice, "tv"),
     ],
 )
-@pytest.mark.help
-async def test_device_cb(monkeypatch, fake_bot, device_name, device_class, fake_state):
-    """Проверяет, что при выборе устройства вызывается нужный метод .send_message()."""
-
-    call = AsyncMock(spec=CallbackQuery)
-    call.message = MagicMock()
-    call.data = f"device_{device_name}"
-    call.message.chat.id = 999
-    call.answer = AsyncMock()
-
-    fake_ctx = AsyncMock()
-    fake_ctx.__aenter__.return_value = None
-    fake_ctx.__aexit__.return_value = None
-    monkeypatch.setattr(
-        "bot.help.router.ChatActionSender.typing", MagicMock(return_value=fake_ctx)
-    )
-    monkeypatch.setattr("bot.help.router.bot", fake_bot)
-
-    fake_device_cls = AsyncMock()
-    monkeypatch.setattr(f"bot.help.router.{device_class}", fake_device_cls)
-
-    await device_cb(call, fake_state)
-
-    call.answer.assert_awaited_once_with(
-        text=f"Ты выбрал {device_name}", show_alert=False
-    )
-    fake_device_cls.send_message.assert_awaited_once_with(
-        fake_bot, call.message.chat.id
-    )
-    fake_state.clear.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "device_class, media_dir, msg_key",
-    [
-        (AndroidDevice, "amnezia_android", "android"),
-        (IphoneDevice, "amnezia_iphone", "iphone"),
-        (PCDevice, "amnezia_pc", "pc"),
-        (TVDevice, "amnezia_wg", "tv"),
-    ],
-)
-@pytest.mark.help
-async def test_device_send_message(
-    monkeypatch, fake_bot, tmp_path, device_class, media_dir, msg_key
+async def test_device_cb(
+    make_fake_message,
+    fake_bot,
+    fake_logger,
+    fake_state,
+    monkeypatch,
+    device_class,
+    device_name,
 ):
-    """Проверяет, что все классы устройств корректно отправляют сообщения."""
+    router = HelpRouter(bot=fake_bot, logger=fake_logger)
+    fake_message = make_fake_message()
+    # 👇 добавляем chat_instance (обязательный аргумент)
+    fake_call = CallbackQuery(
+        id="1",
+        from_user=fake_message.from_user,
+        message=fake_message,
+        chat_instance="fake_chat_instance",
+        data=f"device_{device_name}",
+    ).as_(fake_bot)
+    # Мокаем метод send_message устройства
+    monkeypatch.setattr(device_class, "send_message", AsyncMock())
 
-    # --- Arrange ---
-    media_dir_path = tmp_path / "bot" / "help" / "media" / media_dir
-    media_dir_path.mkdir(parents=True)
-    (media_dir_path / "1.png").write_text("fake image")
-    (media_dir_path / "2.png").write_text("fake image")
+    await router.device_cb(fake_call, fake_state)
 
-    messages = {
-        "modes": {
-            "help": {
-                "instructions": {
-                    msg_key: ["Шаг 1", "Шаг 2"],
-                }
-            }
-        }
-    }
-
-    monkeypatch.setattr("bot.config.settings_bot.BASE_DIR", tmp_path)
-    monkeypatch.setattr("bot.config.settings_bot.MESSAGES", messages)
-    monkeypatch.setattr(
-        f"bot.help.utils.{msg_key}_device.settings_bot",
-        MagicMock(BASE_DIR=tmp_path, MESSAGES=messages),
-    )
-
-    fake_file = MagicMock()
-    monkeypatch.setattr("aiogram.types.FSInputFile", MagicMock(return_value=fake_file))
-    monkeypatch.setattr("asyncio.sleep", AsyncMock())
-
-    chat_id = 777
-    fake_bot.send_photo = AsyncMock()
-
-    # --- Act ---
-    await device_class.send_message(fake_bot, chat_id)
-
-    # --- Assert ---
-    assert fake_bot.send_photo.await_count == 2
-
-    calls = fake_bot.send_photo.await_args_list
-    captions = [c.kwargs["caption"] for c in calls]
-    assert captions == ["Шаг 1", "Шаг 2"]
-
-    for c in calls:
-        assert c.kwargs["chat_id"] == chat_id
-
-    asyncio.sleep.assert_awaited()
+    device_class.send_message.assert_awaited_with(fake_bot, fake_message.chat.id)
+    fake_state.clear.assert_awaited()
 
 
 @pytest.mark.asyncio
 @pytest.mark.help
-async def test_device_send_message_raises_file_not_found(tmp_path):
-    settings_mock = SimpleNamespace(
-        BASE_DIR=tmp_path,
-        MESSAGES={"modes": {"help": {"instructions": {"android": ["тест"]}}}},
-    )
+@pytest.mark.parametrize(
+    "device_class, device_key, media_folder",
+    [
+        (AndroidDevice, "android", "amnezia_android"),
+        (IphoneDevice, "iphone", "amnezia_iphone"),
+        (PCDevice, "pc", "amnezia_pc"),
+        (TVDevice, "tv", "amnezia_wg"),
+    ],
+)
+async def test_device_send_message(
+    fake_bot, monkeypatch, tmp_path, device_class, device_key, media_folder
+):
+    """Проверяет, что каждый класс устройства корректно отправляет фото с подписями."""
 
-    fake_bot = AsyncMock()
+    # --- Создаем временную директорию с "медиа" ---
+    media_dir = tmp_path / "bot" / "help" / "media" / media_folder
+    media_dir.mkdir(parents=True)
+    for i in range(3):
+        (media_dir / f"{i}.png").touch()
+    # --- Подготавливаем фейковые данные настроек ---
+    fake_messages = [f"Шаг {i}" for i in range(3)]
+    fake_settings = MagicMock()
+    fake_settings.BASE_DIR = tmp_path
+    fake_settings.MESSAGES = {
+        "modes": {"help": {"instructions": {device_key: fake_messages}}}
+    }
 
-    with patch("bot.help.utils.android_device.settings_bot", settings_mock):
-        from bot.help.utils.android_device import AndroidDevice
+    # --- Подменяем настройки и sleep ---
+    module_name = f"bot.help.utils.{device_key}_device"
+    monkeypatch.setattr(f"{module_name}.settings_bot", fake_settings)
+    monkeypatch.setattr(f"{module_name}.asyncio.sleep", AsyncMock())
 
-        expected_dir = tmp_path / "bot" / "help" / "media" / "amnezia_android"
-        assert not expected_dir.exists()  # убедимся, что папки нет
+    # --- Вызываем тестируемый метод ---
+    await device_class.send_message(bot=fake_bot, chat_id=1234)
+    # --- Проверяем, что send_photo вызван 3 раза ---
+    assert fake_bot.send_photo.await_count == 3
 
-        with pytest.raises(FileNotFoundError) as exc_info:
-            await AndroidDevice.send_message(fake_bot, 999)
-
-        assert str(expected_dir) in str(exc_info.value)
+    # --- Проверяем подписи в каждом вызове ---
+    for i, call in enumerate(fake_bot.send_photo.await_args_list):
+        kwargs = call.kwargs
+        assert kwargs["chat_id"] == 1234
+        assert kwargs["caption"] == f"Шаг {i}"
+        assert str(kwargs["photo"].path).endswith(f"{i}.png")

@@ -59,10 +59,10 @@ class HelpRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
             await message.answer(
-                "🚀 Супер, что выбрали этот пункт", reply_markup=ReplyKeyboardRemove()
+                text=m_help.get("welcome", ""), reply_markup=ReplyKeyboardRemove()
             )
-            for mess in m_help["start_block"]:
-                if mess == m_help["start_block"][-1]:
+            for mess in m_help.get("start_block", []):
+                if mess == m_help.get("start_block", [])[-1]:
                     await message.answer(mess, reply_markup=device_keyboard())
                 else:
                     await message.answer(mess)
