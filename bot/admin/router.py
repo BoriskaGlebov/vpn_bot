@@ -80,7 +80,16 @@ class AdminRouter(BaseRouter):
             UserPageCB.filter(F.action == "navigate"),
         )
 
-        # ToDO Зарегистирровать функцию, которая булет отрабаывать ошибки пользователя
+        self.router.message.register(
+            self.mistake_handler_user,
+            and_f(
+                or_f(
+                    StateFilter(AdminStates.select_role),
+                    StateFilter(AdminStates.select_period),
+                ),
+                ~F.text.startswith("/"),
+            ),
+        )
 
     @staticmethod
     async def _get_users_by_filter(
