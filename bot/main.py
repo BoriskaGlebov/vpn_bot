@@ -3,9 +3,10 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
-from admin.router import AdminRouter
 from aiogram.types import Update
 from fastapi import FastAPI, Request
+
+from bot.admin.router import AdminRouter
 
 # from bot.admin.router import admin_router
 from bot.config import bot, dp, logger, settings_bot

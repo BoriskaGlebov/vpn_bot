@@ -80,6 +80,8 @@ class AdminRouter(BaseRouter):
             UserPageCB.filter(F.action == "navigate"),
         )
 
+        # ToDO Зарегистирровать функцию, которая булет отрабаывать ошибки пользователя
+
     @staticmethod
     async def _get_users_by_filter(
         session: AsyncSession, filter_type: str

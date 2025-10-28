@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Chat, Message, User
+from aiogram.types import CallbackQuery, Chat, Message, User
 from loguru import logger as real_logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -101,9 +101,33 @@ def make_fake_message():
         message.from_user = user
         message.chat = chat
         message.text = "/start"
+        message.message_id = 1000 + user_id
         message.answer = AsyncMock()
+        message.edit_text = AsyncMock()
         message.delete = AsyncMock()
         return message
+
+    return _make
+
+
+@pytest.fixture
+def make_fake_query(make_fake_message):
+    def _make(user_id: int = 999):
+        query = MagicMock(spec=CallbackQuery)
+        query.from_user = User(
+            id=user_id,
+            is_bot=False,
+            first_name="Admin",
+            username="test_admin",
+        )
+        query.message = make_fake_message(user_id)
+        query.id = f"query_{user_id}"
+
+        # Асинхронные методы
+        query.answer = AsyncMock()
+        query.message.edit_text = AsyncMock()  # чтобы гарантированно был async
+
+        return query
 
     return _make
 
