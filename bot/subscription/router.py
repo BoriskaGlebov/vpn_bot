@@ -23,6 +23,7 @@ from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
 
 m_subscription = settings_bot.MESSAGES["modes"]["subscription"]
+# TODO не хватает момента когда срок истекает, что б и не уудалалялась подписка но и внопка олпатить появлялась
 
 
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
