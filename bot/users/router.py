@@ -86,6 +86,7 @@ class UserRouter(BaseRouter):
             and_f(
                 StateFilter(UserStates.press_start),
                 ~F.text.startswith("/"),
+                ~F.text.contains("💰 Выбрать подписку VPN-Boriska"),
                 ~F.text.contains("🔑 Получить VPN-конфиг AmneziaVPN"),
                 ~F.text.contains("🌐 Получить VPN-конфиг AmneziaWG"),
                 ~F.text.contains("📈 Проверить статус подписки"),
@@ -125,6 +126,9 @@ class UserRouter(BaseRouter):
             )
             welcome_messages = m_start.get("welcome", {})
             if user_info:
+                self.logger.bind(
+                    user=message.from_user.username or message.from_user.id
+                ).info("Пользователь вернулся в бота")
                 response_message = welcome_messages.get("again", [])[0].format(
                     username=message.from_user.full_name
                     or f"@{message.from_user.username}"
@@ -157,6 +161,11 @@ class UserRouter(BaseRouter):
                 new_user = await UserDAO.add_role_subscription(
                     session=session, values_user=schema_user, values_role=schema_role
                 )
+                self.logger.bind(
+                    user=schema_user.username or schema_user.telegram_id
+                ).info(
+                    f"Новый пользователь зарегистрирован: {schema_user.telegram_id} ({schema_user.username})"
+                )
                 response_message = welcome_messages.get("first", [])[0].format(
                     username=message.from_user.full_name
                     or message.from_user.username
@@ -175,9 +184,9 @@ class UserRouter(BaseRouter):
                 )
                 if schema_user.telegram_id not in settings_bot.ADMIN_IDS:
                     admin_message = m_admin.get("new_registration", "").format(
-                        first_name=new_user.first_name or "—",
-                        last_name=new_user.last_name or "",
-                        username=new_user.username or "—",
+                        first_name=new_user.first_name or "undefined",
+                        last_name=new_user.last_name or "undefined",
+                        username=new_user.username or "undefined",
                         telegram_id=new_user.telegram_id,
                         roles=", ".join(role.name for role in new_user.roles),
                         subscription=str(new_user.subscription),
@@ -189,8 +198,6 @@ class UserRouter(BaseRouter):
                             filter_type=schema_role.name,
                             telegram_id=message.from_user.id,
                         ),
-                        telegram_id=message.from_user.id,
-                        redis_manager=self.redis_manager,
                     )
             await state.set_state(UserStates.press_start)
 
@@ -218,6 +225,11 @@ class UserRouter(BaseRouter):
             await state.clear()
 
             if message.from_user.id not in settings_bot.ADMIN_IDS:
+                self.logger.bind(
+                    user=message.from_user.username or message.from_user.id
+                ).warning(
+                    f"Попытка доступа к админ-панели не админом: {message.from_user.id}"
+                )
                 await message.answer(
                     text=m_admin.get("off", "У вас нет доступа к этой команде!"),
                     reply_markup=ReplyKeyboardRemove(),
@@ -228,7 +240,9 @@ class UserRouter(BaseRouter):
                     chat_id=message.chat.id,
                 )
                 return
-
+            self.logger.bind(
+                user=message.from_user.username or message.from_user.id
+            ).info(f"Админ {message.from_user.id} вошёл в панель администратора")
             await self.bot.send_message(
                 chat_id=message.from_user.id,
                 text=m_admin.get("on", [])[0],

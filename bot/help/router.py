@@ -92,4 +92,10 @@ class HelpRouter(BaseRouter):
                 await PCDevice.send_message(self.bot, call.message.chat.id)
             elif call_device == "tv":
                 await TVDevice.send_message(self.bot, call.message.chat.id)
+            elif call_device == "developer":
+                await call.message.delete()
+                await call.bot.send_message(
+                    text="Для связи напишите @BorisisTheBlade",
+                    chat_id=call.message.chat.id,
+                )
             await state.clear()

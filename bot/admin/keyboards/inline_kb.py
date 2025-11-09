@@ -180,12 +180,10 @@ def admin_main_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
 
-    builder.button(text="Все админы", callback_data=AdminCB(filter_type="admin"))
+    builder.button(text="👑 Админы", callback_data=AdminCB(filter_type="admin"))
+    builder.button(text="🏗 Основатели", callback_data=AdminCB(filter_type="founder"))
     builder.button(
-        text="Основатели (founder)", callback_data=AdminCB(filter_type="founder")
-    )
-    builder.button(
-        text="Обычные пользователи", callback_data=AdminCB(filter_type="user")
+        text="🙂 Обычные пользователи", callback_data=AdminCB(filter_type="user")
     )
 
     builder.adjust(1)

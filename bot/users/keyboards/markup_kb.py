@@ -24,20 +24,14 @@ def main_kb(
         await message.answer("Выберите действие:", reply_markup=keyboard)
 
     """
+    kb_list = []
     if active_subscription:
-        kb_list = [
-            [KeyboardButton(text="🔑 Получить VPN-конфиг AmneziaVPN")],
-            [KeyboardButton(text="🌐 Получить VPN-конфиг AmneziaWG")],
-            [KeyboardButton(text="📈 Проверить статус подписки")],
-            [KeyboardButton(text="❓ Помощь в настройке VPN")],
-        ]
+        kb_list.append([KeyboardButton(text="🔑 Получить VPN-конфиг AmneziaVPN")])
+        kb_list.append([KeyboardButton(text="🌐 Получить VPN-конфиг AmneziaWG")])
     else:
-        kb_list = [
-            [KeyboardButton(text="💰 Выбрать подписку VPN-Boriska")],
-            [KeyboardButton(text="📈 Проверить статус подписки")],
-            [KeyboardButton(text="❓ Помощь в настройке VPN")],
-        ]
-
+        kb_list.append([KeyboardButton(text="💰 Выбрать подписку VPN-Boriska")])
+    kb_list.append([KeyboardButton(text="📈 Проверить статус подписки")])
+    kb_list.append([KeyboardButton(text="❓ Помощь в настройке VPN")])
     if user_telegram_id in settings_bot.ADMIN_IDS:
         kb_list.append([KeyboardButton(text="⚙️ Панель администратора")])
 

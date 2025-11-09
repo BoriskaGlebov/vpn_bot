@@ -42,6 +42,7 @@ async def send_to_admins(
                 await redis_manager.save_admin_message(
                     user_id=telegram_id, admin_id=admin_id, message_id=mes.message_id
                 )
+            logger.info("Отправлено сообщение Админу")
         except TelegramBadRequest as e:
             logger.bind(user=admin_id).error(
                 f"Не удалось отправить сообщение админу {admin_id}: {e}"

@@ -17,5 +17,9 @@ def device_keyboard() -> InlineKeyboardMarkup:
     builder.button(text="🍏 iOS", callback_data="device_ios")
     builder.button(text="💻 Windows / Linux", callback_data="device_pc")
     builder.button(text="📺 Smart TV", callback_data="device_tv")
-    builder.adjust(2, 1, 1)
+    builder.button(text="─────────────", callback_data="device_noop")
+    builder.button(
+        text="👨‍💻 Связаться с разработчиком", callback_data="device_developer"
+    )
+    builder.adjust(2, 2, 1, 1)
     return builder.as_markup()

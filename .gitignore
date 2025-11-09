@@ -208,3 +208,4 @@ __marimo__/
 /bot/logs/
 /.env.test
 /bot/vpn_router/utils/user_cfg/
+/.env.local

@@ -13,23 +13,23 @@ from bot.users.schemas import SUserTelegramID
 
 @pytest.mark.asyncio
 @pytest.mark.users
+@pytest.mark.integration
 async def test_cmd_start_new_user_real_db(
     test_bot, fake_logger, fake_redis, make_fake_message, session, fake_state
 ):
     """Интеграционный тест: новый пользователь сохраняется в реальную тестовую БД."""
     user_router = UserRouter(bot=test_bot, logger=fake_logger, redis_manager=fake_redis)
-    fake_message = make_fake_message(user_id=12345)
+    fake_message = make_fake_message(user_id=1234577)
     users_before = await UserDAO.find_all(session=session)
-    assert len(users_before) == 0
     role_user = Role(name="user")
     session.add(role_user)
     await session.commit()
 
     await user_router.cmd_start(message=fake_message, session=session, state=fake_state)
-    schema = SUserTelegramID(telegram_id=12345)
+    schema = SUserTelegramID(telegram_id=1234577)
     user = await UserDAO.find_one_or_none(session=session, filters=schema)
     assert user is not None
-    assert user.telegram_id == 12345
+    assert user.telegram_id == 1234577
 
     roles = await RoleDAO.find_all(session=session)
     assert any(r.name == "user" for r in roles)
@@ -46,8 +46,11 @@ async def test_cmd_start_new_user_real_db(
 
     assert first_text == expected_first
     assert second_text == expected_second
+    new_users = await UserDAO.find_all(session=session)
+    assert len(new_users) == (len(users_before) + 1)
 
 
+# TODO короче надо убирать пользваоетелй между тестами это жуть какаято так тестировать
 @pytest.mark.asyncio
 @pytest.mark.users
 async def test_cmd_start_existing_user_real_db(
@@ -55,7 +58,7 @@ async def test_cmd_start_existing_user_real_db(
 ):
     """Интеграционный тест: уже зарегистрированный пользователь вызывает /start."""
     user_router = UserRouter(bot=test_bot, logger=fake_logger, redis_manager=fake_redis)
-    fake_message = make_fake_message(user_id=12345)
+    fake_message = make_fake_message(user_id=1234588)
     exists_role = await session.scalar(select(Role).where(Role.name == "user"))
     if exists_role is None:
         role_user = Role(name="user")
@@ -63,11 +66,13 @@ async def test_cmd_start_existing_user_real_db(
         await session.commit()
 
     exists_user = await session.scalar(
-        select(DBUser).where(DBUser.telegram_id == 12345)
+        select(DBUser).where(DBUser.telegram_id == 1234588)
     )
     if exists_user is None:
         user = DBUser(
-            telegram_id=12345, username="username_12345", first_name="first_name_12345"
+            telegram_id=1234588,
+            username="username_1234588",
+            first_name="first_name_1234588",
         )
         session.add(user)
         await session.flush()
@@ -76,13 +81,15 @@ async def test_cmd_start_existing_user_real_db(
         await session.commit()
 
     users = await UserDAO.find_all(session=session)
-    assert len(users) == 1
-    assert users[0].telegram_id == 12345
+    old_len = len(users)
+    # assert users[0].telegram_id == 1234588
+    assert any(user_new.telegram_id == 1234588 for user_new in users)
 
     await user_router.cmd_start(message=fake_message, session=session, state=fake_state)
 
     users_after = await UserDAO.find_all(session=session)
-    assert len(users_after) == 1
+    new_user = len(users_after)
+    assert new_user == old_len
 
     fake_state.set_state.assert_awaited_once_with(UserStates.press_start)
     assert fake_message.answer.await_count == 2
@@ -105,9 +112,11 @@ async def test_admin_start_not_admin_real_db(
 ):
     """Интеграционный тест: пользователь не админ — доступ запрещён."""
     user_router = UserRouter(bot=test_bot, logger=fake_logger, redis_manager=fake_redis)
-    fake_message = make_fake_message(user_id=12345)
+    fake_message = make_fake_message(user_id=1234544)
     test_user = DBUser(
-        telegram_id=1111, username="testuser_1111", first_name="test_first_name_1111"
+        telegram_id=1234544,
+        username="testuser_1234544",
+        first_name="test_first_name_1234544",
     )
     session.add(test_user)
     await session.commit()

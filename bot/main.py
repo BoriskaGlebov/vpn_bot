@@ -5,23 +5,18 @@ from typing import Any
 import uvicorn
 from aiogram.types import Update
 from fastapi import FastAPI, Request
+from subscription.router import SubscriptionRouter
 
 from bot.admin.router import AdminRouter
-
-# from bot.admin.router import admin_router
 from bot.config import bot, dp, logger, settings_bot
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.redis_manager import redis_manager
-
-# from bot.subscription.router import subscription_router
 from bot.users.router import UserRouter
 from bot.utils.init_default_roles import init_default_roles
 from bot.utils.start_stop_bot import start_bot, stop_bot
-
-# from bot.vpn.router import vpn_router
-# from bot.vpn.router import VPNRouter
+from bot.vpn.router import VPNRouter
 
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
@@ -51,18 +46,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     user_router = UserRouter(bot=bot, logger=logger, redis_manager=redis_manager)
     help_router = HelpRouter(bot=bot, logger=logger)
     admin_router = AdminRouter(bot=bot, logger=logger)
+    subscription_router = SubscriptionRouter(bot=bot, logger=logger)
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
     dp.include_router(admin_router.router)
-    # dp.include_router(subscription_router)
-    # vpn_router = VPNRouter()
-    # dp.include_router(vpn_router.router)
+    dp.include_router(subscription_router.router)
+
+    vpn_router = VPNRouter()
+    dp.include_router(vpn_router.router)
     #
     #
 
     await init_default_roles()  # type: ignore
     await start_bot()
-    if settings_bot.USE_POLING:
+    if settings_bot.USE_POLLING:
         await bot.delete_webhook(drop_pending_updates=True)
 
         logger.warning("Используется поллинг вместо вебхуков!")

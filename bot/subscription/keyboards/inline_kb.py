@@ -1,5 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from config import settings_bot
 
 
 def subscription_options_kb() -> InlineKeyboardMarkup:
@@ -11,12 +12,13 @@ def subscription_options_kb() -> InlineKeyboardMarkup:
         InlineKeyboardMarkup: Inline-клавиатура с кнопками подписки и кнопкой отмены.
 
     """
+    price_map = settings_bot.PRICE_MAP
     builder = InlineKeyboardBuilder()
     options: list[tuple[str, int]] = [
-        ("1 месяц — 70₽", 1),
-        ("3 месяца — 160₽", 3),
-        ("6 месяцев — 300₽", 6),
-        ("12 месяцев — 600₽", 12),
+        (f"1 месяц — {price_map[1]}₽", 1),
+        (f"3 месяца — {price_map[3]}₽", 3),
+        (f"6 месяцев — {price_map[6]}₽", 6),
+        (f"12 месяцев — {price_map[12]}₽", 12),
         ("14 дней - Бесплатно", 14),
     ]
     for label, months in options:
