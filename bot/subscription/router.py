@@ -11,18 +11,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import redis_manager
-from bot.subscription.dao import SubscriptionDAO
 from bot.subscription.keyboards.inline_kb import (
     admin_payment_kb,
     payment_confirm_kb,
     subscription_options_kb,
 )
+from bot.subscription.services import SubscriptionService
 from bot.users.keyboards.markup_kb import main_kb
-from bot.users.schemas import SUserTelegramID
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
 
 m_subscription = settings_bot.MESSAGES["modes"]["subscription"]
+
+
 # TODO не хватает момента когда срок истекает, что б и не уудалалялась подписка но и внопка олпатить появлялась
 
 
@@ -37,8 +38,11 @@ class SubscriptionStates(StatesGroup):  # type: ignore[misc]
 class SubscriptionRouter(BaseRouter):
     """Роутер для управления процессом подписки пользователей."""
 
-    def __init__(self, bot: Bot, logger: Logger) -> None:
+    def __init__(
+        self, bot: Bot, logger: Logger, subscription_service: SubscriptionService
+    ) -> None:
         super().__init__(bot, logger)
+        self.subscription_service = subscription_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(
@@ -126,10 +130,8 @@ class SubscriptionRouter(BaseRouter):
                     text=m_subscription["trial_period"],
                     reply_markup=main_kb(active_subscription=True),
                 )
-                schema_user = SUserTelegramID(telegram_id=query.from_user.id)
-                trial_days = months
-                await SubscriptionDAO.activate_subscription(
-                    session=session, stelegram_id=schema_user, days=trial_days
+                await self.subscription_service.start_trial_subscription(
+                    session, query.from_user.id, months
                 )
                 await state.clear()
 
@@ -228,11 +230,9 @@ class SubscriptionRouter(BaseRouter):
         ):
             await query.answer("Админ подтвердил оплату", show_alert=False)
             _, user_id, months = query.data.split(":")
-            user_id = int(user_id)
-            months = int(months)
-            schema_user = SUserTelegramID(telegram_id=user_id)
-            await SubscriptionDAO.activate_subscription(
-                session=session, stelegram_id=schema_user, month=months
+            user_id, months = int(user_id), int(months)
+            await self.subscription_service.activate_paid_subscription(
+                session, user_id, months
             )
             user_logger.info(
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"

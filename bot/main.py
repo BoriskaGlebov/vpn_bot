@@ -6,6 +6,7 @@ import uvicorn
 from admin.services import AdminService
 from aiogram.types import Update
 from fastapi import FastAPI, Request
+from subscription.services import SubscriptionService
 from users.services import UserService
 
 from bot.admin.router import AdminRouter
@@ -56,7 +57,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     admin_service = AdminService()
     admin_router = AdminRouter(bot=bot, logger=logger, admin_service=admin_service)
 
-    subscription_router = SubscriptionRouter(bot=bot, logger=logger)
+    subscription_service = SubscriptionService()
+    subscription_router = SubscriptionRouter(
+        bot=bot, logger=logger, subscription_service=subscription_service
+    )
 
     vpn_router = VPNRouter()
 
