@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import datetime
-
 from aiogram import Bot, F
 from aiogram.filters import StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
@@ -9,9 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from bot.admin.keyboards.inline_kb import (
     AdminCB,
@@ -21,11 +17,8 @@ from bot.admin.keyboards.inline_kb import (
     subscription_selection_kb,
     user_navigation_kb,
 )
+from bot.admin.services import AdminService
 from bot.database import connection
-from bot.users.dao import RoleDAO, UserDAO
-from bot.users.models import Role, User
-from bot.users.router import m_admin
-from bot.users.schemas import SRole, SUserTelegramID
 from bot.utils.base_router import BaseRouter
 
 
@@ -39,8 +32,9 @@ class AdminStates(StatesGroup):  # type: ignore[misc]
 class AdminRouter(BaseRouter):
     """Роутер для обработки действий администратора."""
 
-    def __init__(self, bot: Bot, logger: Logger) -> None:
+    def __init__(self, bot: Bot, logger: Logger, admin_service: AdminService) -> None:
         super().__init__(bot, logger)
+        self.admin_service = admin_service
 
     def _register_handlers(self) -> None:
         self.router.callback_query.register(
@@ -91,35 +85,6 @@ class AdminRouter(BaseRouter):
             ),
         )
 
-    @staticmethod
-    async def _get_users_by_filter(
-        session: AsyncSession, filter_type: str
-    ) -> list[User]:
-        """Вспомогательная функция: получить пользователей по фильтру."""
-        stmt = (
-            select(User)
-            .join(User.role)  # прямое отношение один-к-многим
-            .options(selectinload(User.role))
-        )
-        if filter_type != "all":
-            stmt = stmt.where(Role.name == filter_type)
-
-        result = await session.execute(stmt)
-        return list(result.scalars().all())
-
-    @staticmethod
-    async def _format_user_text(user: User, key: str = "user") -> str:
-        """Форматирует текст пользователя для сообщения."""
-        template: str = m_admin[key]
-        return template.format(
-            first_name=user.first_name or "-",
-            last_name=user.last_name or "-",
-            username=user.username or "-",
-            telegram_id=user.telegram_id or "-",
-            roles=user.role,
-            subscription=user.subscription or "-",
-        )
-
     @connection()
     @BaseRouter.log_method
     async def admin_action_callback(
@@ -153,14 +118,12 @@ class AdminRouter(BaseRouter):
                     "Не передан telegram_id для редактирования пользователя"
                 )
                 raise ValueError("Необходимо передать в запрос telegram_id")
-            user_schema = SUserTelegramID(telegram_id=user_id)
-            user = await UserDAO.find_one_or_none(session=session, filters=user_schema)
-            if user is None:
-                user_logger.error(f"Не найден пользователь с telegram_id {user_id}")
-                raise ValueError(
-                    f"Не нашел пользователя с указанным telegram_id {user_id}"
-                )
-            old_text = await self._format_user_text(user, "edit_user")
+            user = await self.admin_service.get_user_by_telegram_id(
+                session=session, telegram_id=user_id
+            )
+            old_text = await self.admin_service.format_user_text(
+                user=user, key="edit_user"
+            )
             if callback_data.action == "role_change":
                 await query.answer("Выбрал поменять роль.")
                 await state.set_state(AdminStates.select_role)
@@ -210,37 +173,29 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
+
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await state.clear()
             await query.answer("Поменял роль")
-            role_name = callback_data.filter_type
+
             user_id = callback_data.telegram_id
+            role_name = callback_data.filter_type
+
             if user_id is None:
                 user_logger.error("Не передан telegram_id для смены роли")
                 raise ValueError("Необходимо передать в запрос telegram_id")
-            user_schema = SUserTelegramID(telegram_id=int(user_id))
-            user = await UserDAO.find_one_or_none(session=session, filters=user_schema)
-            user_id = int(user_id)
-            role_schema = SRole(name=role_name)
-            role = await RoleDAO.find_one_or_none(session, filters=role_schema)
-            if user is None or role is None:
-                user_logger.error(
-                    f"Не найден пользователь или роль ({user_id}/{role_name})"
-                )
-                raise ValueError(
-                    f"Не нашел такого пользователя/роль ({user_id}/{role_name})"
-                )
-            user.role = role
-            if role.name == "founder":
-                if datetime.datetime.now().year == 2025:
-                    current_date = datetime.datetime.now(tz=datetime.UTC)
-                    new_user = datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC)
-                    delta = new_user - current_date
-                    user.subscription.activate(days=delta.days)
 
-            await session.flush([user, user.subscription])
-            await session.commit()
-            old_text = await self._format_user_text(user, "edit_user")
+            try:
+                user = await self.admin_service.change_user_role(
+                    session=session,
+                    telegram_id=user_id,
+                    role_name=role_name,
+                )
+            except ValueError as e:
+                user_logger.error(str(e))
+                raise
+
+            old_text = await self.admin_service.format_user_text(user, "edit_user")
             await query.message.edit_text(
                 f"{old_text}\n{'*' * 20}\nРоль пользователя изменена на {role_name} ✅",
                 reply_markup=user_navigation_kb(
@@ -278,54 +233,46 @@ class AdminRouter(BaseRouter):
         )
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await state.clear()
-            months = callback_data.month
-            await query.answer(f"Выбрал {months} мес.")
+
             user_id = callback_data.telegram_id
+            months = callback_data.month
+
             if user_id is None or months is None:
                 user_logger.error("Не передан telegram_id или месяц для подписки")
                 raise ValueError("Необходимо передать в запрос telegram_id/month")
-            user_schema = SUserTelegramID(telegram_id=int(user_id))
-            user = await UserDAO.find_one_or_none(session=session, filters=user_schema)
-            if user is None:
-                user_logger.error(f"Не найден пользователь ({user_id}) для подписки")
-                raise ValueError(f"Не нашел такого пользователя({user_id}")
+
             months = int(months)
-            subscription = user.subscription
-            if subscription.is_active:
-                subscription.extend(months=months)
-            await session.flush(
-                [
-                    user,
-                ]
+            await query.answer(f"Выбрал {months} мес.")
+
+            try:
+                user = await self.admin_service.extend_user_subscription(
+                    session=session, telegram_id=user_id, months=months
+                )
+            except ValueError as e:
+                user_logger.error(str(e))
+                await query.message.edit_text(
+                    f"Ошибка: {e}",
+                    reply_markup=admin_user_control_kb(
+                        filter_type=callback_data.filter_type,
+                        index=callback_data.index,
+                        telegram_id=user_id,
+                    ),
+                )
+                return
+
+            old_text = await self.admin_service.format_user_text(user, "edit_user")
+
+            await query.message.edit_text(
+                f"{old_text}\n{'*' * 20}\nПодписка продлена на {months} мес. ✅",
+                reply_markup=admin_user_control_kb(
+                    filter_type=callback_data.filter_type,
+                    index=callback_data.index,
+                    telegram_id=user_id,
+                ),
             )
-            await session.commit()
-            old_text = await self._format_user_text(user, "edit_user")
-            if subscription.is_active:
-                await query.message.edit_text(
-                    f"{old_text}\n"
-                    f"{'*' * 20}\n"
-                    f"Подписка пользователя изменена на {months} месяц(ев) ✅",
-                    reply_markup=admin_user_control_kb(
-                        filter_type=callback_data.filter_type,
-                        index=callback_data.index,
-                        telegram_id=user_id,
-                    ),
-                )
-                user_logger.info(
-                    f"Подписка пользователя {user_id} продлена на {months} мес."
-                )
-            else:
-                await query.message.edit_text(
-                    f"{old_text}\n{'*' * 20}\nПодписка пользователя не активирована 🔒",
-                    reply_markup=admin_user_control_kb(
-                        filter_type=callback_data.filter_type,
-                        index=callback_data.index,
-                        telegram_id=user_id,
-                    ),
-                )
-                user_logger.warning(
-                    f"Попытка продления подписки пользователя {user_id}, но подписка не активна"
-                )
+            user_logger.info(
+                f"Подписка пользователя {user_id} продлена на {months} мес."
+            )
 
     @connection()
     @BaseRouter.log_method
@@ -350,7 +297,9 @@ class AdminRouter(BaseRouter):
             await query.answer("Отмена")
             user_id = callback_data.telegram_id
             old_text = query.message.text
-            users = await self._get_users_by_filter(session, callback_data.filter_type)
+            users = await self.admin_service.get_users_by_filter(
+                session, callback_data.filter_type
+            )
             await query.message.edit_text(
                 text=old_text,
                 reply_markup=user_navigation_kb(
@@ -386,7 +335,7 @@ class AdminRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             filter_type = callback_data.filter_type
             await query.answer(f"Выбрал {filter_type}")
-            users = await self._get_users_by_filter(session, filter_type)
+            users = await self.admin_service.get_users_by_filter(session, filter_type)
 
             if not users:
                 await query.message.edit_text("Пользователи не найдены.")
@@ -399,7 +348,7 @@ class AdminRouter(BaseRouter):
             )
 
             user = users[0]
-            user_text = await self._format_user_text(user)
+            user_text = await self.admin_service.format_user_text(user)
             text = f"{user_text}\n\n Пользователь 1 из {len(users)}"
 
             kb = user_navigation_kb(
@@ -431,7 +380,9 @@ class AdminRouter(BaseRouter):
         )
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Следующая страница")
-            users = await self._get_users_by_filter(session, callback_data.filter_type)
+            users = await self.admin_service.get_users_by_filter(
+                session, callback_data.filter_type
+            )
 
             if not users:
                 user_logger.warning(
@@ -444,7 +395,7 @@ class AdminRouter(BaseRouter):
             )
             index = min(callback_data.index, len(users) - 1)
             user = users[index]
-            user_text = await self._format_user_text(user)
+            user_text = await self.admin_service.format_user_text(user)
             text = f"{user_text}\n\n Пользователь {index + 1} из {len(users)}"
 
             kb = user_navigation_kb(
