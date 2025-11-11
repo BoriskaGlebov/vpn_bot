@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from bot.config import logger
 from bot.dao.base import BaseDAO
 from bot.subscription.models import Subscription
-from bot.users.models import Role, User, UserRole
+from bot.users.models import Role, User
 from bot.users.schemas import SRole, SUser
 
 
@@ -58,18 +58,17 @@ class UserDAO(BaseDAO[User]):
         session.add(new_user)
         await session.flush()
         subscription = Subscription(user_id=new_user.id)
+        new_user.role_id = role.id
         if role.name == "admin":
             subscription.is_active = True
             subscription.end_date = None
         session.add(subscription)
-        user_role = UserRole(user_id=new_user.id, role_id=role.id)
-        session.add(user_role)
         try:
             await session.commit()
             stmt = (
                 select(User)
                 .options(
-                    selectinload(User.user_roles).selectinload(UserRole.role),
+                    selectinload(User.role),
                     selectinload(User.subscription),
                 )
                 .where(User.id == new_user.id)
@@ -78,11 +77,11 @@ class UserDAO(BaseDAO[User]):
             new_user = result.scalar_one()
             # noinspection PyTypeChecker
             logger.info(f"Запись {cls.model.__name__} успешно добавлена.")
+            return new_user
         except SQLAlchemyError as e:
             await session.rollback()
             logger.error(f"Ошибка при добавлении записи: {e}")
             raise e
-        return new_user
 
 
 class RoleDAO(BaseDAO[Role]):
@@ -97,17 +96,3 @@ class RoleDAO(BaseDAO[Role]):
     """
 
     model = Role
-
-
-class UserRoleDAO(BaseDAO[UserRole]):
-    """Класс DAO для работы со связью между пользователями и ролями.
-
-    Обеспечивает операции с таблицей `user_roles`, которая реализует
-    связь "многие ко многим" между `User` и `Role`.
-
-    Attributes
-        model (type[UserRole]): Модель ORM, с которой работает данный DAO.
-
-    """
-
-    model = UserRole

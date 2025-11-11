@@ -2,6 +2,7 @@ import asyncio
 import ipaddress
 import json
 import shlex
+import tempfile
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -13,7 +14,7 @@ import aiofiles
 import asyncssh
 
 from bot.config import logger
-from bot.vpn_router.utils.amnezia_exceptions import (
+from bot.vpn.utils.amnezia_exceptions import (
     AmneziaConfigError,
     AmneziaError,
     AmneziaSSHError,
@@ -486,7 +487,7 @@ class AsyncSSHClientWG:
         private_key: str,
         pub_server_key: str,
         preshared_key: str,
-    ) -> bool:
+    ) -> Path:
         """Создает и сохраняет пользовательский конфиг.
 
         Args:
@@ -497,23 +498,25 @@ class AsyncSSHClientWG:
             preshared_key (str): PSK ключ сервера.
 
         Returns
-            bool: True, если конфиг создан
+            file_path (Path): путь к временному файл для его удаления
 
         """
         config_text = await self._generate_wg_config(
             new_ip, private_key, pub_server_key, preshared_key
         )
+        if not filename.endswith(".conf"):
+            filename = f"{filename}.conf"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        file_cfg = (
-            file_dir / filename
-            if filename.rsplit(".", 1)[-1] == "conf"
-            else file_dir / f"{filename}.conf"
+        tmp = tempfile.NamedTemporaryFile(
+            delete=False, suffix=".conf", prefix="amnezia_wg_", dir=file_dir
         )
+        file_cfg = Path(tmp.name)
+
         async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
             await f.write(config_text)
-
-        return True
+        await asyncio.sleep(15)
+        return file_cfg
 
     async def _add_to_clients_table(self, public_key: str, client_name: str) -> bool:
         """Добавляет запись в clientsTable Amnezia.
@@ -652,14 +655,14 @@ class AsyncSSHClientWG:
                 logger.bind(user=self.username).success(
                     "Новый конфиг добавлен в wg0.conf"
                 )
-            user_name = f"{file_name.rsplit('.', 1)[0]}_{uuid.uuid4().hex}"
-            client_table = await self._add_to_clients_table(pub_key, user_name)
+            client_name = f"{file_name.rsplit('.', 1)[0]}_{uuid.uuid4().hex}"
+            client_table = await self._add_to_clients_table(pub_key, client_name)
             if client_table:
                 logger.bind(user=self.username).success(
                     "Новый клиент добавлен в clientsTable"
                 )
             if await self._save_wg_config(
-                file_name, correct_ip, private_key, pub_server_key, psk
+                client_name, correct_ip, private_key, pub_server_key, psk
             ):
                 logger.bind(user=self.username).success(
                     f"Создан файл конфиг: {file_name}"
@@ -907,10 +910,10 @@ if __name__ == "__main__":
             known_hosts=None,  # Отключить проверку known_hosts
             container="amnezia-awg",
         ) as ssh_client:
-            # await ssh_client.add_new_user_gen_config("boris789.conf")
+            await ssh_client.connect()
+            await ssh_client.add_new_user_gen_config("boris_blade")
             # await ssh_client.full_delete_user(
             #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
             # )
-            await ssh_client.connect()
 
     asyncio.run(main())

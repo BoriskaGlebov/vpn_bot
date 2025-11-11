@@ -5,7 +5,7 @@ from typing import Any
 import uvicorn
 from aiogram.types import Update
 from fastapi import FastAPI, Request
-from subscription.router import SubscriptionRouter
+from users.services import UserService
 
 from bot.admin.router import AdminRouter
 from bot.config import bot, dp, logger, settings_bot
@@ -13,6 +13,7 @@ from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.redis_manager import redis_manager
+from bot.subscription.router import SubscriptionRouter
 from bot.users.router import UserRouter
 from bot.utils.init_default_roles import init_default_roles
 from bot.utils.start_stop_bot import start_bot, stop_bot
@@ -43,7 +44,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         UserActionLoggingMiddleware(log_data=True, log_time=True)
     )
     dp.callback_query.middleware(ErrorHandlerMiddleware())
-    user_router = UserRouter(bot=bot, logger=logger, redis_manager=redis_manager)
+    user_service = UserService(redis=redis_manager)
+    user_router = UserRouter(
+        bot=bot, logger=logger, redis_manager=redis_manager, user_service=user_service
+    )
     help_router = HelpRouter(bot=bot, logger=logger)
     admin_router = AdminRouter(bot=bot, logger=logger)
     subscription_router = SubscriptionRouter(bot=bot, logger=logger)

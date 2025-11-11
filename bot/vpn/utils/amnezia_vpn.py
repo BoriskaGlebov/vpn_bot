@@ -4,7 +4,7 @@ from pathlib import Path
 
 import aiofiles
 
-from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
 
 class AsyncSSHClientVPN(AsyncSSHClientWG):
@@ -44,7 +44,7 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         private_key: str,
         pub_server_key: str,
         preshared_key: str,
-    ) -> bool:
+    ) -> Path:
         """Создает и сохраняет пользовательский конфиг для AmneziaVPN.
 
         Args:
@@ -73,7 +73,7 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
             await f.write("vpn://\n")
             await f.write(encode_conf)
 
-        return True
+        return file_cfg
 
 
 if __name__ == "__main__":

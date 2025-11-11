@@ -23,7 +23,7 @@ from bot.admin.keyboards.inline_kb import (
 )
 from bot.database import connection
 from bot.users.dao import RoleDAO, UserDAO
-from bot.users.models import Role, User, UserRole
+from bot.users.models import Role, User
 from bot.users.router import m_admin
 from bot.users.schemas import SRole, SUserTelegramID
 from bot.utils.base_router import BaseRouter
@@ -98,9 +98,8 @@ class AdminRouter(BaseRouter):
         """Вспомогательная функция: получить пользователей по фильтру."""
         stmt = (
             select(User)
-            .join(User.user_roles)
-            .join(UserRole.role)
-            .options(selectinload(User.user_roles).selectinload(UserRole.role))
+            .join(User.role)  # прямое отношение один-к-многим
+            .options(selectinload(User.role))
         )
         if filter_type != "all":
             stmt = stmt.where(Role.name == filter_type)
@@ -117,7 +116,7 @@ class AdminRouter(BaseRouter):
             last_name=user.last_name or "-",
             username=user.username or "-",
             telegram_id=user.telegram_id or "-",
-            roles=",".join([str(role) for role in user.roles]) if user.roles else "-",
+            roles=user.role,
             subscription=user.subscription or "-",
         )
 
@@ -231,7 +230,7 @@ class AdminRouter(BaseRouter):
                 raise ValueError(
                     f"Не нашел такого пользователя/роль ({user_id}/{role_name})"
                 )
-            user.roles = [role]
+            user.role = role
             if role.name == "founder":
                 if datetime.datetime.now().year == 2025:
                     current_date = datetime.datetime.now(tz=datetime.UTC)

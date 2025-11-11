@@ -21,9 +21,8 @@ from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import SettingsRedis
-from bot.users.dao import UserDAO
 from bot.users.keyboards.markup_kb import main_kb
-from bot.users.schemas import SRole, SUser, SUserTelegramID
+from bot.users.services import UserService
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
 
@@ -58,12 +57,20 @@ class UserRouter(BaseRouter):
         router (Router): Экземпляр роутера aiogram для регистрации хендлеров.
         logger (Logger): Экземпляр логгера loguru.
         redis_manager (SettingsRedis): Менеджер для работы с Redis (сохранение и получение данных).
+        user_service (UserService): Бизнес логика пользователя.
 
     """
 
-    def __init__(self, bot: Bot, logger: Logger, redis_manager: SettingsRedis) -> None:
+    def __init__(
+        self,
+        bot: Bot,
+        logger: Logger,
+        redis_manager: SettingsRedis,
+        user_service: UserService,
+    ) -> None:
         super().__init__(bot, logger)
         self.redis_manager = redis_manager
+        self.user_service = user_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(self.cmd_start, CommandStart())
@@ -119,13 +126,12 @@ class UserRouter(BaseRouter):
 
         """
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            schema_telegram_id = SUserTelegramID(telegram_id=message.from_user.id)
             await state.clear()
-            user_info = await UserDAO.find_one_or_none(
-                session=session, filters=schema_telegram_id
+            user_info, is_new = await self.user_service.register_or_get_user(
+                session=session, telegram_user=message.from_user
             )
             welcome_messages = m_start.get("welcome", {})
-            if user_info:
+            if not is_new:
                 self.logger.bind(
                     user=message.from_user.username or message.from_user.id
                 ).info("Пользователь вернулся в бота")
@@ -147,24 +153,10 @@ class UserRouter(BaseRouter):
                     ),
                 )
             else:
-                schema_user = SUser(
-                    telegram_id=message.from_user.id,
-                    username=message.from_user.username
-                    or f"Гость_{message.from_user.id}",
-                    first_name=message.from_user.first_name,
-                    last_name=message.from_user.last_name,
-                )
-                if schema_user.telegram_id in settings_bot.ADMIN_IDS:
-                    schema_role = SRole(name="admin")
-                else:
-                    schema_role = SRole(name="user")
-                new_user = await UserDAO.add_role_subscription(
-                    session=session, values_user=schema_user, values_role=schema_role
-                )
                 self.logger.bind(
-                    user=schema_user.username or schema_user.telegram_id
+                    user=message.from_user.username or message.from_user.id
                 ).info(
-                    f"Новый пользователь зарегистрирован: {schema_user.telegram_id} ({schema_user.username})"
+                    f"Новый пользователь зарегистрирован: {message.from_user.id} ({message.from_user.username})"
                 )
                 response_message = welcome_messages.get("first", [])[0].format(
                     username=message.from_user.full_name
@@ -178,24 +170,24 @@ class UserRouter(BaseRouter):
                 await message.answer(
                     follow_up_message,
                     reply_markup=main_kb(
-                        active_subscription=new_user.subscription.is_active,
+                        active_subscription=user_info.subscription.is_active,
                         user_telegram_id=message.from_user.id,
                     ),
                 )
-                if schema_user.telegram_id not in settings_bot.ADMIN_IDS:
+                if user_info.telegram_id not in settings_bot.ADMIN_IDS:
                     admin_message = m_admin.get("new_registration", "").format(
-                        first_name=new_user.first_name or "undefined",
-                        last_name=new_user.last_name or "undefined",
-                        username=new_user.username or "undefined",
-                        telegram_id=new_user.telegram_id,
-                        roles=", ".join(role.name for role in new_user.roles),
-                        subscription=str(new_user.subscription),
+                        first_name=user_info.first_name or "undefined",
+                        last_name=user_info.last_name or "undefined",
+                        username=user_info.username or "undefined",
+                        telegram_id=user_info.telegram_id,
+                        roles=user_info.role.name,
+                        subscription=str(user_info.subscription),
                     )
                     await send_to_admins(
                         bot=self.bot,
                         message_text=admin_message,
                         reply_markup=admin_user_control_kb(
-                            filter_type=schema_role.name,
+                            filter_type=user_info.role.name,
                             telegram_id=message.from_user.id,
                         ),
                     )
