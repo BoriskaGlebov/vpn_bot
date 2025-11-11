@@ -123,5 +123,5 @@ class Subscription(Base):
         """
         if not self.end_date:
             return None
-        delta = self.end_date - datetime.datetime.now()
+        delta = self.end_date - datetime.datetime.now(tz=datetime.UTC)
         return max(delta.days, 0)

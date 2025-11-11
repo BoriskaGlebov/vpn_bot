@@ -1,5 +1,7 @@
 import asyncio
 import base64
+import os
+import tempfile
 from pathlib import Path
 
 import aiofiles
@@ -55,19 +57,20 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
             preshared_key (str): PSK ключ сервера.
 
         Returns
-            bool: True, если конфиг создан
+            file_path (Path): путь к временному файл для его удаления
 
         """
         config_text = await self._generate_wg_config(
             new_ip, private_key, pub_server_key, preshared_key
         )
         encode_conf = base64.b64encode(config_text.encode()).decode()
+        if not filename.endswith(".conf"):
+            filename = f"{filename}.conf"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        if filename.rsplit(".", 1)[-1] == "vpn":
-            file_cfg = file_dir / filename
-        else:
-            file_cfg = file_dir / f"{filename}.vpn"
+        fd, path_str = tempfile.mkstemp(suffix=".vpn", prefix="VPN", dir=file_dir)
+        os.close(fd)  # закрываем дескриптор, чтобы aiofiles мог открыть
+        file_cfg = Path(path_str)
 
         async with aiofiles.open(file_cfg, "w") as f:
             await f.write("vpn://\n")

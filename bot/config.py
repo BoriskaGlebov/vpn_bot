@@ -23,20 +23,23 @@ class SettingsBot(BaseSettings):
     """Конфигурация бота и логирования.
 
     Attributes
-        BOT_TOKEN (SecretStr): Токен бота, используемый для подключения к Telegram Bot API.
-        ADMIN_IDS (List[int]): Список ID администраторов, имеющих доступ к расширенным функциям.
-        BASE_SITE (str): Адрес куда webhook слать.
-        USE_POLLING (boo) : Использования поллинга в тестах  False по умолчанию
-        DEBUG_FAST_API (bool): Режим debug вкл или выкл.
-        RELOAD_FAST_API (bool): Режим перезагрузки сервера при внесении изменений вкл или выкл.
-        BASE_DIR (Path): Базовая директория проекта, вычисляется относительно текущего файла.
-        LOGGER_LEVEL_STDOUT (str): Уровень логирования для вывода в стандартный поток.
-        LOGGER_LEVEL_FILE (str): Уровень логирования для вывода в файл.
-        LOGGER_ERROR_FILE (str): Уровень логирования для ошибок, сохраняемых в отдельный файл.
-        MESSAGES (dict): Конфиг файл с диалогами бота.
-        PRICE_MAP (dict[int, int]): Карта цен подписок (может быть задана через .env в JSON-формате).
-        model_config (SettingsConfigDict): Конфигурация pydantic settings
-            (путь до .env, кодировка и поведение при лишних переменных).
+        BOT_TOKEN (SecretStr): Токен бота для подключения к Telegram Bot API.
+        ADMIN_IDS (list[int]): Список Telegram ID администраторов с расширенными правами.
+        BASE_SITE (str): Базовый URL сайта, используемый для формирования вебхука.
+        VPN_HOST (str): Хост VPN-сервера.
+        VPN_USERNAME (str): Имя пользователя для подключения к VPN.
+        VPN_CONTAINER (str): Имя Docker-контейнера VPN (если используется).
+        MAX_CONFIGS_PER_USER (int): Максимальное количество файлов конфига для одного пользователя
+        USE_POLLING (bool): Использовать polling вместо webhook (по умолчанию False, удобно для тестов).
+        DEBUG_FAST_API (bool): Включить режим отладки FastAPI.
+        RELOAD_FAST_API (bool): Включить автоматическую перезагрузку FastAPI при изменениях кода.
+        BASE_DIR (Path): Корневая директория проекта, вычисляется автоматически.
+        LOGGER_LEVEL_STDOUT (str): Уровень логирования для стандартного вывода.
+        LOGGER_LEVEL_FILE (str): Уровень логирования для файла логов.
+        LOGGER_ERROR_FILE (str): Уровень логирования для ошибок в отдельном файле.
+        MESSAGES (dict[str, Any]): Словарь с текстами сообщений бота (диалоги, подсказки и т.д.).
+        PRICE_MAP (dict[int, int]): Карта цен подписок по месяцам, может быть задана через .env в JSON.
+        model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
     Properties
         WEBHOOK_URL (str): URL вебхука. Формируется автоматически на основе BASE_SITE.
 
@@ -45,6 +48,12 @@ class SettingsBot(BaseSettings):
     BOT_TOKEN: SecretStr
     ADMIN_IDS: list[int]
     BASE_SITE: str
+
+    VPN_HOST: str
+    VPN_USERNAME: str
+    VPN_CONTAINER: str
+    MAX_CONFIGS_PER_USER: int = 10
+
     USE_POLLING: bool = False
     DEBUG_FAST_API: bool = False
     RELOAD_FAST_API: bool = False

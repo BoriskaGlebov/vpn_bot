@@ -8,6 +8,7 @@ from aiogram.types import Update
 from fastapi import FastAPI, Request
 from subscription.services import SubscriptionService
 from users.services import UserService
+from vpn.services import VPNService
 
 from bot.admin.router import AdminRouter
 from bot.config import bot, dp, logger, settings_bot
@@ -61,8 +62,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     subscription_router = SubscriptionRouter(
         bot=bot, logger=logger, subscription_service=subscription_service
     )
-
-    vpn_router = VPNRouter()
+    vpn_service = VPNService()
+    vpn_router = VPNRouter(bot=bot, logger=logger, vpn_service=vpn_service)
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)

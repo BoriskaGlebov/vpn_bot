@@ -4,6 +4,7 @@ from sqlalchemy import BigInteger, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bot.database import Base, int_pk, str_null_true, str_uniq
+from bot.vpn.models import VPNConfig
 
 if TYPE_CHECKING:
     from bot.subscription.models import Subscription  # импорт только для type hints
@@ -21,6 +22,7 @@ class User(Base):
         role_id (Optional[int]): Внешний ключ на роль. Может быть None.
         role (Role): Связанная роль пользователя.
         subscription (Subscription | None): Подписка пользователя. Может отсутствовать.
+        vpn_configs (list["VPNConfig"]): Список конфиг файлов пользователя.
 
     """
 
@@ -40,6 +42,12 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         uselist=False,
+        lazy="selectin",
+    )
+    vpn_configs: Mapped[list["VPNConfig"]] = relationship(
+        "VPNConfig",
+        back_populates="user",
+        cascade="all, delete-orphan",
         lazy="selectin",
     )
 

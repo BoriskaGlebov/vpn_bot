@@ -1,6 +1,7 @@
 import asyncio
 import ipaddress
 import json
+import os
 import shlex
 import tempfile
 import uuid
@@ -508,14 +509,12 @@ class AsyncSSHClientWG:
             filename = f"{filename}.conf"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        tmp = tempfile.NamedTemporaryFile(
-            delete=False, suffix=".conf", prefix="amnezia_wg_", dir=file_dir
-        )
-        file_cfg = Path(tmp.name)
+        fd, path_str = tempfile.mkstemp(suffix=".conf", prefix="WG", dir=file_dir)
+        os.close(fd)  # закрываем дескриптор, чтобы aiofiles мог открыть
+        file_cfg = Path(path_str)
 
         async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
             await f.write(config_text)
-        await asyncio.sleep(15)
         return file_cfg
 
     async def _add_to_clients_table(self, public_key: str, client_name: str) -> bool:
@@ -613,7 +612,7 @@ class AsyncSSHClientWG:
                     stderr=stderr,
                 )
 
-    async def add_new_user_gen_config(self, file_name: str) -> None:
+    async def add_new_user_gen_config(self, file_name: str) -> tuple[Path, str]:
         """Добавляет нового пользователя и генерирует конфигурационный файл WireGuard.
 
         Последовательно выполняются следующие шаги:
@@ -661,14 +660,17 @@ class AsyncSSHClientWG:
                 logger.bind(user=self.username).success(
                     "Новый клиент добавлен в clientsTable"
                 )
-            if await self._save_wg_config(
+            file = await self._save_wg_config(
                 client_name, correct_ip, private_key, pub_server_key, psk
-            ):
+            )
+
+            if file:
                 logger.bind(user=self.username).success(
                     f"Создан файл конфиг: {file_name}"
                 )
             await self._delete_temp_files()
             await self._reboot_interface()
+            return file, pub_key
         except AmneziaError as e:
             logger.error(e)
             raise
