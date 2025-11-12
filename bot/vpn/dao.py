@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.dao.base import BaseDAO
+from bot.subscription.models import DEVICE_LIMITS
 from bot.vpn.models import VPNConfig
 
 
@@ -27,7 +28,11 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             select(VPNConfig).where(VPNConfig.user_id == user_id)
         )
         configs = result.scalars().all() or []
-        return bool(len(configs) < settings_bot.MAX_CONFIGS_PER_USER)
+        max_configs = 0
+        if configs:
+            config_type = configs[0].user.subscription.type
+            max_configs = DEVICE_LIMITS.get(config_type, 0)
+        return bool(len(configs) < max_configs)
 
     @classmethod
     async def add_config(

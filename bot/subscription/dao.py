@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import logger
 from bot.dao.base import BaseDAO
-from bot.subscription.models import Subscription
+from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.dao import UserDAO
 from bot.users.schemas import SSubscription, SUser, SUserTelegramID
 
@@ -30,6 +30,7 @@ class SubscriptionDAO(BaseDAO[Subscription]):
         stelegram_id: SUserTelegramID,
         days: int | None = None,
         month: int | None = None,
+        sub_type: SubscriptionType = SubscriptionType.STANDARD,
     ) -> Subscription:
         """Активирует подписку пользователя на указанное количество дней или месяцев.
 
@@ -38,6 +39,7 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             stelegram_id (SUserTelegramID): Идентификатор Telegram пользователя.
             days (Optional[int], optional): Количество дней для активации подписки. Defaults to None.
             month (Optional[int], optional): Количество месяцев для активации подписки. Defaults to None.
+            sub_type (SubscriptionType): Тип подписки пользователя
 
         Raises
             ValueError: Если пользователь с указанным Telegram ID не найден.
@@ -62,10 +64,14 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             # Если нет подписки — создаём новую или кидаем ошибку
             subscription = Subscription(user_id=user.id)
             session.add(subscription)
-        subscription.activate(days=days, month_num=month)
+
         try:
+            subscription.activate(days=days, month_num=month, sub_type=sub_type)
             logger.info(f"автивирую подписку на {days} дней")
             await session.commit()
+
+        except ValueError:
+            raise
         except SQLAlchemyError as e:
             await session.rollback()
             logger.error(f"Ошибка при активации подписки: {e}")

@@ -23,6 +23,7 @@ class User(Base):
         role (Role): Связанная роль пользователя.
         subscription (Subscription | None): Подписка пользователя. Может отсутствовать.
         vpn_configs (list["VPNConfig"]): Список конфиг файлов пользователя.
+        has_used_trial (bool): Проверка использовал пользователь триал или нет
 
     """
 
@@ -31,6 +32,7 @@ class User(Base):
     username: Mapped[str_uniq]
     first_name: Mapped[str_null_true]
     last_name: Mapped[str_null_true]
+    has_used_trial: Mapped[bool] = mapped_column(default=False, server_default="false")
 
     role_id: Mapped[int | None] = mapped_column(
         ForeignKey("roles.id", ondelete="SET NULL"), nullable=True

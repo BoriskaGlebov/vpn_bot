@@ -1,15 +1,40 @@
 import datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import DateTime, ForeignKey
+from sqlalchemy import DateTime
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from bot.config import logger
+from bot.config import logger, settings_bot
 from bot.database import Base, int_pk
 
 if TYPE_CHECKING:
     from users.models import User
+
+
+class SubscriptionType(str, Enum):
+    """Типы подписок пользователей.
+
+    Attributes
+        TRIAL (str): Пробная подписка с ограниченным сроком действия.
+        STANDARD (str): Стандартная подписка с базовыми возможностями.
+        PREMIUM (str): Премиум-подписка с расширенным функционалом.
+
+    """
+
+    TRIAL = "trial"
+    STANDARD = "standard"
+    PREMIUM = "premium"
+
+
+DEVICE_LIMITS = {
+    SubscriptionType.TRIAL: 1,
+    SubscriptionType.STANDARD: settings_bot.MAX_CONFIGS_PER_USER,
+    SubscriptionType.PREMIUM: settings_bot.MAX_CONFIGS_PER_USER * 2,
+}
 
 
 class Subscription(Base):
@@ -25,6 +50,7 @@ class Subscription(Base):
         start_date (datetime): Дата начала подписки.
         end_date (datetime | None): Дата окончания подписки (None — бессрочная).
         user (User): Пользователь, владелец подписки.
+        type: (SubscriptionType): Тип подписки TRIAL, STANDARD, PREMIUM.
 
     """
 
@@ -33,6 +59,9 @@ class Subscription(Base):
         ForeignKey("users.id", ondelete="CASCADE"), unique=True
     )
     is_active: Mapped[bool] = mapped_column(default=False)
+    type: Mapped[SubscriptionType] = mapped_column(
+        SQLEnum(SubscriptionType, name="subscription_type"), default=None, nullable=True
+    )
     start_date: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.datetime.now(datetime.UTC),
@@ -51,14 +80,25 @@ class Subscription(Base):
         )
         return f"{status} (до {until})"
 
-    def activate(self, days: int | None = None, month_num: int | None = None) -> None:
+    def activate(
+        self,
+        days: int | None = None,
+        month_num: int | None = None,
+        sub_type: SubscriptionType = SubscriptionType.STANDARD,
+    ) -> None:
         """Активирует подписку на указанное количество дней или месяцев.
 
         Args:
+            sub_type (SubscriptionType): Тип подписки пользователя, по умолчанию Стандарт
             days (int|None): Количество дней на подписку
             month_num (int|None): Количество месяцев на подписку
 
         """
+        if sub_type == SubscriptionType.TRIAL:
+            if self.user.has_used_trial:
+                raise ValueError("Пользователь уже использовал триал-подписку")
+            self.user.has_used_trial = True
+        self.type = sub_type
         self.is_active = True
         self.start_date = datetime.datetime.now()
 
@@ -110,7 +150,7 @@ class Subscription(Base):
         """
         if not self.is_active:
             return True
-        if self.end_date and datetime.datetime.now() > self.end_date:
+        if self.end_date and datetime.datetime.now(datetime.UTC) > self.end_date:
             return True
         return False
 
@@ -125,3 +165,7 @@ class Subscription(Base):
             return None
         delta = self.end_date - datetime.datetime.now(tz=datetime.UTC)
         return max(delta.days, 0)
+
+
+if __name__ == "__main__":
+    print(SubscriptionType.PREMIUM.value)

@@ -67,7 +67,7 @@ class SettingsBot(BaseSettings):
     MESSAGES: dict[str, Any] = dialogs
 
     PRICE_MAP: dict[int, int] = Field(
-        default_factory=lambda: {1: 70, 3: 160, 6: 300, 12: 600, 14: 0},
+        default_factory=lambda: {1: 70, 3: 160, 6: 300, 12: 600, 7: 0},
         description="Карта цен подписок по месяцам",
     )
     model_config = SettingsConfigDict(

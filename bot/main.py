@@ -5,10 +5,8 @@ from typing import Any
 import uvicorn
 from admin.services import AdminService
 from aiogram.types import Update
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request
-from subscription.services import SubscriptionService
-from users.services import UserService
-from vpn.services import VPNService
 
 from bot.admin.router import AdminRouter
 from bot.config import bot, dp, logger, settings_bot
@@ -17,10 +15,14 @@ from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.redis_manager import redis_manager
 from bot.subscription.router import SubscriptionRouter
+from bot.subscription.services import SubscriptionService
+from bot.subscription.utils.scheduler_cron import scheduled_check, scheduler
 from bot.users.router import UserRouter
+from bot.users.services import UserService
 from bot.utils.init_default_roles import init_default_roles
 from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.router import VPNRouter
+from bot.vpn.services import VPNService
 
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
@@ -58,7 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     admin_service = AdminService()
     admin_router = AdminRouter(bot=bot, logger=logger, admin_service=admin_service)
 
-    subscription_service = SubscriptionService()
+    subscription_service = SubscriptionService(bot=bot)
     subscription_router = SubscriptionRouter(
         bot=bot, logger=logger, subscription_service=subscription_service
     )
@@ -73,6 +75,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await init_default_roles()  # type: ignore
     await start_bot()
+    scheduler.add_job(scheduled_check, trigger=IntervalTrigger(minutes=1))
+    scheduler.start()
     if settings_bot.USE_POLLING:
         await bot.delete_webhook(drop_pending_updates=True)
 

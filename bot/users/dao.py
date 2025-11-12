@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 
 from bot.config import logger
 from bot.dao.base import BaseDAO
-from bot.subscription.models import Subscription
+from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.models import Role, User
 from bot.users.schemas import SRole, SUser
 
@@ -62,6 +62,7 @@ class UserDAO(BaseDAO[User]):
         if role.name == "admin":
             subscription.is_active = True
             subscription.end_date = None
+            subscription.type = SubscriptionType.PREMIUM
         session.add(subscription)
         try:
             await session.commit()

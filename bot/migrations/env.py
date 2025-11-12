@@ -6,7 +6,7 @@ from sqlalchemy import engine_from_config, pool
 
 from bot.config import settings_db  # твои Pydantic Settings
 from bot.database import Base  # твой Base с моделями
-from bot.subscription.models import Subscription
+from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.models import Role, User
 from bot.vpn.models import VPNConfig
 

@@ -1,9 +1,9 @@
 from pathlib import Path
 
 from aiogram.types import User as TGUser
-from config import settings_bot
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.subscription.models import DEVICE_LIMITS
 from bot.users.dao import UserDAO
 from bot.users.models import User
 from bot.users.schemas import SUserTelegramID
@@ -47,12 +47,12 @@ class VPNService:
         )
         if not can_add:
             raise ValueError(
-                f"Достигнут лимит конфигов (максимум {settings_bot.MAX_CONFIGS_PER_USER})."
+                f"Достигнут лимит конфигов (максимум {DEVICE_LIMITS.get(user_model.subscription.type, 0)})."
             )
 
         # Генерируем конфиг через SSH
         file_path, pub_key = await ssh_client.add_new_user_gen_config(
-            file_name=user.username
+            file_name=user_model.username
         )
 
         # Сохраняем запись в БД
@@ -91,10 +91,15 @@ class VPNService:
             return "У вас нет подписки."
 
         status = "✅ Активна" if subscription.is_active else "🔒 Неактивна"
+        sbs_type = (
+            f"<b>{subscription.type.value.upper()}</b>"
+            if subscription.type is not None
+            else ""
+        )
         remaining_days = subscription.remaining_days()
         if remaining_days is None:
             remaining_text = "бессрочная"
         else:
             remaining_text = f"{remaining_days} дней осталось"
         conf_list = "\n".join([conf.file_name for conf in user.vpn_configs])
-        return f"{status} — {remaining_text} - {subscription}\n{conf_list}"
+        return f"{status} {sbs_type} — {remaining_text} - {subscription}\n{conf_list}"

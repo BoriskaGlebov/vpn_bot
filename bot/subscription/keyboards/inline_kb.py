@@ -19,7 +19,7 @@ def subscription_options_kb() -> InlineKeyboardMarkup:
         (f"3 месяца — {price_map[3]}₽", 3),
         (f"6 месяцев — {price_map[6]}₽", 6),
         (f"12 месяцев — {price_map[12]}₽", 12),
-        ("14 дней - Бесплатно", 14),
+        ("7 дней - Бесплатно", 7),
     ]
     for label, months in options:
         builder.button(text=f"📆 {label}", callback_data=f"sub_select:{months}")

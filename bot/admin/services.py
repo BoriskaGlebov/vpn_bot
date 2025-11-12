@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from bot.subscription.models import SubscriptionType
 from bot.users.dao import RoleDAO, UserDAO
 from bot.users.models import Role, User
 from bot.users.router import m_admin
@@ -113,6 +114,7 @@ class AdminService:
             next_year = datetime.datetime(now.year + 1, 1, 1, tzinfo=datetime.UTC)
             delta = next_year - now
             user.subscription.activate(days=delta.days)
+            user.subscription.type = SubscriptionType.PREMIUM
 
         await session.flush([user, user.subscription])
         await session.commit()

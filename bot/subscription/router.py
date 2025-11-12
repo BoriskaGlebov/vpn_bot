@@ -111,10 +111,10 @@ class SubscriptionRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.message.chat.id):
             months = int(query.data.split(":")[1])
             user_logger.info(f"Выбор периода подписки: {months} мес")
-            await query.answer(f"Выбрал {months} месяцев", show_alert=False)
             price_map = settings_bot.PRICE_MAP
             price = price_map[months]
             if price != 0:
+                await query.answer(f"Выбрал {months} месяцев", show_alert=False)
                 await query.message.edit_text(
                     text=m_subscription["select_period"].format(
                         months=months,
@@ -124,16 +124,21 @@ class SubscriptionRouter(BaseRouter):
                 )
                 await state.set_state(SubscriptionStates.select_period)
             else:
-                await query.message.delete()
-                await self.bot.send_message(
-                    chat_id=query.from_user.id,
-                    text=m_subscription["trial_period"],
-                    reply_markup=main_kb(active_subscription=True),
-                )
-                await self.subscription_service.start_trial_subscription(
-                    session, query.from_user.id, months
-                )
-                await state.clear()
+                days = months  # для триала количество дней
+                try:
+                    await self.subscription_service.start_trial_subscription(
+                        session=session, user_id=query.from_user.id, days=days
+                    )
+                    await query.answer("Выбрал пробный период", show_alert=False)
+                    await query.message.delete()
+                    await self.bot.send_message(
+                        chat_id=query.from_user.id,
+                        text=m_subscription["trial_period"],
+                        reply_markup=main_kb(active_subscription=True),
+                    )
+                    await state.clear()
+                except ValueError as e:
+                    await query.answer(str(e), show_alert=True)
 
     @BaseRouter.log_method
     async def user_paid(self, query: CallbackQuery, state: FSMContext) -> None:
