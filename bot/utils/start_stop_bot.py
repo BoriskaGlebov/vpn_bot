@@ -2,7 +2,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup, Message
 
-from bot.config import bot, logger, settings_bot
+from bot.config import logger, settings_bot
 from bot.redis_manager import SettingsRedis
 from bot.utils.commands import set_bot_commands
 from bot.utils.set_description_file import set_description
@@ -83,12 +83,16 @@ async def edit_admin_messages(
     await redis_manager.clear_admin_messages(user_id)
 
 
-async def start_bot() -> None:
+async def start_bot(bot: Bot) -> None:
     """Инициализация и запуск бота.
 
     Эта функция устанавливает команды для бота с помощью `set_commands()`,
     устанавливает описание с помощью `set_description()`,
     а также отправляет сообщение администраторам, информируя их о запуске бота.
+
+    Args:
+        bot (Bot): Экземпляр бота Aiogram.
+
     """
     await set_bot_commands()
     await set_description(bot=bot)
@@ -96,11 +100,15 @@ async def start_bot() -> None:
     logger.info("Бот успешно запущен.")
 
 
-async def stop_bot() -> None:
+async def stop_bot(bot: Bot) -> None:
     """Остановка бота.
 
     Эта функция отправляет сообщение администраторам, уведомляя их о том,
     что бот был остановлен, и логирует это событие.
+
+    Args:
+        bot (Bot): Экземпляр бота Aiogram.
+
     """
     await send_to_admins(bot=bot, message_text="Бот остановлен. За что?😔")
     logger.error("Бот остановлен!")

@@ -13,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from bot.dialogs.dialogs_text import dialogs
 
-__all__ = ["logger"]
+__all__ = ["logger", "settings_bot", "settings_db", "bot", "dp"]
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 

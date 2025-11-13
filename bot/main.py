@@ -75,7 +75,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
 
     await init_default_roles()  # type: ignore
-    await start_bot()
+    await start_bot(bot=bot)
     scheduler.add_job(
         scheduled_check,
         trigger=IntervalTrigger(minutes=1),
@@ -106,7 +106,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.exception(f"Ошибка при удалении вебхука: {e}")
     try:
-        await stop_bot()
+        await stop_bot(bot=bot)
         logger.info("Бот остановлен")
     except Exception as e:
         logger.exception(f"Ошибка при остановке бота: {e}")

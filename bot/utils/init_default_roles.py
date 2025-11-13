@@ -20,9 +20,3 @@ async def init_default_roles(session: AsyncSession) -> None:
         if role["name"] not in existing_name:
             schema = SRole(**role)
             await RoleDAO.add(session, schema)
-
-
-# if __name__ == "__main__":
-#     import asyncio
-#
-#     asyncio.run(init_default_roles())
