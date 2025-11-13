@@ -13,9 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from bot.dialogs.dialogs_text import dialogs
 
-__all__ = [
-    "logger",
-]
+__all__ = ["logger"]
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -191,8 +189,7 @@ class LoggerConfig:
 
     def _ensure_log_dir_exists(self) -> None:
         """Создает директорию для логов, если она не существует, и устанавливает права доступа."""
-        if not self.log_dir.exists():
-            self.log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
+        self.log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
 
     @staticmethod
     def _user_filter(record: Mapping[str, Any]) -> bool:
@@ -267,7 +264,7 @@ class LoggerConfig:
             format=self._get_format(),
             filter=lambda r: self._user_filter(r) or self._default_filter(r),
             catch=True,
-            diagnose=True,
+            diagnose=self.logger_level_stdout == "DEBUG",
             enqueue=True,
         )
 
@@ -284,7 +281,7 @@ class LoggerConfig:
             retention="30 days",
             catch=True,
             backtrace=True,
-            diagnose=True,
+            diagnose=self.logger_level_stdout == "DEBUG",
             filter=self._filter_for_files,
             enqueue=True,
         )
@@ -297,7 +294,7 @@ class LoggerConfig:
             retention="30 days",
             catch=True,
             backtrace=True,
-            diagnose=True,
+            diagnose=self.logger_level_stdout == "DEBUG",
             filter=lambda r: self._user_filter(r) or self._default_filter(r),
             enqueue=True,
         )
@@ -344,19 +341,3 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
-
-if __name__ == "__main__":
-    # logger.bind(user="Boris").debug("Сообщение")
-    # logger.bind(filename="Boris_file.txt").debug("Сообщение")
-    # logger.bind(user="Boris", filename="Boris_file.txt").warning("Сообщение")
-    # logger.debug("Сообщение")
-    # logger.error("wasd")
-    # logger.bind(user="Boris").warning("Сообщение")
-    # logger.bind(filename="Boris_file.txt").error("Сообщение")
-    print(settings_bot.WEBHOOK_URL)
-    print(settings_db.model_dump())
-    # print(settings_db.model_dump_json())
-    print(type(logger))
-    print(BASE_DIR)
-    print(settings_bot.PRICE_MAP)
-    print(type(settings_bot.PRICE_MAP[1]))

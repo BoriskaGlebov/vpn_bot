@@ -24,6 +24,7 @@ from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.router import VPNRouter
 from bot.vpn.services import VPNService
 
+#
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
     {
@@ -113,6 +114,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await redis_manager.disconnect()
     except Exception as e:
         logger.exception(f"Ошибка при отключении от Redis: {e}")
+    try:
+        scheduler.shutdown(wait=False)
+    except Exception as e:
+        logger.exception(f"Ошибка при отключении Scheduler: {e}")
 
 
 # Метаданные для OpenAPI
@@ -162,10 +167,10 @@ async def webhook(request: Request) -> None:
     Returns: None
 
     """
-    logger.info("Получен запрос вебхука")
+    logger.debug("Получен запрос вебхука")
     update: Update = Update.model_validate(await request.json(), context={"bot": bot})
     await dp.feed_update(bot, update)
-    logger.info("Обновление обработано")
+    logger.debug("Обновление обработано")
 
 
 if __name__ == "__main__":

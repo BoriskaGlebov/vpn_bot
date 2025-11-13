@@ -1,6 +1,7 @@
 import json
 from typing import Any, cast
 
+from loguru._logger import Logger
 from redis.asyncio import Redis
 
 from bot.config import logger, settings_db
@@ -21,9 +22,10 @@ class SettingsRedis:
 
     DEFAULT_EXPIRE = 3600
 
-    def __init__(self, redis_url: str) -> None:
+    def __init__(self, redis_url: str, logger: Logger) -> None:
         self.url = redis_url
         self.client: Redis | None = None
+        self.logger = logger
 
     async def connect(self) -> Redis:
         """Инициализирует соединение с Redis.
@@ -39,22 +41,22 @@ class SettingsRedis:
             self.client = Redis.from_url(self.url, decode_responses=True)
             try:
                 await self.client.ping()
-                logger.info("✅ Подключение к Redis установлено успешно")
+                self.logger.info("✅ Подключение к Redis установлено успешно")
             except Exception as e:
-                logger.error(f"❌ Ошибка подключения к Redis: {e}")
+                self.logger.error(f"❌ Ошибка подключения к Redis: {e}")
         return self.client
 
     async def disconnect(self) -> None:
         """Закрывает соединение с Redis."""
         if self.client:
             await self.client.close()
-            logger.info("🔒 Соединение с Redis закрыто")
+            self.logger.info("🔒 Соединение с Redis закрыто")
             self.client = None
 
     async def _ensure_connection(self) -> Redis:
         """Гарантирует активное соединение с Redis."""
         if self.client is None:
-            logger.warning("Redis-клиент не инициализирован, переподключение...")
+            self.logger.warning("Redis-клиент не инициализирован, переподключение...")
             await self.connect()
         assert self.client is not None
         return self.client
@@ -111,11 +113,21 @@ class SettingsRedis:
         redis = await self._ensure_connection()
         key = f"admin_messages:{user_id}"
         existing = await redis.get(key)
-        messages: list[dict[str, Any]] = json.loads(existing) if existing else []
+        messages: list[dict[str, Any]] = []
+        if existing:
+            try:
+                messages = json.loads(existing)
+            except json.JSONDecodeError:
+                self.logger.warning(
+                    f"Невалидные данные в Redis для ключа {key}, очищаем"
+                )
+                messages = []
         messages.append({"chat_id": admin_id, "message_id": message_id})
         ttl = expire or self.DEFAULT_EXPIRE
         await redis.set(key, json.dumps(messages), ex=ttl)
-        logger.debug(f"💾 Сохранены админские сообщения user_id={user_id} с TTL={ttl}")
+        self.logger.debug(
+            f"💾 Сохранены админские сообщения user_id={user_id} с TTL={ttl}"
+        )
 
     async def get_admin_messages(self, user_id: int) -> list[dict[str, Any]]:
         """Возвращает список сообщений администраторов для пользователя.
@@ -142,7 +154,7 @@ class SettingsRedis:
         redis = await self._ensure_connection()
         key = f"admin_messages:{user_id}"
         await redis.delete(key)
-        logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
+        self.logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
 
 
-redis_manager = SettingsRedis(str(settings_db.REDIS_URL))
+redis_manager = SettingsRedis(str(settings_db.REDIS_URL), logger=logger)
