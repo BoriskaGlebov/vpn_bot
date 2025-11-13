@@ -75,10 +75,11 @@ class Subscription(Base):
     def __str__(self) -> str:
         """Строковое представление."""
         status = "Активна" if self.is_active else "Неактивна"
+        stat_type = self.type.value.upper() if self.type else ""
         until = (
             self.end_date.strftime("%Y-%m-%d %H:%M") if self.end_date else "бессрочная"
         )
-        return f"{status} (до {until})"
+        return f"{status} {stat_type} (до {until})"
 
     def activate(
         self,

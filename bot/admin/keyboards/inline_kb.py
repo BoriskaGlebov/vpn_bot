@@ -53,7 +53,7 @@ def admin_user_control_kb(
         ),
     )
     builder.button(
-        text="💎 Подписка",
+        text="💎  Срок подписки",
         callback_data=UserPageCB(
             filter_type=filter_type,
             index=index,
@@ -220,7 +220,7 @@ def user_navigation_kb(
         ),
     )
     builder.button(
-        text="💎 Подписка",
+        text="💎 Срок подписки",
         callback_data=UserPageCB(
             filter_type=filter_type,
             index=index,

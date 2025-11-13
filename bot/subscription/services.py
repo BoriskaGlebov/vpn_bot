@@ -41,23 +41,44 @@ class SubscriptionService:
 
     @staticmethod
     async def activate_paid_subscription(
-        session: AsyncSession, user_id: int, months: int
+        session: AsyncSession, user_id: int, months: int, premium: bool
     ) -> None:
         """Активирует платную подписку после подтверждения оплаты."""
         schema_user = SUserTelegramID(telegram_id=user_id)
+        if premium:
+            sub_type = SubscriptionType.PREMIUM
+        else:
+            sub_type = SubscriptionType.STANDARD
         await SubscriptionDAO.activate_subscription(
-            session=session, stelegram_id=schema_user, month=months
+            session=session, stelegram_id=schema_user, month=months, sub_type=sub_type
         )
 
     @connection()
-    async def check_all_subscriptions(self, session: AsyncSession) -> None:
-        """Проверяет все подписки, отправляет уведомления и удаляет просроченные конфиги."""
+    async def check_all_subscriptions(self, session: AsyncSession) -> dict[str, int]:
+        """Проверяет все подписки, отправляет уведомления и удаляет просроченные конфиги.
+
+        Returns
+            dict[str, int]: Статистика проверки:
+                {
+                    "checked": количество пользователей,
+                    "expired": количество истекших подписок,
+                    "notified": количество отправленных уведомлений,
+                    "configs_deleted": количество удалённых конфигов,
+                }
+
+        """
         result = await session.execute(select(User).options())
         users = result.scalars().all()
 
         now = datetime.datetime.now(datetime.UTC)
-
+        stats = {
+            "checked": 0,
+            "expired": 0,
+            "notified": 0,
+            "configs_deleted": 0,
+        }
         for user in users:
+            stats["checked"] += 1
             sub = user.subscription
             if not sub:
                 continue
@@ -71,9 +92,11 @@ class SubscriptionService:
                         chat_id=user.telegram_id,
                         text="Ваша подписка закончилась 🔒. Конфиги будут удалены через день.",
                     )
-                # Проверяем, прошло ли более 1 дня после окончания
+                    stats["expired"] += 1
+                    stats["notified"] += 1
                 if sub.end_date and (now - sub.end_date).days >= 1:
                     await self._delete_user_configs(session=session, user=user)
+                    stats["configs_deleted"] += 1
             else:
                 # Подписка активна
                 remaining = sub.remaining_days()
@@ -82,6 +105,8 @@ class SubscriptionService:
                         chat_id=user.telegram_id,
                         text=f"⚠️ Ваша подписка истекает через {remaining} дней.",
                     )
+                    stats["notified"] += 1
+        return stats
 
     @connection()
     async def _delete_user_configs(self, session: AsyncSession, user: User) -> None:

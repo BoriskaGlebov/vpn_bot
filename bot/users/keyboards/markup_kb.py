@@ -28,6 +28,7 @@ def main_kb(
     if active_subscription:
         kb_list.append([KeyboardButton(text="🔑 Получить VPN-конфиг AmneziaVPN")])
         kb_list.append([KeyboardButton(text="🌐 Получить VPN-конфиг AmneziaWG")])
+        kb_list.append([KeyboardButton(text="💎 Продлить VPN-Boriska")])
     else:
         kb_list.append([KeyboardButton(text="💰 Выбрать подписку VPN-Boriska")])
     kb_list.append([KeyboardButton(text="📈 Проверить статус подписки")])

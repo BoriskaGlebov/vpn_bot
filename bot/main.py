@@ -75,8 +75,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await init_default_roles()  # type: ignore
     await start_bot()
-    scheduler.add_job(scheduled_check, trigger=IntervalTrigger(minutes=1))
+    scheduler.add_job(
+        scheduled_check,
+        trigger=IntervalTrigger(minutes=1),
+        kwargs={"logger": logger},
+    )
     scheduler.start()
+    logger.info("🕒 Планировщик запущен — проверка каждые 1 минуту")
     if settings_bot.USE_POLLING:
         await bot.delete_webhook(drop_pending_updates=True)
 

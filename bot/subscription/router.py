@@ -55,6 +55,13 @@ class SubscriptionRouter(BaseRouter):
                 F.data.startswith("sub_select:"),
             ),
         )
+        self.router.callback_query.register(
+            self.toggle_subscription_mode,
+            and_f(
+                StateFilter(SubscriptionStates.subscription_start),
+                F.data.startswith("sub_toggle:"),
+            ),
+        )
 
         self.router.callback_query.register(
             self.user_paid,
@@ -88,9 +95,13 @@ class SubscriptionRouter(BaseRouter):
         user_logger.info("Начало оформления подписки")
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await message.answer(
-                text=m_subscription["start"], reply_markup=subscription_options_kb()
+                text=m_subscription["start"].format(
+                    device_limit=settings_bot.MAX_CONFIGS_PER_USER
+                ),
+                reply_markup=subscription_options_kb(),
             )
             await state.set_state(SubscriptionStates.subscription_start)
+            await state.update_data({})
 
     @BaseRouter.log_method
     @connection()
@@ -113,10 +124,14 @@ class SubscriptionRouter(BaseRouter):
             user_logger.info(f"Выбор периода подписки: {months} мес")
             price_map = settings_bot.PRICE_MAP
             price = price_map[months]
+            premium = await state.get_data()
             if price != 0:
+                if premium.get("premium"):
+                    price *= 2
                 await query.answer(f"Выбрал {months} месяцев", show_alert=False)
                 await query.message.edit_text(
                     text=m_subscription["select_period"].format(
+                        premium="PREMIUM " if premium else "STANDARD ",
                         months=months,
                         price=price,
                     ),
@@ -141,6 +156,35 @@ class SubscriptionRouter(BaseRouter):
                     await query.answer(str(e), show_alert=True)
 
     @BaseRouter.log_method
+    async def toggle_subscription_mode(
+        self, query: CallbackQuery, state: FSMContext
+    ) -> None:
+        """Переключает режим между стандартной и премиум-подпиской.
+
+        Args:
+            query (CallbackQuery): Callback от кнопки переключения.
+            state (FSMContext): Контекст FSM.
+
+        """
+        mode = query.data.split(":")[1]
+        premium = mode == "premium"
+
+        text = (
+            m_subscription.get("premium_start", "премиум текст").format(
+                device_limit=settings_bot.MAX_CONFIGS_PER_USER * 2
+            )
+            if premium
+            else m_subscription["start"]
+        )
+
+        await query.message.edit_text(
+            text=text,
+            reply_markup=subscription_options_kb(premium=premium),
+        )
+        await query.answer("")
+        await state.update_data(premium=premium)
+
+    @BaseRouter.log_method
     async def user_paid(self, query: CallbackQuery, state: FSMContext) -> None:
         """Обрабатывает оплату пользователем и уведомляет админов.
 
@@ -156,7 +200,9 @@ class SubscriptionRouter(BaseRouter):
             await state.set_state(SubscriptionStates.wait_for_paid)
             months = int(query.data.split(":")[1])
             price_map = settings_bot.PRICE_MAP
-            price = price_map[months]
+            premium = (await state.get_data()).get("premium")
+            price = price_map[months] * 2 if premium else price_map[months]
+
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             user = query.from_user
@@ -172,7 +218,7 @@ class SubscriptionRouter(BaseRouter):
             await send_to_admins(
                 bot=self.bot,
                 message_text=admin_message,
-                reply_markup=admin_payment_kb(user.id, months),
+                reply_markup=admin_payment_kb(user.id, months, premium),
                 redis_manager=redis_manager,
                 telegram_id=user.id,
             )
@@ -234,10 +280,10 @@ class SubscriptionRouter(BaseRouter):
             chat_id=query.message.chat.id,
         ):
             await query.answer("Админ подтвердил оплату", show_alert=False)
-            _, user_id, months = query.data.split(":")
-            user_id, months = int(user_id), int(months)
+            _, user_id, months, premium = query.data.split(":")
+            user_id, months, premium = int(user_id), int(months), bool(premium)
             await self.subscription_service.activate_paid_subscription(
-                session, user_id, months
+                session, user_id, months, premium
             )
             user_logger.info(
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"
@@ -247,7 +293,9 @@ class SubscriptionRouter(BaseRouter):
                     chat_id=user_id,
                     text=m_subscription.get("accept_paid", {})
                     .get("user", "")
-                    .format(months=months),
+                    .format(
+                        months=months, premium="PREMIUM" if premium else "STANDARD"
+                    ),
                     reply_markup=main_kb(active_subscription=True),
                 )
             except TelegramBadRequest:
@@ -263,7 +311,7 @@ class SubscriptionRouter(BaseRouter):
                 user_id=user_id,
                 new_text=m_subscription.get("accept_paid", {})
                 .get("admin", "")
-                .format(user_id=user_id),
+                .format(user_id=user_id, premium="PREMIUM" if premium else "STANDARD"),
                 redis_manager=redis_manager,
             )
 
@@ -286,7 +334,7 @@ class SubscriptionRouter(BaseRouter):
             chat_id=query.message.chat.id,
         ):
             await query.answer("Отклонено 🚫")
-            _, user_id, months = query.data.split(":")
+            _, user_id, months, premium = query.data.split(":")
             user_id = int(user_id)
             months = int(months)
             user_logger.info(

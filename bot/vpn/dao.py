@@ -28,11 +28,11 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             select(VPNConfig).where(VPNConfig.user_id == user_id)
         )
         configs = result.scalars().all() or []
-        max_configs = 0
         if configs:
             config_type = configs[0].user.subscription.type
             max_configs = DEVICE_LIMITS.get(config_type, 0)
-        return bool(len(configs) < max_configs)
+            return bool(len(configs) < max_configs)
+        return True
 
     @classmethod
     async def add_config(
