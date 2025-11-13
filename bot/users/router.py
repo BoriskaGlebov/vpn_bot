@@ -99,6 +99,7 @@ class UserRouter(BaseRouter):
                 ~F.text.contains("📈 Проверить статус подписки"),
                 ~F.text.contains("❓ Помощь в настройке VPN"),
                 ~F.text.contains("💰 Выбрать подписку VPN-Boriska"),
+                ~F.text.contains("💎 Продлить VPN-Boriska"),
             ),
         )
 

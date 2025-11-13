@@ -9,6 +9,7 @@ from bot.config import settings_bot
 from bot.database import connection
 from bot.subscription.dao import SubscriptionDAO
 from bot.subscription.models import SubscriptionType
+from bot.users.dao import UserDAO
 from bot.users.models import User
 from bot.users.schemas import SUserTelegramID
 from bot.vpn.router import ssh_lock
@@ -24,12 +25,57 @@ class SubscriptionService:
         self.bot = bot
 
     @staticmethod
+    async def check_premium(
+        session: AsyncSession, tg_id: int
+    ) -> tuple[bool, str, bool]:
+        """Проверяет, имеет ли пользователь активную премиум-подписку.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            tg_id (int): Telegram ID пользователя.
+
+        Returns
+            tuple[bool, str, bool]: Кортеж из трёх значений:
+                - bool: True, если у пользователя премиум-подписка, иначе False.
+                - str: Роль пользователя (например, "founder", "user" и т.д.).
+                - bool: True, если подписка активна, иначе False.
+
+        Raises
+            ValueError: Если пользователь с указанным Telegram ID не найден.
+
+        """
+        user_model = await UserDAO.find_one_or_none(
+            session=session, filters=SUserTelegramID(telegram_id=tg_id)
+        )
+        if not user_model:
+            raise ValueError("Не удалось найти пользователя")
+        premium = user_model.subscription.type
+        founder = user_model.role
+        is_active_sbscr = user_model.subscription.is_active
+        if premium and premium.value == "premium":
+            return True, founder.name, is_active_sbscr
+        else:
+            return False, founder.name, is_active_sbscr
+
+    @staticmethod
     async def start_trial_subscription(
         session: AsyncSession, user_id: int, days: int
     ) -> None:
         """Активирует пробный период подписки."""
         schema_user = SUserTelegramID(telegram_id=user_id)
+        user_model = await UserDAO.find_one_or_none(
+            session=session, filters=schema_user
+        )
         try:
+            if (
+                user_model
+                and user_model.subscription.is_active
+                and not user_model.has_used_trial
+            ):
+                user_model.subscription.extend(days=days)
+                user_model.has_used_trial = True
+                await session.commit()
+                return
             await SubscriptionDAO.activate_subscription(
                 session=session,
                 stelegram_id=schema_user,
@@ -42,16 +88,29 @@ class SubscriptionService:
     @staticmethod
     async def activate_paid_subscription(
         session: AsyncSession, user_id: int, months: int, premium: bool
-    ) -> None:
+    ) -> User | None:
         """Активирует платную подписку после подтверждения оплаты."""
         schema_user = SUserTelegramID(telegram_id=user_id)
+        user_model = await UserDAO.find_one_or_none(
+            session=session, filters=schema_user
+        )
+        print(premium)
         if premium:
             sub_type = SubscriptionType.PREMIUM
         else:
             sub_type = SubscriptionType.STANDARD
+        if user_model and user_model.subscription.is_active:
+            user_model.subscription.extend(months=months)
+            if user_model.role.name == "founder":
+                user_model.subscription.type = SubscriptionType.PREMIUM
+            else:
+                user_model.subscription.type = sub_type
+            await session.commit()
+            return user_model
         await SubscriptionDAO.activate_subscription(
             session=session, stelegram_id=schema_user, month=months, sub_type=sub_type
         )
+        return user_model
 
     @connection()
     async def check_all_subscriptions(self, session: AsyncSession) -> dict[str, int]:

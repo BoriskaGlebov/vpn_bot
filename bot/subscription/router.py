@@ -1,6 +1,6 @@
 from aiogram import Bot, F
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import StateFilter, and_f
+from aiogram.filters import StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
@@ -46,7 +46,11 @@ class SubscriptionRouter(BaseRouter):
 
     def _register_handlers(self) -> None:
         self.router.message.register(
-            self.start_subscription, F.text == "💰 Выбрать подписку VPN-Boriska"
+            self.start_subscription,
+            or_f(
+                F.text == "💰 Выбрать подписку VPN-Boriska",
+                F.text == "💎 Продлить VPN-Boriska",
+            ),
         )
         self.router.callback_query.register(
             self.subscription_selected,
@@ -81,10 +85,14 @@ class SubscriptionRouter(BaseRouter):
         )
 
     @BaseRouter.log_method
-    async def start_subscription(self, message: Message, state: FSMContext) -> None:
+    @connection()
+    async def start_subscription(
+        self, message: Message, session: AsyncSession, state: FSMContext
+    ) -> None:
         """Обрабатывает начало оформления подписки.
 
         Args:
+            session (AsyncSession): Асинхронная сессия.
             message (Message): Сообщение пользователя, инициировавшего подписку.
             state (FSMContext): Контекст FSM для управления состояниями.
 
@@ -94,11 +102,32 @@ class SubscriptionRouter(BaseRouter):
         )
         user_logger.info("Начало оформления подписки")
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            await message.answer(
-                text=m_subscription["start"].format(
+            (
+                is_premium,
+                role,
+                is_active_sbscr,
+            ) = await self.subscription_service.check_premium(
+                session=session, tg_id=message.from_user.id
+            )
+            print(is_premium)
+            print(role)
+            print(is_active_sbscr)
+            if not is_premium or role == "founder":
+                text = m_subscription.get("start", "").format(
                     device_limit=settings_bot.MAX_CONFIGS_PER_USER
-                ),
-                reply_markup=subscription_options_kb(),
+                )
+                kb = subscription_options_kb(premium=False, trial=not is_active_sbscr)
+            else:
+                text = m_subscription.get("premium_start", "").format(
+                    device_limit=settings_bot.MAX_CONFIGS_PER_USER * 2
+                )
+                kb = subscription_options_kb(
+                    premium=is_premium, trial=not is_active_sbscr
+                )
+                await state.update_data(premium=is_premium)
+            await message.answer(
+                text=text,
+                reply_markup=kb,
             )
             await state.set_state(SubscriptionStates.subscription_start)
             await state.update_data({})
@@ -210,10 +239,15 @@ class SubscriptionRouter(BaseRouter):
             await query.message.edit_text(m_subscription["wait_for_paid"]["user"])
 
             admin_message = m_subscription["wait_for_paid"]["admin"].format(
-                username=user.username or "-",
+                username=(
+                    f"@{user.username}"
+                    if user.username
+                    else user.first_name or user.last_name or "undefined"
+                ),
                 user_id=user.id or "-",
                 months=months,
                 price=price,
+                premium="PREMIUM" if premium else "STANDARD",
             )
             await send_to_admins(
                 bot=self.bot,
@@ -255,7 +289,6 @@ class SubscriptionRouter(BaseRouter):
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="Вы отменили оформление подписки.",
-                reply_markup=main_kb(),
             )
             await state.clear()
 
@@ -281,20 +314,28 @@ class SubscriptionRouter(BaseRouter):
         ):
             await query.answer("Админ подтвердил оплату", show_alert=False)
             _, user_id, months, premium = query.data.split(":")
-            user_id, months, premium = int(user_id), int(months), bool(premium)
-            await self.subscription_service.activate_paid_subscription(
+            user_id, months, premium = (
+                int(user_id),
+                int(months),
+                True if premium == "True" else False,
+            )
+            user_model = await self.subscription_service.activate_paid_subscription(
                 session, user_id, months, premium
             )
             user_logger.info(
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"
             )
+            if not user_model:
+                raise ValueError(f"Не нашел пользователя с {user_id}")
+
             try:
                 await query.bot.send_message(
                     chat_id=user_id,
                     text=m_subscription.get("accept_paid", {})
                     .get("user", "")
                     .format(
-                        months=months, premium="PREMIUM" if premium else "STANDARD"
+                        months=months,
+                        premium=user_model.subscription.type.value.upper(),
                     ),
                     reply_markup=main_kb(active_subscription=True),
                 )
@@ -311,7 +352,11 @@ class SubscriptionRouter(BaseRouter):
                 user_id=user_id,
                 new_text=m_subscription.get("accept_paid", {})
                 .get("admin", "")
-                .format(user_id=user_id, premium="PREMIUM" if premium else "STANDARD"),
+                .format(
+                    user_id=user_id,
+                    premium="PREMIUM" if premium else "STANDARD",
+                    username=user_model.username,
+                ),
                 redis_manager=redis_manager,
             )
 

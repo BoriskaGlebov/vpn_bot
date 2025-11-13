@@ -3,7 +3,9 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import settings_bot
 
 
-def subscription_options_kb(premium: bool = False) -> InlineKeyboardMarkup:
+def subscription_options_kb(
+    premium: bool = False, trial: bool = False
+) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру с вариантами подписки.
 
     Пользователь может выбрать обычную или премиум-подписку.
@@ -11,6 +13,7 @@ def subscription_options_kb(premium: bool = False) -> InlineKeyboardMarkup:
 
     Args:
         premium (bool): Флаг премиум-режима (по умолчанию False).
+        trial (bool): Пробный период, отключена если уже есть активная подписка
 
     Returns
         InlineKeyboardMarkup: Клавиатура с вариантами подписки.
@@ -35,7 +38,7 @@ def subscription_options_kb(premium: bool = False) -> InlineKeyboardMarkup:
         )
 
     # добавляем кнопку "Бесплатно" только для обычного режима
-    if not premium:
+    if not premium and trial:
         builder.button(text="🎁 7 дней — Бесплатно", callback_data="sub_select:7")
 
     # кнопка переключения режима
