@@ -3,13 +3,12 @@ import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from users.schemas import SUserOut
 
 from bot.subscription.models import SubscriptionType
 from bot.users.dao import RoleDAO, UserDAO
 from bot.users.models import Role, User
 from bot.users.router import m_admin
-from bot.users.schemas import SRole, SUserTelegramID
+from bot.users.schemas import SRole, SUserOut, SUserTelegramID
 
 
 class AdminService:

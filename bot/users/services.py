@@ -1,11 +1,10 @@
 from aiogram.types import User as TgUser
 from sqlalchemy.ext.asyncio import AsyncSession
-from users.schemas import SUserOut
 
 from bot.config import settings_bot
 from bot.redis_manager import SettingsRedis
 from bot.users.dao import UserDAO
-from bot.users.schemas import SRole, SUser, SUserTelegramID
+from bot.users.schemas import SRole, SUser, SUserOut, SUserTelegramID
 
 
 class UserService:

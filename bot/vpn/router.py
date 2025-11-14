@@ -8,12 +8,12 @@ from aiogram.types import FSInputFile, Message, ReplyKeyboardRemove
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
-from vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 
 from bot.config import bot, settings_bot
 from bot.database import connection
 from bot.utils.base_router import BaseRouter
 from bot.vpn.services import VPNService
+from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
 if TYPE_CHECKING:

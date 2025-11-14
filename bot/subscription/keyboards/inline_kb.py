@@ -1,6 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from config import settings_bot
+
+from bot.config import settings_bot
 
 
 def subscription_options_kb(

@@ -1,7 +1,7 @@
-from config import settings_bot
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.config import settings_bot
 from bot.dao.base import BaseDAO
 from bot.subscription.models import DEVICE_LIMITS
 from bot.vpn.models import VPNConfig

@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from bot.vpn_router.utils.amnezia_exceptions import (
+from bot.vpn.utils.amnezia_exceptions import (
     AmneziaConfigError,
     AmneziaError,
     AmneziaSSHError,

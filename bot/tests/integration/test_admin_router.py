@@ -4,7 +4,7 @@ from sqlalchemy.orm import selectinload
 
 from bot.admin.router import AdminRouter
 from bot.subscription.models import Subscription
-from bot.users.models import Role, User, UserRole
+from bot.users.models import Role, User
 
 
 @pytest.mark.asyncio

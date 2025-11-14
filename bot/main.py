@@ -3,12 +3,12 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
-from admin.services import AdminService
 from aiogram.types import Update
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request
 
 from bot.admin.router import AdminRouter
+from bot.admin.services import AdminService
 from bot.config import bot, dp, logger, settings_bot
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware

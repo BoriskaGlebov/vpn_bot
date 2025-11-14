@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.router import AdminRouter, AdminStates
 from bot.subscription.models import Subscription
-from bot.users.models import Role, User, UserRole
+from bot.users.models import Role, User
 
 
 @pytest.mark.asyncio
