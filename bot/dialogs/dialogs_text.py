@@ -7,7 +7,19 @@ from loguru import logger
 
 
 def load_dialogs(filename: Path | str | None = None) -> dict[str, Any]:
-    """Загружает YAML, подставляет шаблоны и возвращает готовый словарь."""
+    """Загружает YAML-файл с диалогами, применяет шаблоны и возвращает словарь.
+
+    Args:
+        filename (Path | str | None): Путь к YAML-файлу.
+            Если None, используется файл 'dialog_messages.yaml' рядом с модулем.
+
+    Returns
+        dict[str, Any]: Словарь диалогов с подставленными шаблонами.
+
+    Raises
+        FileNotFoundError: Если файл не найден.
+
+    """
     filename = Path(filename or Path(__file__).parent / "dialog_messages.yaml")
 
     if not filename.exists():
@@ -38,7 +50,6 @@ def load_dialogs(filename: Path | str | None = None) -> dict[str, Any]:
             return [substitute_templates(v) for v in value]
         return value
 
-    # создаём новый словарь без templates
     processed_data = {
         k: substitute_templates(v) for k, v in bot_data.items() if k != "templates"
     }

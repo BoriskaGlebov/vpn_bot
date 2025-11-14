@@ -13,13 +13,16 @@ def device_keyboard() -> InlineKeyboardMarkup:
 
     """
     builder = InlineKeyboardBuilder()
-    builder.button(text="📱 Android", callback_data="device_android")
-    builder.button(text="🍏 iOS", callback_data="device_ios")
-    builder.button(text="💻 Windows / Linux", callback_data="device_pc")
-    builder.button(text="📺 Smart TV", callback_data="device_tv")
-    builder.button(text="─────────────", callback_data="device_noop")
-    builder.button(
-        text="👨‍💻 Связаться с разработчиком", callback_data="device_developer"
-    )
+    buttons = [
+        ("📱 Android", "device_android"),
+        ("🍏 iOS", "device_ios"),
+        ("💻 Windows / Linux", "device_pc"),
+        ("📺 Smart TV", "device_tv"),
+        ("─────────────", "device_noop"),
+        ("👨‍💻 Связаться с разработчиком", "device_developer"),
+    ]
+
+    for text, cb in buttons:
+        builder.button(text=text, callback_data=cb)
     builder.adjust(2, 2, 1, 1)
     return builder.as_markup()

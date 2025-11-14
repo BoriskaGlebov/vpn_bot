@@ -1,4 +1,5 @@
 from typing import (
+    Any,
     Generic,
     TypeVar,
     cast,
@@ -6,12 +7,12 @@ from typing import (
 
 from loguru import logger
 from pydantic import BaseModel
+from sqlalchemy import and_
 from sqlalchemy import delete as sqlalchemy_delete
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
 from bot.database import Base
 
@@ -76,6 +77,11 @@ class BaseDAO(Generic[T]):  # noqa: UP046
     # noinspection PyTypeHints
     model: type[T]  # Тип модели, которой управляет этот DAO
 
+    @staticmethod
+    def _to_dict(filters: BaseModel | None) -> dict[str, Any]:
+        """Преобразование в словарь BaseModel схему."""
+        return filters.model_dump(exclude_unset=True) if filters else {}
+
     @classmethod
     async def find_one_or_none_by_id(
         cls, data_id: int, session: AsyncSession
@@ -91,19 +97,20 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
         """
         # noinspection PyTypeChecker
-        logger.info(f"Поиск {cls.model.__name__} с ID: {data_id}")
+        logger.info(f"[DAO] Поиск {cls.model.__name__} с ID: {data_id}")
         try:
             # noinspection PyTypeChecker
-            query = select(cls.model).filter_by(id=data_id)
+            query = select(cls.model).where(cls.model.id == data_id)
+
             result = await session.execute(query)
             record = cast(T | None, result.scalar_one_or_none())
             if record:
-                logger.info(f"Запись с ID {data_id} найдена.")
+                logger.info(f"[DAO] Запись с ID {data_id} найдена.")
             else:
-                logger.info(f"Запись с ID {data_id} не найдена.")
+                logger.info(f"[DAO] Запись с ID {data_id} не найдена.")
             return record
         except SQLAlchemyError as e:
-            logger.error(f"Ошибка при поиске записи с ID {data_id}: {e}")
+            logger.info(f"[DAO] Ошибка при поиске записи с ID {data_id}: {e}")
             raise
 
     @classmethod
@@ -120,23 +127,30 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             Optional[T]: Найденная запись или None.
 
         """
-        filter_dict = filters.model_dump(exclude_unset=True)
+        filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
             f"Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
         )
         try:
             # noinspection PyTypeChecker
-            query = select(cls.model).filter_by(**filter_dict)
+            query = select(cls.model)
+            conditions = [
+                getattr(cls.model, key) == value for key, value in filter_dict.items()
+            ]
+            if conditions:
+                query = query.where(and_(*conditions))
             result = await session.execute(query)
             record = cast(T | None, result.scalar_one_or_none())
             if record:
-                logger.info(f"Запись найдена по фильтрам: {filter_dict}")
+                logger.info(f"[DAO] Запись найдена по фильтрам: {filter_dict}")
             else:
-                logger.info(f"Запись не найдена по фильтрам: {filter_dict}")
+                logger.info(f"[DAO] Запись не найдена по фильтрам: {filter_dict}")
             return record
         except SQLAlchemyError as e:
-            logger.error(f"Ошибка при поиске записи по фильтрам {filter_dict}: {e}")
+            logger.info(
+                f"[DAO] Ошибка при поиске записи по фильтрам {filter_dict}: {e}"
+            )
             raise
 
     @classmethod
@@ -153,17 +167,22 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             List[T]: Список найденных записей.
 
         """
-        filter_dict = filters.model_dump(exclude_unset=True) if filters else {}
+        filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
             f"Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
         )
         try:
             # noinspection PyTypeChecker
-            query = select(cls.model).filter_by(**filter_dict)
+            query = select(cls.model)
+            conditions = [
+                getattr(cls.model, key) == value for key, value in filter_dict.items()
+            ]
+            if conditions:
+                query = query.where(and_(*conditions))
             result = await session.execute(query)
             records = cast(list[T], result.scalars().all())
-            logger.info(f"Найдено {len(records)} записей.")
+            logger.info(f"[DAO] Найдено {len(records)} записей.")
             return records
         except SQLAlchemyError as e:
             logger.error(
@@ -194,10 +213,10 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         try:
             await session.commit()
             # noinspection PyTypeChecker
-            logger.info(f"Запись {cls.model.__name__} успешно добавлена.")
+            logger.info(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
         except SQLAlchemyError as e:
             await session.rollback()
-            logger.error(f"Ошибка при добавлении записи: {e}")
+            logger.info(f"[DAO] Ошибка при добавлении записи: {e}")
             raise e
         return new_instance
 
@@ -225,10 +244,10 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         session.add_all(new_instances)
         try:
             await session.commit()
-            logger.info(f"Успешно добавлено {len(new_instances)} записей.")
+            logger.info(f"[DAO] Успешно добавлено {len(new_instances)} записей.")
         except SQLAlchemyError as e:
             await session.rollback()
-            logger.error(f"Ошибка при добавлении нескольких записей: {e}")
+            logger.info(f"[DAO] Ошибка при добавлении нескольких записей: {e}")
             raise e
         return new_instances
 
@@ -266,12 +285,12 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             await session.commit()
             rowcount: int = getattr(result, "rowcount", 0) or 0
             if rowcount:
-                logger.info(f"Обновлено {rowcount} записей.")
+                logger.info(f"[DAO] Обновлено {rowcount} записей.")
 
             return rowcount or 0
         except SQLAlchemyError as e:
             await session.rollback()
-            logger.error(f"Ошибка при обновлении записей: {e}")
+            logger.info(f"[DAO] Ошибка при обновлении записей: {e}")
             raise e
 
     @classmethod
@@ -288,22 +307,29 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         """
         filter_dict = filters.model_dump(exclude_unset=True)
         # noinspection PyTypeChecker
-        logger.info(f"Удаление записей {cls.model.__name__} по фильтру: {filter_dict}")
+        logger.info(
+            f"[DAO] Удаление записей {cls.model.__name__} по фильтру: {filter_dict}"
+        )
         if not filter_dict:
             logger.error("Нужен хотя бы один фильтр для удаления.")
             raise ValueError("Нужен хотя бы один фильтр для удаления.")
         # noinspection PyTypeChecker
-        query = sqlalchemy_delete(cls.model).filter_by(**filter_dict)
+        query = sqlalchemy_delete(cls.model)
+        conditions = [
+            getattr(cls.model, key) == value for key, value in filter_dict.items()
+        ]
+        if conditions:
+            query = query.where(and_(*conditions))
         try:
             result = await session.execute(query)
             await session.commit()
             rowcount: int = getattr(result, "rowcount", 0) or 0
             if rowcount:
-                logger.info(f"Удалено {rowcount} записей.")
+                logger.info(f"[DAO] Удалено {rowcount} записей.")
             return rowcount or 0
         except SQLAlchemyError as e:
             await session.rollback()
-            logger.error(f"Ошибка при удалении записей: {e}")
+            logger.info(f"[DAO] Ошибка при удалении записей: {e}")
             raise e
 
     @classmethod
@@ -325,13 +351,18 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         )
         try:
             # noinspection PyTypeChecker
-            query = select(func.count(cls.model.id)).filter_by(**filter_dict)
+            query = select(func.count(cls.model.id))
+            conditions = [
+                getattr(cls.model, key) == value for key, value in filter_dict.items()
+            ]
+            if conditions:
+                query = query.where(and_(*conditions))
             result = await session.execute(query)
             count = cast(int, result.scalar())
-            logger.info(f"Найдено {count} записей.")
+            logger.info(f"[DAO] Найдено {count} записей.")
             return count
         except SQLAlchemyError as e:
-            logger.error(f"Ошибка при подсчете записей: {e}")
+            logger.info(f"[DAO] Ошибка при подсчете записей: {e}")
             raise
 
     @classmethod
@@ -354,7 +385,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             List[T]: Список записей на текущей странице.
 
         """
-        filter_dict = filters.model_dump(exclude_unset=True) if filters else {}
+        filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
             f"Пагинация записей {cls.model.__name__} по фильтру: {filter_dict}, "
@@ -362,15 +393,20 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         )
         try:
             # noinspection PyTypeChecker
-            query = select(cls.model).filter_by(**filter_dict)
+            query = select(cls.model)
+            conditions = [
+                getattr(cls.model, key) == value for key, value in filter_dict.items()
+            ]
+            if conditions:
+                query = query.where(and_(*conditions))
             result = await session.execute(
                 query.offset((page - 1) * page_size).limit(page_size)
             )
             records = cast(list[T], result.scalars().all())
-            logger.info(f"Найдено {len(records)} записей на странице {page}.")
+            logger.info(f"[DAO] Найдено {len(records)} записей на странице {page}.")
             return records
         except SQLAlchemyError as e:
-            logger.error(f"Ошибка при пагинации записей: {e}")
+            logger.info(f"[DAO] Ошибка при пагинации записей: {e}")
             raise
 
     @classmethod
@@ -386,16 +422,16 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
         """
         # noinspection PyTypeChecker
-        logger.info(f"Поиск записей {cls.model.__name__} по списку ID: {ids}")
+        logger.info(f"[DAO] Поиск записей {cls.model.__name__} по списку ID: {ids}")
         try:
             # noinspection PyTypeChecker
             query = select(cls.model).filter(cls.model.id.in_(ids))
             result = await session.execute(query)
             records = cast(list[T], result.scalars().all())
-            logger.info(f"Найдено {len(records)} записей по списку ID.")
+            logger.info(f"[DAO] Найдено {len(records)} записей по списку ID.")
             return records
         except SQLAlchemyError as e:
-            logger.error(f"Ошибка при поиске записей по списку ID: {e}")
+            logger.info(f"[DAO] Ошибка при поиске записей по списку ID: {e}")
             raise
 
     @classmethod
@@ -418,7 +454,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             field: values_dict[field] for field in unique_fields if field in values_dict
         }
         # noinspection PyTypeChecker
-        logger.info(f"Upsert для {cls.model.__name__}")
+        logger.info(f"[DAO] Upsert для {cls.model.__name__}")
         try:
             existing = await cls.find_one_or_none(
                 session, values.__class__(**filter_dict)
@@ -429,7 +465,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
                     setattr(existing, key, value)
                 await session.commit()
                 # noinspection PyTypeChecker
-                logger.info(f"Обновлена существующая запись {cls.model.__name__}")
+                logger.info(f"[DAO] Обновлена существующая запись {cls.model.__name__}")
                 return existing
             else:
                 # noinspection PyTypeChecker
@@ -437,11 +473,11 @@ class BaseDAO(Generic[T]):  # noqa: UP046
                 session.add(new_instance)
                 await session.commit()
                 # noinspection PyTypeChecker
-                logger.info(f"Создана новая запись {cls.model.__name__}")
+                logger.info(f"[DAO] Создана новая запись {cls.model.__name__}")
                 return new_instance
         except SQLAlchemyError as e:
             await session.rollback()
-            logger.error(f"Ошибка при upsert: {e}")
+            logger.info(f"[DAO] Ошибка при upsert: {e}")
             raise
 
     @classmethod
@@ -457,7 +493,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
         """
         # noinspection PyTypeChecker
-        logger.info(f"Массовое обновление записей {cls.model.__name__}")
+        logger.info(f"[DAO] Массовое обновление записей {cls.model.__name__}")
         try:
             updated_count = 0
             for record in records:
@@ -469,7 +505,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
                 # noinspection PyTypeChecker
                 stmt = (
                     sqlalchemy_update(cls.model)
-                    .filter_by(id=record_dict["id"])
+                    .where(cls.model.id == record_dict["id"])
                     .values(**update_data)
                 )
                 result = await session.execute(stmt)
@@ -477,9 +513,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
                 updated_count += rowcount
 
             await session.commit()
-            logger.info(f"Обновлено {updated_count} записей")
+            logger.info(f"[DAO] Обновлено {updated_count} записей")
             return updated_count
         except SQLAlchemyError as e:
             await session.rollback()
-            logger.error(f"Ошибка при массовом обновлении: {e}")
+            logger.info(f"[DAO] Ошибка при массовом обновлении: {e}")
             raise e

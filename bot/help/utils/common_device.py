@@ -11,8 +11,9 @@ class Device(ABC):
 
     """
 
+    @classmethod
     @abstractmethod
-    async def send_message(self, bot: Bot, chat_id: int) -> None:
+    async def send_message(cls, bot: Bot, chat_id: int) -> None:
         """Отправляет сообщение в указанный чат.
 
         Этот метод должен быть реализован в подклассах для отправки

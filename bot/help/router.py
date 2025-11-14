@@ -11,6 +11,7 @@ from loguru._logger import Logger
 from bot.config import settings_bot
 from bot.help.keyboards.inline_kb import device_keyboard
 from bot.help.utils.android_device import AndroidDevice
+from bot.help.utils.common_device import Device
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
 from bot.help.utils.tv_device import TVDevice
@@ -27,6 +28,13 @@ class HelpStates(StatesGroup):  # type: ignore[misc]
 
 class HelpRouter(BaseRouter):
     """Роутер для обработки команды /help и выбора устройства."""
+
+    DEVICE_MAP: dict[str, type[Device]] = {
+        "android": AndroidDevice,
+        "ios": IphoneDevice,
+        "pc": PCDevice,
+        "tv": TVDevice,
+    }
 
     def __init__(self, bot: Bot, logger: Logger) -> None:
         super().__init__(bot, logger)
@@ -61,8 +69,9 @@ class HelpRouter(BaseRouter):
             await message.answer(
                 text=m_help.get("welcome", ""), reply_markup=ReplyKeyboardRemove()
             )
-            for mess in m_help.get("start_block", []):
-                if mess == m_help.get("start_block", [])[-1]:
+            start_block = m_help.get("start_block", [])
+            for mess in start_block:
+                if mess == start_block[-1]:
                     await message.answer(mess, reply_markup=device_keyboard())
                 else:
                     await message.answer(mess)
@@ -84,14 +93,11 @@ class HelpRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=call.message.chat.id):
             call_device = call.data.replace("device_", "")
             await call.answer(text=f"Ты выбрал {call_device}", show_alert=False)
-            if call_device == "android":
-                await AndroidDevice.send_message(self.bot, call.message.chat.id)
-            elif call_device == "ios":
-                await IphoneDevice.send_message(self.bot, call.message.chat.id)
-            elif call_device == "pc":
-                await PCDevice.send_message(self.bot, call.message.chat.id)
-            elif call_device == "tv":
-                await TVDevice.send_message(self.bot, call.message.chat.id)
+            device_class = self.DEVICE_MAP.get(call_device)
+            if device_class:
+                await device_class.send_message(
+                    bot=self.bot, chat_id=call.message.chat.id
+                )
             elif call_device == "developer":
                 await call.message.delete()
                 await call.bot.send_message(

@@ -155,7 +155,11 @@ class UserRouter(BaseRouter):
                 await message.answer(
                     follow_up_message,
                     reply_markup=main_kb(
-                        active_subscription=user_info.subscription.is_active,
+                        active_subscription=(
+                            user_info.subscription.is_active
+                            if user_info.subscription
+                            else False
+                        ),
                         user_telegram_id=message.from_user.id,
                     ),
                 )
@@ -177,7 +181,11 @@ class UserRouter(BaseRouter):
                 await message.answer(
                     follow_up_message,
                     reply_markup=main_kb(
-                        active_subscription=user_info.subscription.is_active,
+                        active_subscription=(
+                            user_info.subscription.is_active
+                            if user_info.subscription
+                            else False
+                        ),
                         user_telegram_id=message.from_user.id,
                     ),
                 )
