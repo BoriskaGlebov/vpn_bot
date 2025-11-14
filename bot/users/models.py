@@ -51,11 +51,17 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         lazy="selectin",
+        order_by="VPNConfig.id",
     )
 
     def __str__(self) -> str:
         """Строковое представление для записи."""
-        return f"{self.first_name} {self.last_name} (@{self.username})"
+        parts = [
+            self.first_name or "",
+            self.last_name or "",
+            f"@{self.username}" if self.username else "",
+        ]
+        return " ".join(p for p in parts if p)
 
 
 class Role(Base):

@@ -30,6 +30,19 @@ m_admin = settings_bot.MESSAGES.get("modes", {}).get("admin", {})
 m_start = settings_bot.MESSAGES.get("modes", {}).get("start", {})
 m_error = settings_bot.MESSAGES.get("errors", {})
 m_echo = settings_bot.MESSAGES.get("general", {}).get("echo", {})
+INVALID_FOR_USER = [
+    "💰 Выбрать подписку VPN-Boriska",
+    "🔑 Получить VPN-конфиг AmneziaVPN",
+    "🌐 Получить VPN-конфиг AmneziaWG",
+    "📈 Проверить статус подписки",
+    "❓ Помощь в настройке VPN",
+    "💰 Выбрать подписку VPN-Boriska",
+    "💎 Продлить VPN-Boriska",
+]
+INVALID_FOR_ADMIN = [
+    "⚙️ Админ-панель",
+    "❓ Помощь в настройке VPN",
+]
 
 
 class UserStates(StatesGroup):  # type: ignore[misc]
@@ -84,8 +97,7 @@ class UserRouter(BaseRouter):
             and_f(
                 StateFilter(UserStates.press_admin),
                 ~F.text.startswith("/"),
-                ~F.text.contains("⚙️ Админ-панель"),
-                ~F.text.contains("❓ Помощь в настройке VPN"),
+                ~F.text.in_(INVALID_FOR_ADMIN),
             ),
         )
         self.router.message.register(
@@ -93,13 +105,7 @@ class UserRouter(BaseRouter):
             and_f(
                 StateFilter(UserStates.press_start),
                 ~F.text.startswith("/"),
-                ~F.text.contains("💰 Выбрать подписку VPN-Boriska"),
-                ~F.text.contains("🔑 Получить VPN-конфиг AmneziaVPN"),
-                ~F.text.contains("🌐 Получить VPN-конфиг AmneziaWG"),
-                ~F.text.contains("📈 Проверить статус подписки"),
-                ~F.text.contains("❓ Помощь в настройке VPN"),
-                ~F.text.contains("💰 Выбрать подписку VPN-Boriska"),
-                ~F.text.contains("💎 Продлить VPN-Boriska"),
+                ~F.text.in_(INVALID_FOR_USER),
             ),
         )
 
@@ -161,7 +167,7 @@ class UserRouter(BaseRouter):
                 )
                 response_message = welcome_messages.get("first", [])[0].format(
                     username=message.from_user.full_name
-                    or message.from_user.username
+                    or f"@{message.from_user.username}"
                     or f"Гость_{message.from_user.id}"
                 )
                 follow_up_message = welcome_messages.get("first", [])[1]
@@ -181,7 +187,7 @@ class UserRouter(BaseRouter):
                         last_name=user_info.last_name or "undefined",
                         username=user_info.username or "undefined",
                         telegram_id=user_info.telegram_id,
-                        roles=user_info.role.name,
+                        roles=str(user_info.role),
                         subscription=str(user_info.subscription),
                     )
                     await send_to_admins(

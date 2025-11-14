@@ -1,10 +1,10 @@
 from aiogram.types import User as TgUser
 from sqlalchemy.ext.asyncio import AsyncSession
+from users.schemas import SUserOut
 
 from bot.config import settings_bot
 from bot.redis_manager import SettingsRedis
 from bot.users.dao import UserDAO
-from bot.users.models import User
 from bot.users.schemas import SRole, SUser, SUserTelegramID
 
 
@@ -27,7 +27,7 @@ class UserService:
 
     async def register_or_get_user(
         self, session: AsyncSession, telegram_user: TgUser
-    ) -> tuple[User, bool]:
+    ) -> tuple[SUserOut, bool]:
         """Регистрирует пользователя, если он отсутствует, или возвращает существующего.
 
         Если пользователь с данным Telegram ID отсутствует в базе данных, создаётся новая
@@ -40,8 +40,8 @@ class UserService:
             telegram_user (TgUser): Объект пользователя из Telegram (aiogram.types.User).
 
         Returns
-            tuple[User, bool]: Кортеж из:
-                - экземпляра модели `User`
+            tuple[SUserOut, bool]: Кортеж из:
+                - экземпляра схемы `SUserOut`
                 - булевого флага:
                     - `True`, если пользователь был создан;
                     - `False`, если пользователь уже существовал.
@@ -66,5 +66,5 @@ class UserService:
                 values_user=schema_user,
                 values_role=schema_role,
             )
-            return user, True
-        return user, False
+            return SUserOut.model_validate(user), True
+        return SUserOut.model_validate(user), False
