@@ -25,6 +25,33 @@ class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,c
     month: int | None = None
 
 
+def common_user_buttons(
+    builder: InlineKeyboardBuilder,
+    filter_type: str,
+    index: int = 0,
+    telegram_id: int | None = None,
+) -> None:
+    """Общие кнопки смены ролей и срока подписки."""
+    builder.button(
+        text="🎭 Роль",
+        callback_data=UserPageCB(
+            filter_type=filter_type,
+            index=index,
+            action="role_change",
+            telegram_id=telegram_id,
+        ),
+    )
+    builder.button(
+        text="💎 Срок подписки",
+        callback_data=UserPageCB(
+            filter_type=filter_type,
+            index=index,
+            action="sub_manage",
+            telegram_id=telegram_id,
+        ),
+    )
+
+
 def admin_user_control_kb(
     filter_type: str,
     index: int = 0,
@@ -43,24 +70,7 @@ def admin_user_control_kb(
     """
     builder = InlineKeyboardBuilder()
 
-    builder.button(
-        text="🎭 Роль",
-        callback_data=UserPageCB(
-            filter_type=filter_type,
-            index=index,
-            action="role_change",
-            telegram_id=telegram_id,
-        ),
-    )
-    builder.button(
-        text="💎  Срок подписки",
-        callback_data=UserPageCB(
-            filter_type=filter_type,
-            index=index,
-            action="sub_manage",
-            telegram_id=telegram_id,
-        ),
-    )
+    common_user_buttons(builder, filter_type, index, telegram_id)
 
     builder.adjust(2, 1, 1)
     return builder.as_markup()
@@ -210,24 +220,7 @@ def user_navigation_kb(
     """
     builder = InlineKeyboardBuilder()
 
-    builder.button(
-        text="🎭 Роль",
-        callback_data=UserPageCB(
-            filter_type=filter_type,
-            index=index,
-            action="role_change",
-            telegram_id=telegram_id,
-        ),
-    )
-    builder.button(
-        text="💎 Срок подписки",
-        callback_data=UserPageCB(
-            filter_type=filter_type,
-            index=index,
-            action="sub_manage",
-            telegram_id=telegram_id,
-        ),
-    )
+    common_user_buttons(builder, filter_type, index, telegram_id)
 
     if index > 0:
         builder.button(
