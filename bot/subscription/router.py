@@ -8,6 +8,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.app_error.base_error import UserNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import redis_manager
@@ -341,7 +342,7 @@ class SubscriptionRouter(BaseRouter):
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"
             )
             if not user_schema:
-                raise ValueError(f"Не нашел пользователя с {user_id}")
+                raise UserNotFoundError(tg_id=user_id)
 
             try:
                 await query.bot.send_message(
@@ -406,15 +407,12 @@ class SubscriptionRouter(BaseRouter):
             user_logger.info(
                 f"Админ отклонил оплату пользователя {user_id} ({months} мес)"
             )
-            # Сообщаем пользователю
-            try:
-                await query.bot.send_message(
-                    chat_id=user_id,
-                    text=m_subscription.get("decline_paid", {}).get("user", ""),
-                    reply_markup=main_kb(active_subscription=False),
-                )
-            except TelegramBadRequest:
-                pass
+
+            await query.bot.send_message(
+                chat_id=user_id,
+                text=m_subscription.get("decline_paid", {}).get("user", ""),
+                reply_markup=main_kb(active_subscription=False),
+            )
             await edit_admin_messages(
                 bot=self.bot,
                 user_id=user_id,

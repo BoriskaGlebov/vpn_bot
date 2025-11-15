@@ -3,6 +3,7 @@ from typing import Any, cast
 
 from loguru._logger import Logger
 from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 from bot.config import logger, settings_db
 
@@ -42,7 +43,7 @@ class SettingsRedis:
             try:
                 await self.client.ping()
                 self.logger.info("✅ Подключение к Redis установлено успешно")
-            except Exception as e:
+            except RedisError as e:
                 self.logger.error(f"❌ Ошибка подключения к Redis: {e}")
         return self.client
 

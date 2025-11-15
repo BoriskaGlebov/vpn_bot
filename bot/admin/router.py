@@ -183,15 +183,11 @@ class AdminRouter(BaseRouter):
                 user_logger.error("Не передан telegram_id для смены роли")
                 raise ValueError("Необходимо передать в запрос telegram_id")
 
-            try:
-                user_schema = await self.admin_service.change_user_role(
-                    session=session,
-                    telegram_id=user_id,
-                    role_name=role_name,
-                )
-            except ValueError as e:
-                user_logger.error(str(e))
-                raise
+            user_schema = await self.admin_service.change_user_role(
+                session=session,
+                telegram_id=user_id,
+                role_name=role_name,
+            )
 
             old_text = await self.admin_service.format_user_text(
                 user_schema, "edit_user"
@@ -243,21 +239,9 @@ class AdminRouter(BaseRouter):
             months = int(months)
             await query.answer(f"Выбрал {months} мес.")
 
-            try:
-                user_schema = await self.admin_service.extend_user_subscription(
-                    session=session, telegram_id=user_id, months=months
-                )
-            except ValueError as e:
-                user_logger.error(str(e))
-                await query.message.edit_text(
-                    f"Ошибка: {e}",
-                    reply_markup=admin_user_control_kb(
-                        filter_type=callback_data.filter_type,
-                        index=callback_data.index,
-                        telegram_id=user_id,
-                    ),
-                )
-                return
+            user_schema = await self.admin_service.extend_user_subscription(
+                session=session, telegram_id=user_id, months=months
+            )
 
             old_text = await self.admin_service.format_user_text(
                 user_schema, "edit_user"

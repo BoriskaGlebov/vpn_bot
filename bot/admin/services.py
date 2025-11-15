@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from bot.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError
 from bot.subscription.models import SubscriptionType
 from bot.users.dao import RoleDAO, UserDAO
 from bot.users.models import Role, User
@@ -28,14 +29,14 @@ class AdminService:
             SUserOut: Схема пользователя.
 
         Raises
-            ValueError: Если пользователь не найден.
+            UserNotFoundError: Если пользователь не найден.
 
         """
         user = await UserDAO.find_one_or_none(
             session=session, filters=SUserTelegramID(telegram_id=telegram_id)
         )
         if not user:
-            raise ValueError(f"Пользователь с telegram_id={telegram_id} не найден")
+            raise UserNotFoundError(tg_id=telegram_id)
         user_schema = SUserOut.model_validate(user)
         return user_schema
 
@@ -98,7 +99,7 @@ class AdminService:
             SUserOut: Схема пользователь.
 
         Raises
-            ValueError: Если пользователь или роль не найдены.
+            UserNotFoundError: Если пользователь или роль не найдены.
 
         """
         user = await UserDAO.find_one_or_none(
@@ -107,9 +108,7 @@ class AdminService:
         role = await RoleDAO.find_one_or_none(session, filters=SRole(name=role_name))
 
         if not user or not role:
-            raise ValueError(
-                f"Пользователь или роль не найдены ({telegram_id}/{role_name})"
-            )
+            raise UserNotFoundError(tg_id=telegram_id)
 
         user.role = role
 
@@ -139,20 +138,21 @@ class AdminService:
             SUserOut: Схема пользователь.
 
         Raises
-            ValueError: Если пользователь не найден или подписка не активна.
+            UserNotFoundError: Если пользователь не найден.
+            SubscriptionNotFoundError: Подписка не активна.
 
         """
         user = await UserDAO.find_one_or_none(
             session=session, filters=SUserTelegramID(telegram_id=telegram_id)
         )
         if not user:
-            raise ValueError(f"Пользователь {telegram_id} не найден")
+            raise UserNotFoundError(tg_id=telegram_id)
 
         subscription = user.subscription
         if subscription.is_active:
             subscription.extend(months=months)
         else:
-            raise ValueError("Подписка не активна — продление невозможно")
+            raise SubscriptionNotFoundError(user_id=telegram_id)
 
         await session.flush([user])
         await session.commit()

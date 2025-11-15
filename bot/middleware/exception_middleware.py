@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
-from aiogram import BaseMiddleware
+from aiogram import BaseMiddleware, Bot
 from aiogram.exceptions import (
     RestartingTelegram,
     TelegramAPIError,
@@ -50,9 +50,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
     """
 
-    def __init__(self, logger: Logger) -> None:
+    def __init__(self, logger: Logger, bot: Bot) -> None:
         super().__init__()
         self.logger = logger
+        self.bot = bot
 
         self.error_messages: dict[type[Exception], str] = {
             TelegramRetryAfter: "⚠️ Слишком много запросов.",
@@ -96,6 +97,28 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                 await event.message.answer(text)
         except Exception:
             self.logger.warning("Не удалось отправить ошибку пользователю")
+
+    async def _notify_admins(self, event: TelegramObject, exc: Exception) -> None:
+        """Отправляет сообщение админам с подробной информацией об ошибке."""
+        try:
+            user = getattr(event, "from_user", None)
+            user_info = (
+                f"{user.username} ({user.id})" if user else "Неизвестный пользователь"
+            )
+            update_id = getattr(event, "update_id", None)
+            exc_type = type(exc).__name__
+            exc_text = str(exc)
+
+            msg = (
+                f"⚠️ Ошибка у пользователя {user_info}\n"
+                f"update_id: {update_id}\n"
+                f"type: {exc_type}\n"
+                f"message: {exc_text}"
+            )
+            for admin_id in settings_bot.ADMIN_IDS:
+                await self.bot.send_message(chat_id=admin_id, text=msg)
+        except Exception:
+            self.logger.warning("Не удалось отправить сообщение админам")
 
     async def __call__(
         self,

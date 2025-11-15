@@ -44,14 +44,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     logger.info("Запуск настройки бота...")
     await redis_manager.connect()
-    dp.message.middleware(ErrorHandlerMiddleware(logger=logger))
+    dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))
     dp.message.middleware(
         UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)
     )
     dp.callback_query.middleware(
         UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)
     )
-    dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger))
+    dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))
 
     user_service = UserService(redis=redis_manager)
     user_router = UserRouter(

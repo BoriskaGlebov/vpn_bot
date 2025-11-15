@@ -65,18 +65,14 @@ class VPNRouter(BaseRouter):
                     known_hosts=None,
                     container=settings_bot.VPN_CONTAINER,
                 ) as ssh_client:
-                    try:
-                        (
-                            file_path,
-                            pub_key,
-                        ) = await self.vpn_service.generate_user_config(
-                            session=session,
-                            user=message.from_user,
-                            ssh_client=ssh_client,
-                        )
-                    except ValueError as e:
-                        await status_msg.answer(str(e))
-                        return
+                    (
+                        file_path,
+                        pub_key,
+                    ) = await self.vpn_service.generate_user_config(
+                        session=session,
+                        user=message.from_user,
+                        ssh_client=ssh_client,
+                    )
                     await status_msg.answer("✅ Конфиг готов! Отправляю...")
 
                     await message.answer_document(document=FSInputFile(path=file_path))
@@ -103,18 +99,14 @@ class VPNRouter(BaseRouter):
                     known_hosts=None,
                     container=settings_bot.VPN_CONTAINER,
                 ) as ssh_client:
-                    try:
-                        (
-                            file_path,
-                            pub_key,
-                        ) = await self.vpn_service.generate_user_config(
-                            session=session,
-                            user=message.from_user,
-                            ssh_client=ssh_client,
-                        )
-                    except ValueError as e:
-                        await status_msg.answer(str(e))
-                        return
+                    (
+                        file_path,
+                        pub_key,
+                    ) = await self.vpn_service.generate_user_config(
+                        session=session,
+                        user=message.from_user,
+                        ssh_client=ssh_client,
+                    )
                     await status_msg.answer("✅ Конфиг готов! Отправляю...")
 
                     await message.answer_document(document=FSInputFile(path=file_path))

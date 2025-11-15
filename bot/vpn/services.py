@@ -3,6 +3,7 @@ from pathlib import Path
 from aiogram.types import User as TGUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.app_error.base_error import UserNotFoundError, VPNLimitError
 from bot.subscription.models import DEVICE_LIMITS
 from bot.users.dao import UserDAO
 from bot.users.models import User
@@ -29,7 +30,8 @@ class VPNService:
             ssh_client (AsyncSSHClientWG | AsyncSSHClientVPN): SSH-клиент для генерации конфига.
 
         Raises
-            ValueError: Если пользователь не найден или достигнут лимит конфигов.
+            UserNotFoundError: Если пользователь не найден.
+            VPNLimitError: Достигнут лимит конфигов.
 
         Returns
             tuple[Path, str]: Путь к файлу конфига и публичный ключ.
@@ -40,14 +42,15 @@ class VPNService:
             session=session, filters=schema_user
         )
         if user_model is None:
-            raise ValueError("Нет пользвоателя в БД")
+            raise UserNotFoundError(tg_id=user.id)
 
         can_add = await VPNConfigDAO.can_add_config(
             session=session, user_id=user_model.id
         )
         if not can_add:
-            raise ValueError(
-                f"Достигнут лимит конфигов (максимум {DEVICE_LIMITS.get(user_model.subscription.type, 0)})."
+            raise VPNLimitError(
+                user_id=user_model.id,
+                limit=DEVICE_LIMITS.get(user_model.subscription.type, 0),
             )
 
         file_path, pub_key = await ssh_client.add_new_user_gen_config(
@@ -82,7 +85,7 @@ class VPNService:
             session=session, filters=SUserTelegramID(telegram_id=tg_id)
         )
         if not user:
-            raise ValueError(f"Пользователь с id={tg_id} не найден")
+            raise UserNotFoundError(tg_id=tg_id)
 
         subscription = user.subscription
         if not subscription:

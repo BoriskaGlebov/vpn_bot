@@ -6,6 +6,7 @@ from loguru._logger import Logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.app_error.base_error import UserNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
 from bot.subscription.dao import SubscriptionDAO
@@ -14,6 +15,7 @@ from bot.users.dao import UserDAO
 from bot.users.models import User
 from bot.users.schemas import SUserOut, SUserTelegramID
 from bot.vpn.router import ssh_lock
+from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
 
@@ -43,14 +45,14 @@ class SubscriptionService:
                 - bool: True, если подписка активна, иначе False.
 
         Raises
-            ValueError: Если пользователь с указанным Telegram ID не найден.
+            UserNotFoundError: Если пользователь с указанным Telegram ID не найден.
 
         """
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=SUserTelegramID(telegram_id=tg_id)
         )
         if not user_model:
-            raise ValueError("Не удалось найти пользователя")
+            raise UserNotFoundError(tg_id=tg_id)
         premium = user_model.subscription.type
         founder = user_model.role
         is_active_sbscr = user_model.subscription.is_active
@@ -184,8 +186,9 @@ class SubscriptionService:
                         await ssh_client.full_delete_user(public_key=cfg.pub_key)
                         await session.delete(cfg)
                         await session.commit()
-                except Exception as e:
+                except AmneziaError as e:
                     self.logger.error(str(e))
+                    raise
         await self.bot.send_message(
             chat_id=user.telegram_id,
             text="Ваши VPN-конфиги были удалены после окончания подписки.",

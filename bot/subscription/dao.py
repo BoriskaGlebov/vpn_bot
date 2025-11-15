@@ -1,6 +1,7 @@
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.app_error.base_error import UserNotFoundError
 from bot.config import logger
 from bot.dao.base import BaseDAO
 from bot.subscription.models import Subscription, SubscriptionType
@@ -55,15 +56,12 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             logger.error(
                 f"[DAO] Не удалось найти пользователя с {stelegram_id.telegram_id}"
             )
-            raise ValueError(
-                f"Не удалось найти пользователя с {stelegram_id.telegram_id}"
-            )
+            raise UserNotFoundError(tg_id=stelegram_id.telegram_id)
         schema_subscription = SSubscription(user_id=user.id)
         subscription = await SubscriptionDAO.find_one_or_none(
             session=session, filters=schema_subscription
         )
         if subscription is None:
-            # Если нет подписки — создаём новую или кидаем ошибку
             subscription = Subscription(user_id=user.id)
             session.add(subscription)
 

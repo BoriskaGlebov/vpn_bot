@@ -864,7 +864,7 @@ class AsyncSSHClientWG:
                 return False
         except AmneziaError as e:
             logger.error(e)
-            return False
+            raise
 
     async def close(self) -> None:
         """Закрывает shell-сессию и соединение."""
