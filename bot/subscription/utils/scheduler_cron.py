@@ -3,11 +3,11 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru._logger import Logger
 
-from bot.config import bot
+from bot.config import bot, logger
 from bot.subscription.services import SubscriptionService
 
 scheduler = AsyncIOScheduler()
-service = SubscriptionService(bot=bot)
+service = SubscriptionService(bot=bot, logger=logger)
 
 
 async def scheduled_check(logger: Logger) -> None:
@@ -15,9 +15,6 @@ async def scheduled_check(logger: Logger) -> None:
 
     Функция вызывается по расписанию и инициирует проверку всех подписок,
     обновляя их статусы в зависимости от срока действия.
-
-    Returns
-        None
 
     """
     start_time = datetime.now()
@@ -36,4 +33,4 @@ async def scheduled_check(logger: Logger) -> None:
         )
 
     except Exception as e:
-        logger.exception("❌ Ошибка при проверке подписок: {}", e)
+        logger.exception(f"❌ Ошибка при проверке подписок: {e}")

@@ -14,7 +14,7 @@ class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,c
         action (str): Действие, связанное с пользователем
             ('next', 'prev', 'role_change', 'sub_manage' и т.д.).
         telegram_id (int | None): Telegram ID пользователя (опционально).
-        month (int | None): Количество месяцев для подписки (опционально).
+        month (int): Количество месяцев для подписки (опционально).
 
     """
 
@@ -22,7 +22,7 @@ class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,c
     index: int
     action: str
     telegram_id: int | None = None
-    month: int | None = None
+    month: int = 0
 
 
 def common_user_buttons(

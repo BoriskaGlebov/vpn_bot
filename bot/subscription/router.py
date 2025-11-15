@@ -12,6 +12,9 @@ from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import redis_manager
 from bot.subscription.keyboards.inline_kb import (
+    AdminPaymentCB,
+    SubscriptionCB,
+    ToggleSubscriptionCB,
     admin_payment_kb,
     payment_confirm_kb,
     subscription_options_kb,
@@ -56,14 +59,14 @@ class SubscriptionRouter(BaseRouter):
             self.subscription_selected,
             and_f(
                 StateFilter(SubscriptionStates.subscription_start),
-                F.data.startswith("sub_select:"),
+                SubscriptionCB.filter(F.action == "select"),
             ),
         )
         self.router.callback_query.register(
             self.toggle_subscription_mode,
             and_f(
                 StateFilter(SubscriptionStates.subscription_start),
-                F.data.startswith("sub_toggle:"),
+                ToggleSubscriptionCB.filter(),
             ),
         )
 
@@ -71,17 +74,17 @@ class SubscriptionRouter(BaseRouter):
             self.user_paid,
             and_f(
                 StateFilter(SubscriptionStates.select_period),
-                F.data.startswith("sub_paid:"),
+                SubscriptionCB.filter(F.action == "paid"),
             ),
         )
         self.router.callback_query.register(
             self.cancel_subscription, F.data == "sub_cancel"
         )
         self.router.callback_query.register(
-            self.admin_confirm_payment, F.data.startswith("admin_confirm:")
+            self.admin_confirm_payment, AdminPaymentCB.filter(F.action == "confirm")
         )
         self.router.callback_query.register(
-            self.admin_decline_payment, F.data.startswith("admin_decline:")
+            self.admin_decline_payment, AdminPaymentCB.filter(F.action == "decline")
         )
 
     @BaseRouter.log_method
@@ -132,7 +135,11 @@ class SubscriptionRouter(BaseRouter):
     @BaseRouter.log_method
     @connection()
     async def subscription_selected(
-        self, query: CallbackQuery, state: FSMContext, session: AsyncSession
+        self,
+        query: CallbackQuery,
+        state: FSMContext,
+        session: AsyncSession,
+        callback_data: SubscriptionCB,
     ) -> None:
         """Обрабатывает выбор периода подписки пользователем.
 
@@ -140,13 +147,14 @@ class SubscriptionRouter(BaseRouter):
             query (CallbackQuery): Callback от Inline-кнопки с выбором подписки.
             state (FSMContext): Контекст FSM.
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            callback_data (SubscriptionCB): Данные для работы.
 
         """
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.message.chat.id):
-            months = int(query.data.split(":")[1])
+            months = callback_data.months
             user_logger.info(f"Выбор периода подписки: {months} мес")
             price_map = settings_bot.PRICE_MAP
             price = price_map[months]
@@ -183,16 +191,20 @@ class SubscriptionRouter(BaseRouter):
 
     @BaseRouter.log_method
     async def toggle_subscription_mode(
-        self, query: CallbackQuery, state: FSMContext
+        self,
+        query: CallbackQuery,
+        state: FSMContext,
+        callback_data: ToggleSubscriptionCB,
     ) -> None:
         """Переключает режим между стандартной и премиум-подпиской.
 
         Args:
+            callback_data (ToggleSubscriptionCB): Данные для переклчения.
             query (CallbackQuery): Callback от кнопки переключения.
             state (FSMContext): Контекст FSM.
 
         """
-        mode = query.data.split(":")[1]
+        mode = callback_data.mode
         premium = mode == "premium"
 
         text = (
@@ -211,10 +223,13 @@ class SubscriptionRouter(BaseRouter):
         await state.update_data(premium=premium)
 
     @BaseRouter.log_method
-    async def user_paid(self, query: CallbackQuery, state: FSMContext) -> None:
+    async def user_paid(
+        self, query: CallbackQuery, state: FSMContext, callback_data: SubscriptionCB
+    ) -> None:
         """Обрабатывает оплату пользователем и уведомляет админов.
 
         Args:
+            callback_data (SubscriptionCB): Данные для формирования подписки.
             query (CallbackQuery): Callback от Inline-кнопки подтверждения оплаты.
             state (FSMContext): Контекст FSM.
 
@@ -224,7 +239,7 @@ class SubscriptionRouter(BaseRouter):
         )
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.message.chat.id):
             await state.set_state(SubscriptionStates.wait_for_paid)
-            months = int(query.data.split(":")[1])
+            months = callback_data.months
             price_map = settings_bot.PRICE_MAP
             premium = (await state.get_data()).get("premium")
             price = price_map[months] * 2 if premium else price_map[months]
@@ -292,11 +307,16 @@ class SubscriptionRouter(BaseRouter):
     @BaseRouter.log_method
     @connection()
     async def admin_confirm_payment(
-        self, query: CallbackQuery, session: AsyncSession, state: FSMContext
+        self,
+        query: CallbackQuery,
+        session: AsyncSession,
+        state: FSMContext,
+        callback_data: AdminPaymentCB,
     ) -> None:
         """Обрабатывает подтверждение оплаты администратором.
 
         Args:
+            callback_data (AdminPaymentCB): Данные для формирования подписки.
             query (CallbackQuery): Callback от кнопки подтверждения админом.
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
             state (FSMContext): Контекст FSM.
@@ -310,19 +330,17 @@ class SubscriptionRouter(BaseRouter):
             chat_id=query.message.chat.id,
         ):
             await query.answer("Админ подтвердил оплату", show_alert=False)
-            _, user_id, months, premium = query.data.split(":")
-            user_id, months, premium = (
-                int(user_id),
-                int(months),
-                True if premium == "True" else False,
-            )
-            user_model = await self.subscription_service.activate_paid_subscription(
+            user_id = callback_data.user_id
+            months = callback_data.months
+            premium = callback_data.premium
+
+            user_schema = await self.subscription_service.activate_paid_subscription(
                 session, user_id, months, premium
             )
             user_logger.info(
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"
             )
-            if not user_model:
+            if not user_schema:
                 raise ValueError(f"Не нашел пользователя с {user_id}")
 
             try:
@@ -332,7 +350,11 @@ class SubscriptionRouter(BaseRouter):
                     .get("user", "")
                     .format(
                         months=months,
-                        premium=user_model.subscription.type.value.upper(),
+                        premium=(
+                            user_schema.subscription.type
+                            if user_schema and user_schema.subscription
+                            else "NO_SUBSCRIPTION"
+                        ),
                     ),
                     reply_markup=main_kb(active_subscription=True),
                 )
@@ -352,18 +374,20 @@ class SubscriptionRouter(BaseRouter):
                 .format(
                     user_id=user_id,
                     premium="PREMIUM" if premium else "STANDARD",
-                    username=user_model.username,
+                    username=user_schema.username,
                 ),
                 redis_manager=redis_manager,
             )
+            await state.clear()
 
     @BaseRouter.log_method
     async def admin_decline_payment(
-        self, query: CallbackQuery, state: FSMContext
+        self, query: CallbackQuery, state: FSMContext, callback_data: AdminPaymentCB
     ) -> None:
         """Обрабатывает отклонение оплаты администратором.
 
         Args:
+            callback_data (AdminPaymentCB): Данные для формирования подписки.
             query (CallbackQuery): Callback от кнопки отклонения админом.
             state (FSMContext): Контекст FSM.
 
@@ -376,9 +400,9 @@ class SubscriptionRouter(BaseRouter):
             chat_id=query.message.chat.id,
         ):
             await query.answer("Отклонено 🚫")
-            _, user_id, months, premium = query.data.split(":")
-            user_id = int(user_id)
-            months = int(months)
+            user_id = callback_data.user_id
+            months = callback_data.months
+
             user_logger.info(
                 f"Админ отклонил оплату пользователя {user_id} ({months} мес)"
             )

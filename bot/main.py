@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     admin_service = AdminService()
     admin_router = AdminRouter(bot=bot, logger=logger, admin_service=admin_service)
 
-    subscription_service = SubscriptionService(bot=bot)
+    subscription_service = SubscriptionService(bot=bot, logger=logger)
     subscription_router = SubscriptionRouter(
         bot=bot, logger=logger, subscription_service=subscription_service
     )

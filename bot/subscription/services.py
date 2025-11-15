@@ -2,6 +2,7 @@ import datetime
 from pathlib import Path
 
 from aiogram import Bot
+from loguru._logger import Logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +12,7 @@ from bot.subscription.dao import SubscriptionDAO
 from bot.subscription.models import SubscriptionType
 from bot.users.dao import UserDAO
 from bot.users.models import User
-from bot.users.schemas import SUserTelegramID
+from bot.users.schemas import SUserOut, SUserTelegramID
 from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
@@ -21,8 +22,9 @@ class SubscriptionService:
 
     key_path = Path().home() / ".ssh" / "test_vpn"
 
-    def __init__(self, bot: Bot) -> None:
+    def __init__(self, bot: Bot, logger: Logger) -> None:
         self.bot = bot
+        self.logger = logger
 
     @staticmethod
     async def check_premium(
@@ -88,13 +90,14 @@ class SubscriptionService:
     @staticmethod
     async def activate_paid_subscription(
         session: AsyncSession, user_id: int, months: int, premium: bool
-    ) -> User | None:
+    ) -> SUserOut | None:
         """Активирует платную подписку после подтверждения оплаты."""
         schema_user = SUserTelegramID(telegram_id=user_id)
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user
         )
-        print(premium)
+        if not user_model:
+            return None
         if premium:
             sub_type = SubscriptionType.PREMIUM
         else:
@@ -106,11 +109,11 @@ class SubscriptionService:
             else:
                 user_model.subscription.type = sub_type
             await session.commit()
-            return user_model
+            return SUserOut.model_validate(user_model)
         await SubscriptionDAO.activate_subscription(
             session=session, stelegram_id=schema_user, month=months, sub_type=sub_type
         )
-        return user_model
+        return SUserOut.model_validate(user_model)
 
     @connection()
     async def check_all_subscriptions(self, session: AsyncSession) -> dict[str, int]:
@@ -143,7 +146,6 @@ class SubscriptionService:
                 continue
 
             if sub.is_expired():
-                # Подписка истекла
                 if sub.is_active:
                     sub.is_active = False
                     await session.commit()
@@ -157,7 +159,6 @@ class SubscriptionService:
                     await self._delete_user_configs(session=session, user=user)
                     stats["configs_deleted"] += 1
             else:
-                # Подписка активна
                 remaining = sub.remaining_days()
                 if remaining is not None and remaining <= 3:
                     await self.bot.send_message(
@@ -184,7 +185,7 @@ class SubscriptionService:
                         await session.delete(cfg)
                         await session.commit()
                 except Exception as e:
-                    print(str(e))
+                    self.logger.error(str(e))
         await self.bot.send_message(
             chat_id=user.telegram_id,
             text="Ваши VPN-конфиги были удалены после окончания подписки.",

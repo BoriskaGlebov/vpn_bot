@@ -15,6 +15,12 @@ if TYPE_CHECKING:
     from users.models import User
 
 
+# TODO Есть проблема с продлением подписки.
+# Пользователь берет подписку по дешевле на большой срок,
+# потом покупает прем на маленький и теперь у него
+# прем на весь срок всех его подписок. Возможно это можно решить если сделать, что б связь была не один к одному,а один ко многим
+
+
 class SubscriptionType(str, Enum):
     """Типы подписок пользователей.
 
@@ -101,7 +107,7 @@ class Subscription(Base):
             self.user.has_used_trial = True
         self.type = sub_type
         self.is_active = True
-        self.start_date = datetime.datetime.now()
+        self.start_date = datetime.datetime.now(tz=datetime.UTC)
 
         # если указаны дни → добавляем дни
         if days is not None:
@@ -112,7 +118,9 @@ class Subscription(Base):
         else:
             raise ValueError("Нужно указать либо days, либо month_num")
 
-        logger.info(f"Активирована подписка с {self.start_date} до {self.end_date}")
+        logger.info(
+            f"[DAO] Активирована подписка с {self.start_date} до {self.end_date}"
+        )
 
     def extend(self, days: int = 0, months: int = 0) -> None:
         """Продлевает подписку на указанное количество дней или месяцев.
@@ -135,12 +143,12 @@ class Subscription(Base):
         self.end_date = new_end
         self.is_active = True
 
-        logger.info(f"Подписка продлена до {self.end_date}")
+        logger.info(f"[DAO] Подписка продлена до {self.end_date}")
 
     def deactivate(self) -> None:
         """Деактивирует подписку."""
         self.is_active = False
-        self.end_date = datetime.datetime.now()
+        self.end_date = datetime.datetime.now(tz=datetime.UTC)
 
     def is_expired(self) -> bool:
         """Проверяет, истекла ли подписка.
