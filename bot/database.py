@@ -4,6 +4,7 @@ from functools import wraps
 from typing import Annotated, Any, TypeVar, cast
 
 from sqlalchemy import func, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
     AsyncSession,
@@ -64,9 +65,9 @@ def connection(isolation_level: str | None = None) -> Callable[[F], F]:
                             text(f"SET TRANSACTION ISOLATION LEVEL {isolation_level}")
                         )
                     return await method(*args, session=session, **kwargs)
-                except Exception as e:
+                except SQLAlchemyError:
                     await session.rollback()
-                    raise e
+                    raise
 
         return wrapper  # type: ignore[return-value]
 

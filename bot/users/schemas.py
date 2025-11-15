@@ -106,9 +106,8 @@ class SVPNConfigOut(BaseModel):
     """Схема для вывода VPN конфигов пользователя."""
 
     id: int = Field(..., description="ID конфига")
-    name: str = Field(..., description="Имя файла/конфига")
-    file_path: str = Field(..., description="Путь к файлу конфига")
-    created_at: datetime = Field(..., description="Дата создания")
+    file_name: str = Field(..., description="Имя файла/конфига")
+    pub_key: str = Field(..., description="Публичный ключ")
 
     model_config = ConfigDict(from_attributes=True)
 

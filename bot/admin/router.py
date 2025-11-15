@@ -18,6 +18,7 @@ from bot.admin.keyboards.inline_kb import (
     user_navigation_kb,
 )
 from bot.admin.services import AdminService
+from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.database import connection
 from bot.utils.base_router import BaseRouter
 
@@ -237,28 +238,30 @@ class AdminRouter(BaseRouter):
                 raise ValueError("Необходимо передать в запрос telegram_id/month")
 
             months = int(months)
-            await query.answer(f"Выбрал {months} мес.")
+            try:
+                user_schema = await self.admin_service.extend_user_subscription(
+                    session=session, telegram_id=user_id, months=months
+                )
+                await query.answer(f"Выбрал {months} мес.")
+                old_text = await self.admin_service.format_user_text(
+                    user_schema, "edit_user"
+                )
 
-            user_schema = await self.admin_service.extend_user_subscription(
-                session=session, telegram_id=user_id, months=months
-            )
-
-            old_text = await self.admin_service.format_user_text(
-                user_schema, "edit_user"
-            )
-
-            await query.message.edit_text(
-                f"{old_text}\n{'*' * 20}\nПодписка продлена на {months} мес. ✅",
-                reply_markup=admin_user_control_kb(
-                    filter_type=callback_data.filter_type,
-                    index=callback_data.index,
-                    telegram_id=user_id,
-                ),
-            )
-            user_logger.info(
-                f"Подписка пользователя {user_id} продлена на {months} мес."
-            )
-            await state.clear()
+                await query.message.edit_text(
+                    f"{old_text}\n{'*' * 20}\nПодписка продлена на {months} мес. ✅",
+                    reply_markup=admin_user_control_kb(
+                        filter_type=callback_data.filter_type,
+                        index=callback_data.index,
+                        telegram_id=user_id,
+                    ),
+                )
+                user_logger.info(
+                    f"Подписка пользователя {user_id} продлена на {months} мес."
+                )
+                await state.clear()
+            except SubscriptionNotFoundError as e:
+                self.logger.error("Нельзя продлить подписку она активирован")
+                await query.answer(str(e))
 
     @connection()
     @BaseRouter.log_method

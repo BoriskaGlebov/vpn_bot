@@ -84,17 +84,17 @@ class SubscriptionRouter(BaseRouter):
         self.router.callback_query.register(
             self.admin_decline_payment, AdminPaymentCB.filter(F.action == "decline")
         )
-        self.router.message.register(
-            self.mistake_handler_user,
-            and_f(
-                or_f(
-                    StateFilter(SubscriptionStates.subscription_start),
-                    StateFilter(SubscriptionStates.select_period),
-                    StateFilter(SubscriptionStates.wait_for_paid),
-                ),
-                ~F.text.startswith("/"),
-            ),
-        )
+        # self.router.message.register(
+        #     self.mistake_handler_user,
+        #     and_f(
+        #         or_f(
+        #             StateFilter(SubscriptionStates.subscription_start),
+        #             StateFilter(SubscriptionStates.select_period),
+        #             StateFilter(SubscriptionStates.wait_for_paid),
+        #         ),
+        #         ~F.text.startswith("/"),
+        #     ),
+        # )
 
     @BaseRouter.log_method
     @connection()
@@ -226,7 +226,7 @@ class SubscriptionRouter(BaseRouter):
 
         await query.message.edit_text(
             text=text,
-            reply_markup=subscription_options_kb(premium=premium),
+            reply_markup=subscription_options_kb(premium=True if premium else False),
         )
         await query.answer("")
         await state.update_data(premium=premium)
@@ -273,7 +273,11 @@ class SubscriptionRouter(BaseRouter):
             await send_to_admins(
                 bot=self.bot,
                 message_text=admin_message,
-                reply_markup=admin_payment_kb(user.id, months, premium),
+                reply_markup=admin_payment_kb(
+                    user_id=user.id,
+                    months=months,
+                    premium=premium if premium else False,
+                ),
                 redis_manager=redis_manager,
                 telegram_id=user.id,
             )
@@ -360,8 +364,10 @@ class SubscriptionRouter(BaseRouter):
                     .format(
                         months=months,
                         premium=(
-                            user_schema.subscription.type
-                            if user_schema and user_schema.subscription
+                            user_schema.subscription.type.upper()
+                            if user_schema
+                            and user_schema.subscription
+                            and user_schema.subscription.type
                             else "NO_SUBSCRIPTION"
                         ),
                     ),

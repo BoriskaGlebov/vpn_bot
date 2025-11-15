@@ -100,6 +100,7 @@ class SubscriptionService:
         )
         if not user_model:
             return None
+        print(premium)
         if premium:
             sub_type = SubscriptionType.PREMIUM
         else:

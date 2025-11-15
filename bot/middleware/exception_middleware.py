@@ -21,6 +21,7 @@ from aiogram.exceptions import (
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from loguru._logger import Logger
 
+from bot.app_error.base_error import UserNotFoundError, VPNLimitError
 from bot.config import settings_bot
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
@@ -79,12 +80,17 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
     def _resolve_user_message(self, exc: Exception) -> str:
         """Универсальный метод получения сообщения для пользователя."""
+        if isinstance(exc, VPNLimitError):
+            return f"⚠️ Пользователь достиг лимита конфигов ({exc.limit})."
+        if isinstance(exc, UserNotFoundError):
+            return "⚠️ Пользователь не найден."
         for exc_type, message in self.error_messages.items():
             if isinstance(exc, exc_type):
                 if isinstance(exc, TelegramRetryAfter):
                     return f"⚠️ Слишком много запросов. Попробуйте через {exc.retry_after} секунд."
                 if isinstance(exc, TelegramBadRequest):
                     return f"⚠️ Неверный запрос: {exc.message}"
+
                 return message
         return self.default_user_message
 
@@ -139,6 +145,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
             user_message = self._resolve_user_message(exc)
             await self._safe_send_error(event, user_message)
+            await self._notify_admins(event, exc)
             update_id = getattr(event, "update_id", None)
             exception_type = type(exc).__name__
             self.logger.bind(

@@ -77,8 +77,7 @@ class VPNRouter(BaseRouter):
 
                     await message.answer_document(document=FSInputFile(path=file_path))
                     file_path.unlink(missing_ok=True)
-
-            await state.clear()
+                    await state.clear()
 
     @BaseRouter.log_method
     @connection()
@@ -111,8 +110,7 @@ class VPNRouter(BaseRouter):
 
                     await message.answer_document(document=FSInputFile(path=file_path))
                     file_path.unlink(missing_ok=True)
-
-            await state.clear()
+                    await state.clear()
 
     @BaseRouter.log_method
     @connection()
