@@ -28,9 +28,6 @@ from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
 m_subscription = settings_bot.MESSAGES["modes"]["subscription"]
 
 
-# TODO не хватает момента когда срок истекает, что б и не уудалалялась подписка но и внопка олпатить появлялась
-
-
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
     """Состояния FSM для процесса оформления подписки."""
 
@@ -86,6 +83,17 @@ class SubscriptionRouter(BaseRouter):
         )
         self.router.callback_query.register(
             self.admin_decline_payment, AdminPaymentCB.filter(F.action == "decline")
+        )
+        self.router.message.register(
+            self.mistake_handler_user,
+            and_f(
+                or_f(
+                    StateFilter(SubscriptionStates.subscription_start),
+                    StateFilter(SubscriptionStates.select_period),
+                    StateFilter(SubscriptionStates.wait_for_paid),
+                ),
+                ~F.text.startswith("/"),
+            ),
         )
 
     @BaseRouter.log_method

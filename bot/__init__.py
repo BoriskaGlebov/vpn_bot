@@ -3,8 +3,3 @@
 #   либо поправить существующие
 # TODO Напиши тесты на этот модуль
 # TODO Чекнул остались только тесты
-# TODO кастомные обработчики ошибок для других модулей  UserNotFoundError
-
-# SubscriptionLimitError
-#
-# SubscriptionNotFoundError
