@@ -50,12 +50,10 @@ class VPNService:
                 f"Достигнут лимит конфигов (максимум {DEVICE_LIMITS.get(user_model.subscription.type, 0)})."
             )
 
-        # Генерируем конфиг через SSH
         file_path, pub_key = await ssh_client.add_new_user_gen_config(
             file_name=user_model.username
         )
 
-        # Сохраняем запись в БД
         await VPNConfigDAO.add_config(
             session=session,
             user_id=user_model.id,

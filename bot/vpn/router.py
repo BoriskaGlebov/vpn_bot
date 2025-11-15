@@ -19,10 +19,6 @@ from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 if TYPE_CHECKING:
     pass
 
-# class VPNStates(StatesGroup):
-#     """Состояния FSM для vpn-router."""
-#
-#     pass
 ssh_lock = asyncio.Lock()
 
 

@@ -1,13 +1,13 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.config import settings_bot
+from bot.config import logger, settings_bot
 from bot.dao.base import BaseDAO
 from bot.subscription.models import DEVICE_LIMITS
+from bot.users.dao import UserDAO
 from bot.vpn.models import VPNConfig
 
 
-# TODO нет логов
 class VPNConfigDAO(BaseDAO[VPNConfig]):
     """DAO для работы с VPN-конфигами пользователей."""
 
@@ -25,15 +25,29 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             bool: True, если пользователь ещё не достиг лимита конфигов.
 
         """
-        result = await session.execute(
-            select(VPNConfig).where(VPNConfig.user_id == user_id)
+        logger.debug(f"[DAO] Проверка лимита VPN конфигов для пользователя {user_id}")
+        count = (
+            await session.scalar(
+                select(func.count()).where(VPNConfig.user_id == user_id)
+            )
+            or 0
         )
-        configs = result.scalars().all() or []
-        if configs:
-            config_type = configs[0].user.subscription.type
-            max_configs = DEVICE_LIMITS.get(config_type, 0)
-            return bool(len(configs) < max_configs)
-        return True
+        logger.debug(f"У пользователя {user_id} конфигов: {count}")
+
+        user = await UserDAO.find_one_or_none_by_id(session=session, data_id=user_id)
+        if not user:
+            logger.warning(
+                f"Пользователь {user_id} не найден при проверке лимита конфигов",
+            )
+            return False
+        if user and count == 0:
+            return True
+        sub_type = user.subscription.type
+        max_configs = DEVICE_LIMITS.get(sub_type, 0)
+        logger.debug(
+            f"Лимит конфигов для пользователя {user_id} ({sub_type}): {count}/{max_configs}",
+        )
+        return count < max_configs
 
     @classmethod
     async def add_config(
@@ -56,7 +70,13 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             VPNConfig: Созданный объект VPN-конфига.
 
         """
+        logger.info(
+            f"Попытка создать новый VPN конфиг для пользователя {user_id}: файл='{file_name}'",
+        )
         if not await cls.can_add_config(session=session, user_id=user_id):
+            logger.error(
+                f"Создание конфига отклонено — пользователь {user_id} достиг лимита",
+            )
             raise ValueError(
                 f"Пользователь {user_id} достиг лимита {settings_bot.MAX_CONFIGS_PER_USER} конфигов"
             )
@@ -65,4 +85,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
         session.add(config)
         await session.commit()
         await session.refresh(config)
+        logger.success(
+            f"Создан новый VPNConfig id={config.id} для пользователя {user_id} (файл='{file_name}')",
+        )
         return config

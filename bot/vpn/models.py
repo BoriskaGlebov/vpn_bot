@@ -28,7 +28,7 @@ class VPNConfig(Base):
     )
 
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    pub_key: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    pub_key: Mapped[str] = mapped_column(String(255), unique=False, nullable=False)
 
     user: Mapped["User"] = relationship(
         "User", back_populates="vpn_configs", lazy="selectin"
