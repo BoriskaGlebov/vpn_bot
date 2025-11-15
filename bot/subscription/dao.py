@@ -52,7 +52,9 @@ class SubscriptionDAO(BaseDAO[Subscription]):
         user = await UserDAO.find_one_or_none(session=session, filters=stelegram_id)
         SUser.model_validate(user)
         if not user:
-            logger.error(f"Не удалось найти пользователя с {stelegram_id.telegram_id}")
+            logger.error(
+                f"[DAO] Не удалось найти пользователя с {stelegram_id.telegram_id}"
+            )
             raise ValueError(
                 f"Не удалось найти пользователя с {stelegram_id.telegram_id}"
             )
@@ -67,13 +69,13 @@ class SubscriptionDAO(BaseDAO[Subscription]):
 
         try:
             subscription.activate(days=days, month_num=month, sub_type=sub_type)
-            logger.info(f"автивирую подписку на {days} дней")
+            logger.info(f"[DAO] Активирую подписку на {days} дней")
             await session.commit()
 
         except ValueError:
             raise
         except SQLAlchemyError as e:
             await session.rollback()
-            logger.error(f"Ошибка при активации подписки: {e}")
+            logger.error(f"[DAO] Ошибка при активации подписки: {e}")
             raise e
         return subscription

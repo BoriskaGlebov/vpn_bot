@@ -7,6 +7,7 @@ from bot.subscription.models import DEVICE_LIMITS
 from bot.vpn.models import VPNConfig
 
 
+# TODO нет логов
 class VPNConfigDAO(BaseDAO[VPNConfig]):
     """DAO для работы с VPN-конфигами пользователей."""
 

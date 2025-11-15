@@ -130,7 +130,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
-            f"Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
+            f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
         )
         try:
             # noinspection PyTypeChecker
@@ -170,7 +170,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
-            f"Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
+            f"[DAO] Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
         )
         try:
             # noinspection PyTypeChecker
@@ -186,7 +186,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             return records
         except SQLAlchemyError as e:
             logger.error(
-                f"Ошибка при поиске всех записей по фильтрам {filter_dict}: {e}"
+                f"[DAO] Ошибка при поиске всех записей по фильтрам {filter_dict}: {e}"
             )
             raise
 
@@ -205,7 +205,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         values_dict = values.model_dump(exclude_unset=True)
         # noinspection PyTypeChecker
         logger.info(
-            f"Добавление записи {cls.model.__name__} с параметрами: {values_dict}"
+            f"[DAO] Добавление записи {cls.model.__name__} с параметрами: {values_dict}"
         )
         # noinspection PyTypeChecker
         new_instance = cast(T, cls.model(**values_dict))
@@ -237,7 +237,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         values_list = [item.model_dump(exclude_unset=True) for item in instances]
         # noinspection PyTypeChecker
         logger.info(
-            f"Добавление нескольких записей {cls.model.__name__}. Количество: {len(values_list)}"
+            f"[DAO] Добавление нескольких записей {cls.model.__name__}. Количество: {len(values_list)}"
         )
         # noinspection PyTypeChecker
         new_instances = [cls.model(**values) for values in values_list]
@@ -270,7 +270,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         values_dict = values.model_dump(exclude_unset=True)
         # noinspection PyTypeChecker
         logger.info(
-            f"Обновление записей {cls.model.__name__} по фильтру: "
+            f"[DAO] Обновление записей {cls.model.__name__} по фильтру: "
             f"{filter_dict} с параметрами: {values_dict}"
         )
         # noinspection PyTypeChecker
@@ -311,7 +311,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"[DAO] Удаление записей {cls.model.__name__} по фильтру: {filter_dict}"
         )
         if not filter_dict:
-            logger.error("Нужен хотя бы один фильтр для удаления.")
+            logger.error("[DAO] Нужен хотя бы один фильтр для удаления.")
             raise ValueError("Нужен хотя бы один фильтр для удаления.")
         # noinspection PyTypeChecker
         query = sqlalchemy_delete(cls.model)
@@ -347,7 +347,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = filters.model_dump(exclude_unset=True)
         # noinspection PyTypeChecker
         logger.info(
-            f"Подсчет количества записей {cls.model.__name__} по фильтру: {filter_dict}"
+            f"[DAO] Подсчет количества записей {cls.model.__name__} по фильтру: {filter_dict}"
         )
         try:
             # noinspection PyTypeChecker
@@ -388,7 +388,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
-            f"Пагинация записей {cls.model.__name__} по фильтру: {filter_dict}, "
+            f"[DAO] Пагинация записей {cls.model.__name__} по фильтру: {filter_dict}, "
             f"страница: {page}, размер страницы: {page_size}"
         )
         try:

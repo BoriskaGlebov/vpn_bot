@@ -47,7 +47,7 @@ class UserDAO(BaseDAO[User]):
 
         # noinspection PyTypeChecker
         logger.info(
-            f"Добавление записи {cls.model.__name__} с параметрами: "
+            f"[DAO] Добавление записи {cls.model.__name__} с параметрами: "
             f"Пользователь: {user_dict}, Роль: {role_dict}"
         )
         role = await session.scalar(select(Role).where(Role.name == role_dict["name"]))
@@ -77,11 +77,11 @@ class UserDAO(BaseDAO[User]):
             result = await session.execute(stmt)
             new_user = result.scalar_one()
             # noinspection PyTypeChecker
-            logger.info(f"Запись {cls.model.__name__} успешно добавлена.")
+            logger.info(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
             return new_user
         except SQLAlchemyError as e:
             await session.rollback()
-            logger.error(f"Ошибка при добавлении записи: {e}")
+            logger.error(f"[DAO] Ошибка при добавлении записи: {e}")
             raise e
 
 

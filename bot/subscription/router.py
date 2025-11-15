@@ -109,9 +109,6 @@ class SubscriptionRouter(BaseRouter):
             ) = await self.subscription_service.check_premium(
                 session=session, tg_id=message.from_user.id
             )
-            print(is_premium)
-            print(role)
-            print(is_active_sbscr)
             if not is_premium or role == "founder":
                 text = m_subscription.get("start", "").format(
                     device_limit=settings_bot.MAX_CONFIGS_PER_USER
