@@ -1,8 +1,8 @@
-"""init all tables Subscription,SubscriptionType,Role, User,VPNConfig
+"""init all project models
 
-Revision ID: 5fe24e46d5b0
+Revision ID: ed80f61c6720
 Revises: 0e2f2a36f8e6
-Create Date: 2025-11-13 23:11:10.734486
+Create Date: 2025-11-15 21:42:08.337791
 
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "5fe24e46d5b0"
+revision: str = "ed80f61c6720"
 down_revision: Union[str, Sequence[str], None] = "0e2f2a36f8e6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -93,7 +93,6 @@ def upgrade() -> None:
         ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("pub_key"),
     )
     # ### end Alembic commands ###
 
