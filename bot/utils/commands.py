@@ -1,5 +1,10 @@
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefault
+from aiogram.types import (
+    BotCommand,
+    BotCommandScopeAllGroupChats,
+    BotCommandScopeAllPrivateChats,
+    BotCommandScopeChat,
+)
 
 from bot.config import (
     bot,
@@ -18,6 +23,10 @@ admin_commands: list[BotCommand] = [
     BotCommand(command=command, description=description)
     for command, description in settings_bot.MESSAGES["commands"]["admins"].items()
 ]
+group_commands = [
+    BotCommand(command=command, description=description)
+    for command, description in settings_bot.MESSAGES["commands"]["group"].items()
+]
 
 
 async def set_bot_commands() -> None:
@@ -28,7 +37,8 @@ async def set_bot_commands() -> None:
     Returns: None.
 
     """
-    await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+    await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
+    await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
 
     for admin_id in settings_bot.ADMIN_IDS:
         try:

@@ -43,6 +43,7 @@ class HelpRouter(BaseRouter):
         self.router.message.register(
             self.help_cmd,
             or_f(Command("help"), F.text.contains("❓ Помощь в настройке VPN")),
+            F.chat.type == "private",
         )
         self.router.callback_query.register(
             self.device_cb, F.data.startswith("device_"), HelpStates.device_state

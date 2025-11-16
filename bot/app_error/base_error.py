@@ -44,7 +44,10 @@ class VPNLimitError(AppError):
 
     """
 
-    def __init__(self, user_id: int, limit: int) -> None:
-        super().__init__(f"Пользователь {user_id} достиг лимита ({limit}) конфигов.")
+    def __init__(self, user_id: int, limit: int, username: str = "") -> None:
+        super().__init__(
+            f"Пользователь {user_id} достиг лимита ({limit}) конфигов.\n@{username}"
+        )
         self.user_id = user_id
+        self.username = username
         self.limit = limit

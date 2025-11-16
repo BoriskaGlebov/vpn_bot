@@ -49,8 +49,9 @@ class VPNService:
         )
         if not can_add:
             raise VPNLimitError(
-                user_id=user_model.id,
+                user_id=user_model.telegram_id,
                 limit=DEVICE_LIMITS.get(user_model.subscription.type, 0),
+                username=user_model.username if user_model.username else "",
             )
 
         file_path, pub_key = await ssh_client.add_new_user_gen_config(

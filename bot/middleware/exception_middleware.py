@@ -81,7 +81,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
     def _resolve_user_message(self, exc: Exception) -> str:
         """Универсальный метод получения сообщения для пользователя."""
         if isinstance(exc, VPNLimitError):
-            return f"⚠️ Пользователь достиг лимита конфигов ({exc.limit})."
+            return (
+                f"⚠️ Пользователь достиг лимита конфигов ({exc.limit}/ {exc.limit}).\n"
+                f"Если  нужно больше обратитесь в поддержку @BorisisTheBlade."
+            )
         if isinstance(exc, UserNotFoundError):
             return "⚠️ Пользователь не найден."
         for exc_type, message in self.error_messages.items():

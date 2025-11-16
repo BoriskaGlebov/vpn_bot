@@ -89,7 +89,10 @@ class UserRouter(BaseRouter):
         self.router.message.register(self.cmd_start, CommandStart())
         self.router.message.register(
             self.admin_start,
-            or_f(Command("admin"), F.text.contains("⚙️ Панель администратора")),
+            and_f(
+                or_f(Command("admin"), F.text.contains("⚙️ Панель администратора")),
+                F.chat.type == "private",
+            ),
         )
 
         self.router.message.register(
@@ -138,6 +141,12 @@ class UserRouter(BaseRouter):
                 session=session, telegram_user=message.from_user
             )
             welcome_messages = m_start.get("welcome", {})
+            if message.chat.type != "private":
+                bot_inf = await self.bot.get_me()
+                await message.answer(
+                    f"Чтобы начать работу, перейдите ко мне в личные сообщения 👉 @{bot_inf.username}"
+                )
+                return
             if not is_new:
                 self.logger.bind(
                     user=message.from_user.username or message.from_user.id
