@@ -22,11 +22,10 @@ async def test_start_bot_sends_messages_and_logs(monkeypatch, fake_bot, fake_log
     )
 
     monkeypatch.setattr(start_module.settings_bot, "ADMIN_IDS", [111, 222])
-    monkeypatch.setattr(start_module, "bot", fake_bot)
     monkeypatch.setattr(start_module, "logger", fake_logger)
 
     # Act
-    await start_module.start_bot()
+    await start_module.start_bot(bot=fake_bot)
 
     # Assert
     start_module.set_bot_commands.assert_awaited_once()
@@ -45,12 +44,11 @@ async def test_stop_bot_sends_messages_and_logs(monkeypatch, fake_bot, fake_logg
 
     monkeypatch.setattr(start_module.settings_bot, "ADMIN_IDS", [1, 2, 3])
 
-    monkeypatch.setattr(start_module, "bot", fake_bot)
     monkeypatch.setattr(start_module, "logger", fake_logger)
     monkeypatch.setattr(start_module, "send_to_admins", AsyncMock())
 
     # act
-    await start_module.stop_bot()
+    await start_module.stop_bot(bot=fake_bot)
 
     # assert
     start_module.send_to_admins.assert_awaited_once_with(

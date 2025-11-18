@@ -33,9 +33,9 @@ def fake_logger(monkeypatch):
 
 
 @pytest.fixture
-def fake_redis():
+def fake_redis(fake_logger):
     # Создаём экземпляр SettingsRedis, но подменяем методы асинхронными моками
-    redis = SettingsRedis(redis_url="redis://fake_url")
+    redis = SettingsRedis(redis_url="redis://fake_url", logger=fake_logger)
 
     # Подменяем методы на AsyncMock
     redis.get_admin_messages = AsyncMock(return_value=[])
@@ -49,7 +49,9 @@ def fake_redis():
 def patch_deps(fake_bot, fake_logger, monkeypatch):
     monkeypatch.setattr(commands, "bot", fake_bot)
     monkeypatch.setattr(commands, "logger", fake_logger)
-    monkeypatch.setattr(settings_bot, "MESSAGES", {"description": "описание"})
+    monkeypatch.setattr(
+        settings_bot, "MESSAGES", {"description": "Описание работы Бота"}
+    )
     monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123, 456])
     return fake_bot, fake_logger
 
