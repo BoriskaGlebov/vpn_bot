@@ -12,7 +12,7 @@ async def test_start_and_stop(test_bot, test_admin_id, test_settings_bot):
     admin_id = test_admin_id
     test_settings = test_settings_bot
     try:
-        await start_bot()
+        await start_bot(bot=test_bot)
     except TelegramBadRequest as e:
         pytest.fail(f"start_bot() вызвал ошибку при работе с Telegram API: {e}")
 
@@ -25,12 +25,14 @@ async def test_start_and_stop(test_bot, test_admin_id, test_settings_bot):
 
     description_response = await bot(GetMyDescription())
     description_text = description_response.description
+    print(description_text)
     assert description_text, "Описание бота не установлено"
-    assert (
-        test_settings.MESSAGES["description"].strip() in description_text
-    ), "Описание бота не соответствует ожидаемому"
+    inf_bot = await test_bot.get_me()
+    assert (test_settings.MESSAGES["description"].strip()).format(
+        bot_name=inf_bot.first_name
+    ) in description_text, "Описание бота не соответствует ожидаемому"
 
     try:
-        await stop_bot()
+        await stop_bot(bot=test_bot)
     except TelegramBadRequest as e:
         pytest.fail(f"stop_bot() вызвал ошибку при работе TelegramApi: {e}")
