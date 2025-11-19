@@ -56,9 +56,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     user_service = UserService(redis=redis_manager)
     user_router = UserRouter(
         bot=bot,
-        logger=logger,
+        logger=logger,  # type: ignore[arg-type]
         redis_manager=redis_manager,
-        user_service=user_service,  # type: ignore[arg-type]
+        user_service=user_service,
     )
 
     help_router = HelpRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
@@ -69,8 +69,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     subscription_service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]
     subscription_router = SubscriptionRouter(
         bot=bot,
-        logger=logger,
-        subscription_service=subscription_service,  # type: ignore[arg-type]
+        logger=logger,  # type: ignore[arg-type]
+        subscription_service=subscription_service,
     )
     vpn_service = VPNService()
     vpn_router = VPNRouter(bot=bot, logger=logger, vpn_service=vpn_service)  # type: ignore[arg-type]
