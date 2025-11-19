@@ -93,6 +93,7 @@ ci-checks: pre-commit
 	poetry run ruff check .
 	poetry run ruff format --check .
 	poetry run mypy .
+	make pytests
 	@echo "✅ Все проверки пройдены!"
 
 
