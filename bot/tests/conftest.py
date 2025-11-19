@@ -114,7 +114,7 @@ def make_fake_message():
 
 @pytest.fixture
 def make_fake_query(make_fake_message):
-    def _make(user_id: int = 999):
+    def _make(user_id: int = 999, data: str = ""):
         query = MagicMock(spec=CallbackQuery)
         query.from_user = User(
             id=user_id,
@@ -124,7 +124,7 @@ def make_fake_query(make_fake_message):
         )
         query.message = make_fake_message(user_id)
         query.id = f"query_{user_id}"
-
+        query.data = data
         # Асинхронные методы
         query.answer = AsyncMock()
         query.message.edit_text = AsyncMock()  # чтобы гарантированно был async

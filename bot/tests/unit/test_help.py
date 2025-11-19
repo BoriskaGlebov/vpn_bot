@@ -39,10 +39,12 @@ async def test_help_cmd(make_fake_message, fake_bot, fake_logger, fake_state):
         (IphoneDevice, "ios"),
         (PCDevice, "pc"),
         (TVDevice, "tv"),
+        (None, "device_developer"),
     ],
 )
 async def test_device_cb(
     make_fake_message,
+    make_fake_query,
     fake_bot,
     fake_logger,
     fake_state,
@@ -52,21 +54,30 @@ async def test_device_cb(
 ):
     router = HelpRouter(bot=fake_bot, logger=fake_logger)
     fake_message = make_fake_message()
-    # 👇 добавляем chat_instance (обязательный аргумент)
-    fake_call = CallbackQuery(
-        id="1",
-        from_user=fake_message.from_user,
-        message=fake_message,
-        chat_instance="fake_chat_instance",
-        data=f"device_{device_name}",
-    ).as_(fake_bot)
-    # Мокаем метод send_message устройства
-    monkeypatch.setattr(device_class, "send_message", AsyncMock())
-
+    fake_call = make_fake_query(user_id=1, data=f"device_{device_name}")
+    fake_call.message = fake_message
+    fake_call.bot = fake_bot
+    fake_call.bot.send_message = AsyncMock()
+    fake_call.message.delete = AsyncMock()
+    if device_name != "device_developer":
+        monkeypatch.setattr(device_class, "send_message", AsyncMock())
     await router.device_cb(fake_call, fake_state)
-
-    device_class.send_message.assert_awaited_with(fake_bot, fake_message.chat.id)
-    fake_state.clear.assert_awaited()
+    if device_name != "device_developer":
+        device_class.send_message.assert_awaited_with(
+            bot=fake_bot, chat_id=fake_message.chat.id
+        )
+        fake_state.clear.assert_awaited()
+        fake_call.answer.assert_awaited_with(
+            text=f"Ты выбрал {device_name}", show_alert=False
+        )
+    elif device_name == "device_developer":
+        # Проверяем, что сообщение удаляется
+        fake_message.delete.assert_awaited()
+        # Проверяем, что отправляется сообщение с контактами
+        fake_bot.send_message.assert_awaited_with(
+            text="Для связи напишите @BorisisTheBlade",
+            chat_id=fake_message.chat.id,
+        )
 
 
 @pytest.mark.asyncio
