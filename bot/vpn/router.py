@@ -9,7 +9,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.config import bot, settings_bot
+from bot.config import settings_bot
 from bot.database import connection
 from bot.utils.base_router import BaseRouter
 from bot.vpn.services import VPNService
@@ -54,7 +54,7 @@ class VPNRouter(BaseRouter):
         """Пользователь получает конфиг AmneziaVPN."""
         user = message.from_user
         assert user is not None
-        async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             status_msg = await message.answer(
                 "⏳ Генерирую твой конфиг AmneziaVPN...\nЭто может занять несколько секунд.",
                 reply_markup=ReplyKeyboardRemove(),
@@ -89,7 +89,7 @@ class VPNRouter(BaseRouter):
         """Пользователь получает конфиг AmneziaWG."""
         user = message.from_user
         assert user is not None
-        async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             status_msg = await message.answer(
                 "⏳ Генерирую твой конфиг AmneziaWG...\nЭто может занять несколько секунд.",
                 reply_markup=ReplyKeyboardRemove(),
@@ -124,7 +124,7 @@ class VPNRouter(BaseRouter):
         """Проверка статуса подписки пользователя."""
         user = message.from_user
         assert user is not None
-        async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             info_text = await VPNService.get_subscription_info(
                 tg_id=user.id, session=session
             )
@@ -132,5 +132,5 @@ class VPNRouter(BaseRouter):
             await message.answer(
                 "Проверка статуса подписки", reply_markup=ReplyKeyboardRemove()
             )
-            await bot.send_message(chat_id=user.id, text=info_text)
+            await self.bot.send_message(chat_id=user.id, text=info_text)
             await state.clear()

@@ -89,6 +89,7 @@ async def session(test_engine):
 def fake_state():
     fsm = AsyncMock(spec=FSMContext)
     fsm.get_data = AsyncMock(return_value={})
+    fsm.clear = AsyncMock()
     return fsm
 
 
@@ -108,6 +109,7 @@ def make_fake_message():
         message.text = "/start"
         message.message_id = 1000 + user_id
         message.answer = AsyncMock()
+        message.answer_document = AsyncMock()
         message.edit_text = AsyncMock()
         message.delete = AsyncMock()
         return message
@@ -141,7 +143,7 @@ def make_fake_query(make_fake_message):
 def mock_asyncssh_connect():
     """Мок для asyncssh.connect"""
     with patch(
-        "bot.vpn_router.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_conn = AsyncMock()
         mock_process = AsyncMock()
