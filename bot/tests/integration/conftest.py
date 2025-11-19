@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from aiogram import Bot
@@ -9,6 +10,8 @@ from aiogram.enums import ParseMode
 
 from bot.config import SettingsBot
 from bot.config import bot as real_bot
+from bot.redis_manager import SettingsRedis
+from bot.users.services import UserService
 
 
 @pytest.fixture(scope="session")
@@ -17,6 +20,18 @@ def test_settings_bot() -> SettingsBot:
     return SettingsBot(
         _env_file=Path(__file__).resolve().parent.parent.parent.parent / ".env.test"
     )
+
+
+@pytest.fixture
+def fake_redis() -> SettingsRedis:
+    """Простейший мок для Redis."""
+    return AsyncMock(spec=SettingsRedis)
+
+
+@pytest.fixture
+def user_service(fake_redis: SettingsRedis) -> UserService:
+    """Инстанс UserService с тестовым Redis."""
+    return UserService(redis=fake_redis)
 
 
 @pytest.fixture(scope="session")

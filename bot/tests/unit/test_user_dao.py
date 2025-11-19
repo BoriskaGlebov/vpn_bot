@@ -37,6 +37,6 @@ async def test_add_role_subscription(session, telegram_id, username, role_name):
     )
 
     assert updated_user is not None
-    assert any(
-        r.name == role_name for r in updated_user.roles
+    assert (
+        role.name == updated_user.role.name
     ), f"Роль '{role_name}' не добавилась пользователю {username}"

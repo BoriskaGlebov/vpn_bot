@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Chat, Message, User
 from loguru import logger as real_logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from utils.init_default_roles import init_default_roles
 
 from bot.config import settings_bot
 from bot.database import Base
@@ -21,6 +22,7 @@ def fake_bot():
     bot = AsyncMock(spec=Bot)
     bot.get_me.return_value.first_name = "TestBot"
     bot.set_my_description.return_value = None
+    bot.send_message = AsyncMock()
     return bot
 
 
@@ -79,6 +81,7 @@ async def session(test_engine):
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
     async with async_session() as session:
+        await init_default_roles(session=session)
         yield session
 
 
