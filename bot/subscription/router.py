@@ -181,7 +181,7 @@ class SubscriptionRouter(BaseRouter):
                 await query.answer(f"Выбрал {months} месяцев", show_alert=False)
                 await msg.edit_text(
                     text=m_subscription["select_period"].format(
-                        premium="PREMIUM " if premium else "STANDARD ",
+                        premium="PREMIUM " if premium.get("premium") else "STANDARD ",
                         months=months,
                         price=price,
                     ),

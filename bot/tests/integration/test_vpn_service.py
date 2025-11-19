@@ -18,7 +18,11 @@ async def test_generate_user_config_success(session, user_service):
 
     # Регистрируем тестового пользователя через UserService
     telegram_user = TgUser(
-        id=99999, username="testuser", first_name="Test", last_name="User", is_bot=False
+        id=99999,
+        username="testuser234",
+        first_name="Test",
+        last_name="User",
+        is_bot=False,
     )
     user_out, created = await user_service.register_or_get_user(session, telegram_user)
 

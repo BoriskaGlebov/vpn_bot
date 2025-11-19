@@ -126,7 +126,7 @@ def make_fake_query(make_fake_message):
         username: str = "test_admin",
         first_name: str = "Admin",
     ):
-        query = MagicMock(spec=CallbackQuery)
+        query = AsyncMock(spec=CallbackQuery)
         query.from_user = User(
             id=user_id,
             is_bot=False,
@@ -136,6 +136,7 @@ def make_fake_query(make_fake_message):
         query.message = make_fake_message(user_id)
         query.id = f"query_{user_id}"
         query.data = data
+        query.bot = AsyncMock()
         # Асинхронные методы
         query.answer = AsyncMock()
         query.message.edit_text = AsyncMock()  # чтобы гарантированно был async

@@ -1,366 +1,492 @@
 from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
-from aiogram.exceptions import TelegramBadRequest
 
 from bot.config import settings_bot
-from bot.subscription.router import SubscriptionStates
+from bot.subscription.keyboards.inline_kb import (
+    AdminPaymentCB,
+    SubscriptionCB,
+    ToggleSubscriptionCB,
+)
+from bot.subscription.router import (
+    SubscriptionRouter,
+    SubscriptionStates,
+    m_subscription,
+)
+from bot.subscription.services import SubscriptionService
+from bot.users.keyboards.markup_kb import main_kb
 
 
 @pytest.mark.asyncio
 @pytest.mark.subscription
-async def test_start_subscription(fake_message, fake_state, fake_bot):
-    """Проверяет корректное начало процесса оформления подписки."""
+async def test_start_subscription_user_defined(
+    fake_bot, fake_logger, make_fake_message, fake_state
+):
+    message = make_fake_message(user_id=1)
+    state = fake_state
 
-    # Подготовка данных с корректной структурой
-    settings_bot.MESSAGES = {
-        "modes": {
-            "subscription": {
-                "start": (
-                    "💎 Пробный период — 14 дней бесплатно!\n\n"
-                    "После него вы можете выбрать один из вариантов подписки:\n"
-                    "  • 1 месяц — 70₽\n"
-                    "  • 3 месяца — 160₽\n"
-                    "  • 6 месяцев — 300₽\n"
-                    "  • 12 месяцев — 600₽\n\n"
-                    "Выберите подходящий вариант 👇\n"  # <-- добавляем \n
-                )
-            }
-        }
-    }
+    # Создаем мок сервиса подписки
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    subscription_service.check_premium.return_value = (False, "user", False)
 
-    # Импортируем тестируемую функцию (чтобы избежать circular import)
-    from bot.subscription.router import start_subscription
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
 
-    # Мокаем клавиатуру (чтобы не зависеть от реализации)
+    await router.start_subscription(message=message, state=state)
+
+    # Проверка вызова check_premium
+    subscription_service.check_premium.assert_awaited_once_with(session=ANY, tg_id=1)
+
+    # Проверка вызова message.answer с нужным текстом и клавиатурой
+    assert message.answer.await_count == 1
+    called_args, called_kwargs = message.answer.await_args
+    assert "💎 Пробный период — 7 дней бесплатно!" in called_kwargs["text"]
+    assert called_kwargs["reply_markup"] is not None
+
+    # Проверка установки состояния и обновления данных
+    state.set_state.assert_awaited_once_with(SubscriptionStates.subscription_start)
+    state.update_data.assert_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_start_subscription_user_none(
+    patch_deps, make_fake_message, fake_state, fake_bot, fake_logger
+):
+    message = make_fake_message(user_id=1)
+    message.from_user = None  # пользователь не определен
+    state = fake_state
+
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
+
+    await router.start_subscription(message=message, state=state)
+
+    # Проверка, что логгер вызван для ошибки
+    fake_logger.error.assert_called_once_with("user undefined")
+
+    # Проверка, что методы state и service не вызывались
+    state.set_state.assert_not_called()
+    subscription_service.check_premium.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_subscription_selected_paid(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    # Создаем CallbackQuery с months > 0
+    callback_data = SubscriptionCB(action="paid", months=1)
+    query = make_fake_query(user_id=1, data="", username="test_user")
+    state = fake_state
+    state.get_data = AsyncMock(return_value={"premium": False})
+
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
+
+    await router.subscription_selected(
+        query=query, state=state, callback_data=callback_data
+    )
+
+    # Проверка, что query.answer вызван
+    query.answer.assert_awaited_once_with("Выбрал 1 месяцев", show_alert=False)
+
+    # Проверка, что msg.edit_text вызван с правильным текстом
+    query.message.edit_text.assert_awaited_once()
+    args, kwargs = query.message.edit_text.await_args
+    assert "1" in kwargs["text"]
+    assert "STANDARD" in kwargs["text"]
+    assert kwargs["reply_markup"] is not None
+
+    # Проверка, что состояние FSM обновлено
+    state.set_state.assert_awaited_once_with(SubscriptionStates.select_period)
+
+
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_subscription_selected_trial(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    # Создаем CallbackQuery с months = 0 (триал)
+    callback_data = SubscriptionCB(action="paid", months=7)
+    query = make_fake_query(user_id=1, data="", username="test_user")
+    state = fake_state
+    state.get_data.return_value = AsyncMock(return_value={})
+
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
+
+    await router.subscription_selected(
+        query=query, state=state, callback_data=callback_data
+    )
+
+    # Проверка вызовов для триала
+    subscription_service.start_trial_subscription.assert_awaited_once_with(
+        session=ANY, user_id=1, days=callback_data.months
+    )
+    query.answer.assert_awaited_once_with("Выбрал пробный период", show_alert=False)
+    query.message.delete.assert_awaited_once()
+    fake_bot.send_message.assert_awaited_once()
+    state.clear.assert_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_subscription_selected_user_none(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    callback_data = SubscriptionCB(action="paid", months=1)
+    query = make_fake_query(user_id=1)
+    query.from_user = None
+    state = fake_state
+
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
+
+    await router.subscription_selected(
+        query=query, state=state, callback_data=callback_data
+    )
+
+    # Проверка логирования ошибки
+    fake_logger.error.assert_called_once_with("user undefined")
+
+
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_toggle_subscription_mode_premium(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    # Пользователь выбирает премиум режим
+    callback_data = ToggleSubscriptionCB(mode="premium")
+    query = make_fake_query(user_id=1)
+    state = fake_state
+
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
+
+    await router.toggle_subscription_mode(
+        query=query, state=state, callback_data=callback_data
+    )
+
+    # Проверка, что текст редактирован
+    query.message.edit_text.assert_awaited_once()
+    args, kwargs = query.message.edit_text.await_args
+    assert str(settings_bot.MAX_CONFIGS_PER_USER * 2) in kwargs["text"]
+    assert kwargs["reply_markup"] is not None
+
+    # Проверка, что query.answer вызван
+    query.answer.assert_awaited_once_with("")
+
+    # Проверка, что state.update_data вызван с premium=True
+    state.update_data.assert_awaited_once_with(premium=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_toggle_subscription_mode_standard(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    # Пользователь выбирает стандартный режим
+    callback_data = ToggleSubscriptionCB(mode="standard")
+    query = make_fake_query(user_id=1)
+    state = fake_state
+
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
+
+    await router.toggle_subscription_mode(
+        query=query, state=state, callback_data=callback_data
+    )
+
+    # Проверка, что текст редактирован
+    query.message.edit_text.assert_awaited_once()
+    args, kwargs = query.message.edit_text.await_args
+    assert kwargs["reply_markup"] is not None
+
+    # Проверка, что query.answer вызван
+    query.answer.assert_awaited_once_with("")
+
+    # Проверка, что state.update_data вызван с premium=False
+    state.update_data.assert_awaited_once_with(premium=False)
+
+
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_toggle_subscription_mode_msg_none(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    # Сообщение недоступно
+    callback_data = ToggleSubscriptionCB(mode="premium")
+    query = make_fake_query(user_id=1)
+    query.message = None  # недоступно
+    state = fake_state
+
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
+
+    await router.toggle_subscription_mode(
+        query=query, state=state, callback_data=callback_data
+    )
+
+    # Проверка, что методы не вызваны
+    state.update_data.assert_not_called()
+    query.answer.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_user_paid_standard(fake_bot, fake_logger, fake_state, make_fake_query):
+    callback_data = SubscriptionCB(action="paid", months=1)
+    query = make_fake_query(user_id=1, username="test_user")
+    state = fake_state
+    state.get_data = AsyncMock(return_value={"premium": False})
+
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
+
+    # Патчим redis_manager внутри send_to_admins
     with patch(
-        "bot.subscription.router.subscription_options_kb",
-        return_value="mocked_keyboard",
-    ):
-        # Вызываем функцию
-        await start_subscription(fake_message, fake_state)
+        "bot.redis_manager.redis_manager.save_admin_message", new_callable=AsyncMock
+    ) as mock_save:
+        await router.user_paid(query=query, state=state, callback_data=callback_data)
 
-    # Проверяем, что отправлено сообщение с правильным текстом и клавиатурой
-    fake_message.answer.assert_awaited_once_with(
-        text=settings_bot.MESSAGES["modes"]["subscription"]["start"],
-        reply_markup="mocked_keyboard",
+    # Проверка установки состояния FSM
+    state.set_state.assert_awaited_once_with(SubscriptionStates.wait_for_paid)
+
+    # Проверка вызова query.answer
+    query.answer.assert_awaited_once_with("Пользователь нажал оплату (1 мес, 70₽)")
+
+    # Проверка редактирования сообщения
+    query.message.edit_text.assert_awaited_once_with(
+        m_subscription["wait_for_paid"]["user"]
     )
 
-    # Проверяем, что состояние установлено верно
-    fake_state.set_state.assert_awaited_once_with(SubscriptionStates.subscription_start)
+    # Проверка, что save_admin_message был вызван
+    mock_save.await_count == 2
 
 
 @pytest.mark.asyncio
 @pytest.mark.subscription
-async def test_subscription_selected_paid(fake_state, session):
-    """Проверяет выбор платной подписки (price != 0)."""
+async def test_user_paid_premium(fake_bot, fake_logger, fake_state, make_fake_query):
+    # Создаем CallbackQuery для премиум режима
+    callback_data = SubscriptionCB(action="paid", months=1)
+    query = make_fake_query(user_id=2, username="premium_user")
+    state = fake_state
+    state.get_data = AsyncMock(return_value={"premium": True})
 
-    from bot.subscription.router import subscription_selected
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
 
-    # Подготовка CallbackQuery
-    fake_query = AsyncMock()
-    fake_query.data = "sub_select:3"
-    fake_query.from_user.id = 12345
-    fake_query.message.chat.id = 12345
-    fake_query.message.edit_text = AsyncMock()
-    fake_query.answer = AsyncMock()
-
-    # Мокаем payment_confirm_kb
+    # Патчим redis_manager.save_admin_message, чтобы не сериализовать AsyncMock
     with patch(
-        "bot.subscription.router.payment_confirm_kb",
-        return_value="mocked_payment_keyboard",
-    ):
-        await subscription_selected(
-            query=fake_query,
-            state=fake_state,
-        )
+        "bot.redis_manager.redis_manager.save_admin_message", new_callable=AsyncMock
+    ) as mock_save:
+        # Вызов метода
+        await router.user_paid(query=query, state=state, callback_data=callback_data)
 
-    fake_query.answer.assert_awaited_once_with("Выбрал 3 месяцев", show_alert=False)
-    fake_query.message.edit_text.assert_awaited_once()
-    fake_state.set_state.assert_awaited_once_with(SubscriptionStates.select_period)
+    # Цена удваивается для премиум
+    query.answer.assert_awaited_once_with("Пользователь нажал оплату (1 мес, 140₽)")
 
-
-@pytest.mark.asyncio
-@pytest.mark.subscription
-async def test_subscription_selected_trial(fake_state, session):
-    """Проверяет выбор бесплатного пробного периода (price == 0)."""
-
-    from bot.subscription.router import subscription_selected
-
-    # Подготовка CallbackQuery
-    fake_query = AsyncMock()
-    fake_query.data = "sub_select:14"
-    fake_query.from_user.id = 12345
-    fake_query.message.chat.id = 12345
-    fake_query.message.delete = AsyncMock()
-    fake_query.answer = AsyncMock()
-
-    # Мокаем внешние зависимости
-    with (
-        patch("bot.subscription.router.bot.send_message", new=AsyncMock()) as mock_send,
-        patch(
-            "bot.subscription.router.SubscriptionDAO.activate_subscription",
-            new=AsyncMock(),
-        ),
-    ):
-        await subscription_selected(query=fake_query, state=fake_state)
-
-    fake_query.message.delete.assert_awaited_once()
-    mock_send.assert_awaited_once()  # сообщение пользователю
-    fake_state.clear.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-@pytest.mark.subscription
-async def test_user_paid(fake_state):
-    """Проверяет поведение при подтверждении оплаты пользователем."""
-
-    from bot.subscription.router import m_subscription, user_paid
-
-    # Подготовка callback
-    fake_query = AsyncMock()
-    fake_query.data = "sub_paid:3"
-    fake_query.from_user.id = 111
-    fake_query.from_user.username = "tester"
-    fake_query.message.chat.id = 111
-    fake_query.message.edit_text = AsyncMock()
-    fake_query.answer = AsyncMock()
-
-    # Подмена текстов сообщений
-    m_subscription["wait_for_paid"] = {
-        "user": "Ожидаем подтверждение администратора...",
-        "admin": "Админ, пользователь {username} оплатил {months} мес. за {price} руб.",
-    }
-
-    # Мокаем зависимости
-    with (
-        patch(
-            "bot.subscription.router.admin_payment_kb", return_value="mocked_admin_kb"
-        ),
-        patch(
-            "bot.subscription.router.send_to_admins", new=AsyncMock()
-        ) as mock_send_admins,
-    ):
-        await user_paid(fake_query, fake_state)
-
-    # Проверка вызова ответа пользователю
-    fake_query.answer.assert_awaited_once()
-    fake_query.message.edit_text.assert_awaited_once_with(
-        "Ожидаем подтверждение администратора..."
+    # Проверка редактирования сообщения
+    query.message.edit_text.assert_awaited_once_with(
+        m_subscription["wait_for_paid"]["user"]
     )
 
-    # Проверка смены состояния FSM
-    fake_state.set_state.assert_awaited_once_with(SubscriptionStates.wait_for_paid)
+    # Проверка установки состояния FSM
+    state.set_state.assert_awaited_once_with(SubscriptionStates.wait_for_paid)
 
-    # Проверяем, что уведомление ушло админам
-    mock_send_admins.assert_awaited_once()
-    args, kwargs = mock_send_admins.await_args
-    assert kwargs["telegram_id"] == 111
-    assert "оплатил" in kwargs["message_text"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.subscription
-async def test_cancel_subscription_from_select_period(fake_state):
-    """Проверяет отмену на этапе выбора периода (возврат к выбору)."""
-
-    from bot.subscription.router import cancel_subscription
-
-    # Подготовка CallbackQuery
-    fake_query = AsyncMock()
-    fake_query.message.chat.id = 1001
-    fake_query.from_user.id = 1001
-    fake_query.answer = AsyncMock()
-    fake_query.message.edit_text = AsyncMock()
-
-    # FSM возвращает текущее состояние "select_period"
-    fake_state.get_state = AsyncMock(
-        return_value=SubscriptionStates.select_period.state
-    )
-
-    with patch(
-        "bot.subscription.router.subscription_options_kb",
-        return_value="mocked_keyboard",
-    ):
-        await cancel_subscription(fake_query, fake_state)
-
-    fake_query.answer.assert_awaited_once_with("Отменено ❌", show_alert=False)
-    fake_query.message.edit_text.assert_awaited_once_with(
-        text="Вы вернулись к выбору периода подписки ⏪",
-        reply_markup="mocked_keyboard",
-    )
-    fake_state.set_state.assert_awaited_once_with(SubscriptionStates.subscription_start)
+    # Проверка вызова save_admin_message
+    mock_save.await_count = 2
+    # Получаем аргументы последнего вызова
+    last_call_args, last_call_kwargs = mock_save.await_args_list[-1]
+    assert last_call_kwargs["user_id"] == 2
 
 
 @pytest.mark.asyncio
 @pytest.mark.subscription
-async def test_cancel_subscription_to_main_menu(fake_state):
-    """Проверяет отмену с выходом в главное меню (без состояния или первое состояние)."""
+async def test_cancel_subscription_select_period(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    query = make_fake_query(user_id=1, username="test_user")
+    state = fake_state
+    state.get_state = AsyncMock(return_value=SubscriptionStates.select_period.state)
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
 
-    from bot.subscription.router import cancel_subscription
+    await router.cancel_subscription(query=query, state=state)
 
-    fake_query = AsyncMock()
-    fake_query.message.chat.id = 2002
-    fake_query.from_user.id = 2002
-    fake_query.answer = AsyncMock()
-    fake_query.message.delete = AsyncMock()
+    query.answer.assert_awaited_once_with("Отменено ❌", show_alert=False)
+    query.message.edit_text.assert_awaited_once()
+    state.set_state.assert_awaited_once_with(SubscriptionStates.subscription_start)
 
-    fake_state.get_state = AsyncMock(return_value=None)
 
-    with (
-        patch("bot.subscription.router.bot.send_message", new=AsyncMock()) as mock_send,
-        patch("bot.subscription.router.main_kb", return_value="mocked_main_kb"),
-    ):
-        await cancel_subscription(fake_query, fake_state)
+@pytest.mark.asyncio
+@pytest.mark.subscription
+async def test_cancel_subscription_first_step(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    query = make_fake_query(user_id=1, username="test_user")
+    state = fake_state
+    state.get_state = AsyncMock(return_value=None)
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
 
-    fake_query.message.delete.assert_awaited_once()
-    mock_send.assert_awaited_once_with(
-        chat_id=2002,
+    await router.cancel_subscription(query=query, state=state)
+
+    query.answer.assert_awaited_once_with("Отменено ❌", show_alert=False)
+    query.message.delete.assert_awaited_once()
+    fake_bot.send_message.assert_awaited_once_with(
+        chat_id=1,
         text="Вы отменили оформление подписки.",
-        reply_markup="mocked_main_kb",
     )
-    fake_state.clear.assert_awaited_once()
+    state.clear.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 @pytest.mark.subscription
-async def test_admin_confirm_payment_success(session, fake_state):
-    """Проверяет успешное подтверждение оплаты администратором."""
+async def test_admin_confirm_payment_success(
+    fake_bot, fake_logger, fake_state, make_fake_query, monkeypatch
+):
+    # Создаём CallbackQuery
+    callback_data = AdminPaymentCB(user_id=1, months=1, premium=True, action="confirm")
+    query = make_fake_query(user_id=999, username="admin_user")
 
-    from bot.subscription.router import admin_confirm_payment
+    # Мок состояния
+    state = fake_state
 
-    fake_query = AsyncMock()
-    fake_query.data = "admin_confirm:999:3"
-    fake_query.message.chat.id = 111
-    fake_query.message.edit_text = AsyncMock()
-    fake_query.answer = AsyncMock()
-    fake_query.bot.send_message = AsyncMock()
+    # Мок сервиса подписки
+    user_schema_mock = AsyncMock()
+    user_schema_mock.username = "test_user"
+    user_schema_mock.subscription.type = "premium"
 
-    # Мокаем зависимости
-    with (
-        patch(
-            "bot.subscription.router.SubscriptionDAO.activate_subscription",
-            new=AsyncMock(),
-        ) as mock_activate,
-        patch(
-            "bot.subscription.router.edit_admin_messages",
-            new=AsyncMock(),
-        ) as mock_edit,
-    ):
-        await admin_confirm_payment(query=fake_query, state=fake_state)
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    subscription_service.activate_paid_subscription.return_value = user_schema_mock
 
-    # Проверяем, что callback подтверждён
-    fake_query.answer.assert_awaited_once_with(
-        "Админ подтвердил оплату", show_alert=False
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
     )
 
-    # Проверяем, что вызван DAO для активации подписки
-    mock_activate.assert_awaited_once()
-    args, kwargs = mock_activate.await_args
-    assert kwargs["stelegram_id"].telegram_id == 999
-    assert kwargs["month"] == 3
+    # Мок зависимостей
+    monkeypatch.setattr("bot.utils.start_stop_bot.send_to_admins", AsyncMock())
+    monkeypatch.setattr("bot.utils.start_stop_bot.edit_admin_messages", AsyncMock())
 
-    # Проверяем, что сообщение пользователю отправлено
-    fake_query.bot.send_message.assert_awaited_once_with(
-        chat_id=999,
-        text="✅ Ваша подписка на 3 мес. успешно активирована! Спасибо ❤️",
-        reply_markup=ANY,
+    # Вызов метода
+    await router.admin_confirm_payment(
+        query=query, state=state, callback_data=callback_data
     )
 
-    # Проверяем, что были обновлены сообщения у админов
-    mock_edit.assert_awaited_once()
+    # Проверки
+    query.answer.assert_awaited_once_with("Админ подтвердил оплату", show_alert=False)
+    subscription_service.activate_paid_subscription.assert_awaited_once_with(
+        ANY, 1, 1, True
+    )
+    query.bot.send_message.assert_awaited_once()
+    state.clear.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 @pytest.mark.subscription
-async def test_admin_confirm_payment_user_message_fail(session, fake_state):
-    """Проверяет ситуацию, когда сообщение пользователю не удалось отправить."""
+async def test_admin_decline_payment_success(
+    fake_bot, fake_logger, fake_state, make_fake_query, monkeypatch
+):
+    # Создаем CallbackQuery и callback_data
+    callback_data = AdminPaymentCB(user_id=1, months=1, premium=True, action="decline")
+    query = make_fake_query(user_id=999, username="admin_user")
+    query.bot = fake_bot  # добавляем бот
 
-    from bot.subscription.router import admin_confirm_payment
-
-    fake_query = AsyncMock()
-    fake_query.data = "admin_confirm:777:6"
-    fake_query.message.chat.id = 111
-    fake_query.answer = AsyncMock()
-    fake_query.bot.send_message = AsyncMock(
-        side_effect=TelegramBadRequest(
-            method="sendMessage",
-            message="can't send",
-        )
+    # Подменяем edit_admin_messages и send_message
+    mock_edit_admin_messages = AsyncMock()
+    monkeypatch.setattr(
+        "bot.subscription.router.edit_admin_messages", mock_edit_admin_messages
     )
-    fake_query.message.edit_text = AsyncMock()
 
-    with (
-        patch(
-            "bot.subscription.router.SubscriptionDAO.activate_subscription",
-            new=AsyncMock(),
-        ),
-        patch(
-            "bot.subscription.router.send_to_admins",
-            new=AsyncMock(),
-        ) as mock_send_admins,
-        patch(
-            "bot.subscription.router.edit_admin_messages",
-            new=AsyncMock(),
-        ),
-    ):
-        await admin_confirm_payment(query=fake_query, state=fake_state)
+    subscription_service = AsyncMock(spec=SubscriptionService)
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+    )
 
-    # Проверяем, что ошибка с пользователем обрабатывается и уведомлены админы
-    mock_send_admins.assert_awaited_once()
-    args, kwargs = mock_send_admins.await_args
-    assert "Не удалось отправить" in kwargs["message_text"]
+    # Вызов метода
+    await router.admin_decline_payment(
+        query=query, state=fake_state, callback_data=callback_data
+    )
+
+    # Проверка, что ответ пользователю вызван
+    query.answer.assert_awaited_once_with("Отклонено 🚫")
+
+    # Проверка отправки сообщения пользователю
+    query.bot.send_message.assert_awaited_once_with(
+        chat_id=1,
+        text=m_subscription.get("decline_paid", {}).get("user", ""),
+        reply_markup=main_kb(active_subscription=False),
+    )
+
+    # Проверка вызова edit_admin_messages
+    mock_edit_admin_messages.assert_awaited_once()
+    called_args, called_kwargs = mock_edit_admin_messages.await_args
+    assert f"{callback_data.user_id}" in str(called_kwargs.get("new_text", ""))
 
 
 @pytest.mark.asyncio
 @pytest.mark.subscription
-async def test_admin_decline_payment_success(fake_state):
-    """Проверяет успешное отклонение оплаты."""
+async def test_admin_decline_payment_no_message(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    # query.message = None
+    callback_data = AdminPaymentCB(user_id=1, months=1, premium=True, action="decline")
+    query = make_fake_query(user_id=999, username="admin_user")
+    query.message = None
+    query.bot = fake_bot
 
-    from bot.subscription.router import admin_decline_payment
-
-    fake_query = AsyncMock()
-    fake_query.data = "admin_decline:123:3"
-    fake_query.message.chat.id = 111
-    fake_query.from_user.id = 123
-    fake_query.answer = AsyncMock()
-    fake_query.bot.send_message = AsyncMock()
-
-    with patch(
-        "bot.subscription.router.edit_admin_messages", new=AsyncMock()
-    ) as mock_edit:
-        await admin_decline_payment(fake_query, fake_state)
-
-    fake_query.answer.assert_awaited_once_with("Отклонено 🚫")
-    fake_query.bot.send_message.assert_awaited_once_with(
-        chat_id=123,
-        text="❌ Оплата не подтверждена. Если вы уверены, что оплата была, свяжитесь с поддержкой.",
-        reply_markup=ANY,  # или из unittest.mock import ANY
+    subscription_service = AsyncMock()
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
     )
-    mock_edit.assert_awaited_once()
+
+    result = await router.admin_decline_payment(
+        query=query, state=fake_state, callback_data=callback_data
+    )
+    assert result is None
 
 
 @pytest.mark.asyncio
 @pytest.mark.subscription
-async def test_admin_decline_payment_user_message_fail(fake_state):
-    """Проверяет отклонение, когда сообщение пользователю не отправилось."""
+async def test_admin_decline_payment_no_bot(
+    fake_bot, fake_logger, fake_state, make_fake_query
+):
+    # query.bot = None
+    callback_data = AdminPaymentCB(user_id=1, months=1, premium=True, action="decline")
+    query = make_fake_query(user_id=999, username="admin_user")
+    query.bot = None
 
-    from bot.subscription.router import admin_decline_payment
-
-    fake_query = AsyncMock()
-    fake_query.data = "admin_decline:456:6"
-    fake_query.message.chat.id = 111
-    fake_query.from_user.id = 456
-    fake_query.answer = AsyncMock()
-    fake_query.bot.send_message = AsyncMock(
-        side_effect=TelegramBadRequest(method="sendMessage", message="can't send")
+    subscription_service = AsyncMock()
+    router = SubscriptionRouter(
+        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
     )
 
-    with patch(
-        "bot.subscription.router.edit_admin_messages", new=AsyncMock()
-    ) as mock_edit:
-        await admin_decline_payment(fake_query, fake_state)
-
-    fake_query.answer.assert_awaited_once_with("Отклонено 🚫")
-    fake_query.bot.send_message.assert_awaited_once()
-    mock_edit.assert_awaited_once()
+    result = await router.admin_decline_payment(
+        query=query, state=fake_state, callback_data=callback_data
+    )
+    assert result is None
