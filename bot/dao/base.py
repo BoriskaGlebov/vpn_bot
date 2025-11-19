@@ -100,10 +100,10 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         logger.info(f"[DAO] Поиск {cls.model.__name__} с ID: {data_id}")
         try:
             # noinspection PyTypeChecker
-            query = select(cls.model).where(cls.model.id == data_id)
+            query = select(cls.model).where(cls.model.id == data_id)  # type: ignore[attr-defined]
 
             result = await session.execute(query)
-            record = cast(T | None, result.scalar_one_or_none())
+            record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
             if record:
                 logger.info(f"[DAO] Запись с ID {data_id} найдена.")
             else:
@@ -141,7 +141,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             if conditions:
                 query = query.where(and_(*conditions))
             result = await session.execute(query)
-            record = cast(T | None, result.scalar_one_or_none())
+            record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
             if record:
                 logger.info(f"[DAO] Запись найдена по фильтрам: {filter_dict}")
             else:
@@ -208,7 +208,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"[DAO] Добавление записи {cls.model.__name__} с параметрами: {values_dict}"
         )
         # noinspection PyTypeChecker
-        new_instance = cast(T, cls.model(**values_dict))
+        new_instance = cast(T, cls.model(**values_dict))  # type: ignore [redundant-cast]
         session.add(new_instance)
         try:
             await session.commit()
@@ -351,7 +351,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         )
         try:
             # noinspection PyTypeChecker
-            query = select(func.count(cls.model.id))
+            query = select(func.count(cls.model.id))  # type: ignore
             conditions = [
                 getattr(cls.model, key) == value for key, value in filter_dict.items()
             ]
@@ -425,7 +425,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         logger.info(f"[DAO] Поиск записей {cls.model.__name__} по списку ID: {ids}")
         try:
             # noinspection PyTypeChecker
-            query = select(cls.model).filter(cls.model.id.in_(ids))
+            query = select(cls.model).filter(cls.model.id.in_(ids))  # type: ignore[attr-defined]
             result = await session.execute(query)
             records = cast(list[T], result.scalars().all())
             logger.info(f"[DAO] Найдено {len(records)} записей по списку ID.")
@@ -469,7 +469,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
                 return existing
             else:
                 # noinspection PyTypeChecker
-                new_instance = cast(T, cls.model(**values_dict))
+                new_instance = cast(T, cls.model(**values_dict))  # type: ignore[redundant-cast]
                 session.add(new_instance)
                 await session.commit()
                 # noinspection PyTypeChecker
@@ -505,7 +505,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
                 # noinspection PyTypeChecker
                 stmt = (
                     sqlalchemy_update(cls.model)
-                    .where(cls.model.id == record_dict["id"])
+                    .where(cls.model.id == record_dict["id"])  # type: ignore[attr-defined]
                     .values(**update_data)
                 )
                 result = await session.execute(stmt)

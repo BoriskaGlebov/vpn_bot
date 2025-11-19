@@ -64,6 +64,7 @@ repos:
           - types-aiofiles
         args: [ --strict,
                 --ignore-missing-imports,
+                --no-warn-unused-ignores
         ]
         exclude: |
           (?x)^(

@@ -135,10 +135,14 @@ class UserRouter(BaseRouter):
             None
 
         """
+        user = message.from_user
+        if user is None:
+            self.logger.error("message.from_user is None")
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
             user_info, is_new = await self.user_service.register_or_get_user(
-                session=session, telegram_user=message.from_user
+                session=session, telegram_user=user
             )
             welcome_messages = m_start.get("welcome", {})
             if message.chat.type != "private":
@@ -147,14 +151,12 @@ class UserRouter(BaseRouter):
                     f"Чтобы начать работу, перейдите ко мне в личные сообщения 👉 @{bot_inf.username}"
                 )
                 return
+            username = user.username or f"Гость_{user.id}"
+            full_name = user.full_name or username
             if not is_new:
-                self.logger.bind(
-                    user=message.from_user.username or message.from_user.id
-                ).info("Пользователь вернулся в бота")
+                self.logger.bind(user=username).info("Пользователь вернулся в бота")
                 response_message = welcome_messages.get("again", [])[0].format(
-                    username=message.from_user.full_name
-                    or f"@{message.from_user.username}"
-                    or f"Гость_{message.from_user.id}"
+                    username=full_name
                 )
                 follow_up_message = welcome_messages.get("again", [])[1]
 
@@ -169,19 +171,15 @@ class UserRouter(BaseRouter):
                             if user_info.subscription
                             else False
                         ),
-                        user_telegram_id=message.from_user.id,
+                        user_telegram_id=user.id,
                     ),
                 )
             else:
-                self.logger.bind(
-                    user=message.from_user.username or message.from_user.id
-                ).info(
-                    f"Новый пользователь зарегистрирован: {message.from_user.id} ({message.from_user.username})"
+                self.logger.bind(user=user.username or user.id).info(
+                    f"Новый пользователь зарегистрирован: {user.id} ({username})"
                 )
                 response_message = welcome_messages.get("first", [])[0].format(
-                    username=message.from_user.full_name
-                    or f"@{message.from_user.username}"
-                    or f"Гость_{message.from_user.id}"
+                    username=full_name
                 )
                 follow_up_message = welcome_messages.get("first", [])[1]
                 await message.answer(
@@ -195,7 +193,7 @@ class UserRouter(BaseRouter):
                             if user_info.subscription
                             else False
                         ),
-                        user_telegram_id=message.from_user.id,
+                        user_telegram_id=user.id,
                     ),
                 )
                 if user_info.telegram_id not in settings_bot.ADMIN_IDS:
@@ -212,7 +210,7 @@ class UserRouter(BaseRouter):
                         message_text=admin_message,
                         reply_markup=admin_user_control_kb(
                             filter_type=user_info.role.name,
-                            telegram_id=message.from_user.id,
+                            telegram_id=user.id,
                         ),
                     )
             await state.set_state(UserStates.press_start)
@@ -237,14 +235,16 @@ class UserRouter(BaseRouter):
             None
 
         """
+        user = message.from_user
+        if user is None:
+            self.logger.error("message.from_user is None")
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
 
-            if message.from_user.id not in settings_bot.ADMIN_IDS:
-                self.logger.bind(
-                    user=message.from_user.username or message.from_user.id
-                ).warning(
-                    f"Попытка доступа к админ-панели не админом: {message.from_user.id}"
+            if user.id not in settings_bot.ADMIN_IDS:
+                self.logger.bind(user=user.username or user.id).warning(
+                    f"Попытка доступа к админ-панели не админом: {user.id}"
                 )
                 await message.answer(
                     text=m_admin.get("off", "У вас нет доступа к этой команде!"),
@@ -256,16 +256,16 @@ class UserRouter(BaseRouter):
                     chat_id=message.chat.id,
                 )
                 return
-            self.logger.bind(
-                user=message.from_user.username or message.from_user.id
-            ).info(f"Админ {message.from_user.id} вошёл в панель администратора")
+            self.logger.bind(user=user.username or user.id).info(
+                f"Админ {user.id} вошёл в панель администратора"
+            )
             await self.bot.send_message(
-                chat_id=message.from_user.id,
+                chat_id=user.id,
                 text=m_admin.get("on", [])[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
             await self.bot.send_message(
-                chat_id=message.from_user.id,
+                chat_id=user.id,
                 text=m_admin.get("on", [])[1],
                 reply_markup=admin_main_kb(),
             )

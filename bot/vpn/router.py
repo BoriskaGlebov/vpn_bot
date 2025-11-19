@@ -52,6 +52,8 @@ class VPNRouter(BaseRouter):
         self, message: Message, session: AsyncSession, state: FSMContext
     ) -> None:
         """Пользователь получает конфиг AmneziaVPN."""
+        user = message.from_user
+        assert user is not None
         async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
             status_msg = await message.answer(
                 "⏳ Генерирую твой конфиг AmneziaVPN...\nЭто может занять несколько секунд.",
@@ -70,7 +72,7 @@ class VPNRouter(BaseRouter):
                         pub_key,
                     ) = await self.vpn_service.generate_user_config(
                         session=session,
-                        user=message.from_user,
+                        user=user,
                         ssh_client=ssh_client,
                     )
                     await status_msg.answer("✅ Конфиг готов! Отправляю...")
@@ -85,6 +87,8 @@ class VPNRouter(BaseRouter):
         self, message: Message, session: AsyncSession, state: FSMContext
     ) -> None:
         """Пользователь получает конфиг AmneziaWG."""
+        user = message.from_user
+        assert user is not None
         async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
             status_msg = await message.answer(
                 "⏳ Генерирую твой конфиг AmneziaWG...\nЭто может занять несколько секунд.",
@@ -103,7 +107,7 @@ class VPNRouter(BaseRouter):
                         pub_key,
                     ) = await self.vpn_service.generate_user_config(
                         session=session,
-                        user=message.from_user,
+                        user=user,
                         ssh_client=ssh_client,
                     )
                     await status_msg.answer("✅ Конфиг готов! Отправляю...")
@@ -118,13 +122,15 @@ class VPNRouter(BaseRouter):
         self, message: Message, session: AsyncSession, state: FSMContext
     ) -> None:
         """Проверка статуса подписки пользователя."""
+        user = message.from_user
+        assert user is not None
         async with ChatActionSender.typing(bot=bot, chat_id=message.chat.id):
             info_text = await VPNService.get_subscription_info(
-                tg_id=message.from_user.id, session=session
+                tg_id=user.id, session=session
             )
 
             await message.answer(
                 "Проверка статуса подписки", reply_markup=ReplyKeyboardRemove()
             )
-            await bot.send_message(chat_id=message.from_user.id, text=info_text)
+            await bot.send_message(chat_id=user.id, text=info_text)
             await state.clear()

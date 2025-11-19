@@ -91,18 +91,33 @@ class HelpRouter(BaseRouter):
             state (FSMContext): Контекст конечного автомата состояний пользователя.
 
         """
-        async with ChatActionSender.typing(bot=self.bot, chat_id=call.message.chat.id):
-            call_device = call.data.replace("device_", "")
+        message = call.message
+        if message is None or not hasattr(message, "chat"):
+            self.logger.error("CallbackQuery received without message")
+            return
+
+        chat_id = message.chat.id
+
+        data = call.data
+        if data is None:
+            self.logger.error("CallbackQuery received without data")
+            return
+
+        bot = call.bot or self.bot
+        if bot is None:
+            self.logger.error("CallbackQuery without bot instance")
+            return
+        async with ChatActionSender.typing(bot=self.bot, chat_id=chat_id):
+            call_device = data.replace("device_", "")
             await call.answer(text=f"Ты выбрал {call_device}", show_alert=False)
             device_class = self.DEVICE_MAP.get(call_device)
             if device_class:
-                await device_class.send_message(
-                    bot=self.bot, chat_id=call.message.chat.id
-                )
+                await device_class.send_message(bot=self.bot, chat_id=chat_id)
             elif call_device == "developer":
-                await call.message.delete()
-                await call.bot.send_message(
+                if hasattr(message, "delete"):
+                    await message.delete()
+                await bot.send_message(
                     text="Для связи напишите @BorisisTheBlade",
-                    chat_id=call.message.chat.id,
+                    chat_id=chat_id,
                 )
             await state.clear()

@@ -7,7 +7,7 @@ from bot.config import bot, logger
 from bot.subscription.services import SubscriptionService
 
 scheduler = AsyncIOScheduler()
-service = SubscriptionService(bot=bot, logger=logger)
+service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]
 
 
 async def scheduled_check(logger: Logger) -> None:

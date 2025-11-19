@@ -3,7 +3,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InaccessibleMessage, Message
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,9 +109,11 @@ class SubscriptionRouter(BaseRouter):
             state (FSMContext): Контекст FSM для управления состояниями.
 
         """
-        user_logger = self.logger.bind(
-            user=message.from_user.username or message.from_user.id
-        )
+        user = message.from_user
+        if user is None:
+            self.logger.error("user undefined")
+            return
+        user_logger = self.logger.bind(user=user.username or user.id or "undefined")
         user_logger.info("Начало оформления подписки")
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             (
@@ -119,7 +121,7 @@ class SubscriptionRouter(BaseRouter):
                 role,
                 is_active_sbscr,
             ) = await self.subscription_service.check_premium(
-                session=session, tg_id=message.from_user.id
+                session=session, tg_id=user.id
             )
             if not is_premium or role == "founder":
                 text = m_subscription.get("start", "").format(
@@ -159,10 +161,15 @@ class SubscriptionRouter(BaseRouter):
             callback_data (SubscriptionCB): Данные для работы.
 
         """
-        user_logger = self.logger.bind(
-            user=query.from_user.username or query.from_user.id
-        )
-        async with ChatActionSender.typing(bot=self.bot, chat_id=query.message.chat.id):
+        user = query.from_user
+        if user is None:
+            self.logger.error("user undefined")
+            return
+        user_logger = self.logger.bind(user=user.username or user.id)
+        msg = query.message
+        if not msg or isinstance(msg, InaccessibleMessage):
+            return
+        async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             months = callback_data.months
             user_logger.info(f"Выбор периода подписки: {months} мес")
             price_map = settings_bot.PRICE_MAP
@@ -172,7 +179,7 @@ class SubscriptionRouter(BaseRouter):
                 if premium.get("premium"):
                     price *= 2
                 await query.answer(f"Выбрал {months} месяцев", show_alert=False)
-                await query.message.edit_text(
+                await msg.edit_text(
                     text=m_subscription["select_period"].format(
                         premium="PREMIUM " if premium else "STANDARD ",
                         months=months,
@@ -188,7 +195,8 @@ class SubscriptionRouter(BaseRouter):
                         session=session, user_id=query.from_user.id, days=days
                     )
                     await query.answer("Выбрал пробный период", show_alert=False)
-                    await query.message.delete()
+                    if msg is not None and not isinstance(msg, InaccessibleMessage):
+                        await msg.delete()
                     await self.bot.send_message(
                         chat_id=query.from_user.id,
                         text=m_subscription["trial_period"],
@@ -213,6 +221,9 @@ class SubscriptionRouter(BaseRouter):
             state (FSMContext): Контекст FSM.
 
         """
+        msg = query.message
+        if not msg or isinstance(msg, InaccessibleMessage):
+            return
         mode = callback_data.mode
         premium = mode == "premium"
 
@@ -224,7 +235,7 @@ class SubscriptionRouter(BaseRouter):
             else m_subscription["start"]
         )
 
-        await query.message.edit_text(
+        await msg.edit_text(
             text=text,
             reply_markup=subscription_options_kb(premium=True if premium else False),
         )
@@ -243,10 +254,13 @@ class SubscriptionRouter(BaseRouter):
             state (FSMContext): Контекст FSM.
 
         """
+        msg = query.message
+        if not msg or isinstance(msg, InaccessibleMessage):
+            return
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
-        async with ChatActionSender.typing(bot=self.bot, chat_id=query.message.chat.id):
+        async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             await state.set_state(SubscriptionStates.wait_for_paid)
             months = callback_data.months
             price_map = settings_bot.PRICE_MAP
@@ -257,7 +271,7 @@ class SubscriptionRouter(BaseRouter):
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             user = query.from_user
 
-            await query.message.edit_text(m_subscription["wait_for_paid"]["user"])
+            await msg.edit_text(m_subscription["wait_for_paid"]["user"])
 
             admin_message = m_subscription["wait_for_paid"]["admin"].format(
                 username=(
@@ -293,16 +307,19 @@ class SubscriptionRouter(BaseRouter):
             state (FSMContext): Контекст FSM.
 
         """
+        msg = query.message
+        if not msg or isinstance(msg, InaccessibleMessage):
+            return
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
-        async with ChatActionSender.typing(bot=self.bot, chat_id=query.message.chat.id):
+        async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             current_state = await state.get_state()
             await query.answer("Отменено ❌", show_alert=False)
             user_logger.info(f"Отмена подписки на шаге: {current_state}")
             # Если пользователь на втором шаге → вернуть к выбору периода
             if current_state == SubscriptionStates.select_period.state:
-                await query.message.edit_text(
+                await msg.edit_text(
                     text="Вы вернулись к выбору периода подписки ⏪",
                     reply_markup=subscription_options_kb(),
                 )
@@ -310,7 +327,8 @@ class SubscriptionRouter(BaseRouter):
                 return
 
             # Если пользователь на первом шаге или нет состояния → выйти в главное меню
-            await query.message.delete()
+            if msg is not None and not isinstance(msg, InaccessibleMessage):
+                await msg.delete()
             await self.bot.send_message(
                 chat_id=query.from_user.id,
                 text="Вы отменили оформление подписки.",
@@ -335,12 +353,15 @@ class SubscriptionRouter(BaseRouter):
             state (FSMContext): Контекст FSM.
 
         """
+        msg = query.message
+        if not msg or isinstance(msg, InaccessibleMessage):
+            return
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
         async with ChatActionSender.typing(
             bot=self.bot,
-            chat_id=query.message.chat.id,
+            chat_id=msg.chat.id,
         ):
             await query.answer("Админ подтвердил оплату", show_alert=False)
             user_id = callback_data.user_id
@@ -357,22 +378,28 @@ class SubscriptionRouter(BaseRouter):
                 raise UserNotFoundError(tg_id=user_id)
 
             try:
-                await query.bot.send_message(
-                    chat_id=user_id,
-                    text=m_subscription.get("accept_paid", {})
-                    .get("user", "")
-                    .format(
-                        months=months,
-                        premium=(
-                            user_schema.subscription.type.upper()
-                            if user_schema
-                            and user_schema.subscription
-                            and user_schema.subscription.type
-                            else "NO_SUBSCRIPTION"
+                bot = query.bot
+                if bot is not None:
+                    await bot.send_message(
+                        chat_id=user_id,
+                        text=m_subscription.get("accept_paid", {})
+                        .get("user", "")
+                        .format(
+                            months=months,
+                            premium=(
+                                user_schema.subscription.type.upper()
+                                if user_schema
+                                and user_schema.subscription
+                                and user_schema.subscription.type
+                                else "NO_SUBSCRIPTION"
+                            ),
                         ),
-                    ),
-                    reply_markup=main_kb(active_subscription=True),
-                )
+                        reply_markup=main_kb(active_subscription=True),
+                    )
+                else:
+                    self.logger.warning(
+                        f"Bot is None, cannot send message to user {user_id}"
+                    )
             except TelegramBadRequest:
                 await send_to_admins(
                     bot=self.bot,
@@ -407,12 +434,18 @@ class SubscriptionRouter(BaseRouter):
             state (FSMContext): Контекст FSM.
 
         """
+        msg = query.message
+        if not msg or isinstance(msg, InaccessibleMessage):
+            return
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
+        bot = query.bot
+        if not bot:
+            return
         async with ChatActionSender.typing(
             bot=self.bot,
-            chat_id=query.message.chat.id,
+            chat_id=msg.chat.id,
         ):
             await query.answer("Отклонено 🚫")
             user_id = callback_data.user_id
@@ -422,7 +455,7 @@ class SubscriptionRouter(BaseRouter):
                 f"Админ отклонил оплату пользователя {user_id} ({months} мес)"
             )
 
-            await query.bot.send_message(
+            await bot.send_message(
                 chat_id=user_id,
                 text=m_subscription.get("decline_paid", {}).get("user", ""),
                 reply_markup=main_kb(active_subscription=False),

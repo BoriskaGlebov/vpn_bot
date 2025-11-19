@@ -43,6 +43,7 @@ sqlalchemy = "^2.0.43"
 tokenize-rt = "^6.2.0"
 aiosqlite = "^0.21.0"
 types-aiofiles = "^25.1.0.20251011"
+types-python-dateutil = "^2.9.0.20251115"
 
 [build-system]
 requires = ["poetry-core"]
@@ -94,6 +95,7 @@ convention = "google"
 [tool.mypy]
 exclude = [
     "^venv/",
+    "^bot/tests/",
     "^bot/tests/integration/",
     "^bot/tests/unit/",
     "^build/",

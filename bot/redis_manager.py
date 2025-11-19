@@ -158,4 +158,4 @@ class SettingsRedis:
         self.logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
 
 
-redis_manager = SettingsRedis(str(settings_db.REDIS_URL), logger=logger)
+redis_manager = SettingsRedis(str(settings_db.REDIS_URL), logger=logger)  # type: ignore[arg-type]

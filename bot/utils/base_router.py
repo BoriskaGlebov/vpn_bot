@@ -91,7 +91,7 @@ class BaseRouter(ABC):
         data: dict[str, Any] = await state.get_data()
         counter_value: int = data.get(command_key, 0)
         counter_value += 1
-        await state.update_data(**{command_key: counter_value})
+        await state.update_data({command_key: counter_value})
         return counter_value
 
     @log_method
@@ -124,14 +124,21 @@ class BaseRouter(ABC):
                 counter = await self.counter_handler(command_key=state_me, state=state)
             if counter >= 2:
                 await state.clear()
-                answer_text = m_error.get("help_limit_reached", "").format(
-                    username=(
-                        f"@{message.from_user.username}"
-                        if message.from_user.username
-                        else message.from_user.full_name
-                        or f"Гость_{message.from_user.id}"
+
+                user = message.from_user
+                if user:
+                    username = (
+                        f"@{user.username}"
+                        if user.username
+                        else user.full_name or f"Гость_{user.id}"
                     )
+                else:
+                    username = "Гость"
+
+                answer_text = m_error.get("help_limit_reached", "").format(
+                    username=username
                 )
+
                 await message.answer(
                     text=answer_text, reply_markup=ReplyKeyboardRemove()
                 )

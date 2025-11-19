@@ -4,7 +4,7 @@ from aiogram import Bot, F
 from aiogram.filters import StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, InaccessibleMessage
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -111,6 +111,13 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
+        msg = query.message
+        if msg is None:
+            self.logger.error("CallbackQuery.message is None")
+            return
+        if isinstance(msg, InaccessibleMessage):
+            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             user_id: int | None = callback_data.telegram_id
             if user_id is None:
@@ -127,7 +134,7 @@ class AdminRouter(BaseRouter):
             if callback_data.action == "role_change":
                 await query.answer("Выбрал поменять роль.")
                 await state.set_state(AdminStates.select_role)
-                await query.message.edit_text(
+                await msg.edit_text(
                     f"{old_text}\n{'*' * 20}\nВыберите новую роль для пользователя:",
                     reply_markup=role_selection_kb(
                         filter_type=callback_data.filter_type,
@@ -139,7 +146,7 @@ class AdminRouter(BaseRouter):
             elif callback_data.action == "sub_manage":
                 await query.answer("Выбрал изменить срок подписки")
                 await state.set_state(AdminStates.select_period)
-                await query.message.edit_text(
+                await msg.edit_text(
                     f"{old_text}\n{'*' * 20}\nВыберите срок подписки для пользователя:",
                     reply_markup=subscription_selection_kb(
                         filter_type=callback_data.filter_type,
@@ -173,6 +180,13 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
+        msg = query.message
+        if msg is None:
+            self.logger.error("CallbackQuery.message is None")
+            return
+        if isinstance(msg, InaccessibleMessage):
+            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
+            return
 
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Поменял роль")
@@ -193,7 +207,7 @@ class AdminRouter(BaseRouter):
             old_text = await self.admin_service.format_user_text(
                 user_schema, "edit_user"
             )
-            await query.message.edit_text(
+            await msg.edit_text(
                 f"{old_text}\n{'*' * 20}\nРоль пользователя изменена на {role_name} ✅",
                 reply_markup=user_navigation_kb(
                     filter_type=role_name,
@@ -229,6 +243,13 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
+        msg = query.message
+        if msg is None:
+            self.logger.error("CallbackQuery.message is None")
+            return
+        if isinstance(msg, InaccessibleMessage):
+            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             user_id = callback_data.telegram_id
             months = callback_data.month
@@ -247,7 +268,7 @@ class AdminRouter(BaseRouter):
                     user_schema, "edit_user"
                 )
 
-                await query.message.edit_text(
+                await msg.edit_text(
                     f"{old_text}\n{'*' * 20}\nПодписка продлена на {months} мес. ✅",
                     reply_markup=admin_user_control_kb(
                         filter_type=callback_data.filter_type,
@@ -282,14 +303,21 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
+        msg = query.message
+        if msg is None:
+            self.logger.error("CallbackQuery.message is None")
+            return
+        if isinstance(msg, InaccessibleMessage):
+            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Отмена")
             user_id = callback_data.telegram_id
-            old_text = query.message.text
+            old_text = msg.text or ""
             users_schemas = await self.admin_service.get_users_by_filter(
                 session, callback_data.filter_type
             )
-            await query.message.edit_text(
+            await msg.edit_text(
                 text=old_text,
                 reply_markup=user_navigation_kb(
                     filter_type=callback_data.filter_type,
@@ -326,6 +354,13 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
+        msg = query.message
+        if msg is None:
+            self.logger.error("CallbackQuery.message is None")
+            return
+        if isinstance(msg, InaccessibleMessage):
+            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             filter_type = callback_data.filter_type
             await query.answer(f"Выбрал {filter_type}")
@@ -334,7 +369,7 @@ class AdminRouter(BaseRouter):
             )
 
             if not users_schemas:
-                await query.message.edit_text("Пользователи не найдены.")
+                await msg.edit_text("Пользователи не найдены.")
                 user_logger.warning(
                     f"Фильтр {callback_data.filter_type} не вернул пользователей"
                 )
@@ -354,7 +389,7 @@ class AdminRouter(BaseRouter):
                 total=len(users_schemas),
                 telegram_id=user.telegram_id,
             )
-            await query.message.edit_text(text, reply_markup=kb)
+            await msg.edit_text(text, reply_markup=kb)
 
     @connection()
     @BaseRouter.log_method
@@ -375,6 +410,13 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
+        msg = query.message
+        if msg is None:
+            self.logger.error("CallbackQuery.message is None")
+            return
+        if isinstance(msg, InaccessibleMessage):
+            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Следующая страница")
             users_schemas = await self.admin_service.get_users_by_filter(
@@ -385,7 +427,7 @@ class AdminRouter(BaseRouter):
                 user_logger.warning(
                     f"Фильтр {callback_data.filter_type} не вернул пользователей для навигации"
                 )
-                await query.message.edit_text("Пользователи не найдены.")
+                await msg.edit_text("Пользователи не найдены.")
                 return
             user_logger.info(
                 f"Навигация по пользователям фильтра {callback_data.filter_type}, страница {callback_data.index + 1}"
@@ -398,4 +440,4 @@ class AdminRouter(BaseRouter):
             kb = user_navigation_kb(
                 callback_data.filter_type, index, len(users_schemas), user.telegram_id
             )
-            await query.message.edit_text(text, reply_markup=kb)
+            await msg.edit_text(text, reply_markup=kb)

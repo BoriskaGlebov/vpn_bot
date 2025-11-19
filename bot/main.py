@@ -44,31 +44,36 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     logger.info("Запуск настройки бота...")
     await redis_manager.connect()
-    dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))
-    dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))
+    dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
+    dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.message.middleware(
-        UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)
+        UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)  # type: ignore[arg-type]
     )
     dp.callback_query.middleware(
-        UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)
+        UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)  # type: ignore[arg-type]
     )
 
     user_service = UserService(redis=redis_manager)
     user_router = UserRouter(
-        bot=bot, logger=logger, redis_manager=redis_manager, user_service=user_service
+        bot=bot,
+        logger=logger,
+        redis_manager=redis_manager,
+        user_service=user_service,  # type: ignore[arg-type]
     )
 
-    help_router = HelpRouter(bot=bot, logger=logger)
+    help_router = HelpRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
 
     admin_service = AdminService()
-    admin_router = AdminRouter(bot=bot, logger=logger, admin_service=admin_service)
+    admin_router = AdminRouter(bot=bot, logger=logger, admin_service=admin_service)  # type: ignore[arg-type]
 
-    subscription_service = SubscriptionService(bot=bot, logger=logger)
+    subscription_service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]
     subscription_router = SubscriptionRouter(
-        bot=bot, logger=logger, subscription_service=subscription_service
+        bot=bot,
+        logger=logger,
+        subscription_service=subscription_service,  # type: ignore[arg-type]
     )
     vpn_service = VPNService()
-    vpn_router = VPNRouter(bot=bot, logger=logger, vpn_service=vpn_service)
+    vpn_router = VPNRouter(bot=bot, logger=logger, vpn_service=vpn_service)  # type: ignore[arg-type]
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
@@ -184,6 +189,6 @@ if __name__ == "__main__":
     uvicorn.run(
         app="bot.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8088,
         reload=settings_bot.RELOAD_FAST_API,
     )
