@@ -7,12 +7,12 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Chat, Message, User
 from loguru import logger as real_logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from utils.init_default_roles import init_default_roles
 
 from bot.config import settings_bot
 from bot.database import Base
 from bot.redis_manager import SettingsRedis
 from bot.utils import commands
+from bot.utils.init_default_roles import init_default_roles
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
