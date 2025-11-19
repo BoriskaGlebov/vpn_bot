@@ -31,7 +31,8 @@ def load_dialogs(filename: Path | str | None = None) -> dict[str, Any]:
 
     if "bot" not in data:
         logger.warning(f"Ключ 'bot' отсутствует в файле {filename}")
-        return {}
+        # return {}
+        raise KeyError(f"Ключ 'bot' отсутствует в файле {filename}")
 
     bot_data = data["bot"]
     templates = bot_data.get("templates", {})
