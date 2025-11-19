@@ -90,6 +90,7 @@ def fake_state():
     fsm = AsyncMock(spec=FSMContext)
     fsm.get_data = AsyncMock(return_value={})
     fsm.clear = AsyncMock()
+    fsm.set_state = AsyncMock()
     return fsm
 
 
@@ -119,13 +120,18 @@ def make_fake_message():
 
 @pytest.fixture
 def make_fake_query(make_fake_message):
-    def _make(user_id: int = 999, data: str = ""):
+    def _make(
+        user_id: int = 999,
+        data: str = "",
+        username: str = "test_admin",
+        first_name: str = "Admin",
+    ):
         query = MagicMock(spec=CallbackQuery)
         query.from_user = User(
             id=user_id,
             is_bot=False,
-            first_name="Admin",
-            username="test_admin",
+            first_name=first_name,
+            username=username,
         )
         query.message = make_fake_message(user_id)
         query.id = f"query_{user_id}"
