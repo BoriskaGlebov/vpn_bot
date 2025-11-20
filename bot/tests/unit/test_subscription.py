@@ -3,6 +3,7 @@ from unittest.mock import ANY, AsyncMock, patch
 import pytest
 
 from bot.config import settings_bot
+from bot.redis_manager import SettingsRedis
 from bot.subscription.keyboards.inline_kb import (
     AdminPaymentCB,
     SubscriptionCB,
@@ -388,11 +389,14 @@ async def test_admin_confirm_payment_success(
     router = SubscriptionRouter(
         bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
     )
-
     # Мок зависимостей
-    monkeypatch.setattr("bot.utils.start_stop_bot.send_to_admins", AsyncMock())
-    monkeypatch.setattr("bot.utils.start_stop_bot.edit_admin_messages", AsyncMock())
-
+    monkeypatch.setattr(
+        "bot.subscription.router.send_to_admins", AsyncMock(return_value=[])
+    )
+    monkeypatch.setattr("bot.subscription.router.edit_admin_messages", AsyncMock())
+    monkeypatch.setattr(
+        "bot.subscription.router.redis_manager", AsyncMock(spec=SettingsRedis)
+    )
     # Вызов метода
     await router.admin_confirm_payment(
         query=query, state=state, callback_data=callback_data
