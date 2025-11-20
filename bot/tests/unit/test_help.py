@@ -1,95 +1,127 @@
-from unittest.mock import ANY, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from aiogram.types import CallbackQuery
 
-from bot.config import settings_bot
-from bot.help.router import help_cmd
-from bot.utils.commands import admin_commands, user_commands
-
-
-@pytest.mark.asyncio
-@pytest.mark.help
-async def test_help_cmd_for_admin(monkeypatch):
-    message = AsyncMock()
-    message.from_user.id = 123
-    state = AsyncMock()
-
-    monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
-    monkeypatch.setattr(
-        settings_bot, "MESSAGES", {"general": {"common_error": "Ошибка"}}
-    )
-
-    # act
-    await help_cmd(message, state)
-
-    # assert
-    state.clear.assert_awaited_once()
-
-    # Проверяем, что message.answer вызван с командами админа
-    expected_text = "\n".join(
-        f"/{cmd.command} - {cmd.description}" for cmd in admin_commands
-    )
-    message.answer.assert_awaited_once_with(text=expected_text, reply_markup=ANY)
+from bot.help.keyboards.inline_kb import device_keyboard
+from bot.help.router import HelpRouter, HelpStates, m_help
+from bot.help.utils.android_device import AndroidDevice
+from bot.help.utils.iphone_device import IphoneDevice
+from bot.help.utils.pc_device import PCDevice
+from bot.help.utils.tv_device import TVDevice
 
 
 @pytest.mark.asyncio
 @pytest.mark.help
-async def test_help_cmd_for_user(monkeypatch, fake_logger):
-    message = AsyncMock()
-    message.from_user.id = 999
-    state = AsyncMock()
+async def test_help_cmd(make_fake_message, fake_bot, fake_logger, fake_state):
+    router = HelpRouter(bot=fake_bot, logger=fake_logger)
+    fake_message = make_fake_message()
 
-    monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
-    monkeypatch.setattr(
-        settings_bot, "MESSAGES", {"general": {"common_error": "Ошибка"}}
-    )
-    # act
-    await help_cmd(message, state)
+    await router.help_cmd(fake_message, fake_state)
 
-    # assert
-    state.clear.assert_awaited_once()
-
-    expected_text = "\n".join(
-        f"/{cmd.command} - {cmd.description}" for cmd in user_commands
-    )
-    message.answer.assert_awaited_once_with(text=expected_text, reply_markup=ANY)
+    fake_state.clear.assert_awaited()
+    calls = fake_message.answer.await_args_list
+    first_call = calls[0].kwargs["text"]
+    expected_text = m_help.get("welcome")
+    assert first_call == expected_text
+    fake_state.set_state.assert_awaited_with(HelpStates.device_state)
+    actual_kb = calls[-1].kwargs["reply_markup"]
+    expected_kb = device_keyboard()
+    assert expected_kb == actual_kb
 
 
-# @pytest.mark.asyncio
-# @pytest.mark.help
-# async def test_help_cmd_handles_exception(monkeypatch, fake_logger):
-#     message = AsyncMock()
-#     message.from_user.id = 123
-#     state = AsyncMock()
-#     state.clear.return_value = AsyncMock()
-#
-#     monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
-#     monkeypatch.setattr(
-#         settings_bot, "MESSAGES", {"general": {"common_error": "Ошибка"}}
-#     )
-#
-#     monkeypatch.setattr("bot.help.router.logger", fake_logger)
-#
-#     call_count = 0
-#
-#     async def answer_side_effect(*args, **kwargs):
-#         nonlocal call_count
-#         call_count += 1
-#         if call_count == 1:
-#             raise Exception("fail")  # первый вызов бросает исключение
-#         return None  # второй вызов успешный
-#
-#     message.answer.side_effect = answer_side_effect
-#
-#     # act
-#     await help_cmd(message, state)
-#
-#     # assert
-#     state.clear.assert_awaited_once()
-#
-#     fake_logger.error.assert_called_once()
-#     logged_msg = fake_logger.error.call_args[0][0]
-#     assert "Ошибка при выполнении команды /help" in logged_msg
-#
-#     assert message.answer.await_count == 2
-#     assert message.answer.await_args_list[1].args[0] == "Ошибка"
+@pytest.mark.asyncio
+@pytest.mark.help
+@pytest.mark.parametrize(
+    "device_class,device_name",
+    [
+        (AndroidDevice, "android"),
+        (IphoneDevice, "ios"),
+        (PCDevice, "pc"),
+        (TVDevice, "tv"),
+        (None, "device_developer"),
+    ],
+)
+async def test_device_cb(
+    make_fake_message,
+    make_fake_query,
+    fake_bot,
+    fake_logger,
+    fake_state,
+    monkeypatch,
+    device_class,
+    device_name,
+):
+    router = HelpRouter(bot=fake_bot, logger=fake_logger)
+    fake_message = make_fake_message()
+    fake_call = make_fake_query(user_id=1, data=f"device_{device_name}")
+    fake_call.message = fake_message
+    fake_call.bot = fake_bot
+    fake_call.bot.send_message = AsyncMock()
+    fake_call.message.delete = AsyncMock()
+    if device_name != "device_developer":
+        monkeypatch.setattr(device_class, "send_message", AsyncMock())
+    await router.device_cb(fake_call, fake_state)
+    if device_name != "device_developer":
+        device_class.send_message.assert_awaited_with(
+            bot=fake_bot, chat_id=fake_message.chat.id
+        )
+        fake_state.clear.assert_awaited()
+        fake_call.answer.assert_awaited_with(
+            text=f"Ты выбрал {device_name}", show_alert=False
+        )
+    elif device_name == "device_developer":
+        # Проверяем, что сообщение удаляется
+        fake_message.delete.assert_awaited()
+        # Проверяем, что отправляется сообщение с контактами
+        fake_bot.send_message.assert_awaited_with(
+            text="Для связи напишите @BorisisTheBlade",
+            chat_id=fake_message.chat.id,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.help
+@pytest.mark.parametrize(
+    "device_class, device_key, media_folder",
+    [
+        (AndroidDevice, "android", "amnezia_android"),
+        (IphoneDevice, "iphone", "amnezia_iphone"),
+        (PCDevice, "pc", "amnezia_pc"),
+        (TVDevice, "tv", "amnezia_wg"),
+    ],
+)
+async def test_device_send_message(
+    fake_bot, monkeypatch, tmp_path, device_class, device_key, media_folder
+):
+    """Проверяет, что каждый класс устройства корректно отправляет фото с подписями."""
+
+    # --- Создаем временную директорию с "медиа" ---
+    media_dir = tmp_path / "bot" / "help" / "media" / media_folder
+    media_dir.mkdir(parents=True)
+    for i in range(3):
+        (media_dir / f"{i}.png").touch()
+    # --- Подготавливаем фейковые данные настроек ---
+    fake_messages = [f"Шаг {i}" for i in range(3)]
+    fake_settings = MagicMock()
+    fake_settings.BASE_DIR = tmp_path
+    fake_settings.MESSAGES = {
+        "modes": {"help": {"instructions": {device_key: fake_messages}}}
+    }
+
+    # --- Подменяем настройки и sleep ---
+    module_name = f"bot.help.utils.{device_key}_device"
+    monkeypatch.setattr(f"{module_name}.settings_bot", fake_settings)
+    monkeypatch.setattr(f"{module_name}.asyncio.sleep", AsyncMock())
+
+    # --- Вызываем тестируемый метод ---
+    await device_class.send_message(bot=fake_bot, chat_id=1234)
+    # --- Проверяем, что send_photo вызван 3 раза ---
+    assert fake_bot.send_photo.await_count == 3
+
+    # --- Проверяем подписи в каждом вызове ---
+    for i, call in enumerate(fake_bot.send_photo.await_args_list):
+        kwargs = call.kwargs
+        assert kwargs["chat_id"] == 1234
+        assert kwargs["caption"] == f"Шаг {i}"
+        assert str(kwargs["photo"].path).endswith(f"{i}.png")

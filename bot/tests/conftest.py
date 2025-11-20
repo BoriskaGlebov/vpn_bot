@@ -1,13 +1,20 @@
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram import Bot
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Chat, Message, User
 from loguru import logger as real_logger
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from bot.config import settings_bot
+from bot.database import Base
+from bot.redis_manager import SettingsRedis
 from bot.utils import commands
-from bot.vpn_router.utils.amnezia_vpn import AsyncSSHClientVPN
-from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
+from bot.utils.init_default_roles import init_default_roles
+from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
 
 @pytest.fixture
@@ -15,6 +22,7 @@ def fake_bot():
     bot = AsyncMock(spec=Bot)
     bot.get_me.return_value.first_name = "TestBot"
     bot.set_my_description.return_value = None
+    bot.send_message = AsyncMock()
     return bot
 
 
@@ -27,19 +35,122 @@ def fake_logger(monkeypatch):
 
 
 @pytest.fixture
+def fake_redis(fake_logger):
+    # Создаём экземпляр SettingsRedis, но подменяем методы асинхронными моками
+    redis = SettingsRedis(redis_url="redis://fake_url", logger=fake_logger)
+
+    # Подменяем методы на AsyncMock
+    redis.get_admin_messages = AsyncMock(return_value=[])
+    redis.clear_admin_messages = AsyncMock()
+    redis.save_admin_message = AsyncMock()
+
+    return redis
+
+
+@pytest.fixture
 def patch_deps(fake_bot, fake_logger, monkeypatch):
     monkeypatch.setattr(commands, "bot", fake_bot)
     monkeypatch.setattr(commands, "logger", fake_logger)
-    monkeypatch.setattr(settings_bot, "MESSAGES", {"description": "описание"})
+    monkeypatch.setattr(
+        settings_bot, "MESSAGES", {"description": "Описание работы Бота"}
+    )
     monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123, 456])
     return fake_bot, fake_logger
+
+
+@pytest.fixture(scope="session")
+def test_engine():
+    engine = create_async_engine("sqlite+aiosqlite:///./test.db", echo=False)
+    return engine
+
+
+@pytest.fixture(scope="session", autouse=True)
+async def setup_database(test_engine):
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield
+    async with test_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await test_engine.dispose()
+    os.remove("./test.db")
+
+
+@pytest.fixture()
+async def session(test_engine):
+    async_session = async_sessionmaker(
+        test_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with async_session() as session:
+        await init_default_roles(session=session)
+        yield session
+
+
+@pytest.fixture
+def fake_state():
+    fsm = AsyncMock(spec=FSMContext)
+    fsm.get_data = AsyncMock(return_value={})
+    fsm.clear = AsyncMock()
+    fsm.set_state = AsyncMock()
+    return fsm
+
+
+@pytest.fixture
+def make_fake_message():
+    def _make(user_id: int = 123):
+        user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=f"first_name_{user_id}",
+            username=f"username_{user_id}",
+        )
+        chat = Chat(id=user_id, type="private")
+        message = AsyncMock(spec=Message)
+        message.from_user = user
+        message.chat = chat
+        message.text = "/start"
+        message.message_id = 1000 + user_id
+        message.answer = AsyncMock()
+        message.answer_document = AsyncMock()
+        message.edit_text = AsyncMock()
+        message.delete = AsyncMock()
+        return message
+
+    return _make
+
+
+@pytest.fixture
+def make_fake_query(make_fake_message):
+    def _make(
+        user_id: int = 999,
+        data: str = "",
+        username: str = "test_admin",
+        first_name: str = "Admin",
+    ):
+        query = AsyncMock(spec=CallbackQuery)
+        query.from_user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=first_name,
+            username=username,
+        )
+        query.message = make_fake_message(user_id)
+        query.id = f"query_{user_id}"
+        query.data = data
+        query.bot = AsyncMock()
+        # Асинхронные методы
+        query.answer = AsyncMock()
+        query.message.edit_text = AsyncMock()  # чтобы гарантированно был async
+
+        return query
+
+    return _make
 
 
 @pytest.fixture
 def mock_asyncssh_connect():
     """Мок для asyncssh.connect"""
     with patch(
-        "bot.vpn_router.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_conn = AsyncMock()
         mock_process = AsyncMock()

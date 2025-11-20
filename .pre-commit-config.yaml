@@ -60,9 +60,11 @@ repos:
           - pydantic-settings
           - sqlalchemy
           - tokenize-rt
+          - types-python-dateutil
           - types-aiofiles
         args: [ --strict,
                 --ignore-missing-imports,
+                --no-warn-unused-ignores
         ]
         exclude: |
           (?x)^(

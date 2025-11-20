@@ -1,27 +1,109 @@
+from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from aiogram import Bot
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import SettingsBot
 from bot.config import bot as real_bot
+from bot.redis_manager import SettingsRedis
+from bot.subscription.models import Subscription, SubscriptionType
+from bot.users.dao import RoleDAO
+from bot.users.models import Role, User
+from bot.users.services import UserService
+
+
+@pytest.fixture(scope="session")
+def test_settings_bot() -> SettingsBot:
+    """Фикстура для загрузки тестовых настроек из .env.test."""
+    return SettingsBot(
+        _env_file=Path(__file__).resolve().parent.parent.parent.parent / ".env.test"
+    )
 
 
 @pytest.fixture
-async def test_bot():
-    """Фикстура для интеграционного теста с тестовым ботом."""
+def fake_redis() -> SettingsRedis:
+    """Простейший мок для Redis."""
+    return AsyncMock(spec=SettingsRedis)
 
-    test_settings = SettingsBot(
-        _env_file=Path(__file__).resolve().parent.parent.parent.parent / ".env.test"
+
+@pytest.fixture
+def user_service(fake_redis: SettingsRedis) -> UserService:
+    """Инстанс UserService с тестовым Redis."""
+    return UserService(redis=fake_redis)
+
+
+@pytest.fixture(scope="session")
+def test_admin_id(test_settings_bot: SettingsBot) -> int:
+    """Фикстура для получения ID администратора из настроек."""
+    return test_settings_bot.ADMIN_IDS[0]
+
+
+@pytest.fixture(scope="session")
+async def test_bot(test_settings_bot: SettingsBot) -> AsyncGenerator[Bot, Any]:
+    """Фикстура для интеграционных тестов с тестовым ботом."""
+    bot_instance = Bot(
+        token=test_settings_bot.BOT_TOKEN.get_secret_value(),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    test_admin_id = test_settings.ADMIN_IDS[0]  # Берем первый админ ID из .env.test
 
-    bot_instance = Bot(token=test_settings.BOT_TOKEN.get_secret_value())
-
-    # Патчим глобальный бот в коде на тестовый
+    # Патчим глобальный бот, чтобы код использовал именно тестовый экземпляр
     real_bot.__class__ = bot_instance.__class__
     real_bot.__dict__ = bot_instance.__dict__
 
-    yield real_bot, test_admin_id, test_settings
+    yield bot_instance
 
     await bot_instance.session.close()
+
+
+@pytest.fixture
+async def setup_roles(session: AsyncSession):
+    """Создаёт роли в базе для тестов."""
+    roles = await RoleDAO.find_all(session=session)
+    yield roles
+    for r in roles:
+        await session.delete(r)
+
+
+@pytest.fixture
+async def setup_users(session: AsyncSession, setup_roles):
+    """Создаёт пользователей с разными ролями и подписками."""
+    admin_role, founder_role, user_role = setup_roles
+
+    users = [
+        User(
+            first_name="Admin",
+            last_name="One",
+            username="admin1",
+            telegram_id=111,
+            role=admin_role,
+            subscription=Subscription(type=SubscriptionType.PREMIUM),
+        ),
+        User(
+            first_name="Founder",
+            last_name="Two",
+            username="founder1",
+            telegram_id=222,
+            role=founder_role,
+            subscription=Subscription(type=SubscriptionType.PREMIUM),
+        ),
+        User(
+            first_name="User",
+            last_name="Three",
+            username="user1",
+            telegram_id=333,
+            role=user_role,
+            subscription=Subscription(type=SubscriptionType.STANDARD),
+        ),
+    ]
+    session.add_all(users)
+    await session.commit()
+    yield users
+    for u in users:
+        await session.delete(u)
+    await session.commit()

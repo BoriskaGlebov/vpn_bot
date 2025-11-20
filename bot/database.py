@@ -4,6 +4,7 @@ from functools import wraps
 from typing import Annotated, Any, TypeVar, cast
 
 from sqlalchemy import func, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
     AsyncSession,
@@ -21,7 +22,7 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 int_pk = Annotated[int, mapped_column(primary_key=True, autoincrement=True)]
 created_at = Annotated[datetime, mapped_column(server_default=func.now())]
 updated_at = Annotated[
-    datetime, mapped_column(server_default=func.now(), onupdate=datetime.now)
+    datetime, mapped_column(server_default=func.now(), onupdate=func.now())
 ]
 str_uniq = Annotated[str, mapped_column(unique=True, nullable=False)]
 str_null_true = Annotated[str, mapped_column(nullable=True)]
@@ -55,6 +56,8 @@ def connection(isolation_level: str | None = None) -> Callable[[F], F]:
     def decorator(method: F) -> F:
         @wraps(method)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if isinstance(kwargs.get("session"), AsyncSession):
+                return await method(*args, **kwargs)
             async with async_session() as session:
                 try:
                     if isolation_level:
@@ -62,11 +65,9 @@ def connection(isolation_level: str | None = None) -> Callable[[F], F]:
                             text(f"SET TRANSACTION ISOLATION LEVEL {isolation_level}")
                         )
                     return await method(*args, session=session, **kwargs)
-                except Exception as e:
+                except SQLAlchemyError:
                     await session.rollback()
-                    raise e
-                finally:
-                    await session.close()
+                    raise
 
         return wrapper  # type: ignore[return-value]
 
@@ -110,4 +111,4 @@ class Base(AsyncAttrs, DeclarativeBase):
             dict[str, Any]: Словарь с данными модели.
 
         """
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        return {c.name: getattr(self, c.name) for c in self.__mapper__.columns}

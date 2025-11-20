@@ -4,15 +4,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from bot.vpn_router.utils.amnezia_exceptions import (
+from bot.vpn.utils.amnezia_exceptions import (
     AmneziaConfigError,
     AmneziaError,
     AmneziaSSHError,
 )
-from bot.vpn_router.utils.amnezia_wg import AsyncSSHClientWG
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_connect_success(ssh_client, mock_asyncssh_connect):
     mock_connect, mock_conn, mock_process = mock_asyncssh_connect
 
@@ -30,7 +30,8 @@ async def test_connect_success(ssh_client, mock_asyncssh_connect):
     assert ssh_client._process is mock_process
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_connect_failure(ssh_client, mock_asyncssh_connect):
     mock_connect, _, _ = mock_asyncssh_connect
     mock_connect.side_effect = OSError("connection error")
@@ -39,7 +40,8 @@ async def test_connect_failure(ssh_client, mock_asyncssh_connect):
         await ssh_client.connect()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_write_single_cmd_success(ssh_client):
     process_mock = AsyncMock()
     ssh_client._process = process_mock
@@ -52,14 +54,16 @@ async def test_write_single_cmd_success(ssh_client):
     assert result == ("output", "", 0, "echo test")
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_write_single_cmd_no_process(ssh_client):
     ssh_client._process = None
     with pytest.raises(AmneziaSSHError):
         await ssh_client.write_single_cmd("echo test")
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_write_single_cmd_success(ssh_client):
     mock_stdin = MagicMock()
     mock_stdin.drain = AsyncMock()
@@ -81,7 +85,8 @@ async def test_write_single_cmd_success(ssh_client):
     assert result[2] == 0
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_check_container_failure_not_root(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(return_value=("ubuntu", "", 0, "whoami"))
 
@@ -94,7 +99,8 @@ async def test_check_container_failure_not_root(ssh_client):
     assert error.cmd == "whoami"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_check_container_failure_error_in_cmd(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=("", "command not found", 1, "whoami")
@@ -104,7 +110,8 @@ async def test_check_container_failure_error_in_cmd(ssh_client):
         await ssh_client._check_container()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_generate_private_key_ok(ssh_client):
     async def fake_gen(commands):
         for cmd in commands:
@@ -115,7 +122,8 @@ async def test_generate_private_key_ok(ssh_client):
     assert key == "PRIVATE_KEY"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_generate_private_key_error(ssh_client):
     async def fake_gen(commands):
         for cmd in commands:
@@ -126,7 +134,8 @@ async def test_generate_private_key_error(ssh_client):
         await ssh_client._generate_private_key()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_generate_public_key_success(ssh_client):
     async def mock_gen(_):
         yield "PUBLIC_KEY_DATA", "", 0, "cat publickey"
@@ -138,7 +147,8 @@ async def test_generate_public_key_success(ssh_client):
     assert result == "PUBLIC_KEY_DATA"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_generate_public_key_error_stderr(ssh_client):
     async def mock_gen(_):
         yield "", "Ошибка генерации ключа", 1, "cat publickey"
@@ -153,7 +163,8 @@ async def test_generate_public_key_error_stderr(ssh_client):
     assert "Ошибка генерации ключа" in err.stderr
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_generate_public_key_none(ssh_client):
     async def mock_gen(_):
         if False:
@@ -166,7 +177,8 @@ async def test_generate_public_key_none(ssh_client):
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_vpn_params_config_ok(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -181,7 +193,8 @@ async def test_get_vpn_params_config_ok(ssh_client):
     assert params["H1"] == "test"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_vpn_params_config_error(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=("", "file not found", 1, "cmd")
@@ -191,7 +204,8 @@ async def test_get_vpn_params_config_error(ssh_client):
     assert "Ошибка получении конфига параметров VPN" in str(error)
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_correct_ip_success(ssh_client):
     async def mock_gen(_):
         yield "10.0.0.1/32", "", 0, "cat lastip"
@@ -203,7 +217,8 @@ async def test_get_correct_ip_success(ssh_client):
     assert result == "10.0.0.2/32"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_correct_ip_invalid_ip(ssh_client):
     async def mock_gen(_):
         yield "invalid_ip/32", "", 0, "cat lastip"
@@ -214,7 +229,8 @@ async def test_get_correct_ip_invalid_ip(ssh_client):
         await ssh_client._get_correct_ip()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_correct_ip_stderr(ssh_client):
     async def mock_gen(_):
         yield "", "Ошибка чтения файла", 1, "cat lastip"
@@ -230,7 +246,8 @@ async def test_get_correct_ip_stderr(ssh_client):
     assert "Ошибка чтения файла" in err.stderr
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_correct_ip_none(ssh_client):
     async def mock_gen(_):
         if False:
@@ -243,7 +260,8 @@ async def test_get_correct_ip_none(ssh_client):
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_psk_key_success(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(return_value=("PSK_KEY_DATA", "", 0, "cat"))
 
@@ -255,7 +273,8 @@ async def test_get_psk_key_success(ssh_client):
     assert result == "PSK_KEY_DATA"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_psk_key_stderr(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=("", "Ошибка чтения файла", 1, "cat")
@@ -270,7 +289,8 @@ async def test_get_psk_key_stderr(ssh_client):
     assert "Ошибка чтения файла" in err.stderr
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_psk_key_none(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(return_value=("", "", 0, "cat"))
 
@@ -278,7 +298,8 @@ async def test_get_psk_key_none(ssh_client):
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_public_server_key_success(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=("SERVER_PUBLIC_KEY", "", 0, "cat")
@@ -292,7 +313,8 @@ async def test_get_public_server_key_success(ssh_client):
     assert result == "SERVER_PUBLIC_KEY"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_public_server_key_stderr(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=("", "Ошибка чтения файла", 1, "cat")
@@ -307,7 +329,8 @@ async def test_get_public_server_key_stderr(ssh_client):
     assert "Ошибка чтения файла" in err.stderr
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_get_public_server_key_none(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(return_value=("", "", 0, "cat"))
 
@@ -315,7 +338,8 @@ async def test_get_public_server_key_none(ssh_client):
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_user_in_config_success(ssh_client):
     async def mock_gen(cmd):
         yield "OK", "", 0, cmd[-1]
@@ -331,7 +355,8 @@ async def test_add_user_in_config_success(ssh_client):
     assert result == "OK"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_user_in_config_stderr(ssh_client):
     async def mock_gen(cmds):
         yield "", "Ошибка при добавлении", 1, cmds[-1]
@@ -351,7 +376,8 @@ async def test_add_user_in_config_stderr(ssh_client):
     assert "Ошибка при добавлении" in err.stderr
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_user_in_config_none(ssh_client):
     async def mock_gen(cmds):
         yield "", "", 0, cmds[-1]
@@ -367,7 +393,8 @@ async def test_add_user_in_config_none(ssh_client):
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_generate_wg_config_success(ssh_client):
     ssh_client._get_vpn_params_config = AsyncMock(
         return_value=({"Jc": "value1", "H1": "value2"}, 51820)
@@ -393,7 +420,8 @@ async def test_generate_wg_config_success(ssh_client):
     assert "H1 = value2" in result
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_reboot_interface_success(ssh_client):
     async def mock_gen(cmds):
         yield "Interface restarted", "", 0, cmds[-1]
@@ -404,7 +432,8 @@ async def test_reboot_interface_success(ssh_client):
     assert result is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_reboot_interface_warning(ssh_client):
     async def mock_gen(cmds):
         yield "", "Warning: minor issue", 0, cmds[-1]
@@ -415,7 +444,8 @@ async def test_reboot_interface_warning(ssh_client):
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_reboot_interface_error(ssh_client):
     async def mock_gen(cmds):
         yield "", "Fatal error", 1, cmds[-1]
@@ -430,14 +460,15 @@ async def test_reboot_interface_error(ssh_client):
     assert err.stderr == "Fatal error"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_save_wg_config_success(ssh_client):
     ssh_client._generate_wg_config = AsyncMock(
         return_value="[Interface]\nAddress=10.0.0.2/32"
     )
 
     with patch(
-        "bot.vpn_router.utils.amnezia_wg.aiofiles.open", create=True
+        "bot.vpn.utils.amnezia_wg.aiofiles.open", create=True
     ) as mock_aiofiles_open:
         mock_file = AsyncMock()
         mock_aiofiles_open.return_value.__aenter__.return_value = mock_file
@@ -450,23 +481,25 @@ async def test_save_wg_config_success(ssh_client):
             preshared_key="PSK_KEY",
         )
 
-        assert result is True
+        assert isinstance(result, Path)
         ssh_client._generate_wg_config.assert_awaited_once_with(
             "10.0.0.2/32", "PRIVATE_KEY", "PUB_KEY", "PSK_KEY"
         )
 
         mock_aiofiles_open.assert_called_once()
         mock_file.write.assert_awaited_once_with("[Interface]\nAddress=10.0.0.2/32")
+        result.unlink(missing_ok=True)
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_save_wg_config_auto_conf_extension(ssh_client):
     ssh_client._generate_wg_config = AsyncMock(
         return_value="[Interface]\nAddress=10.0.0.3/32"
     )
 
     with patch(
-        "bot.vpn_router.utils.amnezia_wg.aiofiles.open", create=True
+        "bot.vpn.utils.amnezia_wg.aiofiles.open", create=True
     ) as mock_aiofiles_open:
         mock_file = AsyncMock()
         mock_aiofiles_open.return_value.__aenter__.return_value = mock_file
@@ -480,18 +513,16 @@ async def test_save_wg_config_auto_conf_extension(ssh_client):
             preshared_key="PSK_KEY",
         )
 
-        expected_path = (
-            Path(__file__).resolve().parent.parent.parent
-            / "vpn_router"
-            / "utils"
-            / "user_cfg"
-            / f"{filename}.conf"
-        )
-        mock_aiofiles_open.assert_called_with(expected_path, "w", encoding="utf-8")
-        assert result is True
+        assert isinstance(result, Path)
+        assert result.suffix == ".conf"
+
+        mock_aiofiles_open.assert_called_once_with(result, "w", encoding="utf-8")
+        mock_file.write.assert_awaited_once_with("[Interface]\nAddress=10.0.0.3/32")
+        result.unlink(missing_ok=True)
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_to_clients_table_success(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(json.dumps([]), "", 0, f"cat {ssh_client.WG_CLIENTS_TABLE}")
@@ -509,7 +540,8 @@ async def test_add_to_clients_table_success(ssh_client):
     ssh_client._conn.run.assert_awaited_once()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_to_clients_table_client_exists(ssh_client):
     existing_data = [{"clientId": "PUB_KEY", "userData": {"clientName": "Test Client"}}]
     ssh_client.write_single_cmd = AsyncMock(
@@ -525,7 +557,8 @@ async def test_add_to_clients_table_client_exists(ssh_client):
     assert result is True
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_to_clients_table_stderr(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -544,7 +577,8 @@ async def test_add_to_clients_table_stderr(ssh_client):
     assert "Ошибка чтения файла" in err.stderr
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_to_clients_table_bad_json(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=("невалидный JSON", "", 0, f"cat {ssh_client.WG_CLIENTS_TABLE}")
@@ -554,7 +588,8 @@ async def test_add_to_clients_table_bad_json(ssh_client):
         await ssh_client._add_to_clients_table("PUB_KEY", "Test Client")
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_to_clients_table_docker_write_error(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(json.dumps([]), "", 0, f"cat {ssh_client.WG_CLIENTS_TABLE}")
@@ -574,7 +609,8 @@ async def test_add_to_clients_table_docker_write_error(ssh_client):
     assert err.stderr == "Ошибка записи"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_temp_files_success(ssh_client):
     async def mock_gen(cmd):
         for c in cmd:
@@ -586,7 +622,8 @@ async def test_delete_temp_files_success(ssh_client):
     assert result is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_temp_files_stderr(ssh_client):
     async def mock_gen(cmd):
         yield "", "", 0, cmd[0]
@@ -602,7 +639,8 @@ async def test_delete_temp_files_stderr(ssh_client):
     assert "Ошибка удаления" in err.stderr
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_new_user_gen_config_success(ssh_client):
     ssh_client._check_container = AsyncMock()
     ssh_client._generate_private_key = AsyncMock(return_value="PRIVATE_KEY")
@@ -639,7 +677,8 @@ async def test_add_new_user_gen_config_success(ssh_client):
     ssh_client._reboot_interface.assert_awaited_once()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_new_user_gen_config_raises_amnezia_error(ssh_client):
     ssh_client._check_container = AsyncMock(side_effect=AmneziaError("Container error"))
 
@@ -650,7 +689,8 @@ async def test_add_new_user_gen_config_raises_amnezia_error(ssh_client):
     assert "Container error" in str(err)
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_user_wg0_success(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -672,7 +712,8 @@ async def test_delete_user_wg0_success(ssh_client):
     ssh_client._conn.run.assert_awaited_once()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_user_wg0_not_found(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -686,7 +727,8 @@ async def test_delete_user_wg0_not_found(ssh_client):
     assert result is False
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_user_wg0_read_error(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=("", "Ошибка чтения файла", 1, f"cat {ssh_client.WG_CONF}")
@@ -698,7 +740,8 @@ async def test_delete_user_wg0_read_error(ssh_client):
     assert err.file == ssh_client.WG_CONF
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_user_wg0_write_error(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -719,7 +762,8 @@ async def test_delete_user_wg0_write_error(ssh_client):
     assert "Ошибка записи wg0.conf" in str(err)
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_from_clients_table_success(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -740,7 +784,8 @@ async def test_delete_from_clients_table_success(ssh_client):
     ssh_client._conn.run.assert_awaited_once()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_from_clients_table_not_found(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -754,7 +799,8 @@ async def test_delete_from_clients_table_not_found(ssh_client):
     assert result is False
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_from_clients_table_read_error(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -771,7 +817,8 @@ async def test_delete_from_clients_table_read_error(ssh_client):
     assert err.file == f"{ssh_client.WG_DIR}/clientsTable"
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_delete_from_clients_table_write_error(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(
@@ -792,7 +839,8 @@ async def test_delete_from_clients_table_write_error(ssh_client):
     assert "Ошибка при удалении ключа" in str(err)
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_full_delete_user_success(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(return_value=True)
     ssh_client._delete_from_clients_table = AsyncMock(return_value=True)
@@ -805,7 +853,8 @@ async def test_full_delete_user_success(ssh_client):
     ssh_client._reboot_interface.assert_awaited_once()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_full_delete_user_not_found(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(return_value=True)
     ssh_client._delete_from_clients_table = AsyncMock(return_value=False)
@@ -816,19 +865,21 @@ async def test_full_delete_user_not_found(ssh_client):
     ssh_client._reboot_interface.assert_not_awaited()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_full_delete_user_exception(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(side_effect=AmneziaError("Ошибка"))
     ssh_client._delete_from_clients_table = AsyncMock()
     ssh_client._reboot_interface = AsyncMock()
 
-    result = await ssh_client.full_delete_user("PUB_KEY")
-    assert result is False
+    with pytest.raises(AmneziaError):
+        await ssh_client.full_delete_user("PUB_KEY")
     ssh_client._delete_from_clients_table.assert_not_awaited()
     ssh_client._reboot_interface.assert_not_awaited()
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_close(ssh_client):
     mock_stdin = MagicMock()
     mock_stdin.drain = AsyncMock()
@@ -853,7 +904,8 @@ async def test_close(ssh_client):
     assert ssh_client._process is None
 
 
-@pytest.mark.asyncio
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_aenter_aeexit(ssh_client):
     # Мокаем connect и close
     ssh_client.connect = AsyncMock()
