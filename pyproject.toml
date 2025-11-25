@@ -106,6 +106,7 @@ exclude = [
     "bot/admin",
     "bot/vpn",
     "bot/subscription",
+    "bot/help",
     "bot/users"
 ]
 plugins = [
