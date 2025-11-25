@@ -209,3 +209,4 @@ __marimo__/
 /.env.test
 /bot/vpn_router/utils/user_cfg/
 /.env.local
+/bot/vpn/utils/user_cfg/

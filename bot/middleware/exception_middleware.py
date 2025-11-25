@@ -1,7 +1,9 @@
-from collections.abc import Awaitable, Callable
-from typing import Any
+from __future__ import annotations
 
-from aiogram import BaseMiddleware
+from collections.abc import Awaitable, Callable
+from typing import Any, cast
+
+from aiogram import BaseMiddleware, Bot
 from aiogram.exceptions import (
     RestartingTelegram,
     TelegramAPIError,
@@ -17,8 +19,12 @@ from aiogram.exceptions import (
     TelegramUnauthorizedError,
 )
 from aiogram.types import CallbackQuery, Message, TelegramObject
+from loguru._logger import Logger
 
-from bot.config import logger, settings_bot
+from bot.app_error.base_error import UserNotFoundError, VPNLimitError
+from bot.config import settings_bot
+
+Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
 
 class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
@@ -45,26 +51,87 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
     """
 
-    def __init__(self) -> None:
+    def __init__(self, logger: Logger, bot: Bot) -> None:
         super().__init__()
+        self.logger = logger
+        self.bot = bot
+
         self.error_messages: dict[type[Exception], str] = {
-            TelegramRetryAfter: "⚠️ Слишком много запросов. Попробуйте позже.",
-            TelegramForbiddenError: "⚠️ Доступ запрещён. Возможно, бот был удалён или заблокирован.",
-            TelegramUnauthorizedError: "⚠️ Неверный токен бота.",
-            TelegramNotFound: "⚠️ Не удалось найти чат или сообщение.",
+            TelegramRetryAfter: "⚠️ Слишком много запросов.",
+            TelegramForbiddenError: "⚠️ Доступ запрещён.",
+            TelegramUnauthorizedError: "⚠️ Ошибка авторизации.",
+            TelegramNotFound: "⚠️ Объект не найден.",
             TelegramBadRequest: "⚠️ Неверный запрос.",
-            TelegramEntityTooLarge: "⚠️ Файл слишком большой для отправки.",
-            TelegramNetworkError: "⚠️ Проблемы на стороне Telegram. Попробуйте позже.",
-            TelegramServerError: "⚠️ Проблемы на стороне Telegram. Попробуйте позже.",
-            RestartingTelegram: "⚠️ Проблемы на стороне Telegram. Попробуйте позже.",
-            TelegramMigrateToChat: "⚠️ Чат был перемещен. Попробуйте повторно.",
-            TelegramConflictError: "⚠️ Конфликт токена бота. Попробуйте позже.",
-            TelegramAPIError: "⚠️ Ошибка Telegram API. Попробуйте повторить действие.",
+            TelegramEntityTooLarge: "⚠️ Файл слишком большой.",
+            TelegramNetworkError: "⚠️ Ошибка сети Telegram.",
+            TelegramServerError: "⚠️ Ошибка сервера Telegram.",
+            RestartingTelegram: "⚠️ Telegram временно недоступен.",
+            TelegramMigrateToChat: "⚠️ Чат был перемещён.",
+            TelegramConflictError: "⚠️ Конфликт токена.",
+            TelegramAPIError: "⚠️ Ошибка Telegram API.",
         }
+
+        self.default_user_message = cast(
+            str,
+            settings_bot.MESSAGES.get("general", {}).get(
+                "common_error", "⚠️ Произошла ошибка. Попробуйте позже."
+            ),
+        )
+
+    def _resolve_user_message(self, exc: Exception) -> str:
+        """Универсальный метод получения сообщения для пользователя."""
+        if isinstance(exc, VPNLimitError):
+            return (
+                f"⚠️ Пользователь достиг лимита конфигов ({exc.limit}/ {exc.limit}).\n"
+                f"Если  нужно больше обратитесь в поддержку @BorisisTheBlade."
+            )
+        if isinstance(exc, UserNotFoundError):
+            return "⚠️ Пользователь не найден."
+        for exc_type, message in self.error_messages.items():
+            if isinstance(exc, exc_type):
+                if isinstance(exc, TelegramRetryAfter):
+                    return f"⚠️ Слишком много запросов. Попробуйте через {exc.retry_after} секунд."
+                if isinstance(exc, TelegramBadRequest):
+                    return f"⚠️ Неверный запрос: {exc.message}"
+
+                return message
+        return self.default_user_message
+
+    async def _safe_send_error(self, event: TelegramObject, text: str) -> None:
+        """Универсальная отправка сообщения пользователю."""
+        try:
+            if isinstance(event, Message):
+                await event.reply(text)
+            elif isinstance(event, CallbackQuery) and event.message:
+                await event.message.answer(text)
+        except Exception:
+            self.logger.warning("Не удалось отправить ошибку пользователю")
+
+    async def _notify_admins(self, event: TelegramObject, exc: Exception) -> None:
+        """Отправляет сообщение админам с подробной информацией об ошибке."""
+        try:
+            user = getattr(event, "from_user", None)
+            user_info = (
+                f"{user.username} ({user.id})" if user else "Неизвестный пользователь"
+            )
+            update_id = getattr(event, "update_id", None)
+            exc_type = type(exc).__name__
+            exc_text = str(exc)
+
+            msg = (
+                f"⚠️ Ошибка у пользователя {user_info}\n"
+                f"update_id: {update_id}\n"
+                f"type: {exc_type}\n"
+                f"message: {exc_text}"
+            )
+            for admin_id in settings_bot.ADMIN_IDS:
+                await self.bot.send_message(chat_id=admin_id, text=msg)
+        except Exception:
+            self.logger.warning("Не удалось отправить сообщение админам")
 
     async def __call__(
         self,
-        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        handler: Handler,
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
@@ -72,38 +139,24 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         try:
             return await handler(event, data)
 
-        except Exception as exception:
+        except Exception as exc:
             user_id: int | None = None
-            if isinstance(event, Message) and event.from_user is not None:
-                user_id = event.from_user.id
-            elif isinstance(event, CallbackQuery) and event.from_user is not None:
-                user_id = event.from_user.id
+            user = getattr(event, "from_user", None)
 
-            user_message = settings_bot.MESSAGES.get("general", {}).get(
-                "common_error", "⚠️ Произошла ошибка. Попробуйте позже."
-            )
+            if user is not None:
+                user_id = getattr(user, "id", None)
 
-            for exc_type, message in self.error_messages.items():
-                if isinstance(exception, exc_type):
-                    if isinstance(exception, TelegramRetryAfter):
-                        user_message = f"⚠️ Слишком много запросов. Попробуйте через {exception.retry_after} секунд."
-                    elif isinstance(exception, TelegramBadRequest):
-                        user_message = f"⚠️ Неверный запрос: {exception.message}"
-                    else:
-                        user_message = message
-                    break
-
-            try:
-                if isinstance(event, Message):
-                    await event.reply(user_message)
-                elif isinstance(event, CallbackQuery) and event.message is not None:
-                    await event.message.answer(user_message)
-            except Exception:
-                logger.exception("Не удалось отправить сообщение пользователю")
-
+            user_message = self._resolve_user_message(exc)
+            await self._safe_send_error(event, user_message)
+            await self._notify_admins(event, exc)
             update_id = getattr(event, "update_id", None)
-            logger.bind(user=user_id).exception(
-                "Ошибка при обработке update. user_id=%s, update_id=%s",
-                user_id,
-                update_id,
+            exception_type = type(exc).__name__
+            self.logger.bind(
+                user=user_id,
+            ).exception(
+                f"[update_id] - {update_id}\n"
+                f"[exception_type]{exception_type}\n"
+                f"Ошибка при обработке обновления"
             )
+
+            return None
