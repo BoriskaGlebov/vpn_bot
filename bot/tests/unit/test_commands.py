@@ -14,9 +14,15 @@ async def test_set_bot_commands_success(patch_deps, fake_bot, fake_logger):
     await commands.set_bot_commands()
     # assert
     fake_bot.set_my_commands.assert_any_call(commands.user_commands, scope=ANY)
+    fake_bot.set_my_commands.assert_any_call(commands.group_commands, scope=ANY)
+    fake_bot.set_my_commands.assert_any_call(commands.admin_commands, scope=ANY)
     for call in fake_bot.set_my_commands.call_args_list[1:]:
         args, kwargs = call
-        assert args[0] == commands.admin_commands
+        assert args[0] in (
+            commands.group_commands,
+            commands.admin_commands,
+            commands.user_commands,
+        )
     fake_logger.error.assert_not_called()
 
 
