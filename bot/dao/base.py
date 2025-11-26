@@ -270,7 +270,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"[DAO] Подсчет количества записей {cls.model.__name__} по фильтру: {filter_dict}"
         )
         # noinspection PyTypeChecker
-        query = select(func.count(cls.model.id)).where(
+        query = select(func.count(cls.model.id)).where(  # type: ignore[attr-defined]
             and_(*cls._build_filters(filter_dict))
         )  # type: ignore
         result = await session.execute(query)
