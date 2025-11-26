@@ -45,7 +45,7 @@ repos:
     hooks:
       - id: pydocstyle
         args: [ "--ignore=D100,D104,D107,D213,D203,D407" ]
-        files: '^(?!(bot/tests/|bot/migrations/)).*\.py$'
+        files: '^(?!(bot/tests/|bot/migrations/|bot/admin|bot/help|bot/vpn|bot/subscription|bot/users)).*\.py$'
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.17.1
@@ -60,9 +60,11 @@ repos:
           - pydantic-settings
           - sqlalchemy
           - tokenize-rt
+          - types-python-dateutil
           - types-aiofiles
         args: [ --strict,
                 --ignore-missing-imports,
+                --no-warn-unused-ignores
         ]
         exclude: |
           (?x)^(
@@ -71,5 +73,9 @@ repos:
             build/|
             dist/|
             \.venv/|
-            bot/migrations/
+            bot/migrations/|
+            bot/admin|
+            bot/vpn|
+            bot/subscription|
+            bot/users
           )

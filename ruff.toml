@@ -26,7 +26,8 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
-    "tests"
+    "tests",
+    "migrations"
 ]
 
 # Same as Black.

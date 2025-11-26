@@ -1,31 +1,48 @@
-from aiogram.dispatcher.router import Router
-from aiogram.filters import Command
+from __future__ import annotations
+
+from aiogram import Bot
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import CallbackQuery, Message
+from loguru._logger import Logger
 
 from bot.config import settings_bot
-from bot.utils.commands import admin_commands, user_commands
+from bot.help.utils.android_device import AndroidDevice
+from bot.help.utils.common_device import Device
+from bot.help.utils.iphone_device import IphoneDevice
+from bot.help.utils.pc_device import PCDevice
+from bot.help.utils.tv_device import TVDevice
+from bot.utils.base_router import BaseRouter
 
-help_router = Router()
+m_help = settings_bot.MESSAGES.get("modes", {}).get("help", {})
 
 
-@help_router.message(Command("help"))  # type: ignore
-async def help_cmd(message: Message, state: FSMContext) -> None:
-    """Обрабатывает команду /help и отправляет пользователю список доступных команд.
+class HelpStates(StatesGroup):  # type: ignore[misc]
+    """Состояния FSM для команды /help."""
 
-    Показывает разные команды для обычных пользователей и администраторов.
-    """
-    user_id = message.from_user.id if message.from_user is not None else None
+    device_state: State = State()
 
-    command_list = [
-        f"/{cmd.command} - {cmd.description}"
-        for cmd in (
-            admin_commands if user_id in settings_bot.ADMIN_IDS else user_commands
-        )
-    ]
 
-    await state.clear()
+class HelpRouter(BaseRouter):
+    """Роутер для обработки команды /help и выбора устройства."""
 
-    await message.answer(
-        text="\n".join(command_list), reply_markup=ReplyKeyboardRemove()
-    )
+    DEVICE_MAP: dict[str, type[Device]] = {
+        "android": AndroidDevice,
+        "ios": IphoneDevice,
+        "pc": PCDevice,
+        "tv": TVDevice,
+    }
+
+    def __init__(self, bot: Bot, logger: Logger) -> None:
+        super().__init__(bot, logger)
+
+    def _register_handlers(self) -> None:
+        pass
+
+    @BaseRouter.log_method
+    async def help_cmd(self, message: Message, state: FSMContext) -> None:
+        pass
+
+    @BaseRouter.log_method
+    async def device_cb(self, call: CallbackQuery, state: FSMContext) -> None:
+        pass
