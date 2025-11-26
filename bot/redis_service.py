@@ -6,8 +6,6 @@ from loguru._logger import Logger
 from bot.config import logger
 from bot.redis_manager import SettingsRedis, redis_manager
 
-# TODO нет тестов
-
 
 class RedisAdminMessageStorage:
     """Хранение сообщений администраторов в Redis."""
