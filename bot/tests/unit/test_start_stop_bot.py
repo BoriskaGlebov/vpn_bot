@@ -124,35 +124,36 @@ async def test_send_to_admins_handles_bad_request(monkeypatch, fake_logger, fake
 
 @pytest.mark.asyncio
 @pytest.mark.utils
-async def test_edit_admin_messages_success(monkeypatch, fake_bot, fake_redis):
+async def test_edit_admin_messages_success(monkeypatch, fake_bot, fake_redis_service):
     # fake_bot = AsyncMock()
-    fake_redis.get_admin_messages = AsyncMock(
+    fake_redis_service.get = AsyncMock(
         return_value=[
             {"chat_id": 1, "message_id": 101},
             {"chat_id": 2, "message_id": 102},
         ]
     )
-    fake_redis.clear_admin_messages = AsyncMock()
 
     await start_module.edit_admin_messages(
-        bot=fake_bot, user_id=10, new_text="Новый текст", redis_manager=fake_redis
+        bot=fake_bot,
+        user_id=10,
+        new_text="Новый текст",
+        redis_admin_mess_storage=fake_redis_service,
     )
 
     assert fake_bot.edit_message_text.await_count == 2
-    fake_redis.clear_admin_messages.assert_awaited_once_with(10)
+    fake_redis_service.clear.assert_awaited_once_with(10)
 
 
 @pytest.mark.asyncio
 @pytest.mark.utils
 async def test_edit_admin_messages_handles_bad_request(
-    monkeypatch, fake_logger, fake_bot, fake_redis
+    monkeypatch, fake_logger, fake_bot, fake_redis_service
 ):
-    fake_redis.get_admin_messages = AsyncMock(
+    fake_redis_service.get = AsyncMock(
         return_value=[
             {"chat_id": 1, "message_id": 101},
         ]
     )
-    fake_redis.clear_admin_messages = AsyncMock()
 
     async def raise_bad_request(*args, **kwargs):
         raise TelegramBadRequest(method="edit_message_text", message="bad request")
@@ -163,8 +164,11 @@ async def test_edit_admin_messages_handles_bad_request(
     )  # замени module_name
 
     await start_module.edit_admin_messages(
-        bot=fake_bot, user_id=10, new_text="Тест", redis_manager=fake_redis
+        bot=fake_bot,
+        user_id=10,
+        new_text="Тест",
+        redis_admin_mess_storage=fake_redis_service,
     )
 
     fake_logger.warning.assert_called_once()
-    fake_redis.clear_admin_messages.assert_awaited_once_with(10)
+    fake_redis_service.clear.assert_awaited_once_with(10)

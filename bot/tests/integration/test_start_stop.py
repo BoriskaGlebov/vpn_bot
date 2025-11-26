@@ -7,9 +7,8 @@ from bot.main import start_bot, stop_bot
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_start_and_stop(test_bot, test_admin_id, test_settings_bot):
+async def test_start_and_stop(test_bot, test_settings_bot):
     bot = test_bot
-    admin_id = test_admin_id
     test_settings = test_settings_bot
     try:
         await start_bot(bot=test_bot)
@@ -25,7 +24,6 @@ async def test_start_and_stop(test_bot, test_admin_id, test_settings_bot):
 
     description_response = await bot(GetMyDescription())
     description_text = description_response.description
-    print(description_text)
     assert description_text, "Описание бота не установлено"
     inf_bot = await test_bot.get_me()
     assert (test_settings.MESSAGES["description"].strip()).format(

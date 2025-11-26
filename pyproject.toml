@@ -22,6 +22,7 @@ pydantic-settings = "^2.10.1"
 redis = "^6.4.0"
 python-dateutil = "^2.9.0.post0"
 apscheduler = "^3.11.1"
+orjson = "^3.11.4"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -106,8 +107,7 @@ exclude = [
     "bot/admin",
     "bot/vpn",
     "bot/subscription",
-    "bot/help",
-    "bot/users"
+    "bot/help"
 ]
 plugins = [
     "pydantic.mypy",
