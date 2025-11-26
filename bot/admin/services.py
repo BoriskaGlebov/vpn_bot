@@ -18,6 +18,7 @@ class AdminService:
     ) -> list[SUserOut]:
         pass
 
+    # TODO В константы или enum такое выносят
     @staticmethod
     async def format_user_text(suser: SUserOut, key: str = "user") -> str:
         pass

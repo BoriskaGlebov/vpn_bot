@@ -33,44 +33,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         Это должен быть тип модели,
                           указанный в дочернем классе.
 
-    Methods
-        find_one_or_none_by_id(data_id: int, session: AsyncSession) -> Optional[T]:
-            Находит одну запись по ее ID.
 
-        find_one_or_none(session: AsyncSession, filters: BaseModel) -> Optional[T]:
-            Находит одну запись по фильтрам.
-
-        find_all(session: AsyncSession, filters: BaseModel) -> List[T]:
-            Находит все записи по фильтрам.
-
-        add(session: AsyncSession, values: BaseModel) -> T:
-            Добавляет новую запись в базу данных.
-
-        add_many(session: AsyncSession, instances: List[BaseModel]) -> List[T]:
-            Добавляет несколько записей в базу данных.
-
-        update(session: AsyncSession, filters: BaseModel, values: BaseModel) -> int:
-            Обновляет записи, соответствующие фильтрам.
-
-        delete(session: AsyncSession, filters: BaseModel) -> int:
-            Удаляет записи, соответствующие фильтрам.
-
-        count(session: AsyncSession, filters: BaseModel) -> int:
-            Подсчитывает количество записей по фильтрам.
-
-        paginate(session: AsyncSession, page: int = 1,
-        page_size: int = 10, filters: BaseModel = None) -> List[T]:
-            Пагинирует записи по фильтрам, возвращая записи для указанной страницы.
-
-        find_by_ids(session: AsyncSession, ids: List[int]) -> List[T]:
-            Находит несколько записей по списку ID.
-
-        upsert(session: AsyncSession, unique_fields: List[str], values: BaseModel) -> T:
-            Выполняет операцию "upsert": создает запись, если
-            она не существует, или обновляет существующую.
-
-        bulk_update(session: AsyncSession, records: List[BaseModel]) -> int:
-            Массово обновляет записи в базе данных.
 
     """
 
@@ -110,7 +73,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
                 logger.info(f"[DAO] Запись с ID {data_id} не найдена.")
             return record
         except SQLAlchemyError as e:
-            logger.info(f"[DAO] Ошибка при поиске записи с ID {data_id}: {e}")
+            logger.error(f"[DAO] Ошибка при поиске записи с ID {data_id}: {e}")
             raise
 
     @classmethod
@@ -479,6 +442,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             await session.rollback()
             logger.info(f"[DAO] Ошибка при upsert: {e}")
             raise
+
+    # TODO Если нет Id то и обновить нельзя? И никому об этом не скажем? Отличный план
+    # Я тут пока плохо понимаю как это работает так как не пользовался
 
     @classmethod
     async def bulk_update(cls, session: AsyncSession, records: list[BaseModel]) -> int:

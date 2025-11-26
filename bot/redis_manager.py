@@ -21,7 +21,7 @@ class SettingsRedis:
 
     """
 
-    DEFAULT_EXPIRE = 3600
+    DEFAULT_EXPIRE = settings_db.DEFAULT_EXPIRE
 
     def __init__(self, redis_url: str, logger: Logger) -> None:
         self.url = redis_url
@@ -99,6 +99,8 @@ class SettingsRedis:
         redis = await self._ensure_connection()
         await redis.delete(key)
 
+    # TODO Проеткла абстракция -- класс это клиент для работы с редисом. А тут какая-то бизнеслогика у тебя я поправлю как буду использовать что б сразу не поломалось
+    # TODO orjson
     async def save_admin_message(
         self, user_id: int, admin_id: int, message_id: int, expire: int | None = None
     ) -> None:

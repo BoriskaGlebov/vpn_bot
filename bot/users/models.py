@@ -4,6 +4,7 @@ from sqlalchemy import BigInteger, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bot.database import Base, int_pk, str_null_true, str_uniq
+from bot.subscription.models import Subscription
 from bot.vpn.models import VPNConfig
 
 if TYPE_CHECKING:

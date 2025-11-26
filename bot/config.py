@@ -97,7 +97,7 @@ class SettingsDB(BaseSettings):
         REDIS_PORT (int): Порт Redis-сервера. По умолчанию 6379.
         NUM_DB (int): Номер базы данных Redis. По умолчанию 0.
         REDIS_USER (str) : Имя пользователя Redis для приложения.
-
+        DEFAULT_EXPIRE (int) : Время жизни ключей в Redis по умолчанию (в секундах). По умолчанию 3600 секунд (1 час).
     Properties
         DATABASE_URL (str): Строка подключения к PostgreSQL в формате
             `postgresql+asyncpg://user:password@host:port/database`.
@@ -119,6 +119,7 @@ class SettingsDB(BaseSettings):
     REDIS_PASSWORD: SecretStr
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
+    DEFAULT_EXPIRE: int = 3600
     REDIS_USER: str
     NUM_DB: int = 0
 
