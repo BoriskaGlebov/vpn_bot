@@ -66,4 +66,4 @@ class RedisAdminMessageStorage:
         self.logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
 
 
-redis_admin_mess_storage = RedisAdminMessageStorage(redis_manager, logger)
+redis_admin_mess_storage = RedisAdminMessageStorage(redis_manager, logger)  # type: ignore[arg-type]
