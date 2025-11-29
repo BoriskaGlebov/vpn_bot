@@ -32,12 +32,12 @@ class RedisAdminMessageStorage:
         messages: list[dict[str, Any]] = []
         if existing:
             try:
-                messages = orjson.loads(existing)
+                messages = existing
             except orjson.JSONDecodeError:
                 messages = []
 
         messages.append({"chat_id": admin_id, "message_id": message_id})
-        await self.redis.set(key, orjson.dumps(messages))
+        await self.redis.set(key, messages)
         self.logger.debug(f"💾 Сохранены админские сообщения user_id={user_id}")
 
     async def get(self, user_id: int) -> list[dict[str, Any]]:

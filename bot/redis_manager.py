@@ -1,5 +1,6 @@
-from typing import cast
+from typing import Any
 
+import orjson
 from loguru._logger import Logger
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
@@ -61,32 +62,34 @@ class SettingsRedis:
         assert self.client is not None
         return self.client
 
-    async def get(self, key: str) -> bytes | None:
+    async def get(self, key: str) -> Any:
         """Возвращает значение по ключу.
 
         Args:
             key (str): Ключ для получения значения.
 
         Returns
-            bytes | None: Значение ключа или None, если ключ не найден.
+            Any: Значение ключа или None, если ключ не найден.
 
         """
         redis = await self._ensure_connection()
-        value = await redis.get(key)
-        return cast(bytes | None, value)
+        row = await redis.get(key)
 
-    async def set(self, key: str, value: bytes, expire: int | None = None) -> None:
+        return orjson.loads(row) if row else None
+
+    async def set(self, key: str, value: Any, expire: int | None = None) -> None:
         """Сохраняет значение по ключу с опциональным временем жизни.
 
         Args:
             key (str): Ключ для сохранения значения.
-            value (str): Значение для сохранения.
+            value (Any): Значение для сохранения.
             expire (int | None): Время жизни ключа в секундах. Если None, используется DEFAULT_EXPIRE.
 
         """
         redis = await self._ensure_connection()
         ttl = expire or self.DEFAULT_EXPIRE
-        await redis.set(key, value, ex=ttl)
+        row = orjson.dumps(value)
+        await redis.set(key, row, ex=ttl)
 
     async def delete(self, key: str) -> None:
         """Удаляет ключ из Redis.
