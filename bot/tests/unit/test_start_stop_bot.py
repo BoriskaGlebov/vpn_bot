@@ -137,7 +137,7 @@ async def test_edit_admin_messages_success(monkeypatch, fake_bot, fake_redis_ser
         bot=fake_bot,
         user_id=10,
         new_text="Новый текст",
-        redis_admin_mess_storage=fake_redis_service,
+        admin_mess_storage=fake_redis_service,
     )
 
     assert fake_bot.edit_message_text.await_count == 2
@@ -167,7 +167,7 @@ async def test_edit_admin_messages_handles_bad_request(
         bot=fake_bot,
         user_id=10,
         new_text="Тест",
-        redis_admin_mess_storage=fake_redis_service,
+        admin_mess_storage=fake_redis_service,
     )
 
     fake_logger.warning.assert_called_once()

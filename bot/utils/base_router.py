@@ -144,3 +144,19 @@ class BaseRouter(ABC):
                 )
             else:
                 await message.answer(text=answer_text)
+
+    @staticmethod
+    def require_user(func: F) -> F:
+        """Декоратор, проверяющий наличие пользователя в сообщении."""
+
+        @functools.wraps(func)
+        async def wrapper(
+            self: SelfT, message: Message, *args: Any, **kwargs: Any
+        ) -> Any:
+            user = message.from_user
+            if user is None:
+                self.logger.error("message.from_user is None")
+                return None
+            return await func(self, message, *args, **kwargs)
+
+        return wrapper

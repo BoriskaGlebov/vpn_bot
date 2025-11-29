@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any
 
 from aiogram import Bot, F
@@ -43,6 +44,12 @@ INVALID_FOR_ADMIN = [
     "⚙️ Админ-панель",
     "❓ Помощь в настройке VPN",
 ]
+
+
+class ChatType(str, Enum):
+    """Типы чатов в Telegram."""
+
+    PRIVATE = "private"
 
 
 class UserStates(StatesGroup):  # type: ignore[misc]
@@ -91,7 +98,7 @@ class UserRouter(BaseRouter):
             self.admin_start,
             and_f(
                 or_f(Command("admin"), F.text.contains("⚙️ Панель администратора")),
-                F.chat.type == "private",
+                F.chat.type == ChatType.PRIVATE,
             ),
         )
 
@@ -114,6 +121,7 @@ class UserRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
+    @BaseRouter.require_user
     async def cmd_start(
         self,
         message: Message,
@@ -136,16 +144,13 @@ class UserRouter(BaseRouter):
 
         """
         user = message.from_user
-        if user is None:
-            self.logger.error("message.from_user is None")
-            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
             user_info, is_new = await self.user_service.register_or_get_user(
                 session=session, telegram_user=user
             )
             welcome_messages = m_start.get("welcome", {})
-            if message.chat.type != "private":
+            if message.chat.type != ChatType.PRIVATE:
                 bot_inf = await self.bot.get_me()
                 await message.answer(
                     f"Чтобы начать работу, перейдите ко мне в личные сообщения 👉 @{bot_inf.username}"
@@ -216,6 +221,7 @@ class UserRouter(BaseRouter):
             await state.set_state(UserStates.press_start)
 
     @BaseRouter.log_method
+    @BaseRouter.require_user
     async def admin_start(
         self, message: Message, state: FSMContext, **kwargs: Any
     ) -> None:
@@ -236,9 +242,6 @@ class UserRouter(BaseRouter):
 
         """
         user = message.from_user
-        if user is None:
-            self.logger.error("message.from_user is None")
-            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
 

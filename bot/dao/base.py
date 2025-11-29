@@ -1,3 +1,5 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import (
     Any,
     Generic,
@@ -7,7 +9,7 @@ from typing import (
 
 from loguru import logger
 from pydantic import BaseModel
-from sqlalchemy import and_, delete, func, select
+from sqlalchemy import ColumnElement, and_, delete, func, select
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,19 +46,33 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         return filters.model_dump(exclude_unset=True) if filters else {}
 
     @classmethod
-    def _build_filters(cls, f: dict[str, Any]) -> list[Any]:
+    def _build_filters(cls, f: dict[str, Any]) -> ColumnElement[bool] | bool:
         """Построение фильтров для SQLAlchemy из словаря."""
-        return [getattr(cls.model, k) == v for k, v in f.items()]
+        # noinspection PyTypeChecker
+        filters = [getattr(cls.model, k) == v for k, v in f.items()]
+        return and_(*filters) if filters else True
 
     @staticmethod
-    async def _commit(session: AsyncSession) -> None:
-        """Коммит изменений в сессии с обработкой ошибок."""
+    @asynccontextmanager
+    async def transaction(session: AsyncSession) -> AsyncGenerator[AsyncSession, Any]:
+        """Универсальный транзакционный менеджер с логированием."""
         try:
-            await session.commit()
+            async with session.begin():
+                yield session
+            logger.debug("[DAO] Транзакция успешно зафиксирована.")
         except SQLAlchemyError as e:
-            logger.error(f"[DAO] Ошибка коммита: {e}")
-            await session.rollback()
+            logger.error(f"[DAO] Ошибка транзакции: {e}")
             raise
+
+    # @staticmethod
+    # async def _commit(session: AsyncSession) -> None:
+    #     """Коммит изменений в сессии с обработкой ошибок."""
+    #     try:
+    #         await session.commit()
+    #     except SQLAlchemyError as e:
+    #         logger.error(f"[DAO] Ошибка коммита: {e}")
+    #         await session.rollback()
+    #         raise
 
     @classmethod
     async def find_one_or_none_by_id(
@@ -74,14 +90,14 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         """
         # noinspection PyTypeChecker
         logger.info(f"[DAO] Поиск {cls.model.__name__} с ID: {data_id}")
+        async with cls.transaction(session):
+            # noinspection PyTypeChecker
+            query = select(cls.model).where(cls.model.id == data_id)  # type: ignore[attr-defined]
 
-        # noinspection PyTypeChecker
-        query = select(cls.model).where(cls.model.id == data_id)  # type: ignore[attr-defined]
-
-        result = await session.execute(query)
-        record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
-        logger.debug(f"[DAO] Результат поиска id={data_id}: {record!r}")
-        return record
+            result = await session.execute(query)
+            record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
+            logger.debug(f"[DAO] Результат поиска id={data_id}: {record!r}")
+            return record
 
     @classmethod
     async def find_one_or_none(
@@ -103,12 +119,14 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
         )
         logger.debug(f"[DAO] Фильтры → условия: {cls._build_filters(filter_dict)}")
-        # noinspection PyTypeChecker
-        query = select(cls.model).where(and_(*cls._build_filters(filter_dict)))
-        result = await session.execute(query)
-        record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
-        logger.debug(f"[DAO] Найдено: {record!r}")
-        return record
+        async with cls.transaction(session):
+            # noinspection PyTypeChecker
+            filters = cls._build_filters(filter_dict)
+            query = select(cls.model).where(filters)
+            result = await session.execute(query)
+            record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
+            logger.debug(f"[DAO] Найдено: {record!r}")
+            return record
 
     @classmethod
     async def find_all(
@@ -129,12 +147,14 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         logger.info(
             f"[DAO] Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
         )
-        # noinspection PyTypeChecker
-        query = select(cls.model).where(and_(*cls._build_filters(filter_dict)))
-        result = await session.execute(query)
-        records = cast(list[T], result.scalars().all())
-        logger.debug(f"[DAO] Найдено {len(records)} записей.")
-        return records
+        async with cls.transaction(session):
+            filters = cls._build_filters(filter_dict)
+            # noinspection PyTypeChecker
+            query = select(cls.model).where(filters)
+            result = await session.execute(query)
+            records = cast(list[T], result.scalars().all())
+            logger.debug(f"[DAO] Найдено {len(records)} записей.")
+            return records
 
     @classmethod
     async def add(cls, session: AsyncSession, values: BaseModel) -> T:
@@ -153,12 +173,19 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         logger.info(
             f"[DAO] Добавление записи {cls.model.__name__} с параметрами: {values_dict}"
         )
-        # noinspection PyTypeChecker
-        new_instance = cast(T, cls.model(**values_dict))  # type: ignore [redundant-cast]
-        session.add(new_instance)
-        await cls._commit(session)
-        logger.debug(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
-        return new_instance
+        try:
+            async with cls.transaction(session):
+                new_instance = cast(T, cls.model(**values_dict))  # type: ignore [redundant-cast]
+                session.add(new_instance)
+                # noinspection PyTypeChecker
+                logger.debug(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
+                return new_instance
+        except SQLAlchemyError as e:
+            # noinspection PyTypeChecker
+            logger.error(
+                f"[DAO] Ошибка при добавлении записи {cls.model.__name__}: {e}"
+            )
+            raise
 
     @classmethod
     async def update(
@@ -183,20 +210,27 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"{filter_dict} с параметрами: {values_dict}"
         )
         # noinspection PyTypeChecker
+        filters = cls._build_filters(filter_dict)
         query = (
             sqlalchemy_update(cls.model)
-            .where(*cls._build_filters(filter_dict))
+            .where(filters)
             .values(**values_dict)
             .execution_options(synchronize_session="fetch")
         )
+        try:
+            async with cls.transaction(session):
+                result = await session.execute(query)
+                rowcount: int = getattr(result, "rowcount", 0) or 0
 
-        result = await session.execute(query)
-        await cls._commit(session)
-        rowcount: int = getattr(result, "rowcount", 0) or 0
+                logger.debug(f"[DAO] Обновлено {rowcount} записей.")
 
-        logger.debug(f"[DAO] Обновлено {rowcount} записей.")
-
-        return rowcount or 0
+                return rowcount or 0
+        except SQLAlchemyError as e:
+            # noinspection PyTypeChecker
+            logger.error(
+                f"[DAO] Ошибка при обновлении записей {cls.model.__name__}: {e}"
+            )
+            raise
 
     @classmethod
     async def delete(cls, session: AsyncSession, filters: BaseModel) -> int:
@@ -218,13 +252,19 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         if not filter_dict:
             logger.error("[DAO] Нужен хотя бы один фильтр для удаления.")
             raise ValueError("Нужен хотя бы один фильтр для удаления.")
-        # noinspection PyTypeChecker
-        query = delete(cls.model).where(and_(*cls._build_filters(filter_dict)))
-        result = await session.execute(query)
-        await cls._commit(session)
-        rowcount: int = getattr(result, "rowcount", 0) or 0
-        logger.info(f"[DAO] Удалено {rowcount} записей.")
-        return rowcount or 0
+        try:
+            async with cls.transaction(session):
+                filters = cls._build_filters(filter_dict)
+                # noinspection PyTypeChecker
+                query = delete(cls.model).where(filters)
+                result = await session.execute(query)
+                rowcount: int = getattr(result, "rowcount", 0) or 0
+                logger.info(f"[DAO] Удалено {rowcount} записей.")
+                return rowcount or 0
+        except SQLAlchemyError as e:
+            # noinspection PyTypeChecker
+            logger.error(f"[DAO] Ошибка при удалении записей {cls.model.__name__}: {e}")
+            raise
 
     @classmethod
     async def add_many(
@@ -245,12 +285,19 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         logger.info(
             f"[DAO] Добавление нескольких записей {cls.model.__name__}. Количество: {len(values_list)}"
         )
-        # noinspection PyTypeChecker
-        new_instances = [cls.model(**values) for values in values_list]
-        session.add_all(new_instances)
-        await cls._commit(session)
-        logger.info(f"[DAO] Успешно добавлено {len(new_instances)} записей.")
-        return new_instances
+        try:
+            async with cls.transaction(session):
+                # noinspection PyTypeChecker
+                new_instances = [cls.model(**values) for values in values_list]
+                session.add_all(new_instances)
+                logger.info(f"[DAO] Успешно добавлено {len(new_instances)} записей.")
+                return new_instances
+        except SQLAlchemyError as e:
+            # noinspection PyTypeChecker
+            logger.error(
+                f"[DAO] Ошибка при добавлении нескольких записей {cls.model.__name__}: {e}"
+            )
+            raise
 
     @classmethod
     async def count(cls, session: AsyncSession, filters: BaseModel) -> int:
@@ -269,14 +316,14 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         logger.info(
             f"[DAO] Подсчет количества записей {cls.model.__name__} по фильтру: {filter_dict}"
         )
-        # noinspection PyTypeChecker
-        query = select(func.count(cls.model.id)).where(  # type: ignore[attr-defined]
-            and_(*cls._build_filters(filter_dict))
-        )  # type: ignore
-        result = await session.execute(query)
-        count = cast(int, result.scalar())
-        logger.debug(f"[DAO] Найдено {count} записей.")
-        return count or 0
+        async with cls.transaction(session):
+            filters = cls._build_filters(filter_dict)
+            # noinspection PyTypeChecker
+            query = select(func.count(cls.model.id)).where(filters)  # type: ignore
+            result = await session.execute(query)
+            count = cast(int, result.scalar())
+            logger.debug(f"[DAO] Найдено {count} записей.")
+            return count or 0
 
     @classmethod
     async def find_by_ids(cls, session: AsyncSession, ids: list[int]) -> list[T]:
@@ -294,10 +341,10 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         logger.info(f"[DAO] Поиск записей {cls.model.__name__} по списку ID: {ids}")
         if not ids:
             return []
-
-        # noinspection PyTypeChecker
-        query = select(cls.model).where(cls.model.id.in_(ids))  # type: ignore[attr-defined]
-        result = await session.execute(query)
-        records = cast(list[T], result.scalars().all())
-        logger.debug(f"[DAO] Найдено {len(records)} записей по списку ID.")
-        return records
+        async with cls.transaction(session):
+            # noinspection PyTypeChecker
+            query = select(cls.model).where(cls.model.id.in_(ids))  # type: ignore[attr-defined]
+            result = await session.execute(query)
+            records = cast(list[T], result.scalars().all())
+            logger.debug(f"[DAO] Найдено {len(records)} записей по списку ID.")
+            return records
