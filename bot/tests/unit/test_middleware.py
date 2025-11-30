@@ -106,7 +106,7 @@ async def test_user_action_logging_middleware(
     # Проверяем, что bind вызывался с пользователем
     fake_logger.bind.assert_called_with(user=fake_message.from_user.username)
     event_type = type(fake_message).__name__
-    logged_msgs = [call.args[0] for call in fake_logger.info.call_args_list]
+    logged_msgs = [call.args[0] for call in fake_logger.debug.call_args_list]
 
     # Проверки формата логов
     assert any(
