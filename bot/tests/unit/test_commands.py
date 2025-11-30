@@ -53,8 +53,8 @@ async def test_set_bot_commands_admin_chat_not_found_logs_error(
 @pytest.mark.parametrize(
     "admin_ids",
     [
-        [123, 456],
-        [*[num for num in range(100)], 456],
+        {123, 456},
+        {*[num for num in range(100)], 456},
     ],
 )
 @pytest.mark.asyncio
@@ -73,7 +73,7 @@ async def test_set_bot_commands_other_telegram_error_raises(
         return None
 
     fake_bot.set_my_commands.side_effect = side_effect
-    monkeypatch.setattr(commands.settings_bot, "ADMIN_IDS", admin_ids)
+    monkeypatch.setattr(commands.settings_bot, "admin_ids", admin_ids)
     # act
     with pytest.raises(TelegramBadRequest):
         await commands.set_bot_commands()

@@ -74,7 +74,7 @@ async def test_admin_start_with_admin_monkeypatch(
     # Настраиваем пользователя как админа
     from bot.config import settings_bot
 
-    monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
+    monkeypatch.setattr(settings_bot, "admin_ids", {123})
 
     # Создаём роутер с моками
     router = UserRouter(
@@ -104,7 +104,7 @@ async def test_admin_start_non_admin_monkeypatch(
     # Настраиваем ADMIN_IDS так, чтобы пользователь не был админом
     from bot.config import settings_bot
 
-    monkeypatch.setattr(settings_bot, "ADMIN_IDS", [123])
+    monkeypatch.setattr(settings_bot, "admin_ids", {123})
 
     # Создаём роутер с моками
     router = UserRouter(
