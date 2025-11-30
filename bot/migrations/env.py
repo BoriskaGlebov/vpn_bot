@@ -32,7 +32,7 @@ target_metadata = Base.metadata
 
 
 # Используем синхронный драйвер psycopg2 для Alembic
-sync_url = settings_db.DATABASE_URL.replace("asyncpg", "psycopg2")
+sync_url = settings_db.database_url.replace("asyncpg", "psycopg2")
 config.set_main_option("sqlalchemy.url", sync_url)
 
 

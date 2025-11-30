@@ -15,17 +15,17 @@ from bot.config import (
 # Команды для обычных пользователей
 user_commands: list[BotCommand] = [
     BotCommand(command=command, description=description)
-    for command, description in settings_bot.MESSAGES["commands"]["users"].items()
+    for command, description in settings_bot.messages["commands"]["users"].items()
 ]
 
 # Команды для администраторов
 admin_commands: list[BotCommand] = [
     BotCommand(command=command, description=description)
-    for command, description in settings_bot.MESSAGES["commands"]["admins"].items()
+    for command, description in settings_bot.messages["commands"]["admins"].items()
 ]
 group_commands = [
     BotCommand(command=command, description=description)
-    for command, description in settings_bot.MESSAGES["commands"]["group"].items()
+    for command, description in settings_bot.messages["commands"]["group"].items()
 ]
 
 
@@ -40,7 +40,7 @@ async def set_bot_commands() -> None:
     await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
 
-    for admin_id in settings_bot.ADMIN_IDS:
+    for admin_id in settings_bot.admin_ids:
         try:
             await bot.set_my_commands(
                 admin_commands, scope=BotCommandScopeChat(chat_id=admin_id)

@@ -1,5 +1,5 @@
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -8,7 +8,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from loguru import logger
-from pydantic import Field, SecretStr, computed_field
+from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from bot.dialogs.dialogs_text import dialogs
@@ -21,50 +21,50 @@ class SettingsBot(BaseSettings):
     """Конфигурация бота и логирования.
 
     Attributes
-        BOT_TOKEN (SecretStr): Токен бота для подключения к Telegram Bot API.
-        ADMIN_IDS (list[int]): Список Telegram ID администраторов с расширенными правами.
-        BASE_SITE (str): Базовый URL сайта, используемый для формирования вебхука.
-        VPN_HOST (str): Хост VPN-сервера.
-        VPN_USERNAME (str): Имя пользователя для подключения к VPN.
-        VPN_CONTAINER (str): Имя Docker-контейнера VPN (если используется).
-        MAX_CONFIGS_PER_USER (int): Максимальное количество файлов конфига для одного пользователя
-        USE_POLLING (bool): Использовать polling вместо webhook (по умолчанию False, удобно для тестов).
-        DEBUG_FAST_API (bool): Включить режим отладки FastAPI.
-        RELOAD_FAST_API (bool): Включить автоматическую перезагрузку FastAPI при изменениях кода.
-        BASE_DIR (Path): Корневая директория проекта, вычисляется автоматически.
-        LOGGER_LEVEL_STDOUT (str): Уровень логирования для стандартного вывода.
-        LOGGER_LEVEL_FILE (str): Уровень логирования для файла логов.
-        LOGGER_ERROR_FILE (str): Уровень логирования для ошибок в отдельном файле.
-        MESSAGES (dict[str, Any]): Словарь с текстами сообщений бота (диалоги, подсказки и т.д.).
-        PRICE_MAP (dict[int, int]): Карта цен подписок по месяцам, может быть задана через .env в JSON.
+        bot_token (SecretStr): Токен бота для подключения к Telegram Bot API.
+        admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
+        base_site (str): Базовый URL сайта, используемый для формирования вебхука.
+        vpn_host (str): Хост VPN-сервера.
+        vpn_username (str): Имя пользователя для подключения к VPN.
+        vpn_container (str): Имя Docker-контейнера VPN (если используется).
+        max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
+        use_polling (bool): Использовать polling вместо webhook (по умолчанию False, удобно для тестов).
+        debug_fast_api (bool): Включить режим отладки FastAPI.
+        reload_fast_api (bool): Включить автоматическую перезагрузку FastAPI при изменениях кода.
+        base_dir (Path): Корневая директория проекта, вычисляется автоматически.
+        logger_level_stdout (str): Уровень логирования для стандартного вывода.
+        logger_level_file (str): Уровень логирования для файла логов.
+        logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
+        messages (dict[str, Any]): Словарь с текстами сообщений бота (диалоги, подсказки и т.д.).
+        price_map (dict[int, int]): Карта цен подписок по месяцам, может быть задана через .env в JSON.
         model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
     Properties
-        WEBHOOK_URL (str): URL вебхука. Формируется автоматически на основе BASE_SITE.
+        webhook_url (str): URL вебхука. Формируется автоматически на основе BASE_SITE.
 
     """
 
-    BOT_TOKEN: SecretStr
-    ADMIN_IDS: list[int]
-    BASE_SITE: str
+    bot_token: SecretStr
+    admin_ids: set[int] | str = ""
+    base_site: str
 
-    VPN_HOST: str
-    VPN_USERNAME: str
-    VPN_CONTAINER: str
-    MAX_CONFIGS_PER_USER: int = 10
+    vpn_host: str
+    vpn_username: str
+    vpn_container: str
+    max_configs_per_user: int = 10
 
-    USE_POLLING: bool = False
-    DEBUG_FAST_API: bool = False
-    RELOAD_FAST_API: bool = False
+    use_polling: bool = False
+    debug_fast_api: bool = False
+    reload_fast_api: bool = False
 
-    BASE_DIR: Path = Path(__file__).resolve().parent.parent
+    base_dir: Path = Path(__file__).resolve().parent.parent
 
-    LOGGER_LEVEL_STDOUT: str = "INFO"
-    LOGGER_LEVEL_FILE: str = "INFO"
-    LOGGER_ERROR_FILE: str = "WARNING"
+    logger_level_stdout: str = "INFO"
+    logger_level_file: str = "INFO"
+    logger_error_file: str = "WARNING"
 
-    MESSAGES: dict[str, Any] = dialogs
+    messages: dict[str, Any] = dialogs
 
-    PRICE_MAP: dict[int, int] = Field(
+    price_map: dict[int, int] = Field(
         default_factory=lambda: {1: 70, 3: 160, 6: 300, 12: 600, 7: 0},
         description="Карта цен подписок по месяцам",
     )
@@ -78,31 +78,45 @@ class SettingsBot(BaseSettings):
     )
 
     @computed_field
-    def WEBHOOK_URL(self) -> str:
+    def webhook_url(self) -> str:
         """Возвращает URL вебхука."""
-        return f"{self.BASE_SITE}/webhook"
+        return f"{self.base_site}/webhook"
+
+    @field_validator("admin_ids", mode="before")
+    @classmethod
+    def parse_admin_ids(cls, v: Any) -> set[int]:
+        """Парсит строку с ID администраторов в множество целых чисел."""
+        if isinstance(v, str):
+            return set(int(i) for i in v.split(",") if i.strip().isdigit())
+        if isinstance(v, Iterable):
+            try:
+                return {int(i) for i in v}
+            except (ValueError, TypeError):
+                raise ValueError("admin_ids должна содержать только целые числа")
+
+        raise TypeError("admin_ids должно быть строкой или коллекцией")
 
 
 class SettingsDB(BaseSettings):
     """Конфигурация базы данных и Redis для проекта.
 
     Attributes
-        DB_HOST (str): Хост PostgreSQL-сервера. По умолчанию "localhost".
-        DB_PORT (int): Порт PostgreSQL-сервера. По умолчанию 5432.
-        DB_USER (str): Имя пользователя для подключения к базе данных.
-        DB_PASSWORD (SecretStr): Пароль пользователя для подключения к базе данных.
-        DB_DATABASE (str): Имя базы данных.
-        REDIS_PASSWORD (SecretStr): Пароль для подключения к Redis.
-        REDIS_HOST (str): Хост Redis-сервера. По умолчанию "localhost".
-        REDIS_PORT (int): Порт Redis-сервера. По умолчанию 6379.
-        NUM_DB (int): Номер базы данных Redis. По умолчанию 0.
-        REDIS_USER (str) : Имя пользователя Redis для приложения.
-        DEFAULT_EXPIRE (int) : Время жизни ключей в Redis по умолчанию (в секундах). По умолчанию 3600 секунд (1 час).
+        db_host (str): Хост PostgreSQL-сервера. По умолчанию "localhost".
+        db_port (int): Порт PostgreSQL-сервера. По умолчанию 5432.
+        db_user (str): Имя пользователя для подключения к базе данных.
+        db_password (SecretStr): Пароль пользователя для подключения к базе данных.
+        db_database (str): Имя базы данных.
+        redis_password (SecretStr): Пароль для подключения к Redis.
+        redis_host (str): Хост Redis-сервера. По умолчанию "localhost".
+        redis_port (int): Порт Redis-сервера. По умолчанию 6379.
+        num_db (int): Номер базы данных Redis. По умолчанию 0.
+        redis_user (str) : Имя пользователя Redis для приложения.
+        default_expire (int) : Время жизни ключей в Redis по умолчанию (в секундах). По умолчанию 3600 секунд (1 час).
     Properties
-        DATABASE_URL (str): Строка подключения к PostgreSQL в формате
+        database_url (str): Строка подключения к PostgreSQL в формате
             `postgresql+asyncpg://user:password@host:port/database`.
             Формируется автоматически из указанных выше атрибутов.
-        REDIS_URL (str): Строка подключения к Redis в формате
+        redis_url (str): Строка подключения к Redis в формате
             `redis://:password@host:port/db_number`.
     Configuration
         model_config (SettingsConfigDict): Конфигурация pydantic settings
@@ -110,18 +124,18 @@ class SettingsDB(BaseSettings):
 
     """
 
-    DB_HOST: str = "postgres"
-    DB_PORT: int = 5432
-    DB_USER: str
-    DB_PASSWORD: SecretStr
-    DB_DATABASE: str
+    db_host: str = "postgres"
+    db_port: int = 5432
+    db_user: str
+    db_password: SecretStr
+    db_database: str
 
-    REDIS_PASSWORD: SecretStr
-    REDIS_HOST: str = "redis"
-    REDIS_PORT: int = 6379
-    DEFAULT_EXPIRE: int = 3600
-    REDIS_USER: str
-    NUM_DB: int = 0
+    redis_password: SecretStr
+    redis_host: str = "redis"
+    redis_port: int = 6379
+    default_expire: int = 3600
+    redis_user: str
+    num_db: int = 0
 
     model_config = SettingsConfigDict(
         env_file=[
@@ -133,7 +147,7 @@ class SettingsDB(BaseSettings):
     )
 
     @computed_field
-    def DATABASE_URL(self) -> str:
+    def database_url(self) -> str:
         """Строка подключения к PostgreSQL через asyncpg.
 
         Returns
@@ -141,12 +155,12 @@ class SettingsDB(BaseSettings):
 
         """
         return (
-            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@"
-            f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_DATABASE}"
+            f"postgresql+asyncpg://{self.db_user}:{self.db_password.get_secret_value()}@"
+            f"{self.db_host}:{self.db_port}/{self.db_database}"
         )
 
     @computed_field
-    def REDIS_URL(self) -> str:
+    def redis_url(self) -> str:
         """Строка подключения к Redis.
 
         Returns
@@ -154,8 +168,8 @@ class SettingsDB(BaseSettings):
 
         """
         return (
-            f"redis://{self.REDIS_USER}:{self.REDIS_PASSWORD.get_secret_value()}@"
-            f"{self.REDIS_HOST}:{self.REDIS_PORT}/{self.NUM_DB}"
+            f"redis://{self.redis_user}:{self.redis_password.get_secret_value()}@"
+            f"{self.redis_host}:{self.redis_port}/{self.num_db}"
         )
 
 
@@ -323,18 +337,18 @@ settings_db = SettingsDB()
 
 LoggerConfig(
     log_dir=Path(__file__).resolve().parent / "logs",
-    logger_level_stdout=settings_bot.LOGGER_LEVEL_STDOUT,
-    logger_level_file=settings_bot.LOGGER_LEVEL_FILE,
-    logger_error_file=settings_bot.LOGGER_ERROR_FILE,
+    logger_level_stdout=settings_bot.logger_level_stdout,
+    logger_level_file=settings_bot.logger_level_file,
+    logger_error_file=settings_bot.logger_error_file,
 )
 # Инициализируем бота и диспетчер
 bot: Bot = Bot(
-    token=settings_bot.BOT_TOKEN.get_secret_value(),
+    token=settings_bot.bot_token.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
 )
 # Хранилище FSM
 storage = RedisStorage.from_url(
-    str(settings_db.REDIS_URL),
+    str(settings_db.redis_url),
     state_ttl=3600,  # ⏰ время жизни состояния (в секундах)
     data_ttl=3600,  # ⏰ время жизни данных FSM
 )
@@ -342,3 +356,9 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
+
+if __name__ == "__main__":
+    print(settings_bot)
+    print(settings_bot.admin_ids)
+    print(type(settings_bot.admin_ids))
+    # print(settings_bot.parse_admin_ids("123456, 789012,345678"))

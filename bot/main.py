@@ -46,11 +46,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await redis_manager.connect()
     dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
+    log_data = True if settings_bot.debug_fast_api else False
+    log_time = True if settings_bot.debug_fast_api else False
     dp.message.middleware(
-        UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)  # type: ignore[arg-type]
+        UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )
     dp.callback_query.middleware(
-        UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)  # type: ignore[arg-type]
+        UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )
 
     user_service = UserService(redis=redis_manager)
@@ -90,13 +92,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     scheduler.start()
     logger.info("🕒 Планировщик запущен — проверка каждые 1 минуту")
-    if settings_bot.USE_POLLING:
+    if settings_bot.use_polling:
         await bot.delete_webhook(drop_pending_updates=True)
 
         logger.warning("Используется поллинг вместо вебхуков!")
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     else:
-        webhook_url: str = str(settings_bot.WEBHOOK_URL)
+        webhook_url: str = str(settings_bot.webhook_url)
         await bot.set_webhook(
             url=webhook_url,
             allowed_updates=dp.resolve_used_update_types(),
@@ -129,7 +131,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 # Метаданные для OpenAPI
 app: FastAPI = FastAPI(
-    debug=settings_bot.DEBUG_FAST_API,
+    debug=settings_bot.debug_fast_api,
     title="VPN Boriska Bot",
     root_path="/bot",
     summary="Бот, который раздает конфигурационные файлы для Amnezia VPN",
@@ -190,5 +192,5 @@ if __name__ == "__main__":
         app="bot.main:app",
         host="0.0.0.0",
         port=8088,
-        reload=settings_bot.RELOAD_FAST_API,
+        reload=settings_bot.reload_fast_api,
     )

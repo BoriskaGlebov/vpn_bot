@@ -15,7 +15,7 @@ async def set_description(bot: Bot) -> None:
     """
     inf = await bot.get_me()
     await bot.set_my_description(
-        description=settings_bot.MESSAGES.get("description", "None").format(
+        description=settings_bot.messages.get("description", "None").format(
             bot_name=inf.first_name
         )
     )

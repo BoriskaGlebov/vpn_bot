@@ -15,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 from bot.config import settings_db
 
-engine = create_async_engine(cast(str, settings_db.DATABASE_URL))
+engine = create_async_engine(cast(str, settings_db.database_url))
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

@@ -15,7 +15,7 @@ from bot.config import settings_bot
 T = TypeVar("T")
 F = TypeVar("F", bound=Callable[..., Any])
 SelfT = TypeVar("SelfT", bound="BaseRouter")
-m_error = settings_bot.MESSAGES.get("errors", {})
+m_error = settings_bot.messages.get("errors", {})
 
 
 class BaseRouter(ABC):

@@ -3,7 +3,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup, Message
 
 from bot.config import logger, settings_bot
-from bot.redis_manager import SettingsRedis
+from bot.redis_service import RedisAdminMessageStorage
 from bot.utils.commands import set_bot_commands
 from bot.utils.set_description_file import set_description
 
@@ -13,13 +13,13 @@ async def send_to_admins(
     message_text: str,
     reply_markup: InlineKeyboardMarkup | None = None,
     telegram_id: int | None = None,
-    redis_manager: SettingsRedis | None = None,
+    admin_mess_storage: RedisAdminMessageStorage | None = None,
 ) -> None:
     """Отправляет сообщение всем администраторам с возможной inline-клавиатурой.
 
     Args:
         bot (Bot): Экземпляр бота Aiogram.
-        redis_manager (SettingsRedis): хранение сообщений админа для дальнейшего изменения
+        admin_mess_storage (RedisAdminMessageStorage ): хранение сообщений админа для дальнейшего изменения
         message_text (str): Текст сообщения для отправки администраторам.
         reply_markup (Optional[InlineKeyboardMarkup], optional): Inline-клавиатура для сообщения.
             По умолчанию None.
@@ -33,13 +33,13 @@ async def send_to_admins(
             у которого не удалось отправить сообщение.
 
     """
-    for admin_id in settings_bot.ADMIN_IDS:
+    for admin_id in settings_bot.admin_ids:
         try:
             mes: Message = await bot.send_message(
                 chat_id=admin_id, text=message_text, reply_markup=reply_markup
             )
-            if telegram_id and redis_manager:
-                await redis_manager.save_admin_message(
+            if telegram_id and admin_mess_storage:
+                await admin_mess_storage.add(
                     user_id=telegram_id, admin_id=admin_id, message_id=mes.message_id
                 )
             logger.info("Отправлено сообщение Админу")
@@ -54,21 +54,21 @@ async def edit_admin_messages(
     bot: Bot,
     user_id: int,
     new_text: str,
-    redis_manager: SettingsRedis,
+    admin_mess_storage: RedisAdminMessageStorage,
 ) -> None:
     """Редактирует все сообщения администраторов, относящиеся к конкретному пользователю.
 
     Args:
         bot (Bot): Экземпляр бота Aiogram.
         user_id (int): Telegram ID пользователя, к которому относятся сообщения.
-        redis_manager (SettingsRedis): хранение сообщений админа для дальнейшего изменения
+        admin_mess_storage (RedisAdminMessageStorage): хранение сообщений админа для дальнейшего изменения
         new_text (str): Новый текст для сообщений админов.
 
     Returns
         None
 
     """
-    admin_messages = await redis_manager.get_admin_messages(user_id)
+    admin_messages = await admin_mess_storage.get(user_id)
     for msg in admin_messages:
         try:
             await bot.edit_message_text(
@@ -80,7 +80,7 @@ async def edit_admin_messages(
             )
             continue
 
-    await redis_manager.clear_admin_messages(user_id)
+    await admin_mess_storage.clear(user_id)
 
 
 async def start_bot(bot: Bot) -> None:

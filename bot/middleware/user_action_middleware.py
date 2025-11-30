@@ -59,7 +59,7 @@ class UserActionLoggingMiddleware(BaseMiddleware):  # type: ignore[misc]
     ) -> None:
         """Логирует начало обработки."""
         if self.log_data:
-            self.logger.bind(user=user).info(f"START {event_type}: {event!r}")
+            self.logger.bind(user=user).debug(f"START {event_type}: {event!r}")
         else:
             self.logger.bind(user=user).info(f"START {event_type}")
 
@@ -74,14 +74,14 @@ class UserActionLoggingMiddleware(BaseMiddleware):  # type: ignore[misc]
         if self.log_time:
             duration = time.time() - start_time
             if self.log_data:
-                self.logger.bind(user=user).info(
+                self.logger.bind(user=user).debug(
                     f"END {event_type} ({duration:.3f}s): {event!r}"
                 )
             else:
                 self.logger.bind(user=user).info(f"END {event_type} ({duration:.3f}s)")
         else:
             if self.log_data:
-                self.logger.bind(user=user).info(f"END {event_type}: {event!r}")
+                self.logger.bind(user=user).debug(f"END {event_type}: {event!r}")
             else:
                 self.logger.bind(user=user).info(f"END {event_type}")
 
