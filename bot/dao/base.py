@@ -9,7 +9,7 @@ from typing import (
 
 from loguru import logger
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, and_, delete, func, select
+from sqlalchemy import ColumnElement, and_, delete, func, select, true
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,11 +46,11 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         return filters.model_dump(exclude_unset=True) if filters else {}
 
     @classmethod
-    def _build_filters(cls, f: dict[str, Any]) -> ColumnElement[bool] | bool:
+    def _build_filters(cls, f: dict[str, Any]) -> ColumnElement[bool]:
         """Построение фильтров для SQLAlchemy из словаря."""
         # noinspection PyTypeChecker
         filters = [getattr(cls.model, k) == v for k, v in f.items()]
-        return and_(*filters) if filters else True
+        return and_(*filters) if filters else true()
 
     @staticmethod
     @asynccontextmanager
@@ -120,9 +120,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         )
         logger.debug(f"[DAO] Фильтры → условия: {cls._build_filters(filter_dict)}")
         async with cls.transaction(session):
+            filters_clause = cls._build_filters(filter_dict)
             # noinspection PyTypeChecker
-            filters = cls._build_filters(filter_dict)
-            query = select(cls.model).where(filters)
+            query = select(cls.model).where(filters_clause)
             result = await session.execute(query)
             record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
             logger.debug(f"[DAO] Найдено: {record!r}")
@@ -148,9 +148,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"[DAO] Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
         )
         async with cls.transaction(session):
-            filters = cls._build_filters(filter_dict)
+            filters_clause = cls._build_filters(filter_dict)
             # noinspection PyTypeChecker
-            query = select(cls.model).where(filters)
+            query = select(cls.model).where(filters_clause)
             result = await session.execute(query)
             records = cast(list[T], result.scalars().all())
             logger.debug(f"[DAO] Найдено {len(records)} записей.")
@@ -209,11 +209,12 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"[DAO] Обновление записей {cls.model.__name__} по фильтру: "
             f"{filter_dict} с параметрами: {values_dict}"
         )
+
+        filters_clause = cls._build_filters(filter_dict)
         # noinspection PyTypeChecker
-        filters = cls._build_filters(filter_dict)
         query = (
             sqlalchemy_update(cls.model)
-            .where(filters)
+            .where(filters_clause)
             .values(**values_dict)
             .execution_options(synchronize_session="fetch")
         )
@@ -254,9 +255,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             raise ValueError("Нужен хотя бы один фильтр для удаления.")
         try:
             async with cls.transaction(session):
-                filters = cls._build_filters(filter_dict)
+                filters_clause = cls._build_filters(filter_dict)
                 # noinspection PyTypeChecker
-                query = delete(cls.model).where(filters)
+                query = delete(cls.model).where(filters_clause)
                 result = await session.execute(query)
                 rowcount: int = getattr(result, "rowcount", 0) or 0
                 logger.info(f"[DAO] Удалено {rowcount} записей.")
@@ -317,9 +318,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"[DAO] Подсчет количества записей {cls.model.__name__} по фильтру: {filter_dict}"
         )
         async with cls.transaction(session):
-            filters = cls._build_filters(filter_dict)
+            filters_clause = cls._build_filters(filter_dict)
             # noinspection PyTypeChecker
-            query = select(func.count(cls.model.id)).where(filters)  # type: ignore
+            query = select(func.count(cls.model.id)).where(filters_clause)  # type: ignore
             result = await session.execute(query)
             count = cast(int, result.scalar())
             logger.debug(f"[DAO] Найдено {count} записей.")

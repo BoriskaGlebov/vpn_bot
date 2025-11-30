@@ -33,7 +33,7 @@ async def send_to_admins(
             у которого не удалось отправить сообщение.
 
     """
-    for admin_id in settings_bot.ADMIN_IDS:
+    for admin_id in settings_bot.admin_ids:
         try:
             mes: Message = await bot.send_message(
                 chat_id=admin_id, text=message_text, reply_markup=reply_markup

@@ -14,7 +14,7 @@ from bot.help.utils.pc_device import PCDevice
 from bot.help.utils.tv_device import TVDevice
 from bot.utils.base_router import BaseRouter
 
-m_help = settings_bot.MESSAGES.get("modes", {}).get("help", {})
+m_help = settings_bot.messages.get("modes", {}).get("help", {})
 
 
 class HelpStates(StatesGroup):  # type: ignore[misc]

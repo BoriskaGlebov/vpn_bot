@@ -41,14 +41,14 @@ def user_service(fake_redis: SettingsRedis) -> UserService:
 @pytest.fixture(scope="session")
 def test_admin_id(test_settings_bot: SettingsBot) -> int:
     """Фикстура для получения ID администратора из настроек."""
-    return test_settings_bot.ADMIN_IDS[0]
+    return test_settings_bot.admin_ids[0]
 
 
 @pytest.fixture(scope="session")
 async def test_bot(test_settings_bot: SettingsBot) -> AsyncGenerator[Bot, Any]:
     """Фикстура для интеграционных тестов с тестовым ботом."""
     bot_instance = Bot(
-        token=test_settings_bot.BOT_TOKEN.get_secret_value(),
+        token=test_settings_bot.bot_token.get_secret_value(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 

@@ -38,8 +38,8 @@ class SubscriptionType(str, Enum):
 
 DEVICE_LIMITS = {
     SubscriptionType.TRIAL: 1,
-    SubscriptionType.STANDARD: settings_bot.MAX_CONFIGS_PER_USER,
-    SubscriptionType.PREMIUM: settings_bot.MAX_CONFIGS_PER_USER * 2,
+    SubscriptionType.STANDARD: settings_bot.max_configs_per_user,
+    SubscriptionType.PREMIUM: settings_bot.max_configs_per_user * 2,
 }
 
 

@@ -33,7 +33,7 @@ def main_kb(
         kb_list.append([KeyboardButton(text="💰 Выбрать подписку VPN-Boriska")])
     kb_list.append([KeyboardButton(text="📈 Проверить статус подписки")])
     kb_list.append([KeyboardButton(text="❓ Помощь в настройке VPN")])
-    if user_telegram_id in settings_bot.ADMIN_IDS:
+    if user_telegram_id in settings_bot.admin_ids:
         kb_list.append([KeyboardButton(text="⚙️ Панель администратора")])
 
     keyboard = ReplyKeyboardMarkup(

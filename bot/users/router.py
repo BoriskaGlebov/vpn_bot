@@ -27,10 +27,10 @@ from bot.users.services import UserService
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
 
-m_admin = settings_bot.MESSAGES.get("modes", {}).get("admin", {})
-m_start = settings_bot.MESSAGES.get("modes", {}).get("start", {})
-m_error = settings_bot.MESSAGES.get("errors", {})
-m_echo = settings_bot.MESSAGES.get("general", {}).get("echo", {})
+m_admin = settings_bot.messages.get("modes", {}).get("admin", {})
+m_start = settings_bot.messages.get("modes", {}).get("start", {})
+m_error = settings_bot.messages.get("errors", {})
+m_echo = settings_bot.messages.get("general", {}).get("echo", {})
 INVALID_FOR_USER = [
     "💰 Выбрать подписку VPN-Boriska",
     "🔑 Получить VPN-конфиг AmneziaVPN",
@@ -121,7 +121,6 @@ class UserRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
-    @BaseRouter.require_user
     async def cmd_start(
         self,
         message: Message,
@@ -144,6 +143,10 @@ class UserRouter(BaseRouter):
 
         """
         user = message.from_user
+        if user is None:
+            self.logger.error("message.from_user is None")
+            return
+        assert message.from_user is not None
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
             user_info, is_new = await self.user_service.register_or_get_user(
@@ -201,7 +204,7 @@ class UserRouter(BaseRouter):
                         user_telegram_id=user.id,
                     ),
                 )
-                if user_info.telegram_id not in settings_bot.ADMIN_IDS:
+                if user_info.telegram_id not in settings_bot.admin_ids:
                     admin_message = m_admin.get("new_registration", "").format(
                         first_name=user_info.first_name or "undefined",
                         last_name=user_info.last_name or "undefined",
@@ -221,7 +224,6 @@ class UserRouter(BaseRouter):
             await state.set_state(UserStates.press_start)
 
     @BaseRouter.log_method
-    @BaseRouter.require_user
     async def admin_start(
         self, message: Message, state: FSMContext, **kwargs: Any
     ) -> None:
@@ -242,10 +244,13 @@ class UserRouter(BaseRouter):
 
         """
         user = message.from_user
+        if user is None:
+            self.logger.error("message.from_user is None")
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
 
-            if user.id not in settings_bot.ADMIN_IDS:
+            if user.id not in settings_bot.admin_ids:
                 self.logger.bind(user=user.username or user.id).warning(
                     f"Попытка доступа к админ-панели не админом: {user.id}"
                 )

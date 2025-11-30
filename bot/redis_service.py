@@ -17,12 +17,12 @@ class RedisAdminMessageStorage:
     def _key(self, user_id: int) -> str:
         return f"admin_messages:{user_id}"
 
-    async def add(self, user_id: int, admin_id: int, message_id: int) -> None:
+    async def add(self, user_id: int, admin_id: int | str, message_id: int) -> None:
         """Сохраняет идентификаторы сообщений администраторов для пользователя.
 
         Args:
             user_id (int): Telegram ID пользователя.
-            admin_id (int): Telegram ID администратора.
+            admin_id (int|str): Telegram ID администратора.
             message_id (int): ID сообщения в чате.
 
         """

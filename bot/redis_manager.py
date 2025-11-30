@@ -21,7 +21,7 @@ class SettingsRedis:
 
     """
 
-    DEFAULT_EXPIRE = settings_db.DEFAULT_EXPIRE
+    DEFAULT_EXPIRE = settings_db.default_expire
 
     def __init__(self, redis_url: str, logger: Logger) -> None:
         self.url = redis_url
@@ -102,4 +102,4 @@ class SettingsRedis:
         await redis.delete(key)
 
 
-redis_manager = SettingsRedis(str(settings_db.REDIS_URL), logger=logger)  # type: ignore[arg-type]
+redis_manager = SettingsRedis(str(settings_db.redis_url), logger=logger)  # type: ignore[arg-type]

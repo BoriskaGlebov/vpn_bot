@@ -58,7 +58,7 @@ class UserService:
                 last_name=telegram_user.last_name,
             )
             schema_role = SRole(
-                name="admin" if telegram_user.id in settings_bot.ADMIN_IDS else "user"
+                name="admin" if telegram_user.id in settings_bot.admin_ids else "user"
             )
             user = await UserDAO.add_role_subscription(
                 session=session,
