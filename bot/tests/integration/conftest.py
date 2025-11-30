@@ -41,7 +41,7 @@ def user_service(fake_redis: SettingsRedis) -> UserService:
 @pytest.fixture(scope="session")
 def test_admin_id(test_settings_bot: SettingsBot) -> int:
     """Фикстура для получения ID администратора из настроек."""
-    return test_settings_bot.admin_ids[0]
+    return list(test_settings_bot.admin_ids)[0]
 
 
 @pytest.fixture(scope="session")
