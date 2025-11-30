@@ -46,11 +46,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await redis_manager.connect()
     dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
+    log_data = True if settings_bot.debug_fast_api else False
+    log_time = True if settings_bot.debug_fast_api else False
     dp.message.middleware(
-        UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)  # type: ignore[arg-type]
+        UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )
     dp.callback_query.middleware(
-        UserActionLoggingMiddleware(log_data=True, log_time=True, logger=logger)  # type: ignore[arg-type]
+        UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )
 
     user_service = UserService(redis=redis_manager)
