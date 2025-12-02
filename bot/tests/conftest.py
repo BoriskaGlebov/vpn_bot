@@ -13,7 +13,7 @@ from bot.database import Base
 from bot.redis_manager import SettingsRedis
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils import commands
-from bot.utils.init_default_roles import init_default_roles
+from bot.utils.init_default_roles import init_default_roles_admins
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
@@ -85,7 +85,7 @@ async def session(test_engine):
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
     async with async_session() as session:
-        await init_default_roles(session=session)
+        await init_default_roles_admins(session=session)
         yield session
 
 

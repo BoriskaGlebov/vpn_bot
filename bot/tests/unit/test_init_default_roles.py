@@ -4,7 +4,7 @@ import pytest
 
 from bot.users.dao import RoleDAO
 from bot.users.schemas import SRole
-from bot.utils.init_default_roles import init_default_roles
+from bot.utils.init_default_roles import init_default_roles_admins
 
 
 @pytest.mark.asyncio
@@ -17,7 +17,7 @@ async def test_init_default_roles_adds_missing_roles():
     ):
         mock_find_all.return_value = existing_roles
 
-        await init_default_roles()
+        await init_default_roles_admins()
 
         # Проверяем, что add вызвался только для ролей, которых нет в БД
         expected_calls = [

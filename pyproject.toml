@@ -104,7 +104,6 @@ exclude = [
     "^dist/",
     "^\\.venv/",
     "^bot/migrations/",
-    "bot/admin",
     "bot/vpn",
     "bot/subscription",
     "bot/help"

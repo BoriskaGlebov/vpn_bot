@@ -19,7 +19,7 @@ from bot.subscription.services import SubscriptionService
 from bot.subscription.utils.scheduler_cron import scheduled_check, scheduler
 from bot.users.router import UserRouter
 from bot.users.services import UserService
-from bot.utils.init_default_roles import init_default_roles
+from bot.utils.init_default_roles import init_default_roles_admins
 from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.router import VPNRouter
 from bot.vpn.services import VPNService
@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(subscription_router.router)
     dp.include_router(vpn_router.router)
 
-    await init_default_roles()  # type: ignore
+    await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
     scheduler.add_job(
         scheduled_check,
