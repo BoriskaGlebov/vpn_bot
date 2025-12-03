@@ -24,7 +24,7 @@ async def init_default_roles_admins(session: AsyncSession) -> None:
             schema = SRole(**role)
             await RoleDAO.add(session, schema)
     async with session.begin():
-        query = select(User.telegram_id).join(User.role).where(Role.name == "user")
+        query = select(User.telegram_id).join(User.role).where(Role.name == "admin")
         result = await session.execute(query)
         admins = result.scalars().all()
         settings_bot.admin_ids.update(admins)  # type: ignore[union-attr]
