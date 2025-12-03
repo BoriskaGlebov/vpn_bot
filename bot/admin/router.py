@@ -283,7 +283,7 @@ class AdminRouter(BaseRouter):
                 )
                 await state.clear()
             except SubscriptionNotFoundError as e:
-                self.logger.error("Нельзя продлить подписку она активирован")
+                self.logger.error("Нельзя продлить подписку она не активирована")
                 await query.answer(str(e))
 
     @connection()
