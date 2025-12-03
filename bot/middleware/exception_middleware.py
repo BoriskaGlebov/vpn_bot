@@ -21,7 +21,7 @@ from aiogram.exceptions import (
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from loguru._logger import Logger
 
-from bot.app_error.base_error import UserNotFoundError, VPNLimitError
+from bot.app_error.base_error import VPNLimitError
 from bot.config import settings_bot
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
@@ -57,6 +57,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         self.bot = bot
 
         self.error_messages: dict[type[Exception], str] = {
+            VPNLimitError: "⚠️ Слишком много запросов. Превышен лимит на количество устройств",
             TelegramRetryAfter: "⚠️ Слишком много запросов.",
             TelegramForbiddenError: "⚠️ Доступ запрещён.",
             TelegramUnauthorizedError: "⚠️ Ошибка авторизации.",
@@ -80,19 +81,17 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
     def _resolve_user_message(self, exc: Exception) -> str:
         """Универсальный метод получения сообщения для пользователя."""
-        if isinstance(exc, VPNLimitError):
-            return (
-                f"⚠️ Пользователь достиг лимита конфигов ({exc.limit}/ {exc.limit}).\n"
-                f"Если  нужно больше обратитесь в поддержку @BorisisTheBlade."
-            )
-        if isinstance(exc, UserNotFoundError):
-            return "⚠️ Пользователь не найден."
         for exc_type, message in self.error_messages.items():
             if isinstance(exc, exc_type):
                 if isinstance(exc, TelegramRetryAfter):
                     return f"⚠️ Слишком много запросов. Попробуйте через {exc.retry_after} секунд."
-                if isinstance(exc, TelegramBadRequest):
+                elif isinstance(exc, TelegramBadRequest):
                     return f"⚠️ Неверный запрос: {exc.message}"
+                elif isinstance(exc, VPNLimitError):
+                    return (
+                        f"⚠️ Пользователь достиг лимита конфигов ({exc.limit}/ {exc.limit}).\n"
+                        f"Если  нужно больше обратитесь в поддержку @BorisisTheBlade."
+                    )
 
                 return message
         return self.default_user_message
