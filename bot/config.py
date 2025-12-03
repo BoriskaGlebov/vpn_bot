@@ -173,6 +173,34 @@ class SettingsDB(BaseSettings):
         )
 
 
+class SettingsBucket(BaseSettings):
+    """Настройки подключения к S3-совместимому хранилищу (например, Яндекс Object Storage).
+
+    Attributes
+        bucket_name (str): Имя бакета в S3, из которого будут читаться файлы.
+        prefix (str): Префикс (путь внутри бакета), например 'media/amnezia_pc/'.
+        endpoint_url (str): URL S3-совместимого сервиса, например 'https://storage.yandexcloud.net'.
+        access_key (SecretStr): Секретный ключ доступа к сервису S3 (Access Key).
+        secret_key (SecretStr): Секретный ключ доступа к сервису S3 (Secret Key).
+
+    """
+
+    bucket_name: str
+    prefix: str
+    endpoint_url: str
+    access_key: SecretStr
+    secret_key: SecretStr
+
+    model_config = SettingsConfigDict(
+        env_file=[
+            str(BASE_DIR / ".env"),
+            str(BASE_DIR / ".env.local"),
+        ],
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
 class LoggerConfig:
     """Настройка логирования с использованием loguru.
 
@@ -334,6 +362,7 @@ class LoggerConfig:
 
 settings_bot = SettingsBot()
 settings_db = SettingsDB()
+settings_bucket = SettingsBucket()
 
 LoggerConfig(
     log_dir=Path(__file__).resolve().parent / "logs",

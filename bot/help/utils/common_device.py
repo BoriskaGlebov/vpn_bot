@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 
+import aioboto3
 from aiogram import Bot
+
+from bot.config import settings_bucket
 
 
 class Device(ABC):
@@ -10,6 +13,9 @@ class Device(ABC):
     Android, iOS, PC, TV), которые должны реализовать метод `send_message`.
 
     """
+
+    PREFIX = settings_bucket.prefix
+    BUCKET_NAME = settings_bucket.bucket_name
 
     @classmethod
     @abstractmethod
@@ -29,3 +35,39 @@ class Device(ABC):
 
         """
         ...
+
+    @classmethod
+    async def _list_files(cls) -> list[str]:
+        """Получает список файлов из S3-совместимого хранилища с полными URL.
+
+        Метод использует настройки текущего класса (`cls.PREFIX` и `cls.BUCKET_NAME`)
+        для обращения к бакету. Игнорирует “папки” (ключи, оканчивающиеся на `/`)
+        и возвращает список файлов в виде полных URL, которые можно использовать,
+        например, для отправки в Telegram.
+
+        Returns:
+            list[str]: Список полных URL файлов в бакете.
+
+        Raises
+            botocore.exceptions.ClientError: Если при обращении к S3 возникает ошибка.
+            asyncio.TimeoutError: Если операция занимает слишком много времени.
+
+        """
+        session = aioboto3.Session()
+        async with session.client(
+            "s3",
+            endpoint_url=settings_bucket.endpoint_url,
+            aws_access_key_id=settings_bucket.access_key.get_secret_value(),
+            aws_secret_access_key=settings_bucket.secret_key.get_secret_value(),
+        ) as s3:
+            paginator = s3.get_paginator("list_objects_v2")
+            files = []
+            async for page in paginator.paginate(
+                Bucket=cls.BUCKET_NAME, Prefix=cls.PREFIX
+            ):
+                for obj in page.get("Contents", []):
+                    if not obj["Key"].endswith("/"):
+                        files.append(
+                            f"{settings_bucket.endpoint_url}/{settings_bucket.bucket_name}/{obj['Key']}"
+                        )
+            return files

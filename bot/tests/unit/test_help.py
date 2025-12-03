@@ -96,11 +96,6 @@ async def test_device_send_message(
 ):
     """Проверяет, что каждый класс устройства корректно отправляет фото с подписями."""
 
-    # --- Создаем временную директорию с "медиа" ---
-    media_dir = tmp_path / "bot" / "help" / "media" / media_folder
-    media_dir.mkdir(parents=True)
-    for i in range(3):
-        (media_dir / f"{i}.png").touch()
     # --- Подготавливаем фейковые данные настроек ---
     fake_messages = [f"Шаг {i}" for i in range(3)]
     fake_settings = MagicMock()
@@ -113,8 +108,12 @@ async def test_device_send_message(
     module_name = f"bot.help.utils.{device_key}_device"
     monkeypatch.setattr(f"{module_name}.settings_bot", fake_settings)
     monkeypatch.setattr(f"{module_name}.asyncio.sleep", AsyncMock())
+    mocked_urls = [f"https://example.com/{media_folder}/{i}.png" for i in range(3)]
+    monkeypatch.setattr(
+        device_class, "_list_files", AsyncMock(return_value=mocked_urls)
+    )
 
-    # --- Вызываем тестируемый метод ---
+    # --- Вызываем тестируемый метод --
     await device_class.send_message(bot=fake_bot, chat_id=1234)
     # --- Проверяем, что send_photo вызван 3 раза ---
     assert fake_bot.send_photo.await_count == 3
@@ -124,4 +123,6 @@ async def test_device_send_message(
         kwargs = call.kwargs
         assert kwargs["chat_id"] == 1234
         assert kwargs["caption"] == f"Шаг {i}"
-        assert str(kwargs["photo"].path).endswith(f"{i}.png")
+        photo_url = kwargs["photo"]
+        assert isinstance(photo_url, str)
+        assert photo_url.endswith(f"{i}.png")

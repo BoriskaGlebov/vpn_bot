@@ -2,17 +2,18 @@ import asyncio
 from itertools import zip_longest
 
 from aiogram import Bot
-from aiogram.types import FSInputFile
 
-from bot.config import settings_bot
+from bot.config import settings_bot, settings_bucket
 from bot.help.utils.common_device import Device
 
 
 class IphoneDevice(Device):
     """Класс устройства, отвечающий за отправку инструкций для iPhone."""
 
+    PREFIX = f"{settings_bucket.prefix}amnezia_iphone/"
+
     @classmethod
-    async def send_message(self, bot: Bot, chat_id: int) -> None:
+    async def send_message(cls, bot: Bot, chat_id: int) -> None:
         """Отправляет пользователю инструкцию по настройке VPN на iPhone.
 
         Метод отправляет серию изображений с подписями, взятыми из настроек
@@ -28,15 +29,13 @@ class IphoneDevice(Device):
             TelegramAPIError: Если при отправке сообщения возникает ошибка Telegram API.
 
         """
-        media = settings_bot.base_dir / "bot" / "help" / "media" / "amnezia_iphone"
+        media = await cls._list_files()
         m_iphone = settings_bot.messages["modes"]["help"]["instructions"]["iphone"]
-        if not media.exists():
-            raise FileNotFoundError(media)
-        for file, answertext in zip_longest(sorted(media.iterdir()), m_iphone):
+        for file, answertext in zip_longest(media, m_iphone):
             await bot.send_photo(
                 chat_id=chat_id,
                 caption=answertext if answertext else None,
-                photo=FSInputFile(file),
+                photo=file,
                 show_caption_above_media=True,
             )
             await asyncio.sleep(1)
