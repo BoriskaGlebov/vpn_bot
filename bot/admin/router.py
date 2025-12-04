@@ -4,7 +4,7 @@ from aiogram import Bot, F
 from aiogram.filters import StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InaccessibleMessage
+from aiogram.types import CallbackQuery, Message
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,9 +89,11 @@ class AdminRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
+    @BaseRouter.require_message
     async def admin_action_callback(
         self,
         query: CallbackQuery,
+        msg: Message,
         state: FSMContext,
         session: AsyncSession,
         callback_data: UserPageCB,
@@ -104,6 +106,7 @@ class AdminRouter(BaseRouter):
 
         Args:
             query (CallbackQuery): Объект колбэка.
+            msg (Message): Сообщение над которым надо вносить изменения.
             state (FSMContext): Контекст состояний FSM.
             session (AsyncSession): Сессия базы данных.
             callback_data (UserPageCB | None): Данные из callback кнопки.
@@ -112,13 +115,6 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
-        msg = query.message
-        if msg is None:
-            self.logger.error("CallbackQuery.message is None")
-            return
-        if isinstance(msg, InaccessibleMessage):
-            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
-            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             user_id: int | None = callback_data.telegram_id
             if user_id is None:
@@ -159,9 +155,11 @@ class AdminRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
+    @BaseRouter.require_message
     async def role_select_callback(
         self,
         query: CallbackQuery,
+        msg: Message,
         callback_data: UserPageCB,
         session: AsyncSession,
         state: FSMContext,
@@ -170,6 +168,7 @@ class AdminRouter(BaseRouter):
 
         Args:
             query (CallbackQuery): Объект колбэка.
+            msg (Message): Сообщение над которым надо вносить изменения.
             callback_data (UserPageCB): Данные из callback кнопки.
             session (AsyncSession): Сессия базы данных.
             state (FSMContext): Контекст состояний FSM.
@@ -181,15 +180,6 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
-        msg = query.message
-        # Все это для MYPY чтобы не ругался на возможный None
-        if msg is None:
-            self.logger.error("CallbackQuery.message is None")
-            return
-        if isinstance(msg, InaccessibleMessage):
-            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
-            return
-
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Поменял роль")
 
@@ -223,9 +213,11 @@ class AdminRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
+    @BaseRouter.require_message
     async def sub_select_callback(
         self,
         query: CallbackQuery,
+        msg: Message,
         session: AsyncSession,
         callback_data: UserPageCB,
         state: FSMContext,
@@ -234,6 +226,7 @@ class AdminRouter(BaseRouter):
 
         Args:
             query (CallbackQuery): Объект колбэка.
+            msg (Message): Сообщение над которым надо вносить изменения.
             session (AsyncSession): Сессия базы данных.
             callback_data (UserPageCB): Данные из callback кнопки.
             state (FSMContext): Контекст состояний FSM.
@@ -245,13 +238,6 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
-        msg = query.message
-        if msg is None:
-            self.logger.error("CallbackQuery.message is None")
-            return
-        if isinstance(msg, InaccessibleMessage):
-            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
-            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             user_id = callback_data.telegram_id
             months = callback_data.month
@@ -288,9 +274,11 @@ class AdminRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
+    @BaseRouter.require_message
     async def cansel_callback(
         self,
         query: CallbackQuery,
+        msg: Message,
         session: AsyncSession,
         callback_data: UserPageCB,
     ) -> None:
@@ -298,6 +286,7 @@ class AdminRouter(BaseRouter):
 
         Args:
             query (CallbackQuery): Объект колбэка.
+            msg (Message): Сообщение над которым надо вносить изменения.
             session (AsyncSession): Сессия базы данных.
             callback_data (UserPageCB): Данные из callback кнопки.
 
@@ -305,13 +294,6 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
-        msg = query.message
-        if msg is None:
-            self.logger.error("CallbackQuery.message is None")
-            return
-        if isinstance(msg, InaccessibleMessage):
-            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
-            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Отмена")
             user_id = callback_data.telegram_id
@@ -334,9 +316,11 @@ class AdminRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
+    @BaseRouter.require_message
     async def show_filtered_users(
         self,
         query: CallbackQuery,
+        msg: Message,
         callback_data: AdminCB,
         session: AsyncSession,
         state: FSMContext,
@@ -348,6 +332,7 @@ class AdminRouter(BaseRouter):
 
         Args:
             query (CallbackQuery): Объект колбэка.
+            msg (Message): Сообщение над которым надо вносить изменения.
             callback_data (AdminCB): Данные callback-кнопки.
             session (AsyncSession): Асинхронная сессия базы данных.
             state (FSMContext): Контекст состояний FSM.
@@ -356,13 +341,6 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
-        msg = query.message
-        if msg is None:
-            self.logger.error("CallbackQuery.message is None")
-            return
-        if isinstance(msg, InaccessibleMessage):
-            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
-            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             filter_type = callback_data.filter_type
             await query.answer(f"Выбрал {filter_type}")
@@ -397,8 +375,13 @@ class AdminRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
+    @BaseRouter.require_message
     async def user_page_callback(
-        self, query: CallbackQuery, callback_data: UserPageCB, session: AsyncSession
+        self,
+        query: CallbackQuery,
+        msg: Message,
+        callback_data: UserPageCB,
+        session: AsyncSession,
     ) -> None:
         """Навигация между пользователями по фильтру.
 
@@ -407,6 +390,7 @@ class AdminRouter(BaseRouter):
 
         Args:
             query (CallbackQuery): Объект колбэка.
+            msg (Message): Сообщение над которым надо вносить изменения.
             callback_data (UserPageCB): Данные callback-кнопки.
             session (AsyncSession): Асинхронная сессия базы данных.
 
@@ -414,13 +398,6 @@ class AdminRouter(BaseRouter):
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
         )
-        msg = query.message
-        if msg is None:
-            self.logger.error("CallbackQuery.message is None")
-            return
-        if isinstance(msg, InaccessibleMessage):
-            self.logger.warning("CallbackQuery.message is InaccessibleMessage")
-            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Следующая страница")
             users_schemas = await self.admin_service.get_users_by_filter(

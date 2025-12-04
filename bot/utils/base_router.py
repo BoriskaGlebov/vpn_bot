@@ -6,7 +6,12 @@ from typing import Any, TypeVar
 
 from aiogram import Bot, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import (
+    CallbackQuery,
+    InaccessibleMessage,
+    Message,
+    ReplyKeyboardRemove,
+)
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
@@ -144,3 +149,66 @@ class BaseRouter(ABC):
                 )
             else:
                 await message.answer(text=answer_text)
+
+    @staticmethod
+    def require_user(func: F) -> F:
+        """Декоратор для проверки наличия пользователя в сообщении Telegram.
+
+        Args:
+            func: Асинхронная функция-хэндлер, которая принимает
+                self, message и user (не Optional), а также дополнительные аргументы.
+
+        Returns
+            Обёрнутая функция-хэндлер, которая:
+                - Проверяет, что message.from_user не None.
+                - Если пользователь есть, вызывает оригинальный хэндлер с параметром user.
+                - Если пользователя нет, логирует ошибку и ничего не делает.
+
+        """
+
+        @functools.wraps(func)
+        async def wrapper(
+            self: SelfT, message: Message, *args: tuple[Any], **kwargs: dict[str, Any]
+        ) -> Any:
+            user = message.from_user
+            if user is None:
+                self.logger.error("message.from_user is None")
+                return
+            return await func(self, message, user=user, *args, **kwargs)
+
+        return wrapper  # type: ignore[return-value]
+
+    @staticmethod
+    def require_message(func: F) -> F:
+        """Декоратор для проверки доступности сообщения в CallbackQuery.
+
+        Args:
+            func: Асинхронная функция-хэндлер, которая принимает
+                self, query, message (не Optional), а также дополнительные аргументы.
+
+        Returns
+            Обёрнутая функция-хэндлер, которая:
+                - Проверяет, что query.message не None.
+                - Проверяет, что message не является InaccessibleMessage.
+                - Если всё ок — вызывает оригинальный хэндлер с параметром message.
+                - Если нет — логирует ошибку и возвращает None.
+
+        """
+
+        @functools.wraps(func)
+        async def wrapper(
+            self: SelfT,
+            query: CallbackQuery,
+            *args: tuple[Any],
+            **kwargs: dict[str, Any],
+        ) -> Any:
+            msg = query.message
+            if msg is None:
+                self.logger.error("CallbackQuery.message is None")
+                return
+            if isinstance(msg, InaccessibleMessage):
+                self.logger.warning("CallbackQuery.message is InaccessibleMessage")
+                return
+            return await func(self, query, msg, *args, **kwargs)
+
+        return wrapper  # type: ignore[return-value]

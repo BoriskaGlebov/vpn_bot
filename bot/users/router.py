@@ -14,6 +14,7 @@ from aiogram.filters import (
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import User as TGUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -121,9 +122,11 @@ class UserRouter(BaseRouter):
 
     @connection()
     @BaseRouter.log_method
+    @BaseRouter.require_user
     async def cmd_start(
         self,
         message: Message,
+        user: TGUser,
         session: AsyncSession,
         state: FSMContext,
     ) -> None:
@@ -134,6 +137,7 @@ class UserRouter(BaseRouter):
         Отправляет приветственные сообщения и формирует клавиатуру главного меню.
 
         Args:
+            user (TGUSer): Пользователь Телеграм из сообщения.
             message (Message): Сообщение Telegram, вызвавшее обработчик.
             session (AsyncSession): Асинхронная сессия БД (AsyncSession).
             state (FSMContext): Контекст FSM для работы с состояниями пользователя.
@@ -142,10 +146,6 @@ class UserRouter(BaseRouter):
             None
 
         """
-        user = message.from_user
-        if user is None:
-            self.logger.error("message.from_user is None")
-            return
         assert message.from_user is not None
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
@@ -224,8 +224,9 @@ class UserRouter(BaseRouter):
             await state.set_state(UserStates.press_start)
 
     @BaseRouter.log_method
+    @BaseRouter.require_user
     async def admin_start(
-        self, message: Message, state: FSMContext, **kwargs: Any
+        self, message: Message, user: TGUser, state: FSMContext, **kwargs: Any
     ) -> None:
         """Обработчик команды /admin.
 
@@ -235,6 +236,7 @@ class UserRouter(BaseRouter):
         и переводит пользователя в состояние `press_admin`.
 
         Args:
+            user (TGUSer): Пользователь Телеграм из сообщения.
             message (Message): Объект сообщения Telegram, который вызвал обработчик.
             state (FSMContext): Контекст конечного автомата для работы с состояниями пользователя.
             **kwargs (Any): Дополнительные аргументы (не используются напрямую, но могут быть переданы).
@@ -243,10 +245,6 @@ class UserRouter(BaseRouter):
             None
 
         """
-        user = message.from_user
-        if user is None:
-            self.logger.error("message.from_user is None")
-            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
 
