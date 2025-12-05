@@ -64,16 +64,6 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             logger.error(f"[DAO] Ошибка транзакции: {e}")
             raise
 
-    # @staticmethod
-    # async def _commit(session: AsyncSession) -> None:
-    #     """Коммит изменений в сессии с обработкой ошибок."""
-    #     try:
-    #         await session.commit()
-    #     except SQLAlchemyError as e:
-    #         logger.error(f"[DAO] Ошибка коммита: {e}")
-    #         await session.rollback()
-    #         raise
-
     @classmethod
     async def find_one_or_none_by_id(
         cls, data_id: int, session: AsyncSession

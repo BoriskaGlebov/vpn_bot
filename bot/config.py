@@ -7,6 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
+from box import Box
 from loguru import logger
 from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -62,7 +63,7 @@ class SettingsBot(BaseSettings):
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
 
-    messages: dict[str, Any] = dialogs
+    messages: Box = dialogs
 
     price_map: dict[int, int] = Field(
         default_factory=lambda: {1: 70, 3: 160, 6: 300, 12: 600, 7: 0},
@@ -385,9 +386,3 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
-
-if __name__ == "__main__":
-    print(settings_bot)
-    print(settings_bot.admin_ids)
-    print(type(settings_bot.admin_ids))
-    # print(settings_bot.parse_admin_ids("123456, 789012,345678"))

@@ -9,7 +9,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.admin.enums import ActionEnum
+from bot.admin.enums import ActionEnum, AdminModeKeys
 from bot.admin.keyboards.inline_kb import (
     AdminCB,
     UserPageCB,
@@ -18,7 +18,7 @@ from bot.admin.keyboards.inline_kb import (
     subscription_selection_kb,
     user_navigation_kb,
 )
-from bot.admin.services import AdminModeKeys, AdminService
+from bot.admin.services import AdminService
 from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.database import connection
 from bot.utils.base_router import BaseRouter

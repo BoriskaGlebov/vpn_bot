@@ -73,10 +73,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         }
 
         self.default_user_message = cast(
-            str,
-            settings_bot.messages.get("general", {}).get(
-                "common_error", "⚠️ Произошла ошибка. Попробуйте позже."
-            ),
+            str, settings_bot.messages.general.common_error
         )
 
     def _resolve_user_message(self, exc: Exception) -> str:

@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiogram.types import CallbackQuery
+from box import Box
 
 from bot.help.keyboards.inline_kb import device_keyboard
 from bot.help.router import HelpRouter, HelpStates, m_help
@@ -100,9 +101,10 @@ async def test_device_send_message(
     fake_messages = [f"Шаг {i}" for i in range(3)]
     fake_settings = MagicMock()
     fake_settings.base_dir = tmp_path
-    fake_settings.messages = {
-        "modes": {"help": {"instructions": {device_key: fake_messages}}}
-    }
+    fake_settings.messages = Box(
+        {"modes": {"help": {"instructions": {device_key: fake_messages}}}},
+        default_box=True,
+    )
 
     # --- Подменяем настройки и sleep ---
     module_name = f"bot.help.utils.{device_key}_device"

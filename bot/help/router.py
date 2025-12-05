@@ -19,7 +19,7 @@ from bot.help.utils.tv_device import TVDevice
 from bot.users.enums import ChatType
 from bot.utils.base_router import BaseRouter
 
-m_help = settings_bot.messages.get("modes", {}).get("help", {})
+m_help = settings_bot.messages.modes.help
 
 
 class HelpStates(StatesGroup):  # type: ignore[misc]
@@ -70,9 +70,9 @@ class HelpRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
             await message.answer(
-                text=m_help.get("welcome", ""), reply_markup=ReplyKeyboardRemove()
+                text=m_help.welcome, reply_markup=ReplyKeyboardRemove()
             )
-            start_block = m_help.get("start_block", [])
+            start_block = m_help.start_block
             for mess in start_block:
                 if mess == start_block[-1]:
                     await message.answer(mess, reply_markup=device_keyboard())

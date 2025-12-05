@@ -15,7 +15,7 @@ from bot.subscription.keyboards.inline_kb import (
 from bot.subscription.services import SubscriptionService
 from bot.utils.base_router import BaseRouter
 
-m_subscription = settings_bot.messages["modes"]["subscription"]
+m_subscription = settings_bot.messages.modes.subscription
 
 
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]

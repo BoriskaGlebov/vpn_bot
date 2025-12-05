@@ -30,7 +30,7 @@ class TVDevice(Device):
 
         """
         media = await cls._list_files()
-        m_tv = settings_bot.messages["modes"]["help"]["instructions"]["tv"]
+        m_tv = settings_bot.messages.modes.help.instructions.tv
         for file, answertext in zip_longest(media, m_tv):
             await bot.send_photo(
                 chat_id=chat_id,

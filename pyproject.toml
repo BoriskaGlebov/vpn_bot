@@ -24,6 +24,7 @@ python-dateutil = "^2.9.0.post0"
 apscheduler = "^3.11.1"
 orjson = "^3.11.4"
 aioboto3 = "^15.5.0"
+python-box = "^7.3.2"
 
 
 [tool.poetry.group.dev.dependencies]

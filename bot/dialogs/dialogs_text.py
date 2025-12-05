@@ -1,23 +1,23 @@
 from pathlib import Path
-from pprint import pprint
 from typing import Any
 
 import yaml
+from box import Box
 from loguru import logger
 
 
-def load_dialogs(filename: Path | str | None = None) -> dict[str, Any]:
-    """Загружает YAML-файл с диалогами, применяет шаблоны и возвращает словарь.
+def load_dialogs(filename: Path | str | None = None) -> Box:
+    """Загружает YAML-файл с диалогами, подставляет шаблоны и возвращает результат как Box (доступ через точку).
 
     Args:
-        filename (Path | str | None): Путь к YAML-файлу.
-            Если None, используется файл 'dialog_messages.yaml' рядом с модулем.
+        filename: Путь к YAML-файлу. Если None — dialog_messages.yaml в текущей папке.
 
     Returns
-        dict[str, Any]: Словарь диалогов с подставленными шаблонами.
+        Box: Данные диалогов с доступом через точку.
 
     Raises
         FileNotFoundError: Если файл не найден.
+        KeyError: Если ключ 'bot' отсутствует.
 
     """
     filename = Path(filename or Path(__file__).parent / "dialog_messages.yaml")
@@ -56,10 +56,7 @@ def load_dialogs(filename: Path | str | None = None) -> dict[str, Any]:
     }
 
     logger.debug(f"✅ Загружены диалоги из {filename}")
-    return processed_data
+    return Box(processed_data, default_box=True, default_box_attr=None)
 
 
 dialogs = load_dialogs()
-
-if __name__ == "__main__":
-    pprint(dialogs["general"]["echo"].format(text="test"))

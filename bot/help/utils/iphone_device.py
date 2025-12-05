@@ -17,7 +17,7 @@ class IphoneDevice(Device):
         """Отправляет пользователю инструкцию по настройке VPN на iPhone.
 
         Метод отправляет серию изображений с подписями, взятыми из настроек
-        `settings_bot.MESSAGES["modes"]["help"]["instructions"]["iphone"]`.
+        `settings_bot.messages.modes.help.instructions.iphone`.
         Каждое изображение соответствует одному шагу инструкции.
 
         Args:
@@ -30,7 +30,7 @@ class IphoneDevice(Device):
 
         """
         media = await cls._list_files()
-        m_iphone = settings_bot.messages["modes"]["help"]["instructions"]["iphone"]
+        m_iphone = settings_bot.messages.modes.help.instructions.iphone
         for file, answertext in zip_longest(media, m_iphone):
             await bot.send_photo(
                 chat_id=chat_id,

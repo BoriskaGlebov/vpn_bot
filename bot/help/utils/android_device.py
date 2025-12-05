@@ -17,7 +17,7 @@ class AndroidDevice(Device):
         """Отправляет пользователю инструкцию по настройке VPN на Android.
 
         Метод отправляет серию изображений с подписями, взятыми из конфигурации
-        `settings_bot.MESSAGES["modes"]["help"]["instructions"]["android"]`.
+        `settings_bot.messages.modes.help.instructions.android`.
         Каждое изображение соответствует шагу инструкции по настройке VPN на Android.
 
         Args:
@@ -30,7 +30,7 @@ class AndroidDevice(Device):
 
         """
         media = await cls._list_files()
-        m_android = settings_bot.messages["modes"]["help"]["instructions"]["android"]
+        m_android = settings_bot.messages.modes.help.instructions.android
         for file, answertext in zip_longest(media, m_android):
             await bot.send_photo(
                 chat_id=chat_id,

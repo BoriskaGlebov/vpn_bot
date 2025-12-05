@@ -17,7 +17,7 @@ class PCDevice(Device):
         """Отправляет пользователю инструкцию по настройке VPN на ПК.
 
         Метод поочерёдно отправляет изображения с поясняющими подписями,
-        полученными из конфигурации `settings_bot.MESSAGES["modes"]["help"]["instructions"]["pc"]`.
+        полученными из конфигурации `settings_bot.messages.modes.help.instructions.pc`.
         Каждое изображение соответствует шагу настройки VPN на компьютере.
 
         Args:
@@ -30,7 +30,7 @@ class PCDevice(Device):
 
         """
         media = await cls._list_files()
-        m_pc = settings_bot.messages["modes"]["help"]["instructions"]["pc"]
+        m_pc = settings_bot.messages.modes.help.instructions.pc
         for file, answertext in zip_longest(media, m_pc):
             await bot.send_photo(
                 chat_id=chat_id,

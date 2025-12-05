@@ -28,10 +28,10 @@ from bot.users.services import UserService
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
 
-m_admin = settings_bot.messages.get("modes", {}).get("admin", {})
-m_start = settings_bot.messages.get("modes", {}).get("start", {})
-m_error = settings_bot.messages.get("errors", {})
-m_echo = settings_bot.messages.get("general", {}).get("echo", {})
+m_admin = settings_bot.messages.modes.admin
+m_start = settings_bot.messages.modes.start
+m_error = settings_bot.messages.errors
+m_echo = settings_bot.messages.general.echo
 INVALID_FOR_USER = [
     "💰 Выбрать подписку VPN-Boriska",
     "🔑 Получить VPN-конфиг AmneziaVPN",
@@ -146,7 +146,7 @@ class UserRouter(BaseRouter):
             user_info, is_new = await self.user_service.register_or_get_user(
                 session=session, telegram_user=user
             )
-            welcome_messages = m_start.get("welcome", {})
+            welcome_messages = m_start.welcome
             if message.chat.type != ChatType.PRIVATE:
                 bot_inf = await self.bot.get_me()
                 await message.answer(
@@ -157,10 +157,8 @@ class UserRouter(BaseRouter):
             full_name = user.full_name or username
             if not is_new:
                 self.logger.bind(user=username).info("Пользователь вернулся в бота")
-                response_message = welcome_messages.get("again", [])[0].format(
-                    username=full_name
-                )
-                follow_up_message = welcome_messages.get("again", [])[1]
+                response_message = welcome_messages.again[0].format(username=full_name)
+                follow_up_message = welcome_messages.again[1]
 
                 await message.answer(
                     response_message, reply_markup=ReplyKeyboardRemove()
@@ -180,10 +178,8 @@ class UserRouter(BaseRouter):
                 self.logger.bind(user=user.username or user.id).info(
                     f"Новый пользователь зарегистрирован: {user.id} ({username})"
                 )
-                response_message = welcome_messages.get("first", [])[0].format(
-                    username=full_name
-                )
-                follow_up_message = welcome_messages.get("first", [])[1]
+                response_message = welcome_messages.first[0].format(username=full_name)
+                follow_up_message = welcome_messages.first[1]
                 await message.answer(
                     response_message, reply_markup=ReplyKeyboardRemove()
                 )
@@ -199,7 +195,7 @@ class UserRouter(BaseRouter):
                     ),
                 )
                 if user_info.telegram_id not in settings_bot.admin_ids:
-                    admin_message = m_admin.get("new_registration", "").format(
+                    admin_message = m_admin.new_registration.format(
                         first_name=user_info.first_name or "undefined",
                         last_name=user_info.last_name or "undefined",
                         username=user_info.username or "undefined",
@@ -247,11 +243,11 @@ class UserRouter(BaseRouter):
                     f"Попытка доступа к админ-панели не админом: {user.id}"
                 )
                 await message.answer(
-                    text=m_admin.get("off", "У вас нет доступа к этой команде!"),
+                    text=m_admin.off,
                     reply_markup=ReplyKeyboardRemove(),
                 )
                 await self.bot.send_message(
-                    text=m_error.get("admin_only", "У вас нет доступа к этой команде!"),
+                    text=m_error.admin_only,
                     reply_markup=ReplyKeyboardRemove(),
                     chat_id=message.chat.id,
                 )
@@ -261,12 +257,12 @@ class UserRouter(BaseRouter):
             )
             await self.bot.send_message(
                 chat_id=user.id,
-                text=m_admin.get("on", [])[0],
+                text=m_admin.on[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
             await self.bot.send_message(
                 chat_id=user.id,
-                text=m_admin.get("on", [])[1],
+                text=m_admin.on[1],
                 reply_markup=admin_main_kb(),
             )
 

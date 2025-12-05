@@ -1,20 +1,10 @@
 from __future__ import annotations
 
-from enum import Enum
-
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.admin.enums import ActionEnum
-
-
-class FilterTypeEnum(str, Enum):
-    """Перечисление типов фильтров пользователей."""
-
-    ADMIN = "admin"
-    FOUNDER = "founder"
-    USER = "user"
+from bot.admin.enums import ActionEnum, FilterTypeEnum
 
 
 class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,call-arg]
