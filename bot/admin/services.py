@@ -1,18 +1,23 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from users.services import UserService
 
 from bot.admin.enums import AdminModeKeys
 from bot.app_error.base_error import UserNotFoundError
 from bot.users.dao import RoleDAO, UserDAO
 from bot.users.router import m_admin
-from bot.users.schemas import SRole, SUserOut, SUserTelegramID
+from bot.users.schemas import (
+    SRole,
+    SUserOut,
+    SUserTelegramID,
+)
 
 
 class AdminService:
     """Сервис для бизнес-логики управления пользователями и их ролями."""
 
-    @staticmethod
+    @classmethod
     async def get_user_by_telegram_id(
-        session: AsyncSession, telegram_id: int
+        cls, session: AsyncSession, telegram_id: int
     ) -> SUserOut:
         """Возвращает пользователя по Telegram ID.
 
@@ -32,12 +37,12 @@ class AdminService:
         )
         if not user:
             raise UserNotFoundError(tg_id=telegram_id)
-        user_schema = SUserOut.model_validate(user)
+        user_schema = await UserService.get_user_schema(user)
         return user_schema
 
-    @staticmethod
+    @classmethod
     async def get_users_by_filter(
-        session: AsyncSession, filter_type: str
+        cls, session: AsyncSession, filter_type: str
     ) -> list[SUserOut]:
         """Получает список пользователей по фильтру роли.
 
@@ -52,10 +57,12 @@ class AdminService:
         users = await UserDAO.get_users_by_roles(
             session=session, filter_type=filter_type
         )
-        return [SUserOut.model_validate(user) for user in users]
+        return [await UserService.get_user_schema(user) for user in users]
 
-    @staticmethod
-    async def format_user_text(suser: SUserOut, key: str = AdminModeKeys.USER) -> str:
+    @classmethod
+    async def format_user_text(
+        cls, suser: SUserOut, key: str = AdminModeKeys.USER
+    ) -> str:
         """Форматирует текст пользователя для сообщений.
 
         Args:
@@ -76,9 +83,9 @@ class AdminService:
             subscription=str(suser.subscription) or "-",
         )
 
-    @staticmethod
+    @classmethod
     async def change_user_role(
-        session: AsyncSession, telegram_id: int, role_name: str
+        cls, session: AsyncSession, telegram_id: int, role_name: str
     ) -> SUserOut:
         """Меняет роль пользователя и при необходимости активирует подписку.
 
@@ -102,11 +109,12 @@ class AdminService:
         if not user or not role:
             raise UserNotFoundError(tg_id=telegram_id)
         changed_user = await UserDAO.change_role(session=session, user=user, role=role)
-        return SUserOut.model_validate(changed_user)
+        user_schema = await UserService.get_user_schema(changed_user)
+        return user_schema
 
-    @staticmethod
+    @classmethod
     async def extend_user_subscription(
-        session: AsyncSession, telegram_id: int, months: int
+        cls, session: AsyncSession, telegram_id: int, months: int
     ) -> SUserOut:
         """Продлевает активную подписку пользователя.
 
@@ -131,4 +139,5 @@ class AdminService:
         changed_user = await UserDAO.extend_subscription(
             session=session, user=user, months=months
         )
-        return SUserOut.model_validate(changed_user)
+        user_schema = await UserService.get_user_schema(changed_user)
+        return user_schema
