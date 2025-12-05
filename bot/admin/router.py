@@ -132,7 +132,7 @@ class AdminRouter(BaseRouter):
                 await query.answer("Выбрал поменять роль.")
                 await state.set_state(AdminStates.select_role)
                 await msg.edit_text(
-                    f"{old_text}\n{'*' * 20}\nВыберите новую роль для пользователя:",
+                    f"{old_text}\nВыберите новую роль для пользователя:",
                     reply_markup=role_selection_kb(
                         filter_type=callback_data.filter_type,
                         index=callback_data.index,
@@ -144,7 +144,7 @@ class AdminRouter(BaseRouter):
                 await query.answer("Выбрал изменить срок подписки")
                 await state.set_state(AdminStates.select_period)
                 await msg.edit_text(
-                    f"{old_text}\n{'*' * 20}\nВыберите срок подписки для пользователя:",
+                    f"{old_text}\nВыберите срок подписки для пользователя:",
                     reply_markup=subscription_selection_kb(
                         filter_type=callback_data.filter_type,
                         index=callback_data.index,
@@ -200,7 +200,7 @@ class AdminRouter(BaseRouter):
                 suser=user_schema, key=AdminModeKeys.EDIT_USER
             )
             await msg.edit_text(
-                f"{old_text}\n{'*' * 20}\nРоль пользователя изменена на {role_name} ✅",
+                f"{old_text}\nРоль пользователя изменена на {role_name} ✅",
                 reply_markup=user_navigation_kb(
                     filter_type=role_name,
                     index=callback_data.index,
@@ -257,7 +257,7 @@ class AdminRouter(BaseRouter):
                 )
 
                 await msg.edit_text(
-                    f"{old_text}\n{'*' * 20}\nПодписка продлена на {months} мес. ✅",
+                    f"{old_text}\nПодписка продлена на {months} мес. ✅",
                     reply_markup=admin_user_control_kb(
                         filter_type=callback_data.filter_type,
                         index=callback_data.index,
