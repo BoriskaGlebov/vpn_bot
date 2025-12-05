@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from enum import Enum
-
 from aiogram import Bot, F
 from aiogram.filters import Command, StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
@@ -11,23 +9,17 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
 from bot.config import settings_bot
+from bot.help.enums import DeviceEnum
 from bot.help.keyboards.inline_kb import device_keyboard
 from bot.help.utils.android_device import AndroidDevice
 from bot.help.utils.common_device import Device
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
 from bot.help.utils.tv_device import TVDevice
-from bot.users.router import ChatType
+from bot.users.enums import ChatType
 from bot.utils.base_router import BaseRouter
 
 m_help = settings_bot.messages.get("modes", {}).get("help", {})
-
-
-class DeviceEnum(str, Enum):
-    ANDROID = "android"
-    IOS = "ios"
-    PC = "pc"
-    TV = "tv"
 
 
 class HelpStates(StatesGroup):  # type: ignore[misc]

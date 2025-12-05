@@ -6,17 +6,7 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-
-class ActionEnum(str, Enum):
-    """Перечисление возможных действий с пользователем."""
-
-    ROLE_CHANGE = "role_change"
-    SUB_MANAGE = "sub_manage"
-    ROLE_SELECT = "role_select"
-    ROLE_CANCEL = "role_cancel"
-    SUB_SELECT = "sub_select"
-    SUBSCR_CANCEL = "subscr_cancel"
-    NAVIGATE = "navigate"
+from bot.admin.enums import ActionEnum
 
 
 class FilterTypeEnum(str, Enum):

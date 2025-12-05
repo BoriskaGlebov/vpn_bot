@@ -9,8 +9,8 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.admin.enums import ActionEnum
 from bot.admin.keyboards.inline_kb import (
-    ActionEnum,
     AdminCB,
     UserPageCB,
     admin_user_control_kb,

@@ -1,10 +1,10 @@
 import datetime
-from enum import Enum
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from bot.admin.enums import AdminModeKeys
 from bot.admin.keyboards.inline_kb import FilterTypeEnum
 from bot.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError
 from bot.subscription.models import SubscriptionType
@@ -12,13 +12,6 @@ from bot.users.dao import RoleDAO, UserDAO
 from bot.users.models import Role, User
 from bot.users.router import m_admin
 from bot.users.schemas import SRole, SUserOut, SUserTelegramID
-
-
-class AdminModeKeys(str, Enum):
-    """Ключи для шаблонов текста в админке."""
-
-    USER = "user"
-    EDIT_USER = "edit_user"
 
 
 class AdminService:

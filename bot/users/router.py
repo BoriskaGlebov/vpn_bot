@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from enum import Enum
 from typing import Any
 
 from aiogram import Bot, F
@@ -23,6 +22,7 @@ from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import SettingsRedis
+from bot.users.enums import ChatType
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.services import UserService
 from bot.utils.base_router import BaseRouter
@@ -45,12 +45,6 @@ INVALID_FOR_ADMIN = [
     "⚙️ Админ-панель",
     "❓ Помощь в настройке VPN",
 ]
-
-
-class ChatType(str, Enum):
-    """Типы чатов в Telegram."""
-
-    PRIVATE = "private"
 
 
 class UserStates(StatesGroup):  # type: ignore[misc]
