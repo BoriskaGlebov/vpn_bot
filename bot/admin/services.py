@@ -4,8 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from bot.admin.enums import AdminModeKeys
-from bot.admin.keyboards.inline_kb import FilterTypeEnum
+from bot.admin.enums import AdminModeKeys, FilterTypeEnum
 from bot.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError
 from bot.subscription.models import SubscriptionType
 from bot.users.dao import RoleDAO, UserDAO
