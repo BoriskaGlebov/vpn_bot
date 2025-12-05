@@ -13,7 +13,7 @@ from bot.database import Base
 from bot.redis_manager import SettingsRedis
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils import commands
-from bot.utils.init_default_roles import init_default_roles
+from bot.utils.init_default_roles import init_default_roles_admins
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
@@ -55,9 +55,7 @@ def fake_redis_service(fake_redis, fake_logger):
 def patch_deps(fake_bot, fake_logger, monkeypatch):
     monkeypatch.setattr(commands, "bot", fake_bot)
     monkeypatch.setattr(commands, "logger", fake_logger)
-    monkeypatch.setattr(
-        settings_bot, "messages", {"description": "Описание работы Бота"}
-    )
+    monkeypatch.setattr(settings_bot.messages, "description", "Описание работы Бота")
     monkeypatch.setattr(settings_bot, "admin_ids", {123, 456})
     return fake_bot, fake_logger
 
@@ -85,7 +83,7 @@ async def session(test_engine):
         test_engine, class_=AsyncSession, expire_on_commit=False
     )
     async with async_session() as session:
-        await init_default_roles(session=session)
+        await init_default_roles_admins(session=session)
         yield session
 
 

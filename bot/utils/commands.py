@@ -15,17 +15,17 @@ from bot.config import (
 # Команды для обычных пользователей
 user_commands: list[BotCommand] = [
     BotCommand(command=command, description=description)
-    for command, description in settings_bot.messages["commands"]["users"].items()
+    for command, description in settings_bot.messages.commands.users.items()
 ]
 
 # Команды для администраторов
 admin_commands: list[BotCommand] = [
     BotCommand(command=command, description=description)
-    for command, description in settings_bot.messages["commands"]["admins"].items()
+    for command, description in settings_bot.messages.commands.admins.items()
 ]
 group_commands = [
     BotCommand(command=command, description=description)
-    for command, description in settings_bot.messages["commands"]["group"].items()
+    for command, description in settings_bot.messages.commands.group.items()
 ]
 
 

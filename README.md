@@ -38,6 +38,12 @@ DB_DATABASE=your_database
 REDIS_PASSWORD=your_redis_password
 
 USE_POLLING=True
+
+BUCKET_NAME=vpn-bot-images
+PREFIX=media/
+ENDPOINT_URL=https://storage.yandexcloud.net
+ACCESS_KEY=your_key
+SECRET_KEY=your_key
 ```
 Описание переменных
 - BOT_TOKEN — токен Telegram-бота.
@@ -55,6 +61,11 @@ USE_POLLING=True
 - DB_DATABASE — имя базы данных.
 - REDIS_PASSWORD — пароль для Redis.
 - USE_POLLING — использовать polling или webhook
+- BUCKET_NAME - название вашего хранилища
+- PREFIX - папка с файлами
+- ENDPOINT_URL - базовый адрес хранилища
+- ACCESS_KEY - данные сервисного аккаунта
+- SECRET_KEY - данные сервисного аккаунта
 
 
 ## Запуск
