@@ -1,7 +1,12 @@
+import datetime
+
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from bot.admin.enums import FilterTypeEnum
+from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.config import logger
 from bot.dao.base import BaseDAO
 from bot.subscription.models import Subscription, SubscriptionType
@@ -71,6 +76,118 @@ class UserDAO(BaseDAO[User]):
                 return new_user
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при добавлении записи: {e}")
+            raise e
+
+    @classmethod
+    async def get_users_by_roles(
+        cls, session: AsyncSession, filter_type: str
+    ) -> list[User]:
+        """Получает список пользователей, отфильтрованных по роли.
+
+        Функция выполняет запрос к базе данных с опциональной фильтрацией
+        по роли. Если `filter_type` равен `"all"`, возвращаются все
+        пользователи. В противном случае — только пользователи с указанной ролью.
+
+        Args:
+            session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
+            filter_type (str): Имя роли для фильтрации или `"all"`.
+
+        Returns
+            list[User]: Список найденных пользователей.
+
+        Raises
+            SQLAlchemyError: Ошибка выполнения запроса или работы транзакции.
+
+        """
+        try:
+            async with cls.transaction(session=session):
+                stmt = select(User).join(User.role).options(selectinload(User.role))
+                if filter_type != "all":
+                    stmt = stmt.where(Role.name == filter_type)
+
+                result = await session.execute(stmt)
+                return list(result.scalars().all())
+        except SQLAlchemyError as e:
+            logger.error(f"[DAO] Ошибка получения записи: {e}")
+            raise e
+
+    @classmethod
+    async def change_role(
+        cls,
+        session: AsyncSession,
+        user: User,
+        role: Role,
+    ) -> User:
+        """Изменяет роль пользователя и при необходимости активирует подписку.
+
+        Если новая роль равна ``FilterTypeEnum.FOUNDER``, пользователю
+        автоматически активируется подписка до конца текущего года, а тип
+        подписки меняется на ``SubscriptionType.PREMIUM``.
+
+        Args:
+            session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
+            user (User): Объект пользователя, чья роль изменяется.
+            role (Role): Новая роль, которая будет назначена пользователю.
+
+        Returns
+            User: Обновлённый объект пользователя.
+
+        Raises
+            SQLAlchemyError: Ошибка при сохранении изменений в базе данных.
+
+        """
+        try:
+            async with cls.transaction(session=session):
+                user.role = role
+
+                if role.name == FilterTypeEnum.FOUNDER:
+                    now = datetime.datetime.now(tz=datetime.UTC)
+                    next_year = datetime.datetime(
+                        now.year + 1, 1, 1, tzinfo=datetime.UTC
+                    )
+                    delta = next_year - now
+                    user.subscription.activate(days=delta.days)
+                    user.subscription.type = SubscriptionType.PREMIUM
+                await session.commit()
+                return user
+        except SQLAlchemyError as e:
+            logger.error(f"[DAO] Ошибка изменения роли пользователя: {e}")
+            raise e
+
+    @classmethod
+    async def extend_subscription(
+        cls, session: AsyncSession, user: User, months: int
+    ) -> User:
+        """Продляет активную подписку пользователя на указанное количество месяцев.
+
+        Если подписка активна, её срок продляется. Если подписка не активна,
+        возбуждается ``SubscriptionNotFoundError``.
+
+        Args:
+            session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
+            user (User): Пользователь, чья подписка продлевается.
+            months (int): Количество месяцев для продления.
+
+        Returns
+            User: Объект пользователя с обновлённой подпиской.
+
+        Raises
+            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
+            SQLAlchemyError: Ошибка сохранения данных в базе.
+
+        """
+        try:
+            async with cls.transaction(session=session):
+                subscription = user.subscription
+                if subscription.is_active:
+                    subscription.extend(months=months)
+                else:
+                    raise SubscriptionNotFoundError(user_id=user.telegram_id)
+                await session.commit()
+            return user
+
+        except SQLAlchemyError as e:
+            logger.error(f"[DAO] Ошибка при продлении подписки пользователя: {e}")
             raise e
 
 

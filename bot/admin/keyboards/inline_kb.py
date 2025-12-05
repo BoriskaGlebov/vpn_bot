@@ -5,6 +5,7 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.admin.enums import ActionEnum, FilterTypeEnum
+from bot.config import settings_bot
 
 
 class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,call-arg]
@@ -146,7 +147,7 @@ def subscription_selection_kb(
     """
     builder = InlineKeyboardBuilder()
 
-    for months in (1, 3, 6, 12):
+    for months in list(settings_bot.price_map.keys())[:-1]:
         builder.button(
             text=f"{months} мес.",
             callback_data=UserPageCB(

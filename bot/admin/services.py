@@ -1,14 +1,8 @@
-import datetime
-
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from bot.admin.enums import AdminModeKeys, FilterTypeEnum
-from bot.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError
-from bot.subscription.models import SubscriptionType
+from bot.admin.enums import AdminModeKeys
+from bot.app_error.base_error import UserNotFoundError
 from bot.users.dao import RoleDAO, UserDAO
-from bot.users.models import Role, User
 from bot.users.router import m_admin
 from bot.users.schemas import SRole, SUserOut, SUserTelegramID
 
@@ -55,12 +49,9 @@ class AdminService:
             List[SUserOut]: Список пользователей схемы.
 
         """
-        stmt = select(User).join(User.role).options(selectinload(User.role))
-        if filter_type != "all":
-            stmt = stmt.where(Role.name == filter_type)
-
-        result = await session.execute(stmt)
-        users = result.scalars().all()
+        users = await UserDAO.get_users_by_roles(
+            session=session, filter_type=filter_type
+        )
         return [SUserOut.model_validate(user) for user in users]
 
     @staticmethod
@@ -110,19 +101,8 @@ class AdminService:
 
         if not user or not role:
             raise UserNotFoundError(tg_id=telegram_id)
-
-        user.role = role
-
-        if role.name == FilterTypeEnum.FOUNDER:
-            now = datetime.datetime.now(tz=datetime.UTC)
-            next_year = datetime.datetime(now.year + 1, 1, 1, tzinfo=datetime.UTC)
-            delta = next_year - now
-            user.subscription.activate(days=delta.days)
-            user.subscription.type = SubscriptionType.PREMIUM
-
-        await session.flush([user, user.subscription])
-        await session.commit()
-        return SUserOut.model_validate(user)
+        changed_user = await UserDAO.change_role(session=session, user=user, role=role)
+        return SUserOut.model_validate(changed_user)
 
     @staticmethod
     async def extend_user_subscription(
@@ -148,13 +128,7 @@ class AdminService:
         )
         if not user:
             raise UserNotFoundError(tg_id=telegram_id)
-
-        subscription = user.subscription
-        if subscription.is_active:
-            subscription.extend(months=months)
-        else:
-            raise SubscriptionNotFoundError(user_id=telegram_id)
-
-        await session.flush([user])
-        await session.commit()
-        return SUserOut.model_validate(user)
+        changed_user = await UserDAO.extend_subscription(
+            session=session, user=user, months=months
+        )
+        return SUserOut.model_validate(changed_user)
