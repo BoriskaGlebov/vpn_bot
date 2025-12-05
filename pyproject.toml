@@ -107,7 +107,6 @@ exclude = [
     "^bot/migrations/",
     "bot/vpn",
     "bot/subscription",
-    "bot/help"
 ]
 plugins = [
     "pydantic.mypy",
