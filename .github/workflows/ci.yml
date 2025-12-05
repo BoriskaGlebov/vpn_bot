@@ -85,4 +85,9 @@ jobs:
           VPN_CONTAINER: ${{vars.VPN_CONTAINER}}
           VPN_HOST: ${{vars.VPN_HOST}}
           VPN_USERNAME: ${{vars.VPN_USERNAME}}
+          BUCKET_NAME: ${{vars.BUCKET_NAME}}
+          PREFIX: ${{vars.PREFIX}}
+          ENDPOINT_URL: ${{vars.ENDPOINT_URL}}
+          ACCESS_KEY: ${{secrets.ACCESS_KEY}}
+          SECRET_KEY: ${{secrets.SECRET_KEY}}
         run: poetry run pytest -vs .

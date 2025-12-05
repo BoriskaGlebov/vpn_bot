@@ -7,6 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
+from box import Box
 from loguru import logger
 from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -62,7 +63,7 @@ class SettingsBot(BaseSettings):
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
 
-    messages: dict[str, Any] = dialogs
+    messages: Box = dialogs
 
     price_map: dict[int, int] = Field(
         default_factory=lambda: {1: 70, 3: 160, 6: 300, 12: 600, 7: 0},
@@ -171,6 +172,34 @@ class SettingsDB(BaseSettings):
             f"redis://{self.redis_user}:{self.redis_password.get_secret_value()}@"
             f"{self.redis_host}:{self.redis_port}/{self.num_db}"
         )
+
+
+class SettingsBucket(BaseSettings):
+    """Настройки подключения к S3-совместимому хранилищу (например, Яндекс Object Storage).
+
+    Attributes
+        bucket_name (str): Имя бакета в S3, из которого будут читаться файлы.
+        prefix (str): Префикс (путь внутри бакета), например 'media/amnezia_pc/'.
+        endpoint_url (str): URL S3-совместимого сервиса, например 'https://storage.yandexcloud.net'.
+        access_key (SecretStr): Секретный ключ доступа к сервису S3 (Access Key).
+        secret_key (SecretStr): Секретный ключ доступа к сервису S3 (Secret Key).
+
+    """
+
+    bucket_name: str
+    prefix: str
+    endpoint_url: str
+    access_key: SecretStr
+    secret_key: SecretStr
+
+    model_config = SettingsConfigDict(
+        env_file=[
+            str(BASE_DIR / ".env"),
+            str(BASE_DIR / ".env.local"),
+        ],
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 class LoggerConfig:
@@ -334,6 +363,7 @@ class LoggerConfig:
 
 settings_bot = SettingsBot()
 settings_db = SettingsDB()
+settings_bucket = SettingsBucket()
 
 LoggerConfig(
     log_dir=Path(__file__).resolve().parent / "logs",
@@ -356,9 +386,3 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
-
-if __name__ == "__main__":
-    print(settings_bot)
-    print(settings_bot.admin_ids)
-    print(type(settings_bot.admin_ids))
-    # print(settings_bot.parse_admin_ids("123456, 789012,345678"))

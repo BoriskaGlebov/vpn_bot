@@ -1,30 +1,10 @@
 from __future__ import annotations
 
-from enum import Enum
-
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-
-class ActionEnum(str, Enum):
-    """Перечисление возможных действий с пользователем."""
-
-    ROLE_CHANGE = "role_change"
-    SUB_MANAGE = "sub_manage"
-    ROLE_SELECT = "role_select"
-    ROLE_CANCEL = "role_cancel"
-    SUB_SELECT = "sub_select"
-    SUBSCR_CANCEL = "subscr_cancel"
-    NAVIGATE = "navigate"
-
-
-class FilterTypeEnum(str, Enum):
-    """Перечисление типов фильтров пользователей."""
-
-    ADMIN = "admin"
-    FOUNDER = "founder"
-    USER = "user"
+from bot.admin.enums import ActionEnum, FilterTypeEnum
 
 
 class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,call-arg]
