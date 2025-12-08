@@ -85,6 +85,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
+    # TODO Надо не забыть проверку подписок делать раз в день и не плохо мне об этом писать
     scheduler.add_job(
         scheduled_check,
         trigger=IntervalTrigger(minutes=1),

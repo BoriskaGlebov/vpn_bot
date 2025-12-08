@@ -66,12 +66,15 @@ class UserDAO(BaseDAO[User]):
                 await session.flush()
                 subscription = Subscription(user_id=new_user.id)
                 new_user.role = role
+                new_user.subscription = subscription
                 if role.name == "admin":
                     subscription.is_active = True
                     subscription.end_date = None
                     subscription.type = SubscriptionType.PREMIUM
                 session.add(subscription)
-                await session.refresh(new_user)
+                await session.refresh(
+                    new_user, attribute_names=["subscription", "vpn_configs", "role"]
+                )
                 logger.debug(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
                 return new_user
         except SQLAlchemyError as e:

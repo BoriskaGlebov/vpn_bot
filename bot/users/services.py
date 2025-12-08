@@ -92,5 +92,6 @@ class UserService:
                 values_user=schema_user,
                 values_role=schema_role,
             )
+
             return await UserService.get_user_schema(user), True
         return await UserService.get_user_schema(user), False
