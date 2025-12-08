@@ -456,9 +456,8 @@ async def test_admin_decline_payment_no_message(
 @pytest.mark.asyncio
 @pytest.mark.subscription
 async def test_admin_decline_payment_no_bot(
-    fake_bot, fake_logger, fake_state, make_fake_query
+    fake_bot, fake_logger, fake_state, make_fake_query, monkeypatch
 ):
-    # query.bot = None
     callback_data = AdminPaymentCB(user_id=1, months=1, premium=True, action="decline")
     query = make_fake_query(user_id=999, username="admin_user")
     query.bot = None
@@ -468,7 +467,16 @@ async def test_admin_decline_payment_no_bot(
         bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
     )
 
+    # Мокируем redis_service.get, чтобы не подключался к Redis
+    monkeypatch.setattr(
+        "bot.subscription.router.redis_service.get", AsyncMock(return_value=[])
+    )
+
+    # Мокируем другие методы, если нужно
+    monkeypatch.setattr("bot.subscription.router.edit_admin_messages", AsyncMock())
+
     result = await router.admin_decline_payment(
         query=query, state=fake_state, callback_data=callback_data
     )
+
     assert result is None
