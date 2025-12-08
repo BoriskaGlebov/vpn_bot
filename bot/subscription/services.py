@@ -5,6 +5,7 @@ from aiogram import Bot
 from loguru._logger import Logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from bot.admin.enums import FilterTypeEnum
 from bot.app_error.base_error import UserNotFoundError
@@ -133,7 +134,13 @@ class SubscriptionService:
                 }
 
         """
-        result = await session.execute(select(User).options())
+        result = await session.execute(
+            select(User).options(
+                selectinload(User.subscription),
+                selectinload(User.role),
+                selectinload(User.vpn_configs),
+            )
+        )
         users = result.scalars().all()
 
         now = datetime.datetime.now(datetime.UTC)

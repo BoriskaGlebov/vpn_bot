@@ -92,12 +92,11 @@ def subscription_options_kb(
     multiplier = 2 if premium else 1
     label_prefix = "⭐" if premium else "📆"
 
-    options: list[tuple[str, int]] = [
-        (f"1 месяц — {price_map[1] * multiplier}₽", 1),
-        (f"3 месяца — {price_map[3] * multiplier}₽", 3),
-        (f"6 месяцев — {price_map[6] * multiplier}₽", 6),
-        (f"12 месяцев — {price_map[12] * multiplier}₽", 12),
-    ]
+    options: list[tuple[str, int]] = []
+    for m in (1, 3, 6, 12):
+        price = price_map.get(m)
+        if isinstance(price, int) and price >= 0:
+            options.append((f"{m} месяц — {price * multiplier}₽", m))
 
     for label, months in options:
         builder.button(
