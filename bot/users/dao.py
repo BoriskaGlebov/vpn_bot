@@ -193,6 +193,43 @@ class UserDAO(BaseDAO[User]):
             logger.error(f"[DAO] Ошибка при продлении подписки пользователя: {e}")
             raise e
 
+    @classmethod
+    async def find_one_or_none(
+        cls, session: AsyncSession, filters: SUser
+    ) -> User | None:
+        """Находит одну запись по фильтрам.
+
+        Args:
+            session (AsyncSession): Сессия для взаимодействия с БД.
+            filters (BaseModel): Фильтры для поиска.
+
+        Returns
+            Optional[T]: Найденная запись или None.
+
+        """
+        filter_dict = cls._to_dict(filters=filters)
+        # noinspection PyTypeChecker
+        logger.info(
+            f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
+        )
+        logger.debug(f"[DAO] Фильтры → условия: {cls._build_filters(filter_dict)}")
+        async with cls.transaction(session):
+            filters_clause = cls._build_filters(filter_dict)
+            # noinspection PyTypeChecker
+            query = (
+                select(cls.model)
+                .where(filters_clause)
+                .options(
+                    selectinload(cls.model.role),
+                    selectinload(cls.model.subscription),
+                    selectinload(cls.model.subscription),
+                )
+            )
+            result = await session.execute(query)
+            record = result.scalar_one_or_none()
+            logger.debug(f"[DAO] Найдено: {record!r}")
+            return record
+
 
 class RoleDAO(BaseDAO[Role]):
     """Класс DAO для работы с ролями пользователей.
