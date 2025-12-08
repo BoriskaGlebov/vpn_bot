@@ -68,7 +68,7 @@ class UserDAO(BaseDAO[User]):
                 subscription = Subscription(user_id=new_user.id)
                 new_user.role = role
                 new_user.subscription = subscription
-                if role.name == "admin":
+                if role.name == FilterTypeEnum.ADMIN:
                     subscription.is_active = True
                     subscription.end_date = None
                     subscription.type = SubscriptionType.PREMIUM
