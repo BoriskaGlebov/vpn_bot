@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # TODO Надо не забыть проверку подписок делать раз в день и не плохо мне об этом писать
     scheduler.add_job(
         scheduled_check,
-        trigger=IntervalTrigger(minutes=1),
+        trigger=IntervalTrigger(days=1),
         kwargs={"logger": logger},
     )
     scheduler.start()
