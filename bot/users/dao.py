@@ -1,5 +1,6 @@
 import datetime
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -195,7 +196,7 @@ class UserDAO(BaseDAO[User]):
 
     @classmethod
     async def find_one_or_none(
-        cls, session: AsyncSession, filters: SUser
+        cls, session: AsyncSession, filters: BaseModel
     ) -> User | None:
         """Находит одну запись по фильтрам.
 
