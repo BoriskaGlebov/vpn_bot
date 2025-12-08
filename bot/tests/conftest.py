@@ -139,6 +139,7 @@ def make_fake_query(make_fake_message):
         query.id = f"query_{user_id}"
         query.data = data
         query.bot = AsyncMock()
+        query.bot.send_message = AsyncMock()
         # Асинхронные методы
         query.answer = AsyncMock()
         query.message.edit_text = AsyncMock()  # чтобы гарантированно был async

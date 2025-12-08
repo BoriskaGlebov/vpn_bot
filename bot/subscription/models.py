@@ -159,7 +159,9 @@ class Subscription(Base):
         """
         if not self.is_active:
             return True
-        return self.end_date and datetime.datetime.now(datetime.UTC) > self.end_date
+        return bool(
+            self.end_date and datetime.datetime.now(datetime.UTC) > self.end_date
+        )
 
     def remaining_days(self) -> int | None:
         """Возвращает количество оставшихся дней до окончания.

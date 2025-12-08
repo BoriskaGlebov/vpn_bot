@@ -1,5 +1,4 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from users.services import UserService
 
 from bot.admin.enums import AdminModeKeys
 from bot.app_error.base_error import UserNotFoundError
@@ -10,6 +9,7 @@ from bot.users.schemas import (
     SUserOut,
     SUserTelegramID,
 )
+from bot.users.services import UserService
 
 
 class AdminService:
