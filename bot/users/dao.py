@@ -67,14 +67,13 @@ class UserDAO(BaseDAO[User]):
                 await session.flush()
                 subscription = Subscription(user_id=new_user.id)
                 new_user.role = role
-                new_user.subscription = subscription
                 if role.name == FilterTypeEnum.ADMIN:
                     subscription.is_active = True
                     subscription.end_date = None
                     subscription.type = SubscriptionType.PREMIUM
                 session.add(subscription)
                 await session.refresh(
-                    new_user, attribute_names=["subscription", "vpn_configs", "role"]
+                    new_user, attribute_names=["subscriptions", "vpn_configs", "role"]
                 )
                 logger.debug(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
                 return new_user
@@ -150,8 +149,8 @@ class UserDAO(BaseDAO[User]):
                         now.year + 1, 1, 1, tzinfo=datetime.UTC
                     )
                     delta = next_year - now
-                    user.subscription.activate(days=delta.days)
-                    user.subscription.type = SubscriptionType.PREMIUM
+                    user.subscriptions[0].activate(days=delta.days)
+                    user.subscriptions[0].type = SubscriptionType.PREMIUM
                 await session.commit()
                 return user
         except SQLAlchemyError as e:
@@ -160,7 +159,11 @@ class UserDAO(BaseDAO[User]):
 
     @classmethod
     async def extend_subscription(
-        cls, session: AsyncSession, user: User, months: int
+        cls,
+        session: AsyncSession,
+        user: User,
+        months: int,
+        new_type: SubscriptionType | None = None,
     ) -> User:
         """Продляет активную подписку пользователя на указанное количество месяцев.
 
@@ -168,6 +171,7 @@ class UserDAO(BaseDAO[User]):
         возбуждается ``SubscriptionNotFoundError``.
 
         Args:
+            new_type: (SubscriptionType|None): Тип подписки если нужно новую создать или отредактировать старую.
             session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
             user (User): Пользователь, чья подписка продлевается.
             months (int): Количество месяцев для продления.
@@ -182,7 +186,7 @@ class UserDAO(BaseDAO[User]):
         """
         try:
             async with cls.transaction(session=session):
-                subscription = user.subscription
+                subscription = user.subscriptions[0]
                 if subscription.is_active:
                     subscription.extend(months=months)
                 else:
@@ -222,8 +226,8 @@ class UserDAO(BaseDAO[User]):
                 .where(filters_clause)
                 .options(
                     selectinload(cls.model.role),
-                    selectinload(cls.model.subscription),
-                    selectinload(cls.model.subscription),
+                    selectinload(cls.model.subscriptions),
+                    selectinload(cls.model.subscriptions),
                 )
             )
             result = await session.execute(query)

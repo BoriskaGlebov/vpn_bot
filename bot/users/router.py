@@ -167,8 +167,8 @@ class UserRouter(BaseRouter):
                     follow_up_message,
                     reply_markup=main_kb(
                         active_subscription=(
-                            user_info.subscription.is_active
-                            if user_info.subscription
+                            user_info.subscriptions[0].is_active
+                            if user_info.subscriptions
                             else False
                         ),
                         user_telegram_id=user.id,
@@ -187,8 +187,8 @@ class UserRouter(BaseRouter):
                     follow_up_message,
                     reply_markup=main_kb(
                         active_subscription=(
-                            user_info.subscription.is_active
-                            if user_info.subscription
+                            user_info.subscriptions[0].is_active
+                            if user_info.subscriptions
                             else False
                         ),
                         user_telegram_id=user.id,
@@ -201,7 +201,7 @@ class UserRouter(BaseRouter):
                         username=user_info.username or "undefined",
                         telegram_id=user_info.telegram_id,
                         roles=str(user_info.role),
-                        subscription=str(user_info.subscription),
+                        subscription=str(user_info.subscriptions[0]),
                     )
                     await send_to_admins(
                         bot=self.bot,

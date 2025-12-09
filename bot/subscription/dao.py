@@ -57,21 +57,17 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             )
             raise UserNotFoundError(tg_id=stelegram_id.telegram_id)
         schema_subscription = SSubscription(user_id=user.id)
-        subscription = await SubscriptionDAO.find_one_or_none(
-            session=session, filters=schema_subscription
+        subscription = await SubscriptionDAO.add(
+            session=session, values=schema_subscription
         )
-        if subscription is None:
-            subscription = await SubscriptionDAO.add(
-                session=session, values=schema_subscription
-            )
         try:
             async with cls.transaction(session=session):
                 subscription.activate(days=days, month_num=month, sub_type=sub_type)
                 logger.debug(f"[DAO] Активирую подписку на {days} дней")
                 await session.commit()
+                return subscription
         except ValueError:
             raise
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при активации подписки: {e}")
             raise e
-        return subscription

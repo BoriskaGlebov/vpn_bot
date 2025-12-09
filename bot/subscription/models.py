@@ -62,7 +62,7 @@ class Subscription(Base):
 
     id: Mapped[int_pk]
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), unique=True
+        ForeignKey("users.id", ondelete="CASCADE"),
     )
     is_active: Mapped[bool] = mapped_column(default=False)
     type: Mapped[SubscriptionType] = mapped_column(
@@ -76,7 +76,7 @@ class Subscription(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    user: Mapped["User"] = relationship(back_populates="subscription")
+    user: Mapped["User"] = relationship(back_populates="subscriptions")
 
     def __str__(self) -> str:
         """Строковое представление."""
@@ -108,7 +108,6 @@ class Subscription(Base):
         self.type = sub_type
         self.is_active = True
         self.start_date = datetime.datetime.now(tz=datetime.UTC)
-
         # если указаны дни → добавляем дни
         if days is not None:
             self.end_date = self.start_date + datetime.timedelta(days=days)

@@ -80,7 +80,7 @@ class AdminService:
             username=suser.username or "-",
             telegram_id=suser.telegram_id or "-",
             roles=str(suser.role),
-            subscription=str(suser.subscription) or "-",
+            subscription=str(suser.subscriptions[0]) or "-",
         )
 
     @classmethod

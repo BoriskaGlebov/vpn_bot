@@ -60,3 +60,5 @@ def load_dialogs(filename: Path | str | None = None) -> Box:
 
 
 dialogs = load_dialogs()
+if __name__ == "__main__":
+    print(dialogs.modes.subscription.start)

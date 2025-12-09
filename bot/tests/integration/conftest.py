@@ -77,28 +77,48 @@ async def setup_users(session: AsyncSession, setup_roles):
 
     users = [
         User(
+            id=1,
             first_name="Admin",
             last_name="One",
             username="admin1",
             telegram_id=111,
             role=admin_role,
-            subscription=Subscription(type=SubscriptionType.PREMIUM),
+            subscriptions=[
+                Subscription(type=SubscriptionType.PREMIUM),
+            ],
         ),
         User(
+            id=2,
             first_name="Founder",
             last_name="Two",
             username="founder1",
             telegram_id=222,
             role=founder_role,
-            subscription=Subscription(type=SubscriptionType.PREMIUM),
+            subscriptions=[
+                Subscription(type=SubscriptionType.PREMIUM),
+            ],
         ),
         User(
+            id=3,
             first_name="User",
             last_name="Three",
             username="user1",
             telegram_id=333,
             role=user_role,
-            subscription=Subscription(type=SubscriptionType.STANDARD),
+            subscriptions=[
+                Subscription(type=SubscriptionType.STANDARD),
+            ],
+        ),
+        User(
+            id=4,
+            first_name="User",
+            last_name="User44",
+            username="trial1",
+            telegram_id=444,
+            role=user_role,
+            subscriptions=[
+                Subscription(type=SubscriptionType.TRIAL),
+            ],
         ),
     ]
     session.add_all(users)

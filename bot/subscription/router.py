@@ -135,7 +135,9 @@ class SubscriptionRouter(BaseRouter):
                     device_limit=settings_bot.max_configs_per_user
                 )
                 kb = subscription_options_kb(
-                    premium=False, trial=not is_active_sbscr, founder=True
+                    premium=False,
+                    trial=not is_active_sbscr,
+                    founder=bool(role == FilterTypeEnum.FOUNDER),
                 )
             else:
                 text = m_subscription.premium_start.format(
@@ -392,7 +394,6 @@ class SubscriptionRouter(BaseRouter):
             )
             if not user_schema:
                 raise UserNotFoundError(tg_id=user_id)
-
             try:
                 await self.bot.send_message(
                     chat_id=user_id,
@@ -401,11 +402,9 @@ class SubscriptionRouter(BaseRouter):
                     .format(
                         months=months,
                         premium=(
-                            user_schema.subscription.type.upper()
-                            if user_schema
-                            and user_schema.subscription
-                            and user_schema.subscription.type
-                            else "NO_SUBSCRIPTION"
+                            f"{ToggleSubscriptionMode.PREMIUM.upper()}"
+                            if premium
+                            else f"{ToggleSubscriptionMode.STANDARD.upper()}"
                         ),
                     ),
                     reply_markup=main_kb(active_subscription=True),

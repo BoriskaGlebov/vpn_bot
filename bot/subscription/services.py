@@ -13,13 +13,17 @@ from bot.config import settings_bot
 from bot.database import connection
 from bot.subscription.dao import SubscriptionDAO
 from bot.subscription.enums import ToggleSubscriptionMode
-from bot.subscription.models import SubscriptionType
+from bot.subscription.models import DEVICE_LIMITS, SubscriptionType
 from bot.users.dao import UserDAO
 from bot.users.models import User
 from bot.users.schemas import SUserOut, SUserTelegramID
+from bot.users.services import UserService
+from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+
+m_subscription_local = settings_bot.messages.modes.subscription
 
 
 class SubscriptionService:
@@ -56,9 +60,9 @@ class SubscriptionService:
         )
         if not user_model:
             raise UserNotFoundError(tg_id=tg_id)
-        premium = user_model.subscription.type
+        premium = user_model.subscriptions[0].type
         founder = user_model.role
-        is_active_sbscr = user_model.subscription.is_active
+        is_active_sbscr = user_model.subscriptions[0].is_active
         if premium and premium.value == ToggleSubscriptionMode.PREMIUM:
             return True, founder.name, is_active_sbscr
         else:
@@ -76,10 +80,10 @@ class SubscriptionService:
         try:
             if (
                 user_model
-                and user_model.subscription.is_active
+                and user_model.subscriptions[0].is_active
                 and not user_model.has_used_trial
             ):
-                user_model.subscription.extend(days=days)
+                user_model.subscriptions[0].extend(days=days)
                 user_model.has_used_trial = True
                 await session.commit()
                 return
@@ -89,6 +93,7 @@ class SubscriptionService:
                 days=days,
                 sub_type=SubscriptionType.TRIAL,
             )
+            await session.refresh(user_model)
         except ValueError:
             raise
 
@@ -107,18 +112,29 @@ class SubscriptionService:
             sub_type = SubscriptionType.PREMIUM
         else:
             sub_type = SubscriptionType.STANDARD
-        if user_model and user_model.subscription.is_active:
-            user_model.subscription.extend(months=months)
+        check = next(
+            (
+                sbscr
+                for sbscr in user_model.subscriptions
+                if sbscr.is_active and sub_type == sbscr.type
+            ),
+            None,
+        )
+        if user_model and check:
+            check.extend(months=months)
             if user_model.role.name == FilterTypeEnum.FOUNDER:
-                user_model.subscription.type = SubscriptionType.PREMIUM
+                check.type = SubscriptionType.PREMIUM
             else:
-                user_model.subscription.type = sub_type
+                check.type = sub_type
             await session.commit()
-            return SUserOut.model_validate(user_model)
+            return await UserService.get_user_schema(user=user_model)
         await SubscriptionDAO.activate_subscription(
             session=session, stelegram_id=schema_user, month=months, sub_type=sub_type
         )
-        return SUserOut.model_validate(user_model)
+        await session.refresh(
+            user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
+        )
+        return await UserService.get_user_schema(user=user_model)
 
     @connection()
     async def check_all_subscriptions(self, session: AsyncSession) -> dict[str, int]:
@@ -136,7 +152,7 @@ class SubscriptionService:
         """
         result = await session.execute(
             select(User).options(
-                selectinload(User.subscription),
+                selectinload(User.subscriptions),
                 selectinload(User.role),
                 selectinload(User.vpn_configs),
             )
@@ -152,7 +168,7 @@ class SubscriptionService:
         }
         for user in users:
             stats["checked"] += 1
-            sub = user.subscription
+            sub = user.subscriptions[0]
             if not sub:
                 continue
 
@@ -162,7 +178,18 @@ class SubscriptionService:
                     await session.commit()
                     await self.bot.send_message(
                         chat_id=user.telegram_id,
-                        text="Ваша подписка закончилась 🔒. Конфиги будут удалены через день.",
+                        text=m_subscription_local.expire_subscription.now.format(
+                            type_subscription=sub.type.value.upper(),
+                        ),
+                    )
+                    await send_to_admins(
+                        bot=self.bot,
+                        message_text=m_subscription_local.expire_subscription.admin_stats.format(
+                            tg_id=user.telegram_id,
+                            username=user.username or "-",
+                            first_name=user.first_name or "-",
+                            last_name=user.last_name or "-",
+                        ),
                     )
                     stats["expired"] += 1
                     stats["notified"] += 1
@@ -174,9 +201,14 @@ class SubscriptionService:
                 if remaining is not None and remaining <= 3:
                     await self.bot.send_message(
                         chat_id=user.telegram_id,
-                        text=f"⚠️ Ваша подписка истекает через {remaining} дней.",
+                        text=m_subscription_local.expire_subscription.soon.format(
+                            remaining=remaining,
+                            type_subscription=sub.type.value.upper(),
+                        ),
                     )
                     stats["notified"] += 1
+            await self._delete_unlimit_configs(session=session, user=user)
+
         return stats
 
     @connection()
@@ -192,6 +224,33 @@ class SubscriptionService:
             ) as ssh_client:
                 try:
                     for cfg in user.vpn_configs:
+                        await ssh_client.full_delete_user(public_key=cfg.pub_key)
+                        await session.delete(cfg)
+                        await session.commit()
+                except AmneziaError as e:
+                    self.logger.error(str(e))
+                    raise
+        await self.bot.send_message(
+            chat_id=user.telegram_id,
+            text="Ваши VPN-конфиги были удалены после окончания подписки.",
+        )
+
+    @connection()
+    async def _delete_unlimit_configs(self, session: AsyncSession, user: User) -> None:
+        """Удаляет VPN-конфиги пользователя из БД когда у него их больше чем можно."""
+        if not user.vpn_configs and not user.subscriptions[0].is_active:
+            return
+
+        limits = DEVICE_LIMITS.get(user.subscriptions[0].type) or 0
+        len_configs = len(user.vpn_configs)
+        async with ssh_lock:
+            async with AsyncSSHClientWG(
+                host=settings_bot.vpn_host,
+                username=settings_bot.vpn_username,
+                key_filename=self.key_path.as_posix(),
+            ) as ssh_client:
+                try:
+                    for cfg in user.vpn_configs[: (len_configs - limits)]:
                         await ssh_client.full_delete_user(public_key=cfg.pub_key)
                         await session.delete(cfg)
                         await session.commit()

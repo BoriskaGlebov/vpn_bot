@@ -38,16 +38,17 @@ class UserService:
         """Получаю из пользователя корректную Pydentic схему быстро."""
         user_schema = SUserOut.model_construct(**user.__dict__)
         schema_role = SRoleOut.model_construct(**user.role.__dict__)
-        schema_subscription = SSubscriptionOut.model_construct(
-            **user.subscription.__dict__
-        )
+        schema_subscription = [
+            SSubscriptionOut.model_construct(**subscr.__dict__)
+            for subscr in user.subscriptions
+        ]
         schema_configs = [
             SVPNConfigOut.model_construct(**config.__dict__)
             for config in user.vpn_configs
         ]
 
         user_schema.role = schema_role
-        user_schema.subscription = schema_subscription
+        user_schema.subscriptions = schema_subscription
         user_schema.vpn_configs = schema_configs
         return user_schema
 
