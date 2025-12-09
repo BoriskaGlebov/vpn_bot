@@ -2,6 +2,7 @@ import datetime
 from pathlib import Path
 
 from aiogram import Bot
+from app_error.base_error import AppError
 from loguru._logger import Logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,9 +61,11 @@ class SubscriptionService:
         )
         if not user_model:
             raise UserNotFoundError(tg_id=tg_id)
-        premium = user_model.subscriptions[0].type
+        if user_model.current_subscription is None:
+            raise AppError(message="Некорректно распаковал подписку!")
+        premium = user_model.current_subscription.type
         founder = user_model.role
-        is_active_sbscr = user_model.subscriptions[0].is_active
+        is_active_sbscr = bool(user_model.current_subscription.is_active)
         if premium and premium.value == ToggleSubscriptionMode.PREMIUM:
             return True, founder.name, is_active_sbscr
         else:
@@ -80,10 +83,11 @@ class SubscriptionService:
         try:
             if (
                 user_model
-                and user_model.subscriptions[0].is_active
+                and user_model.current_subscription
+                and user_model.current_subscription.is_active
                 and not user_model.has_used_trial
             ):
-                user_model.subscriptions[0].extend(days=days)
+                user_model.current_subscription.extend(days=days)
                 user_model.has_used_trial = True
                 await session.commit()
                 return
@@ -168,7 +172,7 @@ class SubscriptionService:
         }
         for user in users:
             stats["checked"] += 1
-            sub = user.subscriptions[0]
+            sub = user.current_subscription
             if not sub:
                 continue
 
@@ -238,10 +242,11 @@ class SubscriptionService:
     @connection()
     async def _delete_unlimit_configs(self, session: AsyncSession, user: User) -> None:
         """Удаляет VPN-конфиги пользователя из БД когда у него их больше чем можно."""
-        if not user.vpn_configs and not user.subscriptions[0].is_active:
+        # TODO Корректно этот метод проработать , убрать type ignore
+        if not user.vpn_configs and not user.current_subscription.is_active:  # type: ignore [union-attr]
             return
 
-        limits = DEVICE_LIMITS.get(user.subscriptions[0].type) or 0
+        limits = DEVICE_LIMITS.get(user.current_subscription.type) or 0  # type: ignore [union-attr]
         len_configs = len(user.vpn_configs)
         async with ssh_lock:
             async with AsyncSSHClientWG(

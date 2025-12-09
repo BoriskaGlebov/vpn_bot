@@ -50,6 +50,11 @@ class UserService:
         user_schema.role = schema_role
         user_schema.subscriptions = schema_subscription
         user_schema.vpn_configs = schema_configs
+        user_schema.current_subscription = (
+            SSubscriptionOut.model_construct(**user.current_subscription.__dict__)
+            if user.current_subscription
+            else None
+        )
         return user_schema
 
     async def register_or_get_user(
@@ -93,6 +98,5 @@ class UserService:
                 values_user=schema_user,
                 values_role=schema_role,
             )
-
             return await UserService.get_user_schema(user), True
         return await UserService.get_user_schema(user), False

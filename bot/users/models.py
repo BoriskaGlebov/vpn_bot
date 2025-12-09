@@ -69,6 +69,14 @@ class User(Base):
         ]
         return " ".join(p for p in parts if p)
 
+    @property
+    def current_subscription(self) -> "Subscription | None":
+        """Безопасно извлекает активную подписку."""
+        if not self.subscriptions:
+            return None
+
+        return self.subscriptions[0]
+
 
 class Role(Base):
     """Модель роли пользователя.
