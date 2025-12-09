@@ -2,14 +2,13 @@ import datetime
 from pathlib import Path
 
 from aiogram import Bot
-from app_error.base_error import AppError
 from loguru._logger import Logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from bot.admin.enums import FilterTypeEnum
-from bot.app_error.base_error import UserNotFoundError
+from bot.app_error.base_error import AppError, UserNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
 from bot.subscription.dao import SubscriptionDAO

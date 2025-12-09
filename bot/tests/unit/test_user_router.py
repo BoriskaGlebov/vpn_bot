@@ -37,6 +37,7 @@ async def test_cmd_start_new_user_monkeypatch(
         subscriptions = [
             FakeSubscription(),
         ]
+        current_subscription = FakeSubscription()
         role = type("FakeRole", (), {"name": "user"})()
 
     fake_user_service = AsyncMock()
