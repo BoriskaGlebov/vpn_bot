@@ -254,10 +254,21 @@ class SubscriptionService:
                         await ssh_client.full_delete_user(public_key=cfg.pub_key)
                         await session.delete(cfg)
                         await session.commit()
+                        await self.bot.send_message(
+                            chat_id=user.telegram_id,
+                            text=f"Ваши VPN-конфиг {cfg.file_name} превышающий лимит был удален после окончания подписки.",
+                        )
                 except AmneziaError as e:
                     self.logger.error(str(e))
                     raise
-        await self.bot.send_message(
-            chat_id=user.telegram_id,
-            text="Ваши VPN-конфиги были удалены после окончания подписки.",
+
+
+if __name__ == "__main__":
+    print(
+        m_subscription_local.expire_subscription.admin_stats.format(
+            tg_id=123,
+            username="user.username or ",
+            first_name="sdfsdf",
+            last_name="sdfsgs",
         )
+    )

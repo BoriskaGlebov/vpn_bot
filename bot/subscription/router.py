@@ -248,7 +248,9 @@ class SubscriptionRouter(BaseRouter):
 
         await msg.edit_text(
             text=text,
-            reply_markup=subscription_options_kb(premium=True if premium else False),
+            reply_markup=subscription_options_kb(
+                premium=True if premium else False, trial=True
+            ),
         )
         await query.answer("")
         await state.update_data(premium=premium)
