@@ -1,5 +1,4 @@
 import datetime
-from pathlib import Path
 
 from aiogram import Bot
 from loguru._logger import Logger
@@ -28,8 +27,6 @@ m_subscription_local = settings_bot.messages.modes.subscription
 
 class SubscriptionService:
     """Сервис для бизнес-логики подписки."""
-
-    key_path = Path().home() / ".ssh" / "test_vpn"
 
     def __init__(self, bot: Bot, logger: Logger) -> None:
         self.bot = bot
@@ -89,7 +86,8 @@ class SubscriptionService:
                 user_model.current_subscription.extend(days=days)
                 user_model.has_used_trial = True
                 await session.commit()
-                return
+                raise ValueError("Уже есть активная подписка")
+
             await SubscriptionDAO.activate_subscription(
                 session=session,
                 stelegram_id=schema_user,
@@ -125,10 +123,12 @@ class SubscriptionService:
         )
         if user_model and check:
             check.extend(months=months)
-            if user_model.role.name == FilterTypeEnum.FOUNDER:
-                check.type = SubscriptionType.PREMIUM
-            else:
-                check.type = sub_type
+            await session.commit()
+            return await UserService.get_user_schema(user=user_model)
+        elif user_model.role.name == FilterTypeEnum.FOUNDER:
+            check = user_model.current_subscription
+            check.extend(months=months)
+            check.type = SubscriptionType.PREMIUM
             await session.commit()
             return await UserService.get_user_schema(user=user_model)
         await SubscriptionDAO.activate_subscription(
@@ -223,7 +223,6 @@ class SubscriptionService:
             async with AsyncSSHClientWG(
                 host=settings_bot.vpn_host,
                 username=settings_bot.vpn_username,
-                key_filename=self.key_path.as_posix(),
             ) as ssh_client:
                 try:
                     for cfg in user.vpn_configs:
@@ -251,7 +250,6 @@ class SubscriptionService:
             async with AsyncSSHClientWG(
                 host=settings_bot.vpn_host,
                 username=settings_bot.vpn_username,
-                key_filename=self.key_path.as_posix(),
             ) as ssh_client:
                 try:
                     for cfg in user.vpn_configs[: (len_configs - limits)]:

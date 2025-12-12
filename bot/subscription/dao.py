@@ -64,7 +64,6 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             async with cls.transaction(session=session):
                 subscription.activate(days=days, month_num=month, sub_type=sub_type)
                 logger.debug(f"[DAO] Активирую подписку на {days} дней")
-                await session.commit()
                 return subscription
         except ValueError:
             raise

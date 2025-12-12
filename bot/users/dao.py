@@ -151,7 +151,6 @@ class UserDAO(BaseDAO[User]):
                     delta = next_year - now
                     user.subscriptions[0].activate(days=delta.days)
                     user.subscriptions[0].type = SubscriptionType.PREMIUM
-                await session.commit()
                 return user
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка изменения роли пользователя: {e}")
@@ -163,7 +162,6 @@ class UserDAO(BaseDAO[User]):
         session: AsyncSession,
         user: User,
         months: int,
-        new_type: SubscriptionType | None = None,
     ) -> User:
         """Продляет активную подписку пользователя на указанное количество месяцев.
 
@@ -171,7 +169,6 @@ class UserDAO(BaseDAO[User]):
         возбуждается ``SubscriptionNotFoundError``.
 
         Args:
-            new_type: (SubscriptionType|None): Тип подписки если нужно новую создать или отредактировать старую.
             session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
             user (User): Пользователь, чья подписка продлевается.
             months (int): Количество месяцев для продления.
@@ -191,7 +188,6 @@ class UserDAO(BaseDAO[User]):
                     subscription.extend(months=months)
                 else:
                     raise SubscriptionNotFoundError(user_id=user.telegram_id)
-                await session.commit()
             return user
 
         except SQLAlchemyError as e:

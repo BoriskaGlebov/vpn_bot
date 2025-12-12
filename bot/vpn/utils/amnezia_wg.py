@@ -1,9 +1,7 @@
 import asyncio
 import ipaddress
 import json
-import os
 import shlex
-import tempfile
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -29,7 +27,6 @@ class AsyncSSHClientWG:
         host (str): Адрес сервера (IP или DNS).
         username (str): Имя пользователя.
         port (int, optional): SSH-порт. По умолчанию 22.
-        key_filename (Optional[str], optional): Путь к приватному ключу.
             Если None, будут использоваться ключи из ``~/.ssh``.
         known_hosts (Optional[str], optional): Путь к файлу ``known_hosts``.
             Если None, проверка отключается.
@@ -47,14 +44,12 @@ class AsyncSSHClientWG:
         host: str,
         username: str,
         port: int = 22,
-        key_filename: str | None = None,
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
     ) -> None:
         self.host = host
         self.username = username
         self.port = port
-        self.key_filename = key_filename
         self.known_hosts = known_hosts
         self.container = container
         self._conn: asyncssh.SSHClientConnection | None = None
@@ -77,8 +72,8 @@ class AsyncSSHClientWG:
                 host=self.host,
                 port=self.port,
                 username=self.username,
-                client_keys=[self.key_filename] if self.key_filename else None,
                 known_hosts=self.known_hosts,
+                agent_forwarding=True,
             )
             self._process = await self._conn.create_process(
                 f"docker exec -i {self.container} sh;\n"
@@ -506,12 +501,10 @@ class AsyncSSHClientWG:
             new_ip, private_key, pub_server_key, preshared_key
         )
         if not filename.endswith(".conf"):
-            filename = f"{filename}.conf"
+            filename = f"WG{filename}.conf"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        fd, path_str = tempfile.mkstemp(suffix=".conf", prefix="WG", dir=file_dir)
-        os.close(fd)  # закрываем дескриптор, чтобы aiofiles мог открыть
-        file_cfg = Path(path_str)
+        file_cfg = Path(filename)
 
         async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
             await f.write(config_text)
@@ -654,14 +647,15 @@ class AsyncSSHClientWG:
                 logger.bind(user=self.username).success(
                     "Новый конфиг добавлен в wg0.conf"
                 )
-            client_name = f"{file_name.rsplit('.', 1)[0]}_{uuid.uuid4().hex}"
+            filename = uuid.uuid4().hex[:6]
+            client_name = f"{file_name.rsplit('.', 1)[0]}_{filename}"
             client_table = await self._add_to_clients_table(pub_key, client_name)
             if client_table:
                 logger.bind(user=self.username).success(
                     "Новый клиент добавлен в clientsTable"
                 )
             file = await self._save_wg_config(
-                client_name, correct_ip, private_key, pub_server_key, psk
+                filename, correct_ip, private_key, pub_server_key, psk
             )
 
             if file:
@@ -908,7 +902,6 @@ if __name__ == "__main__":
         async with AsyncSSHClientWG(
             host="help-blocks.ru",
             username="vpn_user",
-            key_filename=key_path.as_posix(),
             known_hosts=None,  # Отключить проверку known_hosts
             container="amnezia-awg",
         ) as ssh_client:
