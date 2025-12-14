@@ -204,7 +204,7 @@ class SubscriptionService:
         stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
 
         sub = user.current_subscription
-        if not sub or not user.vpn_configs:
+        if not sub:
             return stats
 
         if sub.is_expired():
@@ -322,7 +322,9 @@ class SubscriptionService:
             return stats
 
         limit = DEVICE_LIMITS.get(sub.type) or 0
-        if len(user.vpn_configs) >= limit:
+        if limit <= 0:
+            return stats
+        elif len(user.vpn_configs) >= limit:
             extra_cfgs = user.vpn_configs[: len(user.vpn_configs) - limit]
 
             if not extra_cfgs:
