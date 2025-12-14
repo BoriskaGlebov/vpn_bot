@@ -63,7 +63,7 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
             filename = f"VPN{filename}.vpn"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        file_cfg = Path(filename)
+        file_cfg = file_dir / filename
 
         async with aiofiles.open(file_cfg, "w") as f:
             await f.write("vpn://\n")

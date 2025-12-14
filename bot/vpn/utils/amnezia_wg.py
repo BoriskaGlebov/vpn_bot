@@ -504,7 +504,7 @@ class AsyncSSHClientWG:
             filename = f"WG{filename}.conf"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        file_cfg = Path(filename)
+        file_cfg = file_dir / filename
 
         async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
             await f.write(config_text)
