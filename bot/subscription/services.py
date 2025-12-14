@@ -12,12 +12,13 @@ from bot.config import settings_bot
 from bot.database import connection
 from bot.subscription.dao import SubscriptionDAO
 from bot.subscription.enums import ToggleSubscriptionMode
-from bot.subscription.models import DEVICE_LIMITS, SubscriptionType
+from bot.subscription.models import DEVICE_LIMITS, Subscription, SubscriptionType
 from bot.users.dao import UserDAO
 from bot.users.models import User
 from bot.users.schemas import SUserOut, SUserTelegramID
 from bot.users.services import UserService
 from bot.utils.start_stop_bot import send_to_admins
+from bot.vpn.models import VPNConfig
 from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
@@ -71,7 +72,22 @@ class SubscriptionService:
     async def start_trial_subscription(
         session: AsyncSession, user_id: int, days: int
     ) -> None:
-        """Активирует пробный период подписки."""
+        """Активирует пробный период подписки для пользователя.
+
+        Метод проверяет, есть ли у пользователя активная подписка и не использовал ли он
+        пробный период ранее. Если пробный период уже использован или есть активная
+        подписка, будет выброшено исключение `ValueError`.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            user_id (int): Telegram ID пользователя.
+            days (int): Количество дней пробного периода.
+
+        Raises
+            ValueError: Если у пользователя уже есть активная подписка или пробный
+                период уже использован.
+
+        """
         schema_user = SUserTelegramID(telegram_id=user_id)
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user
@@ -102,12 +118,32 @@ class SubscriptionService:
     async def activate_paid_subscription(
         session: AsyncSession, user_id: int, months: int, premium: bool
     ) -> SUserOut | None:
-        """Активирует платную подписку после подтверждения оплаты."""
+        """Активирует платную подписку после подтверждения оплаты.
+
+        Метод проверяет наличие пользователя и активной подписки указанного типа.
+        Если подписка уже активна, продлевает её. Для основателя (`FOUNDER`)
+        всегда продлевается текущая подписка и устанавливается тип `PREMIUM`.
+        В противном случае создается новая подписка через DAO.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            user_id (int): Telegram ID пользователя.
+            months (int): Количество месяцев для продления или новой подписки.
+            premium (bool): Флаг, указывающий на тип подписки (`PREMIUM` или `STANDARD`).
+
+        Returns
+            Optional[SUserOut]: Объект пользователя в формате схемы, либо `None`, если
+                пользователь не найден (в реальности выбрасывается `UserNotFoundError`).
+
+        Raises
+            UserNotFoundError: Если пользователь с указанным `user_id` не найден.
+
+        """
         schema_user = SUserTelegramID(telegram_id=user_id)
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user
         )
-        if not user_model:
+        if not user_model or not user_model.current_subscription:
             raise UserNotFoundError(tg_id=user_id)
         if premium:
             sub_type = SubscriptionType.PREMIUM
@@ -139,18 +175,267 @@ class SubscriptionService:
         )
         return await UserService.get_user_schema(user=user_model)
 
-    @connection()
-    async def check_all_subscriptions(self, session: AsyncSession) -> dict[str, int]:
-        """Проверяет все подписки, отправляет уведомления и удаляет просроченные конфиги.
+    async def _process_user(self, session: AsyncSession, user: User) -> dict[str, int]:
+        """Обрабатывает подписку конкретного пользователя и собирает статистику.
+
+        Метод проверяет текущую подписку пользователя и выполняет следующие действия:
+        1. Если подписка истекла — вызывает `_handle_expired`.
+        2. Если подписка скоро истечет — вызывает `_handle_expiring_soon`.
+        3. Проверяет превышение лимита VPN-конфигов для пользователя через
+           `_handle_unlimited_overuse`.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            user (User): Экземпляр пользователя.
 
         Returns
-            dict[str, int]: Статистика проверки:
-                {
-                    "checked": количество пользователей,
-                    "expired": количество истекших подписок,
-                    "notified": количество отправленных уведомлений,
-                    "configs_deleted": количество удалённых конфигов,
-                }
+            Dict[str, int]: Статистика по пользователю с ключами:
+                - "expired": количество истёкших подписок
+                - "notified": количество отправленных уведомлений
+                - "configs_deleted": количество удалённых VPN-конфигов
+
+        """
+        stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
+
+        sub = user.current_subscription
+        if not sub or not user.vpn_configs:
+            return stats
+
+        if sub.is_expired():
+            stats.update(await self._handle_expired(session, user, sub))
+        else:
+            stats.update(await self._handle_expiring_soon(user, sub))
+
+        stats.update(await self._handle_unlimited_overuse(session, user))
+
+        return stats
+
+    async def _handle_expired(
+        self, session: AsyncSession, user: User, sub: Subscription
+    ) -> dict[str, int]:
+        """Обрабатывает истёкшую подписку пользователя.
+
+        Если подписка активна, деактивирует её и отправляет уведомление пользователю.
+        Если подписка закончилась более чем на один день назад, удаляет все VPN-конфиги
+        пользователя и уведомляет администраторов.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            user (User): Экземпляр пользователя.
+            sub (Subscription): Экземпляр подписки пользователя.
+
+        Returns
+            Dict[str, int]: Статистика по обработке с ключами:
+                - "expired": количество истёкших подписок (0 или 1)
+                - "notified": количество отправленных уведомлений (0 или 1)
+                - "configs_deleted": количество удалённых VPN-конфигов
+
+        """
+        stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
+
+        if sub.is_active:
+            sub.is_active = False
+            stats["expired"] += 1
+
+            await self.bot.send_message(
+                user.telegram_id,
+                m_subscription_local.expire_subscription.now.format(
+                    type_subscription=sub.type.value.upper()
+                ),
+            )
+            stats["notified"] += 1
+
+        if sub.end_date:
+            delta = datetime.datetime.now(datetime.UTC) - sub.end_date
+            if delta.days >= 1:
+                deleted = await self._delete_all_configs(session, user)
+                if deleted:
+                    stats["configs_deleted"] += deleted
+                    await self._notify_admins_expired(user)
+
+        return stats
+
+    async def _handle_expiring_soon(
+        self, user: User, sub: Subscription
+    ) -> dict[str, int]:
+        """Обрабатывает подписку, которая скоро истечет, и уведомляет пользователя.
+
+        Если до окончания подписки осталось 3 дня или меньше, отправляется
+        уведомление пользователю через бот.
+
+        Args:
+            user (User): Экземпляр пользователя.
+            sub (Subscription): Экземпляр подписки пользователя.
+
+        Returns
+            Dict[str, int]: Статистика по обработке с ключами:
+                - "expired": всегда 0
+                - "notified": количество отправленных уведомлений (0 или 1)
+                - "configs_deleted": всегда 0
+
+        """
+        stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
+
+        remaining = sub.remaining_days()
+        if remaining is not None and remaining <= 3:
+            await self.bot.send_message(
+                user.telegram_id,
+                m_subscription_local.expire_subscription.soon.format(
+                    remaining=remaining,
+                    type_subscription=sub.type.value.upper(),
+                ),
+            )
+            stats["notified"] += 1
+
+        return stats
+
+    async def _handle_unlimited_overuse(
+        self, session: AsyncSession, user: User
+    ) -> dict[str, int]:
+        """Обрабатывает превышение лимита VPN-конфигов для пользователя.
+
+        Если количество VPN-конфигов пользователя превышает допустимый лимит
+        для текущей подписки, избыточные конфиги удаляются и администраторы
+        уведомляются об удалении.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            user (User): Экземпляр пользователя.
+
+        Returns
+            Dict[str, int]: Статистика по обработке с ключами:
+                - "expired": всегда 0
+                - "notified": количество отправленных уведомлений администраторам (0 или >0)
+                - "configs_deleted": количество удалённых VPN-конфигов
+
+        """
+        stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
+
+        sub = user.current_subscription
+        if not sub or not sub.is_active:
+            return stats
+
+        limit = DEVICE_LIMITS.get(sub.type) or 0
+        if len(user.vpn_configs) >= limit:
+            extra_cfgs = user.vpn_configs[: len(user.vpn_configs) - limit]
+
+            if not extra_cfgs:
+                return stats
+
+            deleted = await self._delete_configs(session, user, extra_cfgs)
+            if deleted:
+                stats["configs_deleted"] += deleted
+                await self._notify_admins_expired(user)
+
+        return stats
+
+    async def _delete_configs(
+        self, session: AsyncSession, user: User, configs: list[VPNConfig]
+    ) -> int:
+        """Удаляет указанные VPN-конфиги пользователя и уведомляет его.
+
+        Метод подключается к удалённому серверу через SSH, удаляет конфиги
+        пользователя и удаляет их записи из базы данных. После успешного
+        удаления каждого конфига отправляется уведомление пользователю через бот.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            user (User): Экземпляр пользователя.
+            configs (List[VPNConfig]): Список VPN-конфигов для удаления.
+
+        Raises
+            AmneziaError: В случае ошибки удаления через SSH.
+
+        Returns
+            int: Количество успешно удалённых VPN-конфигов.
+
+        """
+        if not configs:
+            return 0
+
+        deleted_count = 0
+
+        async with ssh_lock:
+            async with AsyncSSHClientWG(
+                host=settings_bot.vpn_host,
+                username=settings_bot.vpn_username,
+            ) as ssh_client:
+                for cfg in configs:
+                    try:
+                        await ssh_client.full_delete_user(public_key=cfg.pub_key)
+                        await session.delete(cfg)
+                        deleted_count += 1
+
+                        await self.bot.send_message(
+                            user.telegram_id,
+                            m_subscription_local.expire_subscription.delete_unlimit_configs_user.format(
+                                file_name=cfg.file_name,
+                            ),
+                        )
+
+                    except AmneziaError as e:
+                        self.logger.error(f"SSH deletion error: {e}")
+                        raise
+
+        return deleted_count
+
+    async def _delete_all_configs(self, session: AsyncSession, user: User) -> int:
+        """Удаляет все VPN-конфиги пользователя.
+
+        Вызывает внутренний метод `_delete_configs` для удаления всех конфигов
+        пользователя из базы данных.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            user (User): Экземпляр пользователя.
+
+        Returns
+            int: Количество удалённых VPN-конфигов.
+
+        """
+        return await self._delete_configs(session, user, user.vpn_configs)
+
+    async def _notify_admins_expired(self, user: User) -> None:
+        """Отправляет уведомление администраторам о истёкшей подписке пользователя.
+
+        Метод формирует сообщение со статистикой пользователя и отправляет его
+        всем администраторам через бот.
+
+        Args:
+            user (User): Экземпляр пользователя, чья подписка истекла.
+
+        Returns
+            None
+
+        """
+        await send_to_admins(
+            bot=self.bot,
+            message_text=m_subscription_local.expire_subscription.admin_stats.format(
+                tg_id=user.telegram_id,
+                username=f"@{user.username}" or "-",
+                first_name=user.first_name or "-",
+                last_name=user.last_name or "-",
+            ),
+        )
+
+    @connection()
+    async def check_all_subscriptions(self, session: AsyncSession) -> dict[str, int]:
+        """Проверяет все подписки пользователей и собирает статистику.
+
+        Метод выполняет выборку всех пользователей с подгрузкой их подписок,
+        роли и VPN-конфигов. Для каждого пользователя вызывается внутренний
+        метод `_process_user`, который возвращает статистику по истёкшим
+        подпискам, уведомлениям и удалённым конфигам.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+
+        Returns
+            Dict[str, int]: Статистика по всем пользователям. Ключи включают:
+                - "checked": количество обработанных пользователей
+                - "expired": количество истёкших подписок
+                - "notified": количество отправленных уведомлений
+                - "configs_deleted": количество удалённых VPN-конфигов
 
         """
         result = await session.execute(
@@ -162,7 +447,6 @@ class SubscriptionService:
         )
         users = result.scalars().all()
 
-        now = datetime.datetime.now(datetime.UTC)
         stats = {
             "checked": 0,
             "expired": 0,
@@ -171,121 +455,12 @@ class SubscriptionService:
         }
         for user in users:
             stats["checked"] += 1
-            sub = user.current_subscription
-            if not user.vpn_configs:
-                continue
+            user_stats = await self._process_user(session, user)
+            for key, value in user_stats.items():
+                stats[key] += value
 
-            if sub.is_expired():
-                if sub.is_active:
-                    sub.is_active = False
-                    await session.commit()
-                    await self.bot.send_message(
-                        chat_id=user.telegram_id,
-                        text=m_subscription_local.expire_subscription.now.format(
-                            type_subscription=sub.type.value.upper(),
-                        ),
-                    )
-                    stats["expired"] += 1
-                    stats["notified"] += 1
-                if sub.end_date and (now - sub.end_date).days >= 1:
-                    result = await self._delete_user_configs(session=session, user=user)
-                    stats["configs_deleted"] += 1
-                    if result:
-                        await send_to_admins(
-                            bot=self.bot,
-                            message_text=m_subscription_local.expire_subscription.admin_stats.format(
-                                tg_id=user.telegram_id,
-                                username=user.username or "-",
-                                first_name=user.first_name or "-",
-                                last_name=user.last_name or "-",
-                            ),
-                        )
-            else:
-                remaining = sub.remaining_days()
-                if remaining is not None and remaining <= 3:
-                    await self.bot.send_message(
-                        chat_id=user.telegram_id,
-                        text=m_subscription_local.expire_subscription.soon.format(
-                            remaining=remaining,
-                            type_subscription=sub.type.value.upper(),
-                        ),
-                    )
-                    stats["notified"] += 1
-            unlim_delete = await self._delete_unlimit_configs(
-                session=session, user=user
-            )
-            if unlim_delete:
-                await send_to_admins(
-                    bot=self.bot,
-                    message_text=m_subscription_local.expire_subscription.admin_stats.format(
-                        tg_id=user.telegram_id,
-                        username=user.username or "-",
-                        first_name=user.first_name or "-",
-                        last_name=user.last_name or "-",
-                    ),
-                )
-
+        await session.commit()
         return stats
-
-    @connection()
-    async def _delete_user_configs(self, session: AsyncSession, user: User) -> bool:
-        """Удаляет VPN-конфиги пользователя из БД."""
-        if not user.vpn_configs:
-            return False
-        async with ssh_lock:
-            async with AsyncSSHClientWG(
-                host=settings_bot.vpn_host,
-                username=settings_bot.vpn_username,
-            ) as ssh_client:
-                try:
-                    for cfg in user.vpn_configs:
-                        result_del = await ssh_client.full_delete_user(
-                            public_key=cfg.pub_key
-                        )
-                        await session.delete(cfg)
-                        await session.commit()
-                except AmneziaError as e:
-                    self.logger.error(str(e))
-                    raise
-        await self.bot.send_message(
-            chat_id=user.telegram_id,
-            text=m_subscription_local.expire_subscription.delete_configs_user,
-        )
-        return result_del
-
-    @connection()
-    async def _delete_unlimit_configs(self, session: AsyncSession, user: User) -> None:
-        """Удаляет VPN-конфиги пользователя из БД когда у него их больше чем можно."""
-        if not user.vpn_configs and not user.current_subscription.is_active:  # type: ignore [union-attr]
-            return
-
-        limits = DEVICE_LIMITS.get(user.current_subscription.type) or 0  # type: ignore [union-attr]
-        len_configs = len(user.vpn_configs)
-        if len_configs > limits:
-            async with ssh_lock:
-                async with AsyncSSHClientWG(
-                    host=settings_bot.vpn_host,
-                    username=settings_bot.vpn_username,
-                ) as ssh_client:
-                    try:
-                        for cfg in user.vpn_configs[: (len_configs - limits)]:
-                            result_del = await ssh_client.full_delete_user(
-                                public_key=cfg.pub_key
-                            )
-                            await session.delete(cfg)
-                            await session.commit()
-                            await self.bot.send_message(
-                                chat_id=user.telegram_id,
-                                text=m_subscription_local.expire_subscription.delete_unlimit_configs_user.format(
-                                    file_name=cfg.file_name,
-                                ),
-                            )
-                            print(result_del)
-                            return result_del
-
-                    except AmneziaError as e:
-                        self.logger.error(str(e))
-                        raise
 
 
 if __name__ == "__main__":
