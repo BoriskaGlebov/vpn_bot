@@ -172,7 +172,7 @@ class SubscriptionService:
         for user in users:
             stats["checked"] += 1
             sub = user.current_subscription
-            if not sub:
+            if not user.vpn_configs:
                 continue
 
             if sub.is_expired():
@@ -185,20 +185,21 @@ class SubscriptionService:
                             type_subscription=sub.type.value.upper(),
                         ),
                     )
-                    await send_to_admins(
-                        bot=self.bot,
-                        message_text=m_subscription_local.expire_subscription.admin_stats.format(
-                            tg_id=user.telegram_id,
-                            username=user.username or "-",
-                            first_name=user.first_name or "-",
-                            last_name=user.last_name or "-",
-                        ),
-                    )
                     stats["expired"] += 1
                     stats["notified"] += 1
                 if sub.end_date and (now - sub.end_date).days >= 1:
-                    await self._delete_user_configs(session=session, user=user)
+                    result = await self._delete_user_configs(session=session, user=user)
                     stats["configs_deleted"] += 1
+                    if result:
+                        await send_to_admins(
+                            bot=self.bot,
+                            message_text=m_subscription_local.expire_subscription.admin_stats.format(
+                                tg_id=user.telegram_id,
+                                username=user.username or "-",
+                                first_name=user.first_name or "-",
+                                last_name=user.last_name or "-",
+                            ),
+                        )
             else:
                 remaining = sub.remaining_days()
                 if remaining is not None and remaining <= 3:
@@ -210,15 +211,27 @@ class SubscriptionService:
                         ),
                     )
                     stats["notified"] += 1
-            await self._delete_unlimit_configs(session=session, user=user)
+            unlim_delete = await self._delete_unlimit_configs(
+                session=session, user=user
+            )
+            if unlim_delete:
+                await send_to_admins(
+                    bot=self.bot,
+                    message_text=m_subscription_local.expire_subscription.admin_stats.format(
+                        tg_id=user.telegram_id,
+                        username=user.username or "-",
+                        first_name=user.first_name or "-",
+                        last_name=user.last_name or "-",
+                    ),
+                )
 
         return stats
 
     @connection()
-    async def _delete_user_configs(self, session: AsyncSession, user: User) -> None:
+    async def _delete_user_configs(self, session: AsyncSession, user: User) -> bool:
         """Удаляет VPN-конфиги пользователя из БД."""
         if not user.vpn_configs:
-            return
+            return False
         async with ssh_lock:
             async with AsyncSSHClientWG(
                 host=settings_bot.vpn_host,
@@ -226,7 +239,9 @@ class SubscriptionService:
             ) as ssh_client:
                 try:
                     for cfg in user.vpn_configs:
-                        await ssh_client.full_delete_user(public_key=cfg.pub_key)
+                        result_del = await ssh_client.full_delete_user(
+                            public_key=cfg.pub_key
+                        )
                         await session.delete(cfg)
                         await session.commit()
                 except AmneziaError as e:
@@ -234,35 +249,43 @@ class SubscriptionService:
                     raise
         await self.bot.send_message(
             chat_id=user.telegram_id,
-            text="Ваши VPN-конфиги были удалены после окончания подписки.",
+            text=m_subscription_local.expire_subscription.delete_configs_user,
         )
+        return result_del
 
     @connection()
     async def _delete_unlimit_configs(self, session: AsyncSession, user: User) -> None:
         """Удаляет VPN-конфиги пользователя из БД когда у него их больше чем можно."""
-        # TODO Корректно этот метод проработать , убрать type ignore
         if not user.vpn_configs and not user.current_subscription.is_active:  # type: ignore [union-attr]
             return
 
         limits = DEVICE_LIMITS.get(user.current_subscription.type) or 0  # type: ignore [union-attr]
         len_configs = len(user.vpn_configs)
-        async with ssh_lock:
-            async with AsyncSSHClientWG(
-                host=settings_bot.vpn_host,
-                username=settings_bot.vpn_username,
-            ) as ssh_client:
-                try:
-                    for cfg in user.vpn_configs[: (len_configs - limits)]:
-                        await ssh_client.full_delete_user(public_key=cfg.pub_key)
-                        await session.delete(cfg)
-                        await session.commit()
-                        await self.bot.send_message(
-                            chat_id=user.telegram_id,
-                            text=f"Ваши VPN-конфиг {cfg.file_name} превышающий лимит был удален после окончания подписки.",
-                        )
-                except AmneziaError as e:
-                    self.logger.error(str(e))
-                    raise
+        if len_configs > limits:
+            async with ssh_lock:
+                async with AsyncSSHClientWG(
+                    host=settings_bot.vpn_host,
+                    username=settings_bot.vpn_username,
+                ) as ssh_client:
+                    try:
+                        for cfg in user.vpn_configs[: (len_configs - limits)]:
+                            result_del = await ssh_client.full_delete_user(
+                                public_key=cfg.pub_key
+                            )
+                            await session.delete(cfg)
+                            await session.commit()
+                            await self.bot.send_message(
+                                chat_id=user.telegram_id,
+                                text=m_subscription_local.expire_subscription.delete_unlimit_configs_user.format(
+                                    file_name=cfg.file_name,
+                                ),
+                            )
+                            print(result_del)
+                            return result_del
+
+                    except AmneziaError as e:
+                        self.logger.error(str(e))
+                        raise
 
 
 if __name__ == "__main__":

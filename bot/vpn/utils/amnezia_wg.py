@@ -474,7 +474,7 @@ class AsyncSSHClientWG:
                         cmd=";".join(cmd),
                         stderr=stderr,
                     )
-        return None
+        return True
 
     async def _save_wg_config(
         self,
