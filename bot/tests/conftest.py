@@ -168,7 +168,6 @@ def ssh_client():
     return AsyncSSHClientWG(
         host="127.0.0.1",
         username="testuser",
-        key_filename=None,
         known_hosts=None,
         container="test-container",
     )
@@ -180,7 +179,6 @@ def ssh_client_vpn():
     return AsyncSSHClientVPN(
         host="127.0.0.1",
         username="testuser",
-        key_filename=None,
         known_hosts=None,
         container="test-container",
     )

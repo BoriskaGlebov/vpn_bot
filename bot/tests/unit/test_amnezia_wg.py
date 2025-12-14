@@ -22,7 +22,7 @@ async def test_connect_success(ssh_client, mock_asyncssh_connect):
         host="127.0.0.1",
         port=22,
         username="testuser",
-        client_keys=None,
+        agent_forwarding=True,
         known_hosts=None,
     )
     mock_conn.create_process.assert_awaited_once()
@@ -441,7 +441,7 @@ async def test_reboot_interface_warning(ssh_client):
     ssh_client.run_commands_in_container = mock_gen
 
     result = await ssh_client._reboot_interface()
-    assert result is None
+    assert result == True
 
 
 @pytest.mark.vpn
