@@ -151,13 +151,10 @@ class SubscriptionService:
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user
         )
-        if not user_model or not user_model.current_subscription:
+        if not user_model:
             raise UserNotFoundError(tg_id=user_id)
-        if premium:
-            sub_type = SubscriptionType.PREMIUM
-        else:
-            sub_type = SubscriptionType.STANDARD
-        check = next(
+        sub_type = SubscriptionType.PREMIUM if premium else SubscriptionType.STANDARD
+        active_sub = next(
             (
                 sbscr
                 for sbscr in user_model.subscriptions
@@ -165,16 +162,17 @@ class SubscriptionService:
             ),
             None,
         )
-        if user_model and check:
-            check.extend(months=months)
+        if active_sub:
+            active_sub.extend(months=months)
             await session.commit()
             return await UserService.get_user_schema(user=user_model)
         elif user_model.role.name == FilterTypeEnum.FOUNDER:
-            check = user_model.current_subscription
-            check.extend(months=months)
-            check.type = SubscriptionType.PREMIUM
-            await session.commit()
-            return await UserService.get_user_schema(user=user_model)
+            current_sub = user_model.current_subscription
+            if current_sub is not None:
+                current_sub.extend(months=months)
+                current_sub.type = SubscriptionType.PREMIUM
+                await session.commit()
+                return await UserService.get_user_schema(user=user_model)
         await SubscriptionDAO.activate_subscription(
             session=session, stelegram_id=schema_user, month=months, sub_type=sub_type
         )
