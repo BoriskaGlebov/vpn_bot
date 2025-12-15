@@ -1,0 +1,14 @@
+services:
+  vpn_bot:
+    env_file:
+      - .env
+#    ports:
+#       - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/bot/health', timeout=2)" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+#TODO нужен NGinx
