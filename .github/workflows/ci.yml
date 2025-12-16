@@ -118,7 +118,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
             set -e
             cd /home/vpn_user/test_zone/vpn_bot || exit 1
-            echo pwd
+            pwd
             echo "Pull latest code..."
             git fetch origin develop
             git reset --hard origin/develop
