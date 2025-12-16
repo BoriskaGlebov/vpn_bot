@@ -142,7 +142,7 @@ jobs:
             PRICE_MAP_JSON=$(python3 -c "import json, ast; print(json.dumps(ast.literal_eval('$RAW_PRICE_MAP')))" )
 
             # Создаем .env с корректным JSON в одинарных кавычках
-            echo "PRICE_MAP='$PRICE_MAP_JSON'" > .env
+            echo "PRICE_MAP='$PRICE_MAP_JSON'" >> .env
 
             echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env
 
