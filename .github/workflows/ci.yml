@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [ opened, reopened,synchronize ]
   push:
-    branches: [ main, develop, settings ]
+    branches: [ main, develop, settings, step7]
 
 jobs:
   lint:
@@ -91,3 +91,58 @@ jobs:
           ACCESS_KEY: ${{secrets.ACCESS_KEY}}
           SECRET_KEY: ${{secrets.SECRET_KEY}}
         run: poetry run pytest -vs .
+
+  deploy_develop:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    environment: develop
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to server (DEV)
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known hosts
+        run: echo "${{ secrets.SERVER_IP }} $(ssh-keyscan -H ${{ secrets.SERVER_IP }})" >> ~/.ssh/known_hosts  # Добавление сервера в known_hosts
+
+      - name: Test SSH connection
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET # Проверка подключения
+
+      - name: Recreate .env and restart containers
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
+            set -e
+            cd /home/bot_server/test_zone/taxi_bot || exit 1
+
+            echo "Pull latest code..."
+            git fetch origin develop
+            git reset --hard origin/develop
+            git clean -fd
+
+            echo "Recreate .env file..."
+            rm -f .env
+
+            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env
+            echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env
+            echo "BASE_SITE=${{ secrets.BASE_SITE }}" >> .env
+            echo "OPENROUTSERVICE=${{ secrets.OPENROUTSERVICE }}" >> .env
+            echo "CITY_CENTER_COORDS=${{ vars.CITY_CENTER_COORDS }}" >> .env
+            echo "CENTER_RADIUS_KM=${{ vars.CENTER_RADIUS_KM }}" >> .env
+            echo "FIXED_PRICE=${{ vars.FIXED_PRICE }}" >> .env
+            echo "PRICE_PER_KM=${{ vars.PRICE_PER_KM }}" >> .env
+            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env
+            echo "REDIS_USER=${{ secrets.REDIS_USER }}" >> .env
+            echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
+            echo "USE_POLLING=${{ vars.USE_POLLING }}" >> .env
+
+            echo "Restart Docker containers..."
+            make compose-down STAGE=prod
+            make compose-up STAGE=prod
+          EOF
