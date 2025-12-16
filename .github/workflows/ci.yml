@@ -117,7 +117,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
             set -e
-            cd /home/bot_server/test_zone/taxi_bot || exit 1
+            cd /home/vpn_user/test_zone/vpn_bot || exit 1
 
             echo "Pull latest code..."
             git fetch origin develop
@@ -128,19 +128,33 @@ jobs:
             rm -f .env
 
             echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env
+
+            echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env
+            echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env
+            echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env
+            echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env
+
             echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env
-            echo "BASE_SITE=${{ secrets.BASE_SITE }}" >> .env
-            echo "OPENROUTSERVICE=${{ secrets.OPENROUTSERVICE }}" >> .env
-            echo "CITY_CENTER_COORDS=${{ vars.CITY_CENTER_COORDS }}" >> .env
-            echo "CENTER_RADIUS_KM=${{ vars.CENTER_RADIUS_KM }}" >> .env
-            echo "FIXED_PRICE=${{ vars.FIXED_PRICE }}" >> .env
-            echo "PRICE_PER_KM=${{ vars.PRICE_PER_KM }}" >> .env
+
+            echo "PRICE_MAP=${{ vars.PRICE_MAP }}" >> .env
+
+            echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env
+
             echo "DB_USER=${{ secrets.DB_USER }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env
+
             echo "REDIS_USER=${{ secrets.REDIS_USER }}" >> .env
             echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
+
             echo "USE_POLLING=${{ vars.USE_POLLING }}" >> .env
+
+            echo "BUCKET_NAME=${{ vars.BUCKET_NAME }}" >> .env
+            echo "PREFIX=${{ vars.PREFIX }}" >> .env
+            echo "ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}" >> .env
+            echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env
+            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+
 
             echo "Restart Docker containers..."
             make compose-down STAGE=prod
