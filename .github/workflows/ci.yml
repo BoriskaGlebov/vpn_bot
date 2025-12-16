@@ -125,7 +125,7 @@ jobs:
 
             echo "Recreate .env file..."
             rm -f .env
-
+            echo "${{ vars.PRICE_MAP }}"
             echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env
 
             echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env
