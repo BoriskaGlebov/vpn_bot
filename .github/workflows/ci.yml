@@ -135,7 +135,7 @@ jobs:
 
             echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env
 
-            echo "PRICE_MAP=${{ vars.PRICE_MAP }}" >> .env
+            echo "PRICE_MAP='${{ vars.PRICE_MAP }}'" >> .env
 
             echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env
 
