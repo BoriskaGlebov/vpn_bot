@@ -2,10 +2,10 @@ services:
   vpn_bot:
     env_file:
       - .env
-    volumes:
-      - $SSH_AUTH_SOCK:/ssh-agent
-    environment:
-      - SSH_AUTH_SOCK=/ssh-agent
+#    volumes:
+#      - $SSH_AUTH_SOCK:/ssh-agent
+#    environment:
+#      - SSH_AUTH_SOCK=/ssh-agent
     healthcheck:
       test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/bot/health', timeout=2)" ]
       interval: 30s
