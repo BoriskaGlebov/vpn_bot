@@ -3,7 +3,7 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru._logger import Logger
 
-from bot.config import bot, logger, settings_bot
+from bot.config import bot, logger
 from bot.subscription.services import SubscriptionService
 
 scheduler = AsyncIOScheduler()
@@ -32,12 +32,13 @@ async def scheduled_check(logger: Logger) -> None:
             elapsed=elapsed,
         )
         # TODO Нало проработать соообщение о проверке для админа
-        await bot.send_message(
-            chat_id=settings_bot.admin_ids[0],
-            text="✅ Проверка подписок завершена. Пользователей: {checked}, истекло: {expired}, "
-            "уведомлено: {notified}, конфигов удалено: {configs_deleted}. "
-            "⏱ Время выполнения: {elapsed:.2f} сек.".format(**stats),
-        )
+        # for adm in settings_bot.admin_ids:
+        #     await bot.send_message(
+        #         chat_id=adm,
+        #         text="✅ Проверка подписок завершена. Пользователей: {checked}, истекло: {expired}, "
+        #         "уведомлено: {notified}, конфигов удалено: {configs_deleted}. "
+        #         "⏱ Время выполнения: {elapsed:.2f} сек.".format(**stats),
+        #     )
 
     except Exception as e:
         logger.exception(f"❌ Ошибка при проверке подписок: {e}")
