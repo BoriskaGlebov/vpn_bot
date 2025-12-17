@@ -725,20 +725,43 @@ class AsyncSSHClientWG:
         stdout, stderr, code, cmd = await self.write_single_cmd(cmd=wg0)
         if stdout:
             out_data = []
-            deleted_lines = False
-            for line in stdout.splitlines():
-                if "Peer" in line and deleted_lines:
-                    deleted_lines = False
-                elif "Peer" in line and not deleted_lines:
+            in_peer_to_delete = False
+            lines = stdout.splitlines()
+            peer_found = any(
+                "PublicKey" in line and public_key in line for line in lines
+            )
+            if not peer_found:
+                logger.warning(
+                    f"Пользователь с таким ключем не найден в {self.WG_CONF}"
+                )
+                return False
+
+            for i, line in enumerate(lines):
+                if line.strip() == "[Peer]":
+                    # Look ahead to see if this is the peer to delete
+                    is_target_peer = False
+                    for next_line in lines[i + 1 :]:
+                        if "PublicKey" in next_line:
+                            if public_key in next_line:
+                                is_target_peer = True
+                            break
+                        if next_line.strip() == "[Peer]":
+                            break
+
+                    if is_target_peer:
+                        in_peer_to_delete = True
+                        continue
+
+                if in_peer_to_delete:
+                    if line.strip() == "" and (
+                        i + 1 < len(lines)
+                        and lines[i + 1].strip() == "[Peer]"
+                        or i + 1 == len(lines)
+                    ):
+                        in_peer_to_delete = False
                     continue
-                elif "PublicKey" in line and public_key in line:
-                    deleted_lines = True
-                    continue
-                elif "PublicKey" in line and public_key not in line:
-                    out_data.append("[Peer]")
-                if not deleted_lines:
-                    out_data.append(line)
-            if len(stdout.splitlines()) != len(out_data):
+                out_data.append(line)
+            if len(lines) != len(out_data):
                 logger.info(f"Нашел пользователя с таким ключем в {self.WG_CONF}")
             else:
                 logger.warning(

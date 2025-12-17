@@ -308,7 +308,7 @@ async def test_get_public_server_key_success(ssh_client):
     result = await ssh_client._get_public_server_key()
 
     ssh_client.write_single_cmd.assert_awaited_once_with(
-        "cat /opt/amnezia/awg/wireguard_server_public_key.key"
+        f"cat {ssh_client.WG_DIR}/wireguard_server_public_key.key"
     )
     assert result == "SERVER_PUBLIC_KEY"
 
