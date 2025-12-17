@@ -1,10 +1,9 @@
 from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from config import settings_bot
 from loguru._logger import Logger
 
-from bot.config import bot, logger
+from bot.config import bot, logger, settings_bot
 from bot.subscription.services import SubscriptionService
 
 scheduler = AsyncIOScheduler()
