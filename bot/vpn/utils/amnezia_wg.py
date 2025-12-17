@@ -581,7 +581,7 @@ class AsyncSSHClientWG:
 
         cmd = f"cat > {self.WG_CLIENTS_TABLE} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
         escaped_cmd = shlex.quote(cmd)
-        assert self._conn is not None
+        # assert self._conn is not None
         new_table_row = f"docker exec -i {self.container} sh -c {escaped_cmd}"
         # result = await self._conn.run(
         #     f"docker exec -i {self.container} sh -c {escaped_cmd}"
