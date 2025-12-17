@@ -93,7 +93,7 @@ jobs:
         run: poetry run pytest -vs .
 
   deploy_develop:
-#    needs: [lint, test]
+    needs: [lint, test]
     runs-on: ubuntu-latest
     environment: develop
     if: github.ref == 'refs/heads/step7'
