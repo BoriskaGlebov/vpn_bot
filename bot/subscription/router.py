@@ -10,7 +10,7 @@ from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.enums import FilterTypeEnum
-from bot.app_error.base_error import UserNotFoundError
+from bot.app_error.base_error import AppError, UserNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_service import redis_admin_mess_storage as redis_service
@@ -181,8 +181,22 @@ class SubscriptionRouter(BaseRouter):
             months = callback_data.months
             user_logger.info(f"Выбор периода подписки: {months} мес")
             price_map = settings_bot.price_map
-            price = price_map[months]
+            price = price_map.get(months)
             premium = await state.get_data()
+            if price is None:
+                user_logger.warning(
+                    "Некорректный период подписки: %s (user_id=%s)",
+                    months,
+                    query.from_user.id,
+                )
+
+                await query.answer(
+                    "Выбран некорректный период подписки. Пожалуйста, попробуйте ещё раз.",
+                    show_alert=True,
+                )
+
+                await state.clear()
+                return
             if price != 0:
                 if premium.get("premium"):
                     price *= 2
@@ -214,8 +228,8 @@ class SubscriptionRouter(BaseRouter):
                         reply_markup=main_kb(active_subscription=True),
                     )
                     await state.clear()
-                except ValueError as e:
-                    await query.answer(str(e), show_alert=True)
+                except AppError as e:
+                    await query.answer(str(e.message), show_alert=True)
 
     @BaseRouter.log_method
     async def toggle_subscription_mode(

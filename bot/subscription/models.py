@@ -8,6 +8,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from bot.app_error.base_error import AppError
 from bot.config import logger, settings_bot
 from bot.database import Base, int_pk
 
@@ -97,7 +98,7 @@ class Subscription(Base):
         """
         if sub_type == SubscriptionType.TRIAL:
             if self.user.has_used_trial:
-                raise ValueError("Пользователь уже использовал триал-подписку")
+                raise AppError(message="Пользователь уже использовал триал-подписку")
             self.user.has_used_trial = True
         self.type = sub_type
         self.is_active = True
@@ -109,7 +110,7 @@ class Subscription(Base):
         elif month_num is not None:
             self.end_date = self.start_date + relativedelta(months=month_num)
         else:
-            raise ValueError("Нужно указать либо days, либо month_num")
+            raise AppError(message="Нужно указать либо days, либо month_num")
 
         logger.info(
             f"[DAO] Активирована подписка с {self.start_date} до {self.end_date}"

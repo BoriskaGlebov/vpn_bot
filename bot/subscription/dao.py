@@ -1,7 +1,7 @@
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.app_error.base_error import UserNotFoundError
+from bot.app_error.base_error import AppError, UserNotFoundError
 from bot.config import logger
 from bot.dao.base import BaseDAO
 from bot.subscription.models import Subscription, SubscriptionType
@@ -66,7 +66,7 @@ class SubscriptionDAO(BaseDAO[Subscription]):
                 logger.debug(f"[DAO] Активирую подписку на {days} дней")
                 await session.commit()
                 return subscription
-        except ValueError:
+        except AppError:
             raise
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при активации подписки: {e}")

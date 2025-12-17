@@ -97,7 +97,7 @@ class SubscriptionService:
                 sub_type=SubscriptionType.TRIAL,
             )
             await session.refresh(user_model)
-        except ValueError:
+        except AppError:
             raise
 
     @staticmethod
