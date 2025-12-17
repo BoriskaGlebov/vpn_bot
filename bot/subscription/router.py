@@ -229,7 +229,7 @@ class SubscriptionRouter(BaseRouter):
                     )
                     await state.clear()
                 except AppError as e:
-                    await query.answer(str(e.message), show_alert=True)
+                    await query.answer(str(e.user_message), show_alert=True)
 
     @BaseRouter.log_method
     async def toggle_subscription_mode(
