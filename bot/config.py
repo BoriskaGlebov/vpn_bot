@@ -30,6 +30,7 @@ class SettingsBot(BaseSettings):
         vpn_container (str): Имя Docker-контейнера VPN (если используется).
         max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
         use_polling (bool): Использовать polling вместо webhook (по умолчанию False, удобно для тестов).
+        use_local (bool): Учитывать место развертывание бота, локальная машина или целевой хост.
         debug_fast_api (bool): Включить режим отладки FastAPI.
         reload_fast_api (bool): Включить автоматическую перезагрузку FastAPI при изменениях кода.
         base_dir (Path): Корневая директория проекта, вычисляется автоматически.
@@ -56,6 +57,7 @@ class SettingsBot(BaseSettings):
     use_polling: bool = False
     debug_fast_api: bool = False
     reload_fast_api: bool = False
+    use_local: bool = True
 
     base_dir: Path = Path(__file__).resolve().parent.parent
 

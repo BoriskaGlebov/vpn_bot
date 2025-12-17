@@ -12,12 +12,14 @@ from typing import Any
 import aiofiles
 import asyncssh
 
-from bot.config import logger
+from bot.config import logger, settings_bot
 from bot.vpn.utils.amnezia_exceptions import (
     AmneziaConfigError,
     AmneziaError,
     AmneziaSSHError,
 )
+
+USE_LOCAL = settings_bot.use_local
 
 
 class AsyncSSHClientWG:
@@ -41,19 +43,25 @@ class AsyncSSHClientWG:
 
     def __init__(
         self,
-        host: str,
-        username: str,
+        host: str = "localhost",
+        username: str | None = None,
         port: int = 22,
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
+        use_local: bool = USE_LOCAL,
     ) -> None:
-        self.host = host
-        self.username = username
-        self.port = port
-        self.known_hosts = known_hosts
         self.container = container
-        self._conn: asyncssh.SSHClientConnection | None = None
-        self._process: asyncssh.SSHClientProcess[str] | None = None
+        self.use_local = use_local
+        if not use_local:
+            if username is None:
+                raise AmneziaError(message="Username обязательное поле")
+            self.host = host
+            self.username = username
+            self.port = port
+            self.known_hosts = known_hosts
+
+            self._conn: asyncssh.SSHClientConnection | None = None
+            self._process: asyncssh.SSHClientProcess[str] | None = None
 
     async def connect(self) -> None:
         """Устанавливает SSH-соединение и открывает shell-сессию.
@@ -63,6 +71,9 @@ class AsyncSSHClientWG:
            Asyncssh.Error: Ошибка внутри библиотеки ``asyncssh``.
 
         """
+        if self.use_local:
+            return
+
         if self._conn is not None:
             logger.bind(user=self.username).debug("AsyncSSH: уже подключён")
             return
@@ -104,6 +115,20 @@ class AsyncSSHClientWG:
             RuntimeError: Если shell-сессия не запущена.
 
         """
+        if self.use_local:
+            full_cmd = f"docker exec -i {self.container} sh -c {shlex.quote(cmd)}"
+            process = await asyncio.create_subprocess_shell(
+                full_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await process.communicate()
+            return (
+                stdout.decode().strip(),
+                stderr.decode().strip(),
+                process.returncode,
+                cmd,
+            )
         if self._process is None:
             raise AmneziaSSHError(
                 "AsyncSSH: shell-сессия не запущена. Вызови connect()"
