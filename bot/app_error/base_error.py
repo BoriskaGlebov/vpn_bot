@@ -32,7 +32,7 @@ class SubscriptionNotFoundError(AppError):
     """У пользователя нет подписки."""
 
     def __init__(self, user_id: int) -> None:
-        super().__init__(f"У пользователя {user_id} нет подписки / не активна.")
+        super().__init__(message=f"У пользователя {user_id} нет подписки / не активна.")
         self.user_id = user_id
 
 

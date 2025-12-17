@@ -149,6 +149,8 @@ class UserDAO(BaseDAO[User]):
                         now.year + 1, 1, 1, tzinfo=datetime.UTC
                     )
                     delta = next_year - now
+                    if user.current_subscription is None:
+                        raise SubscriptionNotFoundError(user_id=user.telegram_id)
                     user.subscriptions[0].activate(days=delta.days)
                     user.subscriptions[0].type = SubscriptionType.PREMIUM
                 await session.commit()
