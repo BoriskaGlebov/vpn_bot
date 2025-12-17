@@ -582,10 +582,15 @@ class AsyncSSHClientWG:
         cmd = f"cat > {self.WG_CLIENTS_TABLE} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
         escaped_cmd = shlex.quote(cmd)
         assert self._conn is not None
-        result = await self._conn.run(
-            f"docker exec -i {self.container} sh -c {escaped_cmd}"
-        )
-        if result.exit_status == 0:
+        new_table_row = f"docker exec -i {self.container} sh -c {escaped_cmd}"
+        # result = await self._conn.run(
+        #     f"docker exec -i {self.container} sh -c {escaped_cmd}"
+        # )
+        stdout, stderr, code, _ = await self.write_single_cmd(cmd=new_table_row)
+        # if result.exit_status == 0:
+        #     logger.success("clientsTable успешно обновлён")
+        #     return True
+        if code == 0:
             logger.success("clientsTable успешно обновлён")
             return True
         else:
@@ -593,14 +598,10 @@ class AsyncSSHClientWG:
                 "Ошибка при записи clientsTable",
                 cmd=cmd,
                 stdout=(
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
+                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
                 ),
                 stderr=(
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
+                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
                 ),
             )
 
@@ -657,9 +658,7 @@ class AsyncSSHClientWG:
             await self._check_container()
 
             private_key = await self._generate_private_key()
-            print(private_key)
             pub_key = await self._generate_public_key()
-            print(pub_key)
             pub_server_key = await self._get_public_server_key()
             correct_ip = await self._get_correct_ip()
             psk = await self._get_psk_key()
