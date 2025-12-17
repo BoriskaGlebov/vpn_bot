@@ -143,16 +143,17 @@ class UserRouter(BaseRouter):
         assert message.from_user is not None
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
-            user_info, is_new = await self.user_service.register_or_get_user(
-                session=session, telegram_user=user
-            )
-            welcome_messages = m_start.welcome
             if message.chat.type != ChatType.PRIVATE:
                 bot_inf = await self.bot.get_me()
                 await message.answer(
                     f"Чтобы начать работу, перейдите ко мне в личные сообщения 👉 @{bot_inf.username}"
                 )
                 return
+            user_info, is_new = await self.user_service.register_or_get_user(
+                session=session, telegram_user=user
+            )
+            welcome_messages = m_start.welcome
+
             username = user.username or f"Гость_{user.id}"
             full_name = user.full_name or username
             if not is_new:
