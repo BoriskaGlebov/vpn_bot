@@ -243,7 +243,9 @@ class SubscriptionRouter(BaseRouter):
                 device_limit=settings_bot.max_configs_per_user * 2
             )
             if premium
-            else m_subscription.start
+            else m_subscription.start.format(
+                device_limit=settings_bot.max_configs_per_user
+            )
         )
 
         await msg.edit_text(
