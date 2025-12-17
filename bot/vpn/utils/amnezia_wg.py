@@ -580,7 +580,20 @@ class AsyncSSHClientWG:
         new_json = json.dumps(data, indent=4, ensure_ascii=False)
 
         cmd = f"cat > {self.WG_CLIENTS_TABLE} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
+        if self.use_local:
+            stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
+        else:
+            escaped_cmd = shlex.quote(cmd)
+            assert self._conn is not None
+            result = await self._conn.run(
+                f"docker exec -i {self.container} sh -c {escaped_cmd}"
+            )
+            stdout, stderr, code, _ = (
+                result.stdout,
+                result.stderr,
+                result.exit_status,
+                None,
+            )
         if code == 0:
             logger.success("clientsTable успешно обновлён")
             return True
@@ -734,7 +747,20 @@ class AsyncSSHClientWG:
                 return False
             new_conf = "\n".join(out_data)
             cmd = f"cat > {self.WG_CONF} <<'EOF'\n{new_conf}\nEOF\n"
-            stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
+            if self.use_local:
+                stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
+            else:
+                escaped_cmd = shlex.quote(cmd)
+                assert self._conn is not None
+                result = await self._conn.run(
+                    f"docker exec -i {self.container} sh -c {escaped_cmd}"
+                )
+                stdout, stderr, code, cmd = (
+                    result.stdout,
+                    result.stderr,
+                    result.exit_status,
+                    cmd.splitlines(),
+                )
             if code == 0:
                 logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
                 return True
@@ -811,7 +837,20 @@ class AsyncSSHClientWG:
         new_json = json.dumps(new_data, indent=4, ensure_ascii=False)
 
         cmd = f"cat > {clients_table} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
+        if self.use_local:
+            stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
+        else:
+            escaped_cmd = shlex.quote(cmd)
+            assert self._conn is not None
+            result = await self._conn.run(
+                f"docker exec -i {self.container} sh -c {escaped_cmd}"
+            )
+            stdout, stderr, code, cmd = (
+                result.stdout,
+                result.stderr,
+                result.exit_status,
+                cmd.splitlines(),
+            )
         if code == 0:
             logger.success(f"Ключ успешно удален из {clients_table}")
             return True
