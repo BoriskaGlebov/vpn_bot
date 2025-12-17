@@ -14,11 +14,12 @@ RUN groupadd -r bot && \
 
 WORKDIR /vpn_bot
 
-#RUN apt-get update && apt-get install -y --no-install-recommends \
-#    curl \
-#    build-essential \
-#    openssh-client \
-#    && rm -rf /var/lib/apt/lists/*
+# Устанавливаем системные зависимости + docker CLI
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        docker.io \
+    && rm -rf /var/lib/apt/lists/*
 
 
 # Устанавливаем Poetry
