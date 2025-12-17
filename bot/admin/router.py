@@ -10,6 +10,7 @@ from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.enums import ActionEnum, AdminModeKeys
+from bot.admin.filters import IsAdminFilter
 from bot.admin.keyboards.inline_kb import (
     AdminCB,
     UserPageCB,
@@ -39,8 +40,10 @@ class AdminRouter(BaseRouter):
         self.admin_service = admin_service
 
     def _register_handlers(self) -> None:
+        admin_filter = IsAdminFilter()
         self.router.callback_query.register(
             self.admin_action_callback,
+            admin_filter,
             or_f(
                 UserPageCB.filter(F.action == ActionEnum.ROLE_CHANGE),
                 UserPageCB.filter(F.action == ActionEnum.SUB_MANAGE),
@@ -48,6 +51,7 @@ class AdminRouter(BaseRouter):
         )
         self.router.callback_query.register(
             self.role_select_callback,
+            admin_filter,
             and_f(
                 StateFilter(AdminStates.select_role),
                 UserPageCB.filter(F.action == ActionEnum.ROLE_SELECT),
@@ -55,6 +59,7 @@ class AdminRouter(BaseRouter):
         )
         self.router.callback_query.register(
             self.sub_select_callback,
+            admin_filter,
             and_f(
                 StateFilter(AdminStates.select_period),
                 UserPageCB.filter(F.action == ActionEnum.SUB_SELECT),
@@ -62,6 +67,7 @@ class AdminRouter(BaseRouter):
         )
         self.router.callback_query.register(
             self.cansel_callback,
+            admin_filter,
             or_f(
                 UserPageCB.filter(F.action == ActionEnum.ROLE_CANCEL),
                 UserPageCB.filter(F.action == ActionEnum.SUBSCR_CANCEL),
@@ -69,15 +75,18 @@ class AdminRouter(BaseRouter):
         )
         self.router.callback_query.register(
             self.show_filtered_users,
+            admin_filter,
             AdminCB.filter(),
         )
         self.router.callback_query.register(
             self.user_page_callback,
+            admin_filter,
             UserPageCB.filter(F.action == ActionEnum.NAVIGATE),
         )
 
         self.router.message.register(
             self.mistake_handler_user,
+            admin_filter,
             and_f(
                 or_f(
                     StateFilter(AdminStates.select_role),
