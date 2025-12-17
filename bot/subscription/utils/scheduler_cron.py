@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from config import settings_bot
 from loguru._logger import Logger
 
 from bot.config import bot, logger
@@ -30,6 +31,14 @@ async def scheduled_check(logger: Logger) -> None:
             "⏱ Время выполнения: {elapsed:.2f} сек.",
             **stats,
             elapsed=elapsed,
+        )
+        # TODO Нало проработать соообщение о проверке для админа
+        await bot.send_message(
+            chat_id=settings_bot.admin_ids[0],
+            text="✅ Проверка подписок завершена. Пользователей: {checked}, истекло: {expired}, "
+            "уведомлено: {notified}, конфигов удалено: {configs_deleted}. "
+            "⏱ Время выполнения: {elapsed:.2f} сек.",
+            **stats,
         )
 
     except Exception as e:
