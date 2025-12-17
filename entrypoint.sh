@@ -20,5 +20,5 @@ else
 fi
 
 echo "🚀 Starting bot..."
-exec su -s /bin/bash botuser -c  "python -m bot.main"
-#exec python -m bot.main
+#exec su -s /bin/bash botuser -c  "python -m bot.main"
+exec python -m bot.main
