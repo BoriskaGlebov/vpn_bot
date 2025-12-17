@@ -657,7 +657,9 @@ class AsyncSSHClientWG:
             await self._check_container()
 
             private_key = await self._generate_private_key()
+            print(private_key)
             pub_key = await self._generate_public_key()
+            print(pub_key)
             pub_server_key = await self._get_public_server_key()
             correct_ip = await self._get_correct_ip()
             psk = await self._get_psk_key()
