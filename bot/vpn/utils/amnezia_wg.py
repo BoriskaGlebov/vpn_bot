@@ -580,16 +580,7 @@ class AsyncSSHClientWG:
         new_json = json.dumps(data, indent=4, ensure_ascii=False)
 
         cmd = f"cat > {self.WG_CLIENTS_TABLE} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        # escaped_cmd = shlex.quote(cmd)
-        # assert self._conn is not None
-        # new_table_row = f"docker exec -i {self.container} sh -c {escaped_cmd}"
-        # result = await self._conn.run(
-        #     f"docker exec -i {self.container} sh -c {escaped_cmd}"
-        # )
         stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
-        # if result.exit_status == 0:
-        #     logger.success("clientsTable успешно обновлён")
-        #     return True
         if code == 0:
             logger.success("clientsTable успешно обновлён")
             return True
@@ -743,24 +734,16 @@ class AsyncSSHClientWG:
                 return False
             new_conf = "\n".join(out_data)
             cmd = f"cat > {self.WG_CONF} <<'EOF'\n{new_conf}\nEOF\n"
-            escaped_cmd = shlex.quote(cmd)
-            assert self._conn is not None
-            result = await self._conn.run(
-                f"docker exec -i {self.container} sh -c {escaped_cmd}"
-            )
-            if result.exit_status == 0:
+            stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
+            if code == 0:
                 logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
                 return True
             else:
                 stdout_str = (
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
+                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
                 )
                 stderr_str = (
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
+                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
                 )
                 raise AmneziaSSHError(
                     message=f"Ошибка записи wg0.conf: {stderr_str}",
@@ -828,13 +811,8 @@ class AsyncSSHClientWG:
         new_json = json.dumps(new_data, indent=4, ensure_ascii=False)
 
         cmd = f"cat > {clients_table} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        escaped_cmd = shlex.quote(cmd)
-        assert self._conn is not None
-        result = await self._conn.run(
-            f"docker exec -i {self.container} sh -c {escaped_cmd}"
-        )
-
-        if result.exit_status == 0:
+        stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
+        if code == 0:
             logger.success(f"Ключ успешно удален из {clients_table}")
             return True
         else:
@@ -842,14 +820,10 @@ class AsyncSSHClientWG:
                 message=f"Ошибка при удалении ключа из {clients_table}",
                 cmd=cmd,
                 stdout=(
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
+                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
                 ),
                 stderr=(
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
+                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
                 ),
             )
 
