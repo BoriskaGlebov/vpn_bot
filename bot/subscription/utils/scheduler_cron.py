@@ -37,8 +37,7 @@ async def scheduled_check(logger: Logger) -> None:
             chat_id=settings_bot.admin_ids[0],
             text="✅ Проверка подписок завершена. Пользователей: {checked}, истекло: {expired}, "
             "уведомлено: {notified}, конфигов удалено: {configs_deleted}. "
-            "⏱ Время выполнения: {elapsed:.2f} сек.",
-            **stats,
+            "⏱ Время выполнения: {elapsed:.2f} сек.".format(**stats),
         )
 
     except Exception as e:
