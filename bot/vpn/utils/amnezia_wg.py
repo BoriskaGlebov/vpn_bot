@@ -55,13 +55,13 @@ class AsyncSSHClientWG:
         if not use_local:
             if username is None:
                 raise AmneziaError(message="Username обязательное поле")
-            self.host = host
-            self.username = username
-            self.port = port
-            self.known_hosts = known_hosts
+        self.host = host
+        self.username = username
+        self.port = port
+        self.known_hosts = known_hosts
 
-            self._conn: asyncssh.SSHClientConnection | None = None
-            self._process: asyncssh.SSHClientProcess[str] | None = None
+        self._conn: asyncssh.SSHClientConnection | None = None
+        self._process: asyncssh.SSHClientProcess[str] | None = None
 
     async def connect(self) -> None:
         """Устанавливает SSH-соединение и открывает shell-сессию.
