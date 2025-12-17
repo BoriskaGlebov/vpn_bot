@@ -379,7 +379,7 @@ class AsyncSSHClientWG:
 
         """
         stdout, stderr, *_ = await self.write_single_cmd(
-            "cat wireguard_server_public_key.key"
+            f"cat {self.WG_DIR}/wireguard_server_public_key.key"
         )
         if stdout:
             return stdout
