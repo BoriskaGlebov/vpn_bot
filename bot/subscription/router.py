@@ -299,7 +299,7 @@ class SubscriptionRouter(BaseRouter):
             months = callback_data.months
             price_map = settings_bot.price_map
             premium = (await state.get_data()).get("premium")
-            price = price_map[months] * 2 if premium else price_map[months]
+            price = price_map.get(months) * 2 if premium else price_map.get(months)
 
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
