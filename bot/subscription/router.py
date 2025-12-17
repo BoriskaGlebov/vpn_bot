@@ -10,6 +10,7 @@ from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.enums import FilterTypeEnum
+from bot.admin.filters import IsAdminFilter
 from bot.app_error.base_error import AppError, UserNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
@@ -53,6 +54,7 @@ class SubscriptionRouter(BaseRouter):
         self.subscription_service = subscription_service
 
     def _register_handlers(self) -> None:
+        admin_filter = IsAdminFilter()
         self.router.message.register(
             self.start_subscription,
             or_f(
@@ -87,10 +89,12 @@ class SubscriptionRouter(BaseRouter):
         )
         self.router.callback_query.register(
             self.admin_confirm_payment,
+            admin_filter,
             AdminPaymentCB.filter(F.action == AdminPaymentAction.CONFIRM),
         )
         self.router.callback_query.register(
             self.admin_decline_payment,
+            admin_filter,
             AdminPaymentCB.filter(F.action == AdminPaymentAction.DECLINE),
         )
         # self.router.message.register(
