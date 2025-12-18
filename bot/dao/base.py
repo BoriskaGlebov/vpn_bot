@@ -106,9 +106,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
-            f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
+            f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict.keys()}"
         )
-        logger.debug(f"[DAO] Фильтры → условия: {cls._build_filters(filter_dict)}")
+        logger.debug("[DAO] Фильтры → условия")
         async with cls.transaction(session):
             filters_clause = cls._build_filters(filter_dict)
             # noinspection PyTypeChecker
@@ -135,7 +135,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
-            f"[DAO] Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict}"
+            f"[DAO] Поиск всех записей {cls.model.__name__} по фильтрам: {filter_dict.keys()}"
         )
         async with cls.transaction(session):
             filters_clause = cls._build_filters(filter_dict)
@@ -161,7 +161,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         values_dict = values.model_dump(exclude_unset=True)
         # noinspection PyTypeChecker
         logger.info(
-            f"[DAO] Добавление записи {cls.model.__name__} с параметрами: {values_dict}"
+            f"[DAO] Добавление записи {cls.model.__name__} с параметрами: {values_dict.keys()}"
         )
         try:
             async with cls.transaction(session):
@@ -197,7 +197,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         # noinspection PyTypeChecker
         logger.info(
             f"[DAO] Обновление записей {cls.model.__name__} по фильтру: "
-            f"{filter_dict} с параметрами: {values_dict}"
+            f"{filter_dict.keys()} с параметрами: {values_dict.keys()}"
         )
 
         filters_clause = cls._build_filters(filter_dict)
@@ -238,7 +238,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = cls._to_dict(filters)
         # noinspection PyTypeChecker
         logger.info(
-            f"[DAO] Удаление записей {cls.model.__name__} по фильтру: {filter_dict}"
+            f"[DAO] Удаление записей {cls.model.__name__} по фильтру: {filter_dict.keys()}"
         )
         if not filter_dict:
             logger.error("[DAO] Нужен хотя бы один фильтр для удаления.")
@@ -305,7 +305,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
-            f"[DAO] Подсчет количества записей {cls.model.__name__} по фильтру: {filter_dict}"
+            f"[DAO] Подсчет количества записей {cls.model.__name__} по фильтру: {filter_dict.keys()}"
         )
         async with cls.transaction(session):
             filters_clause = cls._build_filters(filter_dict)
