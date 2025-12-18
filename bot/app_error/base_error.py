@@ -10,7 +10,7 @@ class AppError(Exception):
     def __init__(self, message: str, *, cause: Exception | None = None) -> None:
         super().__init__(message)
         self.cause = cause
-        self.user_message: str = message
+        self.public_message: str = message
 
     def __str__(self) -> str:
         """Строковое представление об ошибке."""
