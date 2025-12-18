@@ -102,5 +102,5 @@ async def test_check_all_subscriptions_notifications(
     monkeypatch.setattr(test_bot, "send_message", AsyncMock())
 
     stats = await svc.check_all_subscriptions(session=session)
-    assert stats["checked"] == len(setup_users)
-    assert stats["notified"] == 0
+    assert stats.checked == len(setup_users)
+    assert stats.notified == 0
