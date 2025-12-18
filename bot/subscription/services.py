@@ -243,11 +243,13 @@ class SubscriptionService:
     @connection()
     async def _delete_unlimit_configs(self, session: AsyncSession, user: User) -> None:
         """Удаляет VPN-конфиги пользователя из БД когда у него их больше чем можно."""
-        # TODO Корректно этот метод проработать , убрать type ignore
-        if not user.vpn_configs and not user.current_subscription.is_active:  # type: ignore [union-attr]
+        if not user.vpn_configs:
             return
-
-        limits = DEVICE_LIMITS.get(user.current_subscription.type) or 0  # type: ignore [union-attr]
+        subscription = user.current_subscription
+        if subscription is None or not subscription.is_active:
+            limits = 0
+        else:
+            limits = DEVICE_LIMITS.get(subscription.type, 0)
         len_configs = len(user.vpn_configs)
         async with ssh_lock:
             async with AsyncSSHClientWG(
