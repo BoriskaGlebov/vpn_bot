@@ -1,0 +1,10 @@
+.*
+!.env
+
+__pycache__/
+
+pytest_cache/
+
+bot/logs/
+
+docker-compose*.yml
