@@ -1,5 +1,6 @@
 import datetime
 
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,12 +67,14 @@ class UserDAO(BaseDAO[User]):
                 await session.flush()
                 subscription = Subscription(user_id=new_user.id)
                 new_user.role = role
-                if role.name == "admin":
+                if role.name == FilterTypeEnum.ADMIN:
                     subscription.is_active = True
                     subscription.end_date = None
                     subscription.type = SubscriptionType.PREMIUM
                 session.add(subscription)
-                await session.refresh(new_user)
+                await session.refresh(
+                    new_user, attribute_names=["subscriptions", "vpn_configs", "role"]
+                )
                 logger.debug(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
                 return new_user
         except SQLAlchemyError as e:
@@ -146,9 +149,8 @@ class UserDAO(BaseDAO[User]):
                         now.year + 1, 1, 1, tzinfo=datetime.UTC
                     )
                     delta = next_year - now
-                    user.subscription.activate(days=delta.days)
-                    user.subscription.type = SubscriptionType.PREMIUM
-                await session.commit()
+                    user.subscriptions[0].activate(days=delta.days)
+                    user.subscriptions[0].type = SubscriptionType.PREMIUM
                 return user
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка изменения роли пользователя: {e}")
@@ -156,7 +158,10 @@ class UserDAO(BaseDAO[User]):
 
     @classmethod
     async def extend_subscription(
-        cls, session: AsyncSession, user: User, months: int
+        cls,
+        session: AsyncSession,
+        user: User,
+        months: int,
     ) -> User:
         """Продляет активную подписку пользователя на указанное количество месяцев.
 
@@ -178,17 +183,53 @@ class UserDAO(BaseDAO[User]):
         """
         try:
             async with cls.transaction(session=session):
-                subscription = user.subscription
+                subscription = user.subscriptions[0]
                 if subscription.is_active:
                     subscription.extend(months=months)
                 else:
                     raise SubscriptionNotFoundError(user_id=user.telegram_id)
-                await session.commit()
             return user
 
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при продлении подписки пользователя: {e}")
             raise e
+
+    @classmethod
+    async def find_one_or_none(
+        cls, session: AsyncSession, filters: BaseModel
+    ) -> User | None:
+        """Находит одну запись по фильтрам.
+
+        Args:
+            session (AsyncSession): Сессия для взаимодействия с БД.
+            filters (BaseModel): Фильтры для поиска.
+
+        Returns
+            Optional[T]: Найденная запись или None.
+
+        """
+        filter_dict = cls._to_dict(filters=filters)
+        # noinspection PyTypeChecker
+        logger.info(
+            f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
+        )
+        logger.debug(f"[DAO] Фильтры → условия: {cls._build_filters(filter_dict)}")
+        async with cls.transaction(session):
+            filters_clause = cls._build_filters(filter_dict)
+            # noinspection PyTypeChecker
+            query = (
+                select(cls.model)
+                .where(filters_clause)
+                .options(
+                    selectinload(cls.model.role),
+                    selectinload(cls.model.subscriptions),
+                    selectinload(cls.model.subscriptions),
+                )
+            )
+            result = await session.execute(query)
+            record = result.scalar_one_or_none()
+            logger.debug(f"[DAO] Найдено: {record!r}")
+            return record
 
 
 class RoleDAO(BaseDAO[Role]):

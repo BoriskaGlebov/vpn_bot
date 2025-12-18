@@ -15,12 +15,6 @@ if TYPE_CHECKING:
     from users.models import User
 
 
-# TODO Есть проблема с продлением подписки.
-# Пользователь берет подписку по дешевле на большой срок,
-# потом покупает прем на маленький и теперь у него
-# прем на весь срок всех его подписок. Возможно это можно решить если сделать, что б связь была не один к одному,а один ко многим
-
-
 class SubscriptionType(str, Enum):
     """Типы подписок пользователей.
 
@@ -39,7 +33,7 @@ class SubscriptionType(str, Enum):
 DEVICE_LIMITS = {
     SubscriptionType.TRIAL: 1,
     SubscriptionType.STANDARD: settings_bot.max_configs_per_user,
-    SubscriptionType.PREMIUM: settings_bot.max_configs_per_user * 2,
+    SubscriptionType.PREMIUM: int(settings_bot.max_configs_per_user * 2.5),
 }
 
 
@@ -62,7 +56,7 @@ class Subscription(Base):
 
     id: Mapped[int_pk]
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), unique=True
+        ForeignKey("users.id", ondelete="CASCADE"),
     )
     is_active: Mapped[bool] = mapped_column(default=False)
     type: Mapped[SubscriptionType] = mapped_column(
@@ -76,7 +70,7 @@ class Subscription(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    user: Mapped["User"] = relationship(back_populates="subscription")
+    user: Mapped["User"] = relationship(back_populates="subscriptions")
 
     def __str__(self) -> str:
         """Строковое представление."""
@@ -108,7 +102,6 @@ class Subscription(Base):
         self.type = sub_type
         self.is_active = True
         self.start_date = datetime.datetime.now(tz=datetime.UTC)
-
         # если указаны дни → добавляем дни
         if days is not None:
             self.end_date = self.start_date + datetime.timedelta(days=days)
@@ -159,7 +152,9 @@ class Subscription(Base):
         """
         if not self.is_active:
             return True
-        return self.end_date and datetime.datetime.now(datetime.UTC) > self.end_date
+        return bool(
+            self.end_date and datetime.datetime.now(datetime.UTC) > self.end_date
+        )
 
     def remaining_days(self) -> int | None:
         """Возвращает количество оставшихся дней до окончания.

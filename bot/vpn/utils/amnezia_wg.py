@@ -1,9 +1,7 @@
 import asyncio
 import ipaddress
 import json
-import os
 import shlex
-import tempfile
 import uuid
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -14,12 +12,14 @@ from typing import Any
 import aiofiles
 import asyncssh
 
-from bot.config import logger
+from bot.config import logger, settings_bot
 from bot.vpn.utils.amnezia_exceptions import (
     AmneziaConfigError,
     AmneziaError,
     AmneziaSSHError,
 )
+
+USE_LOCAL = settings_bot.use_local
 
 
 class AsyncSSHClientWG:
@@ -29,7 +29,6 @@ class AsyncSSHClientWG:
         host (str): Адрес сервера (IP или DNS).
         username (str): Имя пользователя.
         port (int, optional): SSH-порт. По умолчанию 22.
-        key_filename (Optional[str], optional): Путь к приватному ключу.
             Если None, будут использоваться ключи из ``~/.ssh``.
         known_hosts (Optional[str], optional): Путь к файлу ``known_hosts``.
             Если None, проверка отключается.
@@ -44,19 +43,23 @@ class AsyncSSHClientWG:
 
     def __init__(
         self,
-        host: str,
-        username: str,
+        host: str = "localhost",
+        username: str | None = None,
         port: int = 22,
-        key_filename: str | None = None,
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
+        use_local: bool = USE_LOCAL,
     ) -> None:
+        self.container = container
+        self.use_local = use_local
+        if not use_local:
+            if username is None:
+                raise AmneziaError(message="Username обязательное поле")
         self.host = host
         self.username = username
         self.port = port
-        self.key_filename = key_filename
         self.known_hosts = known_hosts
-        self.container = container
+
         self._conn: asyncssh.SSHClientConnection | None = None
         self._process: asyncssh.SSHClientProcess[str] | None = None
 
@@ -68,6 +71,9 @@ class AsyncSSHClientWG:
            Asyncssh.Error: Ошибка внутри библиотеки ``asyncssh``.
 
         """
+        if self.use_local:
+            return
+
         if self._conn is not None:
             logger.bind(user=self.username).debug("AsyncSSH: уже подключён")
             return
@@ -77,8 +83,8 @@ class AsyncSSHClientWG:
                 host=self.host,
                 port=self.port,
                 username=self.username,
-                client_keys=[self.key_filename] if self.key_filename else None,
                 known_hosts=self.known_hosts,
+                agent_forwarding=True,
             )
             self._process = await self._conn.create_process(
                 f"docker exec -i {self.container} sh;\n"
@@ -109,6 +115,20 @@ class AsyncSSHClientWG:
             RuntimeError: Если shell-сессия не запущена.
 
         """
+        if self.use_local:
+            full_cmd = f"docker exec -i {self.container} sh -c {shlex.quote(cmd)}"
+            process = await asyncio.create_subprocess_shell(
+                full_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await process.communicate()
+            return (
+                stdout.decode().strip(),
+                stderr.decode().strip(),
+                process.returncode,
+                cmd,
+            )
         if self._process is None:
             raise AmneziaSSHError(
                 "AsyncSSH: shell-сессия не запущена. Вызови connect()"
@@ -359,7 +379,7 @@ class AsyncSSHClientWG:
 
         """
         stdout, stderr, *_ = await self.write_single_cmd(
-            "cat wireguard_server_public_key.key"
+            f"cat {self.WG_DIR}/wireguard_server_public_key.key"
         )
         if stdout:
             return stdout
@@ -479,7 +499,7 @@ class AsyncSSHClientWG:
                         cmd=";".join(cmd),
                         stderr=stderr,
                     )
-        return None
+        return True
 
     async def _save_wg_config(
         self,
@@ -506,12 +526,10 @@ class AsyncSSHClientWG:
             new_ip, private_key, pub_server_key, preshared_key
         )
         if not filename.endswith(".conf"):
-            filename = f"{filename}.conf"
+            filename = f"WG{filename}.conf"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        fd, path_str = tempfile.mkstemp(suffix=".conf", prefix="WG", dir=file_dir)
-        os.close(fd)  # закрываем дескриптор, чтобы aiofiles мог открыть
-        file_cfg = Path(path_str)
+        file_cfg = file_dir / filename
 
         async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
             await f.write(config_text)
@@ -562,12 +580,21 @@ class AsyncSSHClientWG:
         new_json = json.dumps(data, indent=4, ensure_ascii=False)
 
         cmd = f"cat > {self.WG_CLIENTS_TABLE} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        escaped_cmd = shlex.quote(cmd)
-        assert self._conn is not None
-        result = await self._conn.run(
-            f"docker exec -i {self.container} sh -c {escaped_cmd}"
-        )
-        if result.exit_status == 0:
+        if self.use_local:
+            stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
+        else:
+            escaped_cmd = shlex.quote(cmd)
+            assert self._conn is not None
+            result = await self._conn.run(
+                f"docker exec -i {self.container} sh -c {escaped_cmd}"
+            )
+            stdout, stderr, code, _ = (
+                result.stdout,
+                result.stderr,
+                result.exit_status,
+                None,
+            )
+        if code == 0:
             logger.success("clientsTable успешно обновлён")
             return True
         else:
@@ -575,14 +602,10 @@ class AsyncSSHClientWG:
                 "Ошибка при записи clientsTable",
                 cmd=cmd,
                 stdout=(
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
+                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
                 ),
                 stderr=(
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
+                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
                 ),
             )
 
@@ -654,14 +677,15 @@ class AsyncSSHClientWG:
                 logger.bind(user=self.username).success(
                     "Новый конфиг добавлен в wg0.conf"
                 )
-            client_name = f"{file_name.rsplit('.', 1)[0]}_{uuid.uuid4().hex}"
+            filename = uuid.uuid4().hex[:6]
+            client_name = f"{file_name.rsplit('.', 1)[0]}_{filename}"
             client_table = await self._add_to_clients_table(pub_key, client_name)
             if client_table:
                 logger.bind(user=self.username).success(
                     "Новый клиент добавлен в clientsTable"
                 )
             file = await self._save_wg_config(
-                client_name, correct_ip, private_key, pub_server_key, psk
+                filename, correct_ip, private_key, pub_server_key, psk
             )
 
             if file:
@@ -701,20 +725,43 @@ class AsyncSSHClientWG:
         stdout, stderr, code, cmd = await self.write_single_cmd(cmd=wg0)
         if stdout:
             out_data = []
-            deleted_lines = False
-            for line in stdout.splitlines():
-                if "Peer" in line and deleted_lines:
-                    deleted_lines = False
-                elif "Peer" in line and not deleted_lines:
+            in_peer_to_delete = False
+            lines = stdout.splitlines()
+            peer_found = any(
+                "PublicKey" in line and public_key in line for line in lines
+            )
+            if not peer_found:
+                logger.warning(
+                    f"Пользователь с таким ключем не найден в {self.WG_CONF}"
+                )
+                return False
+
+            for i, line in enumerate(lines):
+                if line.strip() == "[Peer]":
+                    # Look ahead to see if this is the peer to delete
+                    is_target_peer = False
+                    for next_line in lines[i + 1 :]:
+                        if "PublicKey" in next_line:
+                            if public_key in next_line:
+                                is_target_peer = True
+                            break
+                        if next_line.strip() == "[Peer]":
+                            break
+
+                    if is_target_peer:
+                        in_peer_to_delete = True
+                        continue
+
+                if in_peer_to_delete:
+                    if line.strip() == "" and (
+                        i + 1 < len(lines)
+                        and lines[i + 1].strip() == "[Peer]"
+                        or i + 1 == len(lines)
+                    ):
+                        in_peer_to_delete = False
                     continue
-                elif "PublicKey" in line and public_key in line:
-                    deleted_lines = True
-                    continue
-                elif "PublicKey" in line and public_key not in line:
-                    out_data.append("[Peer]")
-                if not deleted_lines:
-                    out_data.append(line)
-            if len(stdout.splitlines()) != len(out_data):
+                out_data.append(line)
+            if len(lines) != len(out_data):
                 logger.info(f"Нашел пользователя с таким ключем в {self.WG_CONF}")
             else:
                 logger.warning(
@@ -723,24 +770,29 @@ class AsyncSSHClientWG:
                 return False
             new_conf = "\n".join(out_data)
             cmd = f"cat > {self.WG_CONF} <<'EOF'\n{new_conf}\nEOF\n"
-            escaped_cmd = shlex.quote(cmd)
-            assert self._conn is not None
-            result = await self._conn.run(
-                f"docker exec -i {self.container} sh -c {escaped_cmd}"
-            )
-            if result.exit_status == 0:
+            if self.use_local:
+                stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
+            else:
+                escaped_cmd = shlex.quote(cmd)
+                assert self._conn is not None
+                result = await self._conn.run(
+                    f"docker exec -i {self.container} sh -c {escaped_cmd}"
+                )
+                stdout, stderr, code, cmd = (
+                    result.stdout,
+                    result.stderr,
+                    result.exit_status,
+                    cmd.splitlines(),
+                )
+            if code == 0:
                 logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
                 return True
             else:
                 stdout_str = (
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
+                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
                 )
                 stderr_str = (
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
+                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
                 )
                 raise AmneziaSSHError(
                     message=f"Ошибка записи wg0.conf: {stderr_str}",
@@ -808,13 +860,21 @@ class AsyncSSHClientWG:
         new_json = json.dumps(new_data, indent=4, ensure_ascii=False)
 
         cmd = f"cat > {clients_table} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        escaped_cmd = shlex.quote(cmd)
-        assert self._conn is not None
-        result = await self._conn.run(
-            f"docker exec -i {self.container} sh -c {escaped_cmd}"
-        )
-
-        if result.exit_status == 0:
+        if self.use_local:
+            stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
+        else:
+            escaped_cmd = shlex.quote(cmd)
+            assert self._conn is not None
+            result = await self._conn.run(
+                f"docker exec -i {self.container} sh -c {escaped_cmd}"
+            )
+            stdout, stderr, code, cmd = (
+                result.stdout,
+                result.stderr,
+                result.exit_status,
+                cmd.splitlines(),
+            )
+        if code == 0:
             logger.success(f"Ключ успешно удален из {clients_table}")
             return True
         else:
@@ -822,14 +882,10 @@ class AsyncSSHClientWG:
                 message=f"Ошибка при удалении ключа из {clients_table}",
                 cmd=cmd,
                 stdout=(
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
+                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
                 ),
                 stderr=(
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
+                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
                 ),
             )
 
@@ -908,7 +964,6 @@ if __name__ == "__main__":
         async with AsyncSSHClientWG(
             host="help-blocks.ru",
             username="vpn_user",
-            key_filename=key_path.as_posix(),
             known_hosts=None,  # Отключить проверку known_hosts
             container="amnezia-awg",
         ) as ssh_client:

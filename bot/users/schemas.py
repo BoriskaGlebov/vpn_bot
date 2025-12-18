@@ -123,12 +123,15 @@ class SUserOut(BaseModel):
     has_used_trial: bool = Field(..., description="Использовал ли пользователь триал")
 
     role: SRoleOut = Field(..., description="Роль пользователя")
-    subscription: SSubscriptionOut | None = Field(
-        None, description="Текущая подписка пользователя"
+    subscriptions: list[SSubscriptionOut] = Field(
+        default_factory=list, description="Список подписок пользователя"
     )
     vpn_configs: list[SVPNConfigOut] = Field(
         default_factory=list,
         description="Список VPN конфигураций пользователя",
+    )
+    current_subscription: SSubscriptionOut | None = Field(
+        None, description="Текущая подписка пользователя"
     )
 
     model_config = ConfigDict(from_attributes=True)

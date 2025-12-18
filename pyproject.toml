@@ -25,6 +25,8 @@ apscheduler = "^3.11.1"
 orjson = "^3.11.4"
 aioboto3 = "^15.5.0"
 python-box = "^7.3.2"
+pyyaml = "^6.0.3"
+asyncssh = "^2.21.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -106,8 +108,7 @@ exclude = [
     "^dist/",
     "^\\.venv/",
     "^bot/migrations/",
-    "bot/vpn",
-    "bot/subscription",
+    "bot/vpn"
 ]
 plugins = [
     "pydantic.mypy",

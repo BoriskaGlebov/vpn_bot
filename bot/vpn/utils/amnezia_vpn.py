@@ -1,7 +1,5 @@
 import asyncio
 import base64
-import os
-import tempfile
 from pathlib import Path
 
 import aiofiles
@@ -19,8 +17,6 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         host (str): Адрес сервера (IP или DNS).
         username (str): Имя пользователя.
         port (int, optional): SSH-порт. По умолчанию 22.
-        key_filename (Optional[str], optional): Путь к приватному ключу.
-            Если None, будут использоваться ключи из ``~/.ssh``.
         known_hosts (Optional[str], optional): Путь к файлу ``known_hosts``.
             Если None, проверка отключается.
         container (str, optional): Имя контейнера Docker, в котором
@@ -33,11 +29,10 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         host: str,
         username: str,
         port: int = 22,
-        key_filename: str | None = None,
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
     ) -> None:
-        super().__init__(host, username, port, key_filename, known_hosts, container)
+        super().__init__(host, username, port, known_hosts, container)
 
     async def _save_wg_config(
         self,
@@ -65,12 +60,10 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         )
         encode_conf = base64.b64encode(config_text.encode()).decode()
         if not filename.endswith(".conf"):
-            filename = f"{filename}.conf"
+            filename = f"VPN{filename}.vpn"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
-        fd, path_str = tempfile.mkstemp(suffix=".vpn", prefix="VPN", dir=file_dir)
-        os.close(fd)  # закрываем дескриптор, чтобы aiofiles мог открыть
-        file_cfg = Path(path_str)
+        file_cfg = file_dir / filename
 
         async with aiofiles.open(file_cfg, "w") as f:
             await f.write("vpn://\n")
@@ -88,7 +81,6 @@ if __name__ == "__main__":
         async with AsyncSSHClientVPN(
             host="help-blocks.ru",
             username="vpn_user",
-            key_filename=key_path.as_posix(),
             known_hosts=None,  # Отключить проверку known_hosts
             container="amnezia-awg",
         ) as ssh_client:

@@ -1,13 +1,9 @@
-from typing import TYPE_CHECKING
-
-from sqlalchemy import BigInteger, ForeignKey
+from sqlalchemy import BigInteger, ForeignKey, case
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bot.database import Base, int_pk, str_null_true, str_uniq
+from bot.subscription.models import Subscription  # импорт только для type hints
 from bot.vpn.models import VPNConfig
-
-if TYPE_CHECKING:
-    from bot.subscription.models import Subscription  # импорт только для type hints
 
 
 class User(Base):
@@ -39,12 +35,22 @@ class User(Base):
     )
     role: Mapped["Role"] = relationship("Role", back_populates="users", lazy="selectin")
 
-    subscription: Mapped["Subscription"] = relationship(
+    subscriptions: Mapped[list["Subscription"]] = relationship(
         "Subscription",
         back_populates="user",
         cascade="all, delete-orphan",
-        uselist=False,
+        uselist=True,
         lazy="selectin",
+        order_by=lambda: (
+            Subscription.is_active.desc(),
+            case(
+                (Subscription.type == "PREMIUM", 3),
+                (Subscription.type == "STANDARD", 2),
+                (Subscription.type == "TRIAL", 1),
+                else_=0,
+            ).desc(),
+            Subscription.end_date.desc(),
+        ),
     )
     vpn_configs: Mapped[list["VPNConfig"]] = relationship(
         "VPNConfig",
@@ -62,6 +68,14 @@ class User(Base):
             f"@{self.username}" if self.username else "",
         ]
         return " ".join(p for p in parts if p)
+
+    @property
+    def current_subscription(self) -> "Subscription | None":
+        """Безопасно извлекает активную подписку."""
+        if not self.subscriptions:
+            return None
+
+        return self.subscriptions[0]
 
 
 class Role(Base):

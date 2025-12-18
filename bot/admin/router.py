@@ -249,7 +249,9 @@ class AdminRouter(BaseRouter):
             months = int(months)
             try:
                 user_schema = await self.admin_service.extend_user_subscription(
-                    session=session, telegram_id=user_id, months=months
+                    session=session,
+                    telegram_id=user_id,
+                    months=months,
                 )
                 await query.answer(f"Выбрал {months} мес.")
                 old_text = await self.admin_service.format_user_text(

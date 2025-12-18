@@ -1,0 +1,32 @@
+services:
+  vpn_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vpn_bot
+    restart: always
+    environment:
+      TZ: Europe/Moscow
+    volumes:
+      - vpn_bot_logs:/vpn_bot/bot/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 128M
+    networks:
+      - infrastructure_net
+
+volumes:
+  vpn_bot_logs:
+    name: vpn_bot_logs
+
+networks:
+  infrastructure_net:
+    name: infrastructure_net
+    driver: bridge
+    external: true
+#TODO Нужно настроить nginx для webhook
+#TODO Многослойный compose файл для продакшена и девелопмента

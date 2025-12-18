@@ -1,6 +1,5 @@
 from typing import Any
 
-import orjson
 from loguru._logger import Logger
 
 from bot.config import logger
@@ -29,12 +28,7 @@ class RedisAdminMessageStorage:
         key = self._key(user_id)
         existing = await self.redis.get(key)
 
-        messages: list[dict[str, Any]] = []
-        if existing:
-            try:
-                messages = existing
-            except orjson.JSONDecodeError:
-                messages = []
+        messages: list[dict[str, Any]] = existing or []
 
         messages.append({"chat_id": admin_id, "message_id": message_id})
         await self.redis.set(key, messages)
@@ -52,7 +46,7 @@ class RedisAdminMessageStorage:
         """
         key = self._key(user_id)
         data = await self.redis.get(key)
-        return orjson.loads(data) if data else []
+        return data or []
 
     async def clear(self, user_id: int) -> None:
         """Удаляет все сообщения администраторов, связанные с пользователем.
