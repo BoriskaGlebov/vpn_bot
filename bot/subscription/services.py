@@ -79,17 +79,19 @@ class SubscriptionService:
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user
         )
+        if user_model is None:
+            raise UserNotFoundError(tg_id=user_id)
+
+        if (
+            user_model.current_subscription
+            and user_model.current_subscription.is_active
+            and not user_model.has_used_trial
+        ):
+            user_model.current_subscription.extend(days=days)
+            user_model.has_used_trial = True
+            await session.commit()
+            return
         try:
-            if (
-                user_model is not None
-                and user_model.current_subscription
-                and user_model.current_subscription.is_active
-                and not user_model.has_used_trial
-            ):
-                user_model.current_subscription.extend(days=days)
-                user_model.has_used_trial = True
-                await session.commit()
-                return
             await SubscriptionDAO.activate_subscription(
                 session=session,
                 stelegram_id=schema_user,
