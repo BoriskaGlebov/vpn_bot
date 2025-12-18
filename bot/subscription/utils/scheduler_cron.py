@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -10,7 +11,9 @@ scheduler = AsyncIOScheduler()
 service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]
 
 
-async def scheduled_check(logger: Logger) -> None:
+async def scheduled_check(
+    logger: Logger,
+) -> None:
     """Запускает плановую проверку подписок пользователей.
 
     Функция вызывается по расписанию и инициирует проверку всех подписок,
@@ -28,17 +31,9 @@ async def scheduled_check(logger: Logger) -> None:
             "✅ Проверка подписок завершена. Пользователей: {checked}, истекло: {expired}, "
             "уведомлено: {notified}, конфигов удалено: {configs_deleted}. "
             "⏱ Время выполнения: {elapsed:.2f} сек.",
-            **stats,
+            **asdict(stats),
             elapsed=elapsed,
         )
-        # TODO Нало проработать соообщение о проверке для админа
-        # for adm in settings_bot.admin_ids:
-        #     await bot.send_message(
-        #         chat_id=adm,
-        #         text="✅ Проверка подписок завершена. Пользователей: {checked}, истекло: {expired}, "
-        #         "уведомлено: {notified}, конфигов удалено: {configs_deleted}. "
-        #         "⏱ Время выполнения: {elapsed:.2f} сек.".format(**stats),
-        #     )
 
     except Exception as e:
         logger.exception(f"❌ Ошибка при проверке подписок: {e}")

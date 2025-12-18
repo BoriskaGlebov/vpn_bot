@@ -1,4 +1,5 @@
 import datetime
+from dataclasses import dataclass
 
 from aiogram import Bot
 from loguru._logger import Logger
@@ -24,6 +25,45 @@ from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
 m_subscription_local = settings_bot.messages.modes.subscription
+
+
+@dataclass
+class SubscriptionStats:
+    """Агрегатор статистики проверки подписок.
+
+    Класс используется для накопления и агрегации статистики как на уровне
+    одного пользователя, так и для итоговой статистики по всем пользователям.
+
+    Attributes
+        checked: Количество обработанных пользователей.
+        expired: Количество подписок, переведённых в истёкшие.
+        notified: Количество отправленных уведомлений (пользователям и администраторам).
+        configs_deleted: Количество удалённых VPN-конфигов.
+
+    """
+
+    checked: int = 0
+    expired: int = 0
+    notified: int = 0
+    configs_deleted: int = 0
+
+    def add(self, other: "SubscriptionStats") -> None:
+        """Добавляет значения счётчиков из другого объекта статистики.
+
+        Метод выполняет покомпонентное суммирование счётчиков и используется
+        для агрегации статистики от отдельных обработчиков или пользователей.
+
+        Args:
+            other: Экземпляр `SubscriptionStats`, значения которого будут
+                добавлены к текущему объекту.
+
+        Returns
+            None
+
+        """
+        self.expired += other.expired
+        self.notified += other.notified
+        self.configs_deleted += other.configs_deleted
 
 
 class SubscriptionService:
@@ -181,7 +221,9 @@ class SubscriptionService:
         )
         return await UserService.get_user_schema(user=user_model)
 
-    async def _process_user(self, session: AsyncSession, user: User) -> dict[str, int]:
+    async def _process_user(
+        self, session: AsyncSession, user: User
+    ) -> SubscriptionStats:
         """Обрабатывает подписку конкретного пользователя и собирает статистику.
 
         Метод проверяет текущую подписку пользователя и выполняет следующие действия:
@@ -195,30 +237,30 @@ class SubscriptionService:
             user (User): Экземпляр пользователя.
 
         Returns
-            Dict[str, int]: Статистика по пользователю с ключами:
+            SubscriptionStats: Статистика по пользователю с ключами:
                 - "expired": количество истёкших подписок
                 - "notified": количество отправленных уведомлений
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
-        stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
+        stats = SubscriptionStats()
 
         sub = user.current_subscription
         if not sub:
             return stats
 
         if sub.is_expired():
-            stats.update(await self._handle_expired(session, user, sub))
+            stats.add(await self._handle_expired(session, user, sub))
         else:
-            stats.update(await self._handle_expiring_soon(user, sub))
+            stats.add(await self._handle_expiring_soon(user, sub))
 
-        stats.update(await self._handle_unlimited_overuse(session, user))
+        stats.add(await self._handle_unlimited_overuse(session, user))
 
         return stats
 
     async def _handle_expired(
         self, session: AsyncSession, user: User, sub: Subscription
-    ) -> dict[str, int]:
+    ) -> SubscriptionStats:
         """Обрабатывает истёкшую подписку пользователя.
 
         Если подписка активна, деактивирует её и отправляет уведомление пользователю.
@@ -237,11 +279,11 @@ class SubscriptionService:
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
-        stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
+        stats = SubscriptionStats()
 
         if sub.is_active:
             sub.is_active = False
-            stats["expired"] += 1
+            stats.expired += 1
 
             await self.bot.send_message(
                 user.telegram_id,
@@ -249,21 +291,21 @@ class SubscriptionService:
                     type_subscription=sub.type.value.upper()
                 ),
             )
-            stats["notified"] += 1
+            stats.notified += 1
 
         if sub.end_date:
             delta = datetime.datetime.now(datetime.UTC) - sub.end_date
             if delta.days >= 1:
                 deleted = await self._delete_all_configs(session, user)
                 if deleted:
-                    stats["configs_deleted"] += deleted
+                    stats.configs_deleted += deleted
                     await self._notify_admins_expired(user)
 
         return stats
 
     async def _handle_expiring_soon(
         self, user: User, sub: Subscription
-    ) -> dict[str, int]:
+    ) -> SubscriptionStats:
         """Обрабатывает подписку, которая скоро истечет, и уведомляет пользователя.
 
         Если до окончания подписки осталось 3 дня или меньше, отправляется
@@ -274,13 +316,13 @@ class SubscriptionService:
             sub (Subscription): Экземпляр подписки пользователя.
 
         Returns
-            Dict[str, int]: Статистика по обработке с ключами:
+            SubscriptionStats: Статистика по обработке с ключами:
                 - "expired": всегда 0
                 - "notified": количество отправленных уведомлений (0 или 1)
                 - "configs_deleted": всегда 0
 
         """
-        stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
+        stats = SubscriptionStats()
 
         remaining = sub.remaining_days()
         if remaining is not None and remaining <= 3:
@@ -291,13 +333,13 @@ class SubscriptionService:
                     type_subscription=sub.type.value.upper(),
                 ),
             )
-            stats["notified"] += 1
+            stats.notified += 1
 
         return stats
 
     async def _handle_unlimited_overuse(
         self, session: AsyncSession, user: User
-    ) -> dict[str, int]:
+    ) -> SubscriptionStats:
         """Обрабатывает превышение лимита VPN-конфигов для пользователя.
 
         Если количество VPN-конфигов пользователя превышает допустимый лимит
@@ -309,13 +351,13 @@ class SubscriptionService:
             user (User): Экземпляр пользователя.
 
         Returns
-            Dict[str, int]: Статистика по обработке с ключами:
+            SubscriptionStats: Статистика по обработке с ключами:
                 - "expired": всегда 0
                 - "notified": количество отправленных уведомлений администраторам (0 или >0)
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
-        stats = {"expired": 0, "notified": 0, "configs_deleted": 0}
+        stats = SubscriptionStats()
 
         sub = user.current_subscription
         if not sub or not sub.is_active:
@@ -332,7 +374,7 @@ class SubscriptionService:
 
             deleted = await self._delete_configs(session, user, extra_cfgs)
             if deleted:
-                stats["configs_deleted"] += deleted
+                stats.configs_deleted += deleted
                 await self._notify_admins_expired(user)
 
         return stats
@@ -427,7 +469,7 @@ class SubscriptionService:
         )
 
     @connection()
-    async def check_all_subscriptions(self, session: AsyncSession) -> dict[str, int]:
+    async def check_all_subscriptions(self, session: AsyncSession) -> SubscriptionStats:
         """Проверяет все подписки пользователей и собирает статистику.
 
         Метод выполняет выборку всех пользователей с подгрузкой их подписок,
@@ -439,7 +481,7 @@ class SubscriptionService:
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
 
         Returns
-            Dict[str, int]: Статистика по всем пользователям. Ключи включают:
+            SubscriptionStats: Статистика по всем пользователям. Ключи включают:
                 - "checked": количество обработанных пользователей
                 - "expired": количество истёкших подписок
                 - "notified": количество отправленных уведомлений
@@ -455,19 +497,22 @@ class SubscriptionService:
         )
         users = result.scalars().all()
 
-        stats = {
-            "checked": 0,
-            "expired": 0,
-            "notified": 0,
-            "configs_deleted": 0,
-        }
+        stats = SubscriptionStats()
         for user in users:
-            stats["checked"] += 1
+            stats.checked += 1
             user_stats = await self._process_user(session, user)
-            for key, value in user_stats.items():
-                stats[key] += value
+            stats.add(user_stats)
 
         await session.commit()
+        await send_to_admins(
+            bot=self.bot,
+            message_text=m_subscription_local.daily_check.format(
+                checked=stats.checked or 0,
+                expired=stats.expired or 0,
+                notified=stats.notified or 0,
+                configs_deleted=stats.configs_deleted or 0,
+            ),
+        )
         return stats
 
 

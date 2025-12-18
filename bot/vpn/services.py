@@ -103,5 +103,5 @@ class VPNService:
             remaining_text = "бессрочная"
         else:
             remaining_text = f"{remaining_days} дней осталось"
-        conf_list = "\n".join([conf.file_name for conf in user.vpn_configs])
-        return f"{status} {sbs_type} — {remaining_text} - {subscription}\n{conf_list}"
+        conf_list = "\n\n".join([f"📌 {conf.file_name}" for conf in user.vpn_configs])
+        return f"{status} {sbs_type} — {remaining_text} - {subscription}\n\n{conf_list}"

@@ -203,6 +203,7 @@ class UserRouter(BaseRouter):
                         telegram_id=user_info.telegram_id,
                         roles=str(user_info.role),
                         subscription=str(user_info.current_subscription),
+                        config_files="",
                     )
                     await send_to_admins(
                         bot=self.bot,

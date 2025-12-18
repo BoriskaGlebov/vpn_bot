@@ -74,6 +74,9 @@ class AdminService:
 
         """
         template: str = m_admin[key]
+        config_str = "\n".join(
+            [f"📌 {config.file_name}" for config in suser.vpn_configs]
+        )
         return template.format(
             first_name=suser.first_name or "-",
             last_name=suser.last_name or "-",
@@ -81,6 +84,11 @@ class AdminService:
             telegram_id=suser.telegram_id or "-",
             roles=str(suser.role),
             subscription=str(suser.current_subscription) or "-",
+            config_files=(
+                f"📜 <b>Пользовательские конфиги:</b>\n {config_str}"
+                if suser.vpn_configs
+                else ""
+            ),
         )
 
     @classmethod
