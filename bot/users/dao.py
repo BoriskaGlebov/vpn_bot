@@ -52,7 +52,7 @@ class UserDAO(BaseDAO[User]):
 
         logger.info(
             f"[DAO] Добавление записи {cls.model.__name__} с параметрами: "
-            f"Пользователь: {user_dict}, Роль: {role_dict}"
+            f"Пользователь: {user_dict.keys()}, Роль: {role_dict.keys()}"
         )
         try:
             async with cls.transaction(session=session):
@@ -217,9 +217,9 @@ class UserDAO(BaseDAO[User]):
         filter_dict = cls._to_dict(filters=filters)
         # noinspection PyTypeChecker
         logger.info(
-            f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
+            f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict.keys()}"
         )
-        logger.debug(f"[DAO] Фильтры → условия: {cls._build_filters(filter_dict)}")
+        logger.debug("[DAO] Фильтры → условия.")
         async with cls.transaction(session):
             filters_clause = cls._build_filters(filter_dict)
             # noinspection PyTypeChecker
