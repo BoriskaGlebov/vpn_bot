@@ -81,7 +81,7 @@ class SubscriptionService:
         )
         try:
             if (
-                user_model
+                user_model is not None
                 and user_model.current_subscription
                 and user_model.current_subscription.is_active
                 and not user_model.has_used_trial
