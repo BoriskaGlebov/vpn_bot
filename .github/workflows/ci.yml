@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [ opened, reopened,synchronize ]
   push:
-    branches: [ main, develop, settings, step7]
+    branches: [ main, develop]
 
 jobs:
   lint:
@@ -97,7 +97,7 @@ jobs:
     needs: [lint, test]
     runs-on: ubuntu-latest
     environment: develop
-    if: github.ref == 'refs/heads/step7'
+    if: github.ref == 'refs/heads/develop'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -166,7 +166,7 @@ jobs:
     needs: [ lint, test ]
     runs-on: ubuntu-latest
     environment: production
-    if: github.ref == 'refs/heads/step7'
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
