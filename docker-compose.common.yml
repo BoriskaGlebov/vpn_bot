@@ -16,16 +16,11 @@ services:
           memory: 512M
         reservations:
           memory: 128M
-    networks:
-      - infrastructure_net
 
   nginx_vpn_bot:
     image: nginx:latest
     container_name: nginx_vpn_bot
     restart: always
-    ports:
-      - "80:80"
-      - "443:443"
     deploy:
       resources:
         limits:
@@ -33,8 +28,6 @@ services:
           memory: 512M
         reservations:
           memory: 128M
-    networks:
-      - infrastructure_net
 volumes:
   vpn_bot_logs:
     name: vpn_bot_logs
@@ -42,9 +35,3 @@ volumes:
     name: static_files1
   static_files2:
     name: static_files2
-
-networks:
-  infrastructure_net:
-    name: infrastructure_net
-    driver: bridge
-    external: true

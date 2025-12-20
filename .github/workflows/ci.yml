@@ -240,7 +240,7 @@ jobs:
 
   deploy_nginx:
     runs-on: ubuntu-latest
-    environment: develop
+    environment: production
     if: github.ref == 'refs/heads/nginx'
     steps:
       - name: Checkout repository
@@ -262,7 +262,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
             set -e
-            cd /home/vpn_user/test_zone/vpn_bot || exit 1
+            cd /home/prod_server/test_zone/vpn_bot || exit 1
             echo "Pull latest code..."
             git checkout nginx
             git fetch origin nginx
@@ -282,7 +282,7 @@ jobs:
 
             echo "PRICE_MAP=${{ vars.PRICE_MAP }}" >> .env.local
 
-            echo "BASE_SITE=${{ secrets.BASE_SITE }}" >> .env.local
+            echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env.local
 
             echo "DB_USER=${{ secrets.DB_USER }}" >> .env.local
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env.local
