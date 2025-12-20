@@ -19,9 +19,9 @@ services:
     networks:
       - infrastructure_net
 
-  nginx_proxy_test:
+  nginx:
     image: nginx:latest
-    container_name: nginx_proxy_test
+    container_name: nginx_vpn_bot
     restart: always
     ports:
       - "80:80"
