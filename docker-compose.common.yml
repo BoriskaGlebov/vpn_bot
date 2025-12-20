@@ -24,8 +24,8 @@ services:
     container_name: nginx_proxy_test
     restart: always
     ports:
-      - "8088:8088"
-      - "44388:44388"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx_test.conf:/etc/nginx/nginx.conf:ro
       - /var/www/certbot:/var/www/certbot:ro   # Монтируем директорию с хоста
