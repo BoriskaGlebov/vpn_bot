@@ -13,11 +13,15 @@ PYTHON ?= poetry run python
 COMPOSE_COMMON = -f docker-compose.common.yml
 COMPOSE_DEV    = $(COMPOSE_COMMON) -f docker-compose.develop.yml
 COMPOSE_PROD   = $(COMPOSE_COMMON) -f docker-compose.prod.yml
+COMPOSE_LOCAL  = $(COMPOSE_COMMON) -f docker-compose.local.yml
 
 
 ifeq ($(STAGE),prod)
   COMPOSE_FILES = $(COMPOSE_PROD)
   ENV_FILE = .env
+else ifeq ($(STAGE),local)
+  COMPOSE_FILES = $(COMPOSE_LOCAL)
+  ENV_FILE = .env.local
 else
   COMPOSE_FILES = $(COMPOSE_DEV)
   ENV_FILE = .env.local

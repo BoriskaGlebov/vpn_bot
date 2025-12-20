@@ -5,7 +5,9 @@ from typing import Any
 import uvicorn
 from aiogram.types import Update
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
+from pydantic import BaseModel, ValidationError
+from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
@@ -86,6 +88,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
     # TODO Надо не забыть проверку подписок делать раз в день и не плохо мне об этом писать
+    # TODO НАДО прикрутить реферальную программу
+    # TODO проверь что будет если пользователь удалит бота и ему пытаешься слать сообщение
     scheduler.add_job(
         scheduled_check,
         # trigger=IntervalTrigger(seconds=30),
@@ -163,25 +167,93 @@ API предоставляет доступ к функционалу бота �
 )
 
 
-@app.post("/webhook")  # type: ignore[misc]
-@logger.catch  # type: ignore[misc]
-async def webhook(request: Request) -> None:
-    """Обработчик вебхуков от Telegram.
+@app.post(
+    "/webhook",
+    tags=[
+        "webhook",
+    ],
+)
+async def webhook(request: Request) -> Response:
+    """Обработчик входящих webhook-обновлений Telegram.
 
-    Получает обновления от Telegram,
-    валидирует их и передает в диспетчер Aiogram.
+    Эндпоинт принимает POST-запросы от Telegram, валидирует полученные
+    обновления и передаёт их в диспетчер aiogram.
 
+    Обработчик устойчив к пустым и некорректным запросам и всегда
+    возвращает HTTP 200 OK, чтобы Telegram не выполнял повторные попытки
+    доставки обновлений.
 
     Args:
-        request: Запрос FastAPI с JSON-данными от Telegram
+        request: Входящий запрос FastAPI с payload обновления Telegram.
 
-    Returns: None
+    Returns
+        Ответ FastAPI со статусом HTTP 200.
 
     """
-    logger.debug("Получен запрос вебхука")
-    update: Update = Update.model_validate(await request.json(), context={"bot": bot})
+    body: bytes = await request.body()
+
+    if not body:
+        logger.debug("Webhook-запрос с пустым телом")
+        return Response(
+            content="ok",
+            media_type="text/plain",
+            status_code=200,
+        )
+
+    try:
+        update: Update = Update.model_validate_json(
+            body,
+            context={"bot": bot},
+        )
+    except (ValidationError, ValueError):
+        logger.exception("Некорректный payload webhook от Telegram")
+        return Response(status_code=500)
+
     await dp.feed_update(bot, update)
-    logger.debug("Обновление обработано")
+
+    logger.debug("Webhook-обновление успешно обработано")
+    return Response(status_code=200)
+
+
+class HealthResponse(BaseModel):
+    """Представляет состояние здоровья FastAPI-сервиса.
+
+    Attributes
+        status (str): Статус сервиса. Обычно "ok", если сервис работает корректно.
+        message (str): Читаемое человеком сообщение о состоянии сервиса.
+
+    """
+
+    status: str
+    message: str
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=[
+        "webhook",
+    ],
+    summary="Проверка здоровья сервиса",
+)
+async def health() -> JSONResponse:
+    """Проверка здоровья приложения.
+
+    Эндпоинт для проверки работоспособности FastAPI-приложения.
+
+    Возвращает текущий статус сервиса, чтобы использовать
+    для мониторинга и Docker HEALTHCHECK.
+
+    Returns
+        JSON с полями:
+        - status: "ok" если сервис работает
+        - message: описание статуса
+
+    """
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok", "message": "FastAPI service is running"},
+    )
 
 
 if __name__ == "__main__":
