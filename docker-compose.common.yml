@@ -21,9 +21,6 @@ services:
     image: nginx:latest
     container_name: nginx_vpn_bot
     restart: always
-    #    ports:
-    #      - "8088:80"
-    #      - "44344:443"
     deploy:
       resources:
         limits:
@@ -38,9 +35,3 @@ volumes:
     name: static_files1
   static_files2:
     name: static_files2
-
-#networks:
-#  infrastructure_net:
-#    name: infrastructure_net
-#    driver: bridge
-#    external: true
