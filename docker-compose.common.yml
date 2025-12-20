@@ -19,7 +19,7 @@ services:
     networks:
       - infrastructure_net
 
-  nginx:
+  nginx_vpn_bot:
     image: nginx:latest
     container_name: nginx_vpn_bot
     restart: always
