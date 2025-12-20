@@ -230,10 +230,10 @@ class SubscriptionService:
             self.logger.error(
                 "Невозможно отправить уведомление пользователю который заблокировал бота"
             )
-        await send_to_admins(
-            bot=self.bot,
-            message_text=f"Невозможно отправить уведомление пользователю {tg_id} который заблокировал бота",
-        )
+            await send_to_admins(
+                bot=self.bot,
+                message_text=f"Невозможно отправить уведомление пользователю {tg_id} который заблокировал бота",
+            )
 
     async def _process_user(
         self, session: AsyncSession, user: User
