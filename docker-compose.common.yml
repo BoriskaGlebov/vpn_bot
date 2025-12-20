@@ -23,9 +23,9 @@ services:
     image: nginx:latest
     container_name: nginx_vpn_bot
     restart: always
-    ports:
-      - "80:80"
-      - "443:443"
+#    ports:
+#      - "8088:80"
+#      - "44344:443"
     deploy:
       resources:
         limits:
