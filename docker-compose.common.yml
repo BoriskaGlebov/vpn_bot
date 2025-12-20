@@ -41,7 +41,7 @@ services:
         reservations:
           memory: 128M
     networks:
-      - monitoring_net
+      - infrastructure_net
 volumes:
   vpn_bot_logs:
     name: vpn_bot_logs
