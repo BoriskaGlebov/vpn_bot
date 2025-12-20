@@ -43,8 +43,8 @@ volumes:
   static_files2:
     name: static_files2
 
-networks:
-  infrastructure_net:
-    name: infrastructure_net
-    driver: bridge
-    external: true
+#networks:
+#  infrastructure_net:
+#    name: infrastructure_net
+#    driver: bridge
+#    external: true

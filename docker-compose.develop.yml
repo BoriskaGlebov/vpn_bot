@@ -20,3 +20,7 @@ services:
       - /etc/ssl/private/dhparam.pem:/etc/ssl/private/dhparam.pem:ro  # Монтируем файл DH параметров
       - static_files1:/usr/src/app/static # Подключение статических файлов
       - static_files2:/usr/src/app/templates  # Подключение шаблонов Jinja2
+networks:
+  shared_net:
+    name: shared_net
+    external: true
