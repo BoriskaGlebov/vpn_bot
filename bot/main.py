@@ -89,7 +89,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await start_bot(bot=bot)
     # TODO Надо не забыть проверку подписок делать раз в день и не плохо мне об этом писать
     # TODO НАДО прикрутить реферальную программу
-    # TODO проверь что будет если пользователь удалит бота и ему пытаешься слать сообщение
     scheduler.add_job(
         scheduled_check,
         # trigger=IntervalTrigger(seconds=30),
