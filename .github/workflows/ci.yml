@@ -8,6 +8,7 @@ on:
 
 jobs:
   lint:
+    if: github.ref != 'refs/heads/nginx'
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +49,7 @@ jobs:
         run: poetry run mypy .
 
   test:
+    if: github.ref != 'refs/heads/nginx'
     runs-on: ubuntu-latest
     needs: lint
     environment: test
@@ -97,7 +99,7 @@ jobs:
     needs: [ lint, test ]
     runs-on: ubuntu-latest
     environment: develop
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/nginx'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -120,8 +122,8 @@ jobs:
             set -e
             cd /home/vpn_user/test_zone/vpn_bot || exit 1
             echo "Pull latest code..."
-            git fetch origin step7
-            git reset --hard origin/step7
+            git fetch origin nginx
+            git reset --hard origin/nginx
             git clean -fd
 
             echo "Recreate .env file..."
@@ -189,8 +191,8 @@ jobs:
             set -e
             cd /home/prod_server/production/vpn_bot || exit 1
             echo "Pull latest code..."
-            git fetch origin step7
-            git reset --hard origin/step7
+            git fetch origin main
+            git reset --hard origin/main
             git clean -fd
 
             echo "Recreate .env file..."
