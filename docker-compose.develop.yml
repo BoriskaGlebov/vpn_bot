@@ -14,3 +14,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+  nginx_proxy_test:
+    volumes:
+      - ./nginx_test.conf:/etc/nginx/nginx.conf:ro
+      - /var/www/certbot:/var/www/certbot:ro   # Монтируем директорию с хоста
+      - /etc/letsencrypt:/etc/letsencrypt:ro # Путь к сертификатам, если используете Certbot
+      - /etc/ssl/private/dhparam.pem:/etc/ssl/private/dhparam.pem:ro  # Монтируем файл DH параметров
+      - static_files1:/usr/src/app/static # Подключение статических файлов
+      - static_files2:/usr/src/app/templates  # Подключение шаблонов Jinja2

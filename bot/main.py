@@ -6,7 +6,8 @@ import uvicorn
 from aiogram.types import Update
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Request, Response
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
+from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
@@ -210,6 +211,47 @@ async def webhook(request: Request) -> Response:
 
     logger.debug("Webhook-обновление успешно обработано")
     return Response(status_code=200)
+
+
+class HealthResponse(BaseModel):
+    """Представляет состояние здоровья FastAPI-сервиса.
+
+    Attributes
+        status (str): Статус сервиса. Обычно "ok", если сервис работает корректно.
+        message (str): Читаемое человеком сообщение о состоянии сервиса.
+
+    """
+
+    status: str
+    message: str
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=[
+        "webhook",
+    ],
+    summary="Проверка здоровья сервиса",
+)
+async def health() -> JSONResponse:
+    """Проверка здоровья приложения.
+
+    Эндпоинт для проверки работоспособности FastAPI-приложения.
+
+    Возвращает текущий статус сервиса, чтобы использовать
+    для мониторинга и Docker HEALTHCHECK.
+
+    Returns
+        JSON с полями:
+        - status: "ok" если сервис работает
+        - message: описание статуса
+
+    """
+    return JSONResponse(
+        status_code=200,
+        content={"status": "ok", "message": "FastAPI service is running"},
+    )
 
 
 if __name__ == "__main__":
