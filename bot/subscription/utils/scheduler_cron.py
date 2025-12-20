@@ -1,6 +1,7 @@
 from dataclasses import asdict
 from datetime import datetime
 
+from aiogram.exceptions import TelegramForbiddenError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru._logger import Logger
 
@@ -35,5 +36,5 @@ async def scheduled_check(
             elapsed=elapsed,
         )
 
-    except Exception as e:
+    except TelegramForbiddenError as e:
         logger.exception(f"❌ Ошибка при проверке подписок: {e}")

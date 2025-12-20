@@ -2,6 +2,7 @@ import datetime
 from dataclasses import dataclass
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError
 from loguru._logger import Logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -221,6 +222,19 @@ class SubscriptionService:
         )
         return await UserService.get_user_schema(user=user_model)
 
+    async def _send_user_message(self, message: str, tg_id: int) -> None:
+        """Безопасная отправка уведомления пользователю от планировщика."""
+        try:
+            await self.bot.send_message(chat_id=tg_id, text=message)
+        except TelegramForbiddenError:
+            self.logger.error(
+                "Невозможно отправить уведомление пользователю который заблокировал бота"
+            )
+        await send_to_admins(
+            bot=self.bot,
+            message_text=f"Невозможно отправить уведомление пользователю {tg_id} который заблокировал бота",
+        )
+
     async def _process_user(
         self, session: AsyncSession, user: User
     ) -> SubscriptionStats:
@@ -284,12 +298,11 @@ class SubscriptionService:
         if sub.is_active:
             sub.is_active = False
             stats.expired += 1
-
-            await self.bot.send_message(
-                user.telegram_id,
-                m_subscription_local.expire_subscription.now.format(
+            await self._send_user_message(
+                message=m_subscription_local.expire_subscription.now.format(
                     type_subscription=sub.type.value.upper()
                 ),
+                tg_id=user.telegram_id,
             )
             stats.notified += 1
 
@@ -326,13 +339,14 @@ class SubscriptionService:
 
         remaining = sub.remaining_days()
         if remaining is not None and remaining <= 3:
-            await self.bot.send_message(
-                user.telegram_id,
-                m_subscription_local.expire_subscription.soon.format(
+            await self._send_user_message(
+                message=m_subscription_local.expire_subscription.soon.format(
                     remaining=remaining,
                     type_subscription=sub.type.value.upper(),
                 ),
+                tg_id=user.telegram_id,
             )
+
             stats.notified += 1
 
         return stats
@@ -416,9 +430,9 @@ class SubscriptionService:
                         await session.delete(cfg)
                         deleted_count += 1
 
-                        await self.bot.send_message(
-                            user.telegram_id,
-                            m_subscription_local.expire_subscription.delete_unlimit_configs_user.format(
+                        await self._send_user_message(
+                            tg_id=user.telegram_id,
+                            message=m_subscription_local.expire_subscription.delete_unlimit_configs_user.format(
                                 file_name=cfg.file_name,
                             ),
                         )
