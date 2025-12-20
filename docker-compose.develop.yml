@@ -4,8 +4,8 @@ services:
       - .env.local
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "8088:8088"
+#    ports:
+#      - "8088:8088"
     healthcheck:
       test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8088/bot/health', timeout=2)" ]
       interval: 30s
@@ -13,7 +13,6 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - shared_net
       - infrastructure_net
   nginx_vpn_bot:
     volumes:
@@ -24,12 +23,8 @@ services:
       - static_files1:/usr/src/app/static # Подключение статических файлов
       - static_files2:/usr/src/app/templates  # Подключение шаблонов Jinja2
     networks:
-      - shared_net
       - infrastructure_net
 networks:
-  shared_net:
-    name: shared_net
-    external: true
   infrastructure_net:
     name: infrastructure_net
     driver: bridge
