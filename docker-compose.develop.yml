@@ -22,6 +22,9 @@ services:
       - /etc/ssl/private/dhparam.pem:/etc/ssl/private/dhparam.pem:ro  # Монтируем файл DH параметров
       - static_files1:/usr/src/app/static # Подключение статических файлов
       - static_files2:/usr/src/app/templates  # Подключение шаблонов Jinja2
+    ports:
+      - "80:80"
+      - "443:443"
     networks:
       - infrastructure_net
 networks:
