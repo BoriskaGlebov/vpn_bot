@@ -282,7 +282,7 @@ jobs:
 
             echo "PRICE_MAP=${{ vars.PRICE_MAP }}" >> .env.local
 
-            echo "BASE_SITE=${{ secrets.BASE_SITE }}" >> .env.local
+            echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env.local
 
             echo "DB_USER=${{ secrets.DB_USER }}" >> .env.local
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env.local
