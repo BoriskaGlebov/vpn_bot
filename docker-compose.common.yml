@@ -24,7 +24,6 @@ services:
     container_name: nginx_proxy_test
     restart: always
     ports:
-      - "80:80"
       - "443:443"
     volumes:
       - ./nginx_test.conf:/etc/nginx/nginx.conf:ro
