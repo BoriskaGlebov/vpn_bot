@@ -5,6 +5,8 @@ on:
     types: [ opened, reopened,synchronize ]
   push:
     branches: [ main, develop]
+    branches-ignore:
+      - nginx
 
 jobs:
   lint:
