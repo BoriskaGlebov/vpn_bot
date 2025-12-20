@@ -4,9 +4,7 @@ on:
   pull_request:
     types: [ opened, reopened,synchronize ]
   push:
-    branches: [ main, develop]
-    branches-ignore:
-      - nginx
+    branches: [ main, develop,nginx ]
 
 jobs:
   lint:
@@ -96,7 +94,7 @@ jobs:
         run: poetry run pytest -vs .
 
   deploy_develop:
-    needs: [lint, test]
+    needs: [ lint, test ]
     runs-on: ubuntu-latest
     environment: develop
     if: github.ref == 'refs/heads/develop'
