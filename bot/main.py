@@ -90,6 +90,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # TODO Надо не забыть проверку подписок делать раз в день и не плохо мне об этом писать
     # ToDO НА проде надо преезагружа ть nginx при обнолвние бота CI
     # TODO НАДО прикрутить реферальную программу
+    # TODO БЭКАП БД
     scheduler.add_job(
         scheduled_check,
         # trigger=IntervalTrigger(seconds=30),
