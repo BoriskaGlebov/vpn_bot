@@ -14,8 +14,10 @@ from bot.help.utils.tv_device import TVDevice
 
 @pytest.mark.asyncio
 @pytest.mark.help
-async def test_help_cmd(make_fake_message, fake_bot, fake_logger, fake_state):
-    router = HelpRouter(bot=fake_bot, logger=fake_logger)
+async def test_help_cmd(
+    make_fake_message, fake_bot, fake_logger, fake_state, fake_redis
+):
+    router = HelpRouter(bot=fake_bot, logger=fake_logger, redis=fake_redis)
     fake_message = make_fake_message()
 
     await router.help_cmd(fake_message, fake_state)
@@ -52,8 +54,9 @@ async def test_device_cb(
     monkeypatch,
     device_class,
     device_name,
+    fake_redis,
 ):
-    router = HelpRouter(bot=fake_bot, logger=fake_logger)
+    router = HelpRouter(bot=fake_bot, logger=fake_logger, redis=fake_redis)
     fake_message = make_fake_message()
     fake_call = make_fake_query(user_id=1, data=f"device_{device_name}")
     fake_call.message = fake_message

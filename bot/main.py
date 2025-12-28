@@ -65,7 +65,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         user_service=user_service,
     )
 
-    help_router = HelpRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
+    help_router = HelpRouter(bot=bot, logger=logger, redis=redis_manager)  # type: ignore[arg-type]
 
     admin_service = AdminService()
     admin_router = AdminRouter(bot=bot, logger=logger, admin_service=admin_service)  # type: ignore[arg-type]
@@ -77,7 +77,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         subscription_service=subscription_service,
     )
     vpn_service = VPNService()
-    vpn_router = VPNRouter(bot=bot, logger=logger, vpn_service=vpn_service)  # type: ignore[arg-type]
+    vpn_router = VPNRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        vpn_service=vpn_service,
+        redis=redis_manager,
+    )
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
@@ -87,10 +92,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
-    # TODO Надо не забыть проверку подписок делать раз в день и не плохо мне об этом писать
-    # ToDO НА проде надо преезагружа ть nginx при обнолвние бота CI
+    # ToDO НА проде надо перезагружать nginx при обновлении бота CI
     # TODO НАДО прикрутить реферальную программу
-    # TODO БЭКАП БД
     scheduler.add_job(
         scheduled_check,
         # trigger=IntervalTrigger(seconds=30),
