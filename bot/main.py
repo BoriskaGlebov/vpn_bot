@@ -77,7 +77,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         subscription_service=subscription_service,
     )
     vpn_service = VPNService()
-    vpn_router = VPNRouter(bot=bot, logger=logger, vpn_service=vpn_service)  # type: ignore[arg-type]
+    vpn_router = VPNRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        vpn_service=vpn_service,
+        redis=redis_manager,
+    )
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)

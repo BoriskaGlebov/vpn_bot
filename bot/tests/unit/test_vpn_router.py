@@ -15,7 +15,9 @@ async def test_get_config_amnezia_vpn(
 ):
     # Создаём роутер с мокнутым VPNService
     vpn_service = AsyncMock(spec=VPNService)
-    router = VPNRouter(bot=fake_bot, logger=fake_logger, vpn_service=vpn_service)
+    router = VPNRouter(
+        bot=fake_bot, logger=fake_logger, vpn_service=vpn_service, redis=fake_redis
+    )
 
     # Мокаем возвращаемые значения generate_user_config
     fake_file = Path("/tmp/test.conf")
@@ -32,7 +34,6 @@ async def test_get_config_amnezia_vpn(
             "bot.vpn.router.AsyncSSHClientVPN.__aexit__", new_callable=AsyncMock
         ) as mock_ssh_exit,
     ):
-
         mock_ssh_client = AsyncMock()
         mock_ssh_enter.return_value = mock_ssh_client
 
@@ -68,7 +69,9 @@ async def test_get_config_amnezia_wg(
     fake_bot, fake_logger, fake_redis, fake_state, session, make_fake_message
 ):
     vpn_service = AsyncMock(spec=VPNService)
-    router = VPNRouter(bot=fake_bot, logger=fake_logger, vpn_service=vpn_service)
+    router = VPNRouter(
+        bot=fake_bot, logger=fake_logger, vpn_service=vpn_service, redis=fake_redis
+    )
 
     fake_file = Path("/tmp/test_wg.conf")
     vpn_service.generate_user_config.return_value = (fake_file, "PUB_KEY_WG")
@@ -84,7 +87,6 @@ async def test_get_config_amnezia_wg(
             "bot.vpn.router.AsyncSSHClientWG.__aexit__", new_callable=AsyncMock
         ) as mock_ssh_exit,
     ):
-
         mock_ssh_client = AsyncMock()
         mock_ssh_enter.return_value = mock_ssh_client
 
@@ -112,7 +114,9 @@ async def test_get_config_amnezia_wg(
 async def test_check_subscription(
     fake_bot, fake_logger, fake_redis, fake_state, session, make_fake_message
 ):
-    router = VPNRouter(bot=fake_bot, logger=fake_logger, vpn_service=AsyncMock())
+    router = VPNRouter(
+        bot=fake_bot, logger=fake_logger, vpn_service=AsyncMock(), redis=fake_redis
+    )
     fake_message = make_fake_message()
 
     # Патчим метод VPNService.get_subscription_info
