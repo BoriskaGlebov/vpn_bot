@@ -88,6 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
     # TODO Надо не забыть проверку подписок делать раз в день и не плохо мне об этом писать
+    # ToDO НА проде надо преезагружа ть nginx при обнолвние бота CI
     # TODO НАДО прикрутить реферальную программу
     scheduler.add_job(
         scheduled_check,
