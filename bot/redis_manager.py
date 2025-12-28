@@ -77,10 +77,13 @@ class SettingsRedis:
 
         return orjson.loads(row) if row else None
 
-    async def set(self, key: str, value: Any, expire: int | None = None) -> None:
+    async def set(
+        self, key: str, value: Any, expire: int | None = None, nx: bool | None = None
+    ) -> str | None:
         """Сохраняет значение по ключу с опциональным временем жизни.
 
         Args:
+            nx (bool| None): Not exist проверка на существование.
             key (str): Ключ для сохранения значения.
             value (Any): Значение для сохранения.
             expire (int | None): Время жизни ключа в секундах. Если None, используется DEFAULT_EXPIRE.
@@ -89,7 +92,8 @@ class SettingsRedis:
         redis = await self._ensure_connection()
         ttl = expire or self.DEFAULT_EXPIRE
         row = orjson.dumps(value)
-        await redis.set(key, row, ex=ttl)
+        res = await redis.set(key, row, ex=ttl)
+        return res
 
     async def delete(self, key: str) -> None:
         """Удаляет ключ из Redis.

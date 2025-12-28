@@ -16,6 +16,7 @@ from bot.help.utils.common_device import Device
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
 from bot.help.utils.tv_device import TVDevice
+from bot.redis_manager import SettingsRedis
 from bot.users.enums import ChatType
 from bot.utils.base_router import BaseRouter
 
@@ -38,8 +39,9 @@ class HelpRouter(BaseRouter):
         DeviceEnum.TV: TVDevice,
     }
 
-    def __init__(self, bot: Bot, logger: Logger) -> None:
+    def __init__(self, bot: Bot, logger: Logger, redis: SettingsRedis) -> None:
         super().__init__(bot, logger)
+        self.redis = redis
 
     def _register_handlers(self) -> None:
         self.router.message.register(
@@ -81,7 +83,13 @@ class HelpRouter(BaseRouter):
         await state.set_state(HelpStates.device_state)
 
     @BaseRouter.log_method
-    async def device_cb(self, call: CallbackQuery, state: FSMContext) -> None:
+    @BaseRouter.require_message
+    async def device_cb(
+        self,
+        call: CallbackQuery,
+        msg: Message,
+        state: FSMContext,
+    ) -> None:
         """Обрабатывает выбор устройства пользователем.
 
         В зависимости от выбора (Android, iOS, PC, TV)
@@ -89,37 +97,37 @@ class HelpRouter(BaseRouter):
         Очищается FSM
 
         Args:
+            msg (Message): Сообщение для обработки.
             call (CallbackQuery): Объект callback-запроса от Telegram.
             state (FSMContext): Контекст конечного автомата состояний пользователя.
 
         """
-        message = call.message
-        if message is None or not hasattr(message, "chat"):
-            self.logger.error("CallbackQuery received without message")
-            return
-
-        chat_id = message.chat.id
-
         data = call.data
         if data is None:
             self.logger.error("CallbackQuery received without data")
             return
-
-        bot = call.bot or self.bot
-        if bot is None:
-            self.logger.error("CallbackQuery without bot instance")
+        call_device = data.replace("device_", "")
+        await call.answer(text=f"Ты выбрал {call_device}", show_alert=False)
+        chat_id = msg.chat.id
+        redis_key = f"help:device:{chat_id}:{call_device}"
+        acquired = await self.redis.set(redis_key, "1", 60, True)
+        if not acquired:
+            # Уже обрабатывается или уже обработано
             return
-        async with ChatActionSender.typing(bot=self.bot, chat_id=chat_id):
-            call_device = data.replace("device_", "")
-            await call.answer(text=f"Ты выбрал {call_device}", show_alert=False)
-            device_class = self.DEVICE_MAP.get(call_device)
-            if device_class:
-                await device_class.send_message(bot=self.bot, chat_id=chat_id)
-            elif call_device == "developer":
-                if hasattr(message, "delete"):
-                    await message.delete()
-                await bot.send_message(
-                    text="Для связи напишите @BorisisTheBlade",
-                    chat_id=chat_id,
-                )
+        try:
+            async with ChatActionSender.typing(bot=self.bot, chat_id=chat_id):
+                device_class = self.DEVICE_MAP.get(call_device)
+                if device_class:
+                    if hasattr(msg, "delete"):
+                        await msg.delete()
+                    await device_class.send_message(bot=self.bot, chat_id=chat_id)
+                elif call_device == "developer":
+                    if hasattr(msg, "delete"):
+                        await msg.delete()
+                    await self.bot.send_message(
+                        text="Для связи напишите @BorisisTheBlade",
+                        chat_id=chat_id,
+                    )
+        finally:
+            await self.redis.delete(redis_key)
             await state.clear()

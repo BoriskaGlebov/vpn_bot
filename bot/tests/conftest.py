@@ -39,6 +39,12 @@ def fake_logger(monkeypatch):
 def fake_redis(fake_logger):
     # Создаём экземпляр SettingsRedis, но подменяем методы асинхронными моками
     redis = SettingsRedis(redis_url="redis://fake_url", logger=fake_logger)
+    redis._ensure_connection = AsyncMock(
+        return_value=AsyncMock()
+    )  # возвращаем мок соединения
+    redis.set = AsyncMock(return_value=True)  # возвращает True для NX
+    redis.get = AsyncMock(return_value=None)  # если нужен get
+    redis.delete = AsyncMock(return_value=1)  # если нужен delete
     return redis
 
 
