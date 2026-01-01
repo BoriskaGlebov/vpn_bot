@@ -79,7 +79,7 @@ class SettingsRedis:
 
     async def set(
         self, key: str, value: Any, expire: int | None = None, nx: bool = False
-    ) -> str | None:
+    ) -> bool | None:
         """Сохраняет значение по ключу с опциональным временем жизни.
 
         Args:
