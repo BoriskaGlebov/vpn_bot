@@ -78,7 +78,7 @@ class SettingsRedis:
         return orjson.loads(row) if row else None
 
     async def set(
-        self, key: str, value: Any, expire: int | None = None, nx: bool | None = None
+        self, key: str, value: Any, expire: int | None = None, nx: bool = False
     ) -> str | None:
         """Сохраняет значение по ключу с опциональным временем жизни.
 
@@ -92,7 +92,7 @@ class SettingsRedis:
         redis = await self._ensure_connection()
         ttl = expire or self.DEFAULT_EXPIRE
         row = orjson.dumps(value)
-        res = await redis.set(key, row, ex=ttl)
+        res = await redis.set(key, row, ex=ttl, nx=nx)
         return res
 
     async def delete(self, key: str) -> None:
