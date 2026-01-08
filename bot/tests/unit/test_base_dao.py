@@ -41,7 +41,7 @@ async def setup_test_table(session: AsyncSession):
 @pytest.mark.dao
 async def test_add_and_find_by_id(session):
     item = await TmpDAO.add(session, TmpSchema(name="item1", value=10))
-
+    await session.flush()
     found = await TmpDAO.find_one_or_none_by_id(item.id, session)
     assert found is not None
     assert found.name == "item1"
@@ -125,6 +125,6 @@ async def test_find_by_ids(session):
     dao = TmpDAO()
     i1 = await dao.add(session, TmpSchema(name="one"))
     i2 = await dao.add(session, TmpSchema(name="two"))
-
+    await session.flush()
     found = await dao.find_by_ids(session, [i1.id, i2.id])
     assert {r.name for r in found} == {"one", "two"}

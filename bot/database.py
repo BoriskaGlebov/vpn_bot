@@ -64,7 +64,8 @@ def connection(isolation_level: str | None = None) -> Callable[[F], F]:
                         await session.execute(
                             text(f"SET TRANSACTION ISOLATION LEVEL {isolation_level}")
                         )
-                    return await method(*args, session=session, **kwargs)
+                    async with session.begin():
+                        return await method(*args, session=session, **kwargs)
                 except SQLAlchemyError:
                     await session.rollback()
                     raise

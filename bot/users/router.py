@@ -22,8 +22,10 @@ from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import SettingsRedis
+from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType
 from bot.users.keyboards.markup_kb import main_kb
+from bot.users.schemas import SUserOut
 from bot.users.services import UserService
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
@@ -82,10 +84,12 @@ class UserRouter(BaseRouter):
         logger: Logger,
         redis_manager: SettingsRedis,
         user_service: UserService,
+        referral_service: ReferralService,
     ) -> None:
         super().__init__(bot, logger)
         self.redis_manager = redis_manager
         self.user_service = user_service
+        self.referral_service = referral_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(self.cmd_start, CommandStart())
@@ -114,27 +118,72 @@ class UserRouter(BaseRouter):
             ),
         )
 
+    async def _process_referral(
+        self,
+        command: CommandStart,
+        invited_user: SUserOut,
+        session: AsyncSession,
+    ) -> None:
+        """Обрабатывает реферальный код из команды /start и регистрирует рефералку.
+
+        Аргументы после /start должны иметь вид `ref_<telegram_id>`.
+        Если реферальный код валиден, вызывается сервис для регистрации реферала.
+
+        Args:
+            command(CommandStart): Сообщение Telegram с командой /start.
+            invited_user (SUserOut): Пользователь, который только что зарегистрировался.
+            session (AsyncSession): Асинхронная сессия SQLAlchemy для операций с БД.
+
+        """
+        start_args = getattr(command, "args", None)
+        if not start_args:
+            # fallback: текст команды, убираем '/start'
+            start_args = (
+                command.text[len("/start") :].strip()
+                if hasattr(command, "text")
+                else None
+            )
+        if not start_args or not start_args.startswith("ref_"):
+            return
+
+        try:
+            inviter_telegram_id = int(start_args.replace("ref_", ""))
+        except ValueError:
+            self.logger.error("Некорректная ссылка на реферальную программу")
+            return
+
+        if inviter_telegram_id == invited_user.telegram_id:
+            self.logger.warning("Попытка зарефералить самого себя!")
+            return
+
+        await self.referral_service.register_referral(
+            session=session,
+            invited_user=invited_user,
+            inviter_telegram_id=inviter_telegram_id,
+        )
+
     @connection()
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def cmd_start(
         self,
         message: Message,
+        command: CommandStart,
         user: TGUser,
         session: AsyncSession,
         state: FSMContext,
     ) -> None:
         """Обработчик команды /start.
 
-        Проверяет, существует ли пользователь в базе данных.
-        Если пользователь новый — добавляет его в БД, назначает роль User и формирует подписку.
-        Отправляет приветственные сообщения и формирует клавиатуру главного меню.
+        Регистрирует нового пользователя или получает существующего, проверяет реферальный код
+        (если присутствует), отправляет приветственные сообщения и формирует клавиатуру.
 
         Args:
-            user (TGUSer): Пользователь Телеграм из сообщения.
-            message (Message): Сообщение Telegram, вызвавшее обработчик.
-            session (AsyncSession): Асинхронная сессия БД (AsyncSession).
-            state (FSMContext): Контекст FSM для работы с состояниями пользователя.
+            command: Команда Старт
+            message (Message): Сообщение Telegram с командой /start.
+            user (TGUser): Пользователь Telegram, инициировавший команду.
+            session (AsyncSession): Асинхронная сессия SQLAlchemy для работы с БД.
+            state (FSMContext): Контекст FSM для управления состояниями пользователя.
 
         Returns
             None
@@ -178,6 +227,9 @@ class UserRouter(BaseRouter):
             else:
                 self.logger.bind(user=user.username or user.id).info(
                     f"Новый пользователь зарегистрирован: {user.id} ({username})"
+                )
+                await self._process_referral(
+                    command=command, invited_user=user_info, session=session
                 )
                 response_message = welcome_messages.first[0].format(username=full_name)
                 follow_up_message = welcome_messages.first[1]

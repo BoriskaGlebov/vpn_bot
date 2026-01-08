@@ -14,6 +14,7 @@ from bot.app_error.base_error import UserNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_service import redis_admin_mess_storage as redis_service
+from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
     AdminPaymentAction,
     SubscriptionAction,
@@ -47,10 +48,15 @@ class SubscriptionRouter(BaseRouter):
     """Роутер для управления процессом подписки пользователей."""
 
     def __init__(
-        self, bot: Bot, logger: Logger, subscription_service: SubscriptionService
+        self,
+        bot: Bot,
+        logger: Logger,
+        subscription_service: SubscriptionService,
+        referral_service: ReferralService,
     ) -> None:
         super().__init__(bot, logger)
         self.subscription_service = subscription_service
+        self.referral_service = referral_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(
@@ -413,7 +419,20 @@ class SubscriptionRouter(BaseRouter):
                     ),
                     reply_markup=main_kb(active_subscription=True),
                 )
-
+                res, inviter = await self.referral_service.grant_referral_bonus(
+                    session=session,
+                    invited_user=user_schema,
+                )
+                if res and inviter:
+                    await self.bot.send_message(
+                        chat_id=inviter,
+                        text=m_subscription.accept_paid.bonus.format(
+                            user_info=f"@{user_schema.username}"
+                            or user_schema.first_name
+                            or user_schema.last_name
+                            or user_schema.telegram_id
+                        ),
+                    )
             except TelegramBadRequest:
                 await send_to_admins(
                     bot=self.bot,

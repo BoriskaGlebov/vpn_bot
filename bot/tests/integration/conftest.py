@@ -86,6 +86,7 @@ async def setup_users(session: AsyncSession, setup_roles):
             subscriptions=[
                 Subscription(type=SubscriptionType.PREMIUM),
             ],
+            vpn_configs=[],
         ),
         User(
             id=2,
@@ -97,6 +98,7 @@ async def setup_users(session: AsyncSession, setup_roles):
             subscriptions=[
                 Subscription(type=SubscriptionType.PREMIUM),
             ],
+            vpn_configs=[],
         ),
         User(
             id=3,
@@ -108,6 +110,7 @@ async def setup_users(session: AsyncSession, setup_roles):
             subscriptions=[
                 Subscription(type=SubscriptionType.STANDARD),
             ],
+            vpn_configs=[],
         ),
         User(
             id=4,
@@ -119,6 +122,7 @@ async def setup_users(session: AsyncSession, setup_roles):
             subscriptions=[
                 Subscription(type=SubscriptionType.TRIAL),
             ],
+            vpn_configs=[],
         ),
     ]
     session.add_all(users)
