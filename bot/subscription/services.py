@@ -142,7 +142,7 @@ class SubscriptionService:
             ):
                 user_model.current_subscription.extend(days=days)
                 user_model.has_used_trial = True
-                await session.commit()
+                # await session.commit()
                 return
             if (
                 user_model
@@ -159,7 +159,9 @@ class SubscriptionService:
                 days=days,
                 sub_type=SubscriptionType.TRIAL,
             )
-            await session.refresh(user_model)
+            await session.refresh(
+                user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
+            )
         except ValueError:
             raise
 
@@ -205,14 +207,12 @@ class SubscriptionService:
         )
         if active_sub:
             active_sub.extend(months=months)
-            await session.commit()
             return await UserService.get_user_schema(user=user_model)
         elif user_model.role.name == FilterTypeEnum.FOUNDER:
             current_sub = user_model.current_subscription
             if current_sub is not None:
                 current_sub.extend(months=months)
                 current_sub.type = SubscriptionType.PREMIUM
-                await session.commit()
                 return await UserService.get_user_schema(user=user_model)
         await SubscriptionDAO.activate_subscription(
             session=session, stelegram_id=schema_user, month=months, sub_type=sub_type

@@ -36,23 +36,23 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                     f"[DAO] Пользователь {user_id} не найден при проверке лимита конфигов",
                 )
                 return False
-            async with cls.transaction(session=session):
-                count = (
-                    await session.scalar(
-                        select(func.count()).where(VPNConfig.user_id == user_id)
-                    )
-                    or 0
+            count = (
+                await session.scalar(
+                    select(func.count()).where(VPNConfig.user_id == user_id)
                 )
-                logger.debug(f"[DAO] У пользователя {user_id} конфигов: {count}")
+                or 0
+            )
+            logger.debug(f"[DAO] У пользователя {user_id} конфигов: {count}")
 
-                if user and count == 0:
-                    return True
-                sub_type = user.current_subscription.type
-                max_configs = DEVICE_LIMITS.get(sub_type, 0)
-                logger.debug(
-                    f"[DAO] Лимит конфигов для пользователя {user_id} ({sub_type}): {count}/{max_configs}",
-                )
-                return count < max_configs
+            if user and count == 0:
+                return True
+            sub_type = user.current_subscription.type
+            max_configs = DEVICE_LIMITS.get(sub_type, 0)
+            logger.debug(
+                f"[DAO] Лимит конфигов для пользователя {user_id} ({sub_type}): {count}/{max_configs}",
+            )
+            return count < max_configs
+
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при припроверке лимита конфиг файлов: {e}")
             raise e
@@ -89,15 +89,13 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 raise ValueError(
                     f"Пользователь {user_id} достиг лимита {settings_bot.max_configs_per_user} конфигов"
                 )
-            async with cls.transaction(session=session):
-                config = VPNConfig(
-                    user_id=user_id, file_name=file_name, pub_key=pub_key
-                )
-                session.add(config)
-                logger.success(
-                    f"[DAO] Создан новый VPNConfig id={config.id} для пользователя {user_id} (файл='{file_name}')",
-                )
-                return config
+
+            config = VPNConfig(user_id=user_id, file_name=file_name, pub_key=pub_key)
+            session.add(config)
+            logger.success(
+                f"[DAO] Создан новый VPNConfig id={config.id} для пользователя {user_id} (файл='{file_name}')",
+            )
+            return config
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при добавлении конфиг файла: {e}")
             raise e

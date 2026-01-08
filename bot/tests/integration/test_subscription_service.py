@@ -95,7 +95,7 @@ async def test_check_all_subscriptions_notifications(
     user = setup_users[2]  # обычный user
 
     # Устанавливаем подписку так, чтобы осталось 2 дня
-    user.subscriptions.end_date = datetime.now(tz=UTC) + timedelta(days=2)
+    user.subscriptions[0].end_date = datetime.now(tz=UTC) + timedelta(days=2)
     await session.commit()
 
     # Мокируем отправку сообщений, чтобы не летели реально

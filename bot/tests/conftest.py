@@ -72,8 +72,11 @@ def test_engine():
     return engine
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(autouse=True)
 async def setup_database(test_engine):
+    from bot.referrals.models import Referral
+    from bot.users.models import Role, Subscription, User, VPNConfig
+
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -83,7 +86,7 @@ async def setup_database(test_engine):
     os.remove("./test.db")
 
 
-@pytest.fixture()
+@pytest.fixture
 async def session(test_engine):
     async_session = async_sessionmaker(
         test_engine, class_=AsyncSession, expire_on_commit=False

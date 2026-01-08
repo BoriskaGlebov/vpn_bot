@@ -12,7 +12,7 @@ from bot.config import logger, settings_bot
 from bot.database import Base, int_pk
 
 if TYPE_CHECKING:
-    from users.models import User
+    from bot.users.models import User
 
 
 class SubscriptionType(str, Enum):

@@ -1,4 +1,5 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 from bot.config import settings_bot
 
@@ -17,27 +18,23 @@ def main_kb(
     Returns
         ReplyKeyboardMarkup: Клавиатура для пользователя.
 
-    Пример использования:
-        active_subscription=True
-        user_telegram_id = 123456789
-        keyboard = main_kb(user_telegram_id)
-        await message.answer("Выберите действие:", reply_markup=keyboard)
-
     """
-    kb_list = []
+    builder = ReplyKeyboardBuilder()
     if active_subscription:
-        kb_list.append([KeyboardButton(text="🔑 Получить VPN-конфиг AmneziaVPN")])
-        kb_list.append([KeyboardButton(text="🌐 Получить VPN-конфиг AmneziaWG")])
-        kb_list.append([KeyboardButton(text="💎 Продлить VPN-Boriska")])
+        builder.row(
+            KeyboardButton(text="🔑 Получить VPN-конфиг AmneziaVPN"),
+            KeyboardButton(text="🌐 Получить VPN-конфиг AmneziaWG"),
+        )
+        builder.row(KeyboardButton(text="💎 Продлить VPN-Boriska"))
     else:
-        kb_list.append([KeyboardButton(text="💰 Выбрать подписку VPN-Boriska")])
-    kb_list.append([KeyboardButton(text="📈 Проверить статус подписки")])
-    kb_list.append([KeyboardButton(text="❓ Помощь в настройке VPN")])
-    if user_telegram_id in settings_bot.admin_ids:
-        kb_list.append([KeyboardButton(text="⚙️ Панель администратора")])
-
-    keyboard = ReplyKeyboardMarkup(
-        keyboard=kb_list, resize_keyboard=True, one_time_keyboard=True
+        builder.row(KeyboardButton(text="💰 Выбрать подписку VPN-Boriska"))
+    builder.row(
+        KeyboardButton(text="📈 Проверить статус подписки"),
+        KeyboardButton(text="❓ Помощь в настройке VPN"),
     )
-
-    return keyboard
+    if user_telegram_id in settings_bot.admin_ids:
+        builder.row(KeyboardButton(text="⚙️ Панель администратора"))
+    return builder.as_markup(
+        resize_keyboard=True,
+        one_time_keyboard=False,
+    )

@@ -55,28 +55,29 @@ class UserDAO(BaseDAO[User]):
             f"Пользователь: {user_dict}, Роль: {role_dict}"
         )
         try:
-            async with cls.transaction(session=session):
-                role = await session.scalar(
-                    select(Role).where(Role.name == role_dict["name"])
-                )
-                if not role:
-                    logger.error(f"Роль '{role_dict['name']}' не найдена в БД")
-                    raise ValueError(f"Роль '{role_dict['name']}' не найдена в БД")
-                new_user = cls.model(**user_dict)
-                session.add(new_user)
-                await session.flush()
-                subscription = Subscription(user_id=new_user.id)
-                new_user.role = role
-                if role.name == FilterTypeEnum.ADMIN:
-                    subscription.is_active = True
-                    subscription.end_date = None
-                    subscription.type = SubscriptionType.PREMIUM
-                session.add(subscription)
-                await session.refresh(
-                    new_user, attribute_names=["subscriptions", "vpn_configs", "role"]
-                )
-                logger.debug(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
-                return new_user
+            role = await session.scalar(
+                select(Role).where(Role.name == role_dict["name"])
+            )
+            if not role:
+                logger.error(f"Роль '{role_dict['name']}' не найдена в БД")
+                raise ValueError(f"Роль '{role_dict['name']}' не найдена в БД")
+            new_user = cls.model(**user_dict)
+            session.add(new_user)
+            await session.flush()
+            subscription = Subscription(
+                user_id=new_user.id, type=SubscriptionType.STANDARD
+            )
+            new_user.role = role
+            if role.name == FilterTypeEnum.ADMIN:
+                subscription.is_active = True
+                subscription.end_date = None
+                subscription.type = SubscriptionType.PREMIUM
+            session.add(subscription)
+            await session.refresh(
+                new_user, attribute_names=["subscriptions", "vpn_configs", "role"]
+            )
+            logger.debug(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
+            return new_user
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при добавлении записи: {e}")
             raise e
@@ -103,13 +104,12 @@ class UserDAO(BaseDAO[User]):
 
         """
         try:
-            async with cls.transaction(session=session):
-                stmt = select(User).join(User.role).options(selectinload(User.role))
-                if filter_type != "all":
-                    stmt = stmt.where(Role.name == filter_type)
+            stmt = select(User).join(User.role).options(selectinload(User.role))
+            if filter_type != "all":
+                stmt = stmt.where(Role.name == filter_type)
 
-                result = await session.execute(stmt)
-                return list(result.scalars().all())
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка получения записи: {e}")
             raise e
@@ -140,18 +140,18 @@ class UserDAO(BaseDAO[User]):
 
         """
         try:
-            async with cls.transaction(session=session):
-                user.role = role
+            user.role = role
 
-                if role.name == FilterTypeEnum.FOUNDER:
-                    now = datetime.datetime.now(tz=datetime.UTC)
+            if role.name == FilterTypeEnum.FOUNDER:
+                now = datetime.datetime.now(tz=datetime.UTC)
+                if now.year == 2025:
                     next_year = datetime.datetime(
                         now.year + 1, 1, 1, tzinfo=datetime.UTC
                     )
                     delta = next_year - now
                     user.subscriptions[0].activate(days=delta.days)
                     user.subscriptions[0].type = SubscriptionType.PREMIUM
-                return user
+            return user
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка изменения роли пользователя: {e}")
             raise e
@@ -182,12 +182,11 @@ class UserDAO(BaseDAO[User]):
 
         """
         try:
-            async with cls.transaction(session=session):
-                subscription = user.subscriptions[0]
-                if subscription.is_active:
-                    subscription.extend(months=months)
-                else:
-                    raise SubscriptionNotFoundError(user_id=user.telegram_id)
+            subscription = user.subscriptions[0]
+            if subscription.is_active:
+                subscription.extend(months=months)
+            else:
+                raise SubscriptionNotFoundError(user_id=user.telegram_id)
             return user
 
         except SQLAlchemyError as e:
@@ -214,22 +213,22 @@ class UserDAO(BaseDAO[User]):
             f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
         )
         logger.debug(f"[DAO] Фильтры → условия: {cls._build_filters(filter_dict)}")
-        async with cls.transaction(session):
-            filters_clause = cls._build_filters(filter_dict)
-            # noinspection PyTypeChecker
-            query = (
-                select(cls.model)
-                .where(filters_clause)
-                .options(
-                    selectinload(cls.model.role),
-                    selectinload(cls.model.subscriptions),
-                    selectinload(cls.model.subscriptions),
-                )
+
+        filters_clause = cls._build_filters(filter_dict)
+        # noinspection PyTypeChecker
+        query = (
+            select(cls.model)
+            .where(filters_clause)
+            .options(
+                selectinload(cls.model.role),
+                selectinload(cls.model.subscriptions),
+                selectinload(cls.model.subscriptions),
             )
-            result = await session.execute(query)
-            record = result.scalar_one_or_none()
-            logger.debug(f"[DAO] Найдено: {record!r}")
-            return record
+        )
+        result = await session.execute(query)
+        record = result.scalar_one_or_none()
+        logger.debug(f"[DAO] Найдено: {record!r}")
+        return record
 
 
 class RoleDAO(BaseDAO[Role]):
