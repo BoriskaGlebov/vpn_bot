@@ -1,9 +1,11 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardRemove
 
 from bot.config import settings_bot
+from bot.referrals.services import ReferralService
 from bot.users.router import (
     UserRouter,
     UserStates,
@@ -23,6 +25,7 @@ async def test_cmd_start_new_user_monkeypatch(
     """Тест обработчика /start для нового пользователя через мок UserService."""
 
     fake_message = make_fake_message(user_id=123)
+    command_obj = CommandStart()
 
     # Создаём мок user_service
     class FakeSubscription:
@@ -45,17 +48,20 @@ async def test_cmd_start_new_user_monkeypatch(
         FakeUserOut(),
         True,
     )  # новый пользователь
-
+    referral_service = AsyncMock(spec=ReferralService)
     # Создаём роутер
     router = UserRouter(
         bot=fake_bot,
         logger=fake_logger,
         redis_manager=fake_redis,
         user_service=fake_user_service,
+        referral_service=referral_service,
     )
 
     # Запуск хендлера
-    await router.cmd_start(message=fake_message, session=session, state=fake_state)
+    await router.cmd_start(
+        message=fake_message, session=session, state=fake_state, command=command_obj
+    )
 
     # Проверки
     fake_user_service.register_or_get_user.assert_awaited_once_with(
@@ -78,13 +84,14 @@ async def test_admin_start_with_admin_monkeypatch(
     from bot.config import settings_bot
 
     monkeypatch.setattr(settings_bot, "admin_ids", {123})
-
+    referral_service = AsyncMock(spec=ReferralService)
     # Создаём роутер с моками
     router = UserRouter(
         bot=fake_bot,
         logger=fake_logger,
         redis_manager=fake_redis,
         user_service=AsyncMock(),  # для unit-теста можно просто мок
+        referral_service=referral_service,
     )
 
     # Вызов хендлера
@@ -108,13 +115,14 @@ async def test_admin_start_non_admin_monkeypatch(
     from bot.config import settings_bot
 
     monkeypatch.setattr(settings_bot, "admin_ids", {123})
-
+    referral_service = AsyncMock(spec=ReferralService)
     # Создаём роутер с моками
     router = UserRouter(
         bot=fake_bot,
         logger=fake_logger,
         redis_manager=fake_redis,
         user_service=AsyncMock(),
+        referral_service=referral_service,
     )
 
     # Вызов хендлера
@@ -138,13 +146,14 @@ async def test_mistake_handler_user_press_start(
     fake_message = make_fake_message()
 
     fake_state.get_state = AsyncMock(return_value="UserStates:press_start")
-
+    referral_service = AsyncMock(spec=ReferralService)
     # Создаём роутер с моком user_service
     router = UserRouter(
         bot=fake_bot,
         logger=fake_logger,
         redis_manager=fake_redis,
         user_service=AsyncMock(),  # просто мок
+        referral_service=referral_service,
     )
 
     # Вызов метода
@@ -171,12 +180,13 @@ async def test_mistake_handler_user_press_admin(
             {"press_admin": 1},  # второй вызов
         ]
     )
-
+    referral_service = AsyncMock(spec=ReferralService)
     router = UserRouter(
         bot=fake_bot,
         logger=fake_logger,
         redis_manager=fake_redis,
         user_service=AsyncMock(),  # мок
+        referral_service=referral_service,
     )
 
     # Первый вызов — обычная неизвестная команда

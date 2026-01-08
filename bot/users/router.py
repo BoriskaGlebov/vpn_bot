@@ -135,9 +135,16 @@ class UserRouter(BaseRouter):
             session (AsyncSession): Асинхронная сессия SQLAlchemy для операций с БД.
 
         """
-        start_args = command.args
+        start_args = getattr(command, "args", None)
+        if not start_args:
+            # fallback: текст команды, убираем '/start'
+            start_args = (
+                command.text[len("/start") :].strip()
+                if hasattr(command, "text")
+                else None
+            )
         if not start_args or not start_args.startswith("ref_"):
-            return  # нет реферала
+            return
 
         try:
             inviter_telegram_id = int(start_args.replace("ref_", ""))
@@ -172,6 +179,7 @@ class UserRouter(BaseRouter):
         (если присутствует), отправляет приветственные сообщения и формирует клавиатуру.
 
         Args:
+            command: Команда Старт
             message (Message): Сообщение Telegram с командой /start.
             user (TGUser): Пользователь Telegram, инициировавший команду.
             session (AsyncSession): Асинхронная сессия SQLAlchemy для работы с БД.

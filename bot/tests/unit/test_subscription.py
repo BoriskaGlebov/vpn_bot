@@ -4,6 +4,7 @@ import pytest
 
 from bot.config import settings_bot
 from bot.redis_service import RedisAdminMessageStorage
+from bot.referrals.services import ReferralService
 from bot.subscription.keyboards.inline_kb import (
     AdminPaymentCB,
     SubscriptionCB,
@@ -29,9 +30,13 @@ async def test_start_subscription_user_defined(
     # Создаем мок сервиса подписки
     subscription_service = AsyncMock(spec=SubscriptionService)
     subscription_service.check_premium.return_value = (False, "user", False)
+    referral_service = AsyncMock(spec=ReferralService)
 
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.start_subscription(message=message, state=state)
@@ -60,8 +65,12 @@ async def test_start_subscription_user_none(
     state = fake_state
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.start_subscription(message=message, state=state)
@@ -86,8 +95,12 @@ async def test_subscription_selected_paid(
     state.get_data = AsyncMock(return_value={"premium": False})
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.subscription_selected(
@@ -120,8 +133,12 @@ async def test_subscription_selected_trial(
     state.get_data.return_value = AsyncMock(return_value={})
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.subscription_selected(
@@ -149,8 +166,12 @@ async def test_toggle_subscription_mode_premium(
     state = fake_state
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.toggle_subscription_mode(
@@ -181,8 +202,12 @@ async def test_toggle_subscription_mode_standard(
     state = fake_state
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.toggle_subscription_mode(
@@ -213,8 +238,12 @@ async def test_toggle_subscription_mode_msg_none(
     state = fake_state
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.toggle_subscription_mode(
@@ -235,8 +264,12 @@ async def test_user_paid_standard(fake_bot, fake_logger, fake_state, make_fake_q
     state.get_data = AsyncMock(return_value={"premium": False})
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     # Патчим redis_manager внутри send_to_admins
@@ -270,8 +303,12 @@ async def test_user_paid_premium(fake_bot, fake_logger, fake_state, make_fake_qu
     state.get_data = AsyncMock(return_value={"premium": True})
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     # Патчим redis_manager.save_admin_message, чтобы не сериализовать AsyncMock
@@ -308,8 +345,12 @@ async def test_cancel_subscription_select_period(
     state = fake_state
     state.get_state = AsyncMock(return_value=SubscriptionStates.select_period.state)
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.cancel_subscription(query=query, state=state)
@@ -328,8 +369,12 @@ async def test_cancel_subscription_first_step(
     state = fake_state
     state.get_state = AsyncMock(return_value=None)
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     await router.cancel_subscription(query=query, state=state)
@@ -363,8 +408,13 @@ async def test_admin_confirm_payment_success(
     subscription_service = AsyncMock(spec=SubscriptionService)
     subscription_service.activate_paid_subscription.return_value = user_schema_mock
 
+    referral_service = AsyncMock(spec=ReferralService)
+    referral_service.grant_referral_bonus.return_value = (True, 123456)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
     # Мок зависимостей
     monkeypatch.setattr(
@@ -385,7 +435,7 @@ async def test_admin_confirm_payment_success(
     subscription_service.activate_paid_subscription.assert_awaited_once_with(
         ANY, 1, 1, True
     )
-    fake_bot.send_message.assert_awaited_once()
+    assert fake_bot.send_message.await_count == 2
     state.clear.assert_awaited_once()
 
 
@@ -406,8 +456,12 @@ async def test_admin_decline_payment_success(
     )
 
     subscription_service = AsyncMock(spec=SubscriptionService)
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     # Вызов метода
@@ -443,8 +497,12 @@ async def test_admin_decline_payment_no_message(
     query.bot = fake_bot
 
     subscription_service = AsyncMock()
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     result = await router.admin_decline_payment(
@@ -463,8 +521,12 @@ async def test_admin_decline_payment_no_bot(
     query.bot = None
 
     subscription_service = AsyncMock()
+    referral_service = AsyncMock(spec=ReferralService)
     router = SubscriptionRouter(
-        bot=fake_bot, logger=fake_logger, subscription_service=subscription_service
+        bot=fake_bot,
+        logger=fake_logger,
+        subscription_service=subscription_service,
+        referral_service=referral_service,
     )
 
     # Мокируем redis_service.get, чтобы не подключался к Redis
