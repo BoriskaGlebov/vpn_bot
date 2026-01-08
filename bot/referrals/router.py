@@ -5,6 +5,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     Message,
 )
+from aiogram.types import User as TGUser
 from loguru._logger import Logger
 
 from bot.config import settings_bot
@@ -27,18 +28,20 @@ class ReferralRouter(BaseRouter):
         self.router.message.register(self.invite_handler, Command("friends"))
 
     @BaseRouter.log_method
-    async def invite_handler(self, message: Message) -> None:
+    @BaseRouter.require_user
+    async def invite_handler(self, message: Message, user: TGUser) -> None:
         """Обрабатывает команду приглашения друзей.
 
         Формирует персональную реферальную ссылку пользователя и
         отправляет сообщение с inline-кнопкой для её распространения.
 
         Args:
+            user: Пользователь для работы
             message (Message): Входящее сообщение от пользователя.
 
         """
         bot = await self.bot.get_me()
-        ref_link = f"https://t.me/{bot.username}?start=ref_{message.from_user.id}"
+        ref_link = f"https://t.me/{bot.username}?start=ref_{user.id}"
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[

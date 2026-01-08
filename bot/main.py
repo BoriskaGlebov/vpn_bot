@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     user_service = UserService(redis=redis_manager)
-    referral_service = ReferralService(bot=bot, logger=logger)
+    referral_service = ReferralService(bot=bot, logger=logger)  # type: ignore[arg-type]
     user_router = UserRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         vpn_service=vpn_service,
         redis=redis_manager,
     )
-    referral_router = ReferralRouter(bot=bot, logger=logger)
+    referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
@@ -101,7 +101,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await start_bot(bot=bot)
     # ToDO НА проде надо перезагружать nginx при обновлении бота CI
     # TODO упростить nginx на проде, не надо делать через мастер и воркер
-    # TODO НАДО прикрутить реферальную программу
     scheduler.add_job(
         scheduled_check,
         # trigger=IntervalTrigger(seconds=30),
