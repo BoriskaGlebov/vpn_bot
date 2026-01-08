@@ -1,0 +1,57 @@
+from aiogram import Bot
+from aiogram.filters import Command
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
+from loguru._logger import Logger
+
+from bot.config import settings_bot
+from bot.utils.base_router import BaseRouter
+
+m_referrals = settings_bot.messages.modes.referrals
+
+
+class ReferralRouter(BaseRouter):
+    """Router, отвечающий за реферальную функциональность.
+
+    Регистрирует команды, связанные с приглашением друзей, и
+    формирует сообщения с персональной реферальной ссылкой.
+    """
+
+    def __init__(self, bot: Bot, logger: Logger) -> None:
+        super().__init__(bot, logger)
+
+    def _register_handlers(self) -> None:
+        self.router.message.register(self.invite_handler, Command("friends"))
+
+    @BaseRouter.log_method
+    async def invite_handler(self, message: Message) -> None:
+        """Обрабатывает команду приглашения друзей.
+
+        Формирует персональную реферальную ссылку пользователя и
+        отправляет сообщение с inline-кнопкой для её распространения.
+
+        Args:
+            message (Message): Входящее сообщение от пользователя.
+
+        """
+        bot = await self.bot.get_me()
+        ref_link = f"https://t.me/{bot.username}?start=ref_{message.from_user.id}"
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="📨 Поделиться ссылкой",
+                        url=ref_link,
+                    )
+                ]
+            ]
+        )
+
+        await message.answer(
+            text=m_referrals.invite,
+            reply_markup=keyboard,
+        )

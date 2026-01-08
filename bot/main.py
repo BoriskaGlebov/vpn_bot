@@ -16,6 +16,8 @@ from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.redis_manager import redis_manager
+from bot.referrals.router import ReferralRouter
+from bot.referrals.services import ReferralService
 from bot.subscription.router import SubscriptionRouter
 from bot.subscription.services import SubscriptionService
 from bot.subscription.utils.scheduler_cron import scheduled_check, scheduler
@@ -58,11 +60,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     user_service = UserService(redis=redis_manager)
+    referral_service = ReferralService(bot=bot, logger=logger)
     user_router = UserRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
         redis_manager=redis_manager,
         user_service=user_service,
+        referral_service=referral_service,
     )
 
     help_router = HelpRouter(bot=bot, logger=logger, redis=redis_manager)  # type: ignore[arg-type]
@@ -75,6 +79,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
         subscription_service=subscription_service,
+        referral_service=referral_service,
     )
     vpn_service = VPNService()
     vpn_router = VPNRouter(
@@ -83,16 +88,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         vpn_service=vpn_service,
         redis=redis_manager,
     )
+    referral_router = ReferralRouter(bot=bot, logger=logger)
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
     dp.include_router(admin_router.router)
     dp.include_router(subscription_router.router)
     dp.include_router(vpn_router.router)
+    dp.include_router(referral_router.router)
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
     # ToDO НА проде надо перезагружать nginx при обновлении бота CI
+    # TODO упростить nginx на проде, не надо делать через мастер и воркер
     # TODO НАДО прикрутить реферальную программу
     scheduler.add_job(
         scheduled_check,
