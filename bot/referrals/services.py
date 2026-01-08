@@ -98,7 +98,7 @@ class ReferralService:
         if current_sub is None:
             await SubscriptionDAO.activate_subscription(
                 session=session,
-                stelegram_id=SUserTelegramID(telegram_id=invited_user.telegram_id),
+                stelegram_id=SUserTelegramID(telegram_id=inviter.telegram_id),
                 month=months,
                 sub_type=SubscriptionType.STANDARD,
             )
