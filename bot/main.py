@@ -15,6 +15,8 @@ from bot.config import bot, dp, logger, settings_bot
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
+from bot.news.router import NewsRouter
+from bot.news.services import NewsService
 from bot.redis_manager import redis_manager
 from bot.referrals.router import ReferralRouter
 from bot.referrals.services import ReferralService
@@ -89,6 +91,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         redis=redis_manager,
     )
     referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
+    news_service = NewsService(bot=bot, logger=logger)  # type: ignore[arg-type]
+    news_router = NewsRouter(bot=bot, logger=logger, news_service=news_service)  # type: ignore[arg-type]
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
@@ -96,6 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(subscription_router.router)
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
+    dp.include_router(news_router.router)
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)

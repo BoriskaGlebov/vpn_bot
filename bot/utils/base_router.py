@@ -39,7 +39,12 @@ class BaseRouter(ABC):
 
     @staticmethod
     def log_method(func: F) -> F:
-        """Декоратор для логирования начала и конца выполнения метода."""
+        """Декоратор для логирования начала и конца выполнения метода.
+
+        Returns
+            F:
+
+        """
         if asyncio.iscoroutinefunction(func):
             # если функция асинхронная
             @functools.wraps(func)
