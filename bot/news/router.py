@@ -75,6 +75,18 @@ class NewsRouter(BaseRouter):
             ),
         )
 
+    async def _send_news(self, user_id: int, news_data: dict[str, Any]) -> None:
+        """Фунция расслыки новостей."""
+        if news_data["content_type"] == "text":
+            await self.bot.send_message(user_id, news_data["text"])
+
+        elif news_data["content_type"] == "photo":
+            await self.bot.send_photo(
+                user_id,
+                photo=news_data["photo_file_id"],
+                caption=news_data["caption"],
+            )
+
     @BaseRouter.log_method
     async def start_handler(self, message: Message, state: FSMContext) -> None:
         """Обработчик команды /news: начинает процесс создания новости.
@@ -160,21 +172,26 @@ class NewsRouter(BaseRouter):
         await query.answer("Отправляем!")
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             data = await state.get_data()
-            news: dict[str, Any] = data["news"]
-
+            news = data.get("news")
+            if not news or "content_type" not in news:
+                self.logger.warning(
+                    f"Данные новости отсутствуют или повреждены для пользователя {query.from_user.id}"
+                )
+                await msg.edit_text(
+                    "❌ Не удалось получить данные новости. Попробуйте снова."
+                )
+                await state.clear()
+                await query.answer()
+                return
             recipients = await self.news_service.all_users_id(session=session)
             sent = 0
-
+            self.logger.bind(user=query.from_user.username or "undefined").info(
+                f"Начата рассылка новостей "
+                f"({query.from_user.id}), тип новости: {news['content_type']}"
+            )
             for user_id in recipients:
                 try:
-                    if news["content_type"] == "text":
-                        await self.bot.send_message(user_id, news["text"])
-                    elif news["content_type"] == "photo":
-                        await self.bot.send_photo(
-                            user_id,
-                            photo=news["photo_file_id"],
-                            caption=news["caption"],
-                        )
+                    await self._send_news(user_id, news)
                     sent += 1
 
                 except TelegramRetryAfter as e:
@@ -183,14 +200,7 @@ class NewsRouter(BaseRouter):
                     )
                     await asyncio.sleep(e.retry_after)
                     try:
-                        if news["content_type"] == "text":
-                            await self.bot.send_message(user_id, news["text"])
-                        elif news["content_type"] == "photo":
-                            await self.bot.send_photo(
-                                user_id,
-                                photo=news["photo_file_id"],
-                                caption=news["caption"],
-                            )
+                        await self._send_news(user_id, news)
                         sent += 1
                     except Exception as exc:
                         self.logger.error(
@@ -211,6 +221,7 @@ class NewsRouter(BaseRouter):
                     )
 
                 await asyncio.sleep(0.05)
+            self.logger.info(f"Рассылка завершена. Отправлено сообщений: {sent}")
 
             if msg.photo:
                 await self.bot.edit_message_caption(
@@ -245,5 +256,19 @@ class NewsRouter(BaseRouter):
         """
         await query.answer(text="Отменил")
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
-            await msg.edit_text("❌ Рассылка отменена.")
+            if hasattr(msg, "photo") and msg.photo:
+                await self.bot.edit_message_caption(
+                    chat_id=msg.chat.id,
+                    message_id=msg.message_id,
+                    caption="❌ Рассылка отменена.",
+                )
+            else:
+                await self.bot.edit_message_text(
+                    chat_id=msg.chat.id,
+                    message_id=msg.message_id,
+                    text="❌ Рассылка отменена.",
+                )
             await state.clear()
+        self.logger.bind(user=query.from_user.username).info(
+            f"Рассылка отменена ({query.from_user.id})"
+        )

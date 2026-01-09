@@ -86,15 +86,39 @@ async def test_confirm_news_handler_sends_messages_and_edits_preview(
 @pytest.mark.asyncio
 @pytest.mark.news
 async def test_cancel_news_handler_edits_message_and_clears_state(
-    make_fake_query, fake_logger, fake_state, fake_bot
+    make_fake_query, fake_logger, fake_state, fake_bot, make_query_photo
 ):
-    query: CallbackQuery = make_fake_query()
-    msg: Message = query.message
     news_service = NewsService(bot=fake_bot, logger=fake_logger)
     router = NewsRouter(bot=fake_bot, logger=fake_logger, news_service=news_service)
 
-    await router.cancel_news_handler(query=query, state=fake_state)
+    # === Тест для текстового сообщения ===
+    query_text: CallbackQuery = make_fake_query()
+    msg_text: Message = query_text.message
 
-    msg.edit_text.assert_awaited_once_with("❌ Рассылка отменена.")
+    await router.cancel_news_handler(query=query_text, state=fake_state)
+
+    fake_bot.edit_message_text.assert_awaited_once_with(
+        chat_id=999, message_id=1999, text="❌ Рассылка отменена."
+    )
     fake_state.clear.assert_awaited()
-    query.answer.assert_awaited()
+    query_text.answer.assert_awaited()
+
+    # Сбрасываем mock-объекты
+    msg_text.edit_text.reset_mock()
+    fake_state.clear.reset_mock()
+    query_text.answer.reset_mock()
+
+    # === Тест для сообщения с фото ===
+    query_photo: CallbackQuery = make_query_photo()
+    # query_photo.message = make_fake_query_photo()
+    # msg_photo: Message = query_photo.message
+    #
+    await router.cancel_news_handler(query=query_photo, state=fake_state)
+    #
+    fake_bot.edit_message_caption.assert_awaited_once_with(
+        chat_id=999,
+        message_id=1999,
+        caption="❌ Рассылка отменена.",
+    )
+    fake_state.clear.assert_awaited()
+    query_photo.answer.assert_awaited()
