@@ -157,25 +157,15 @@ class NewsRouter(BaseRouter):
             state (FSMContext): FSMContext с сохранёнными данными новости.
 
         """
-        data = await state.get_data()
-        news: dict[str, Any] = data["news"]
+        await query.answer("Отправляем!")
+        async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
+            data = await state.get_data()
+            news: dict[str, Any] = data["news"]
 
-        recipients = await self.news_service.all_users_id(session=session)
-        sent = 0
+            recipients = await self.news_service.all_users_id(session=session)
+            sent = 0
 
-        for user_id in recipients:
-            try:
-                if news["content_type"] == "text":
-                    await self.bot.send_message(user_id, news["text"])
-                elif news["content_type"] == "photo":
-                    await self.bot.send_photo(
-                        user_id, photo=news["photo_file_id"], caption=news["caption"]
-                    )
-                sent += 1
-
-            except TelegramRetryAfter as e:
-                self.logger.warning(f"FloodWait {e.retry_after}s для {user_id}, жду...")
-                await asyncio.sleep(e.retry_after)
+            for user_id in recipients:
                 try:
                     if news["content_type"] == "text":
                         await self.bot.send_message(user_id, news["text"])
@@ -186,54 +176,74 @@ class NewsRouter(BaseRouter):
                             caption=news["caption"],
                         )
                     sent += 1
-                except Exception as exc:
-                    self.logger.error(f"Повторная отправка не удалась {user_id}: {exc}")
 
-            except TelegramForbiddenError:
-                self.logger.warning(
-                    f"Пользователь {user_id} заблокировал бота, пропускаем."
+                except TelegramRetryAfter as e:
+                    self.logger.warning(
+                        f"FloodWait {e.retry_after}s для {user_id}, жду..."
+                    )
+                    await asyncio.sleep(e.retry_after)
+                    try:
+                        if news["content_type"] == "text":
+                            await self.bot.send_message(user_id, news["text"])
+                        elif news["content_type"] == "photo":
+                            await self.bot.send_photo(
+                                user_id,
+                                photo=news["photo_file_id"],
+                                caption=news["caption"],
+                            )
+                        sent += 1
+                    except Exception as exc:
+                        self.logger.error(
+                            f"Повторная отправка не удалась {user_id}: {exc}"
+                        )
+
+                except TelegramForbiddenError:
+                    self.logger.warning(
+                        f"Пользователь {user_id} заблокировал бота, пропускаем."
+                    )
+
+                except TelegramBadRequest as e:
+                    self.logger.warning(f"Ошибка TelegramBadRequest для {user_id}: {e}")
+
+                except Exception as exc:
+                    self.logger.error(
+                        f"Неизвестная ошибка при отправке {user_id}: {exc}"
+                    )
+
+                await asyncio.sleep(0.05)
+
+            if msg.photo:
+                await self.bot.edit_message_caption(
+                    chat_id=msg.chat.id,
+                    message_id=msg.message_id,
+                    caption=f"✅ Новость отправлена.\nПолучателей: {sent}",
+                )
+            else:
+                await self.bot.edit_message_text(
+                    chat_id=msg.chat.id,
+                    message_id=msg.message_id,
+                    text=f"✅ Новость отправлена.\nПолучателей: {sent}",
                 )
 
-            except TelegramBadRequest as e:
-                self.logger.warning(f"Ошибка TelegramBadRequest для {user_id}: {e}")
-
-            except Exception as exc:
-                self.logger.error(f"Неизвестная ошибка при отправке {user_id}: {exc}")
-
-            await asyncio.sleep(0.05)
-
-        if msg.photo:
-            await self.bot.edit_message_caption(
-                chat_id=msg.chat.id,
-                message_id=msg.message_id,
-                caption=f"✅ Новость отправлена.\nПолучателей: {sent}",
-            )
-        else:
-            await self.bot.edit_message_text(
-                chat_id=msg.chat.id,
-                message_id=msg.message_id,
-                text=f"✅ Новость отправлена.\nПолучателей: {sent}",
-            )
-
-        await state.clear()
-        await query.answer()
+            await state.clear()
 
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def cancel_news_handler(
         self,
-        callback: CallbackQuery,
+        query: CallbackQuery,
         msg: Message,
         state: FSMContext,
     ) -> None:
         """Обработчик отмены рассылки новости.
 
         Args:
-            callback (CallbackQuery): Колбек отмены.
+            query (CallbackQuery): Колбек отмены.
             msg (Message): Сообщение предпросмотра новости.
             state (FSMContext): FSMContext для очистки состояния.
 
         """
-        await msg.edit_text("❌ Рассылка отменена.")
-        await state.clear()
-        await callback.answer()
+        await query.answer(text="Отменил")
+        async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
+            await msg.edit_text("❌ Рассылка отменена.")
+            await state.clear()
