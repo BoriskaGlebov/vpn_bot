@@ -22,8 +22,8 @@ def main_kb(
     builder = ReplyKeyboardBuilder()
     if active_subscription:
         builder.row(
-            KeyboardButton(text="🔑 Получить VPN-конфиг AmneziaVPN"),
-            KeyboardButton(text="🌐 Получить VPN-конфиг AmneziaWG"),
+            KeyboardButton(text="🔑 AmneziaVPN"),
+            KeyboardButton(text="🌐 AmneziaWG"),
         )
         builder.row(KeyboardButton(text="💎 Продлить VPN-Boriska"))
     else:
