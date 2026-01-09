@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import settings_bot
 from bot.database import connection
+from bot.news.filters import IsAdmin
 from bot.news.keyboards.inline_kb import NewsAction, NewsCB, news_confirm_kb
 from bot.news.services import NewsService
 from bot.utils.base_router import BaseRouter
@@ -56,15 +57,19 @@ class NewsRouter(BaseRouter):
         self.news_service = news_service
 
     def _register_handlers(self) -> None:
-        self.router.message.register(self.start_handler, Command("news"))
+        is_admin = IsAdmin()
         self.router.message.register(
-            self.news_text_handler, StateFilter(NewStates.news_start)
+            self.start_handler, and_f(Command("news"), is_admin)
+        )
+        self.router.message.register(
+            self.news_text_handler, and_f(StateFilter(NewStates.news_start), is_admin)
         )
         self.router.callback_query.register(
             self.confirm_news_handler,
             and_f(
                 StateFilter(NewStates.confirm_news),
                 NewsCB.filter(F.action == NewsAction.CONFIRM),
+                is_admin,
             ),
         )
         self.router.callback_query.register(
@@ -72,6 +77,7 @@ class NewsRouter(BaseRouter):
             and_f(
                 StateFilter(NewStates.confirm_news),
                 NewsCB.filter(F.action == NewsAction.CANCEL),
+                is_admin,
             ),
         )
 
