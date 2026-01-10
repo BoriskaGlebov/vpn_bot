@@ -234,6 +234,7 @@ jobs:
             echo "Restart Docker containers..."
             make compose-down STAGE=prod
             make compose-up STAGE=prod
+            docker service update --force monitoring_nginx
           EOF
 
 
