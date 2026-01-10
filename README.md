@@ -1,39 +1,67 @@
 # vpn_bot
 
-Бот для раздачи конфигураций Amnezia VPN с администрированием через Telegram и HTTP API (FastAPI).
+Телеграм-бот для выдачи VPN-конфигураций Amnezia VPN с администрированием через Telegram и HTTP API (FastAPI). Поддерживает подписки, реферальную систему, напоминания, планировщик задач и хранение медиа (локально или S3-совместимые хранилища).
 
 ## Возможности
-- Выдача новых VPN-конфигураций пользователям
-- Напоминание о действующих/истекающих конфигурациях
-- Управление подписками и оплатами
-- Админ-функции (через Telegram)
-- Webhook или polling режим получения обновлений
+- Выдача новых VPN-конфигураций и управление существующими
+- Управление подписками, продлениями, напоминаниями
+- Реферальная программа
+- Админ-функции через Telegram (клавиатуры, панели) и HTTP API
+- Получение обновлений: webhook или polling
 - Планировщик задач (APScheduler)
+- Хранилище кэша/очередей на Redis
+- Миграции БД через Alembic
+
+## Технологии
+- Python 3.11+
+- Aiogram (Telegram Bot)
+- FastAPI (HTTP API)
+- PostgreSQL (основная БД)
+- Redis (кэш, блокировки, rate-limit и т.п.)
+- Alembic (миграции)
+- Docker/Compose (развёртывание)
+- ruff, mypy, pytest (качество кода и тесты)
+
+## Структура проекта
+Высокоуровнево:
+- bot/
+  - admin/, users/, subscription/, vpn/, help/ — доменные модули (enums, dao, models, services, keyboards)
+  - middleware/ — промежуточные обработчики (исключения, логирование/аудит действий пользователя)
+  - utils/ — вспомогательные утилиты (команды, старт/стоп бота, инициализация ролей, описание)
+  - app_error/ — базовые ошибки приложения
+  - database.py — инициализация БД
+  - config.py — конфигурация приложения/бота
+  - main.py — точка входа (FastAPI + жизненный цикл бота)
+  - migrations/ — миграции Alembic
+- tests/ — unit и integration тесты (pytest)
+- docker-compose.*.yml — сценарии для dev/prod
+- Dockerfile, entrypoint.sh, nginx*.conf — инфраструктура контейнеров
 
 ## Требования
 - Python 3.11+
-- PostgreSQL
-- Redis
-- (Опционально) S3-совместимое хранилище для медиа (например, Yandex Object Storage)
+- PostgreSQL 14+
+- Redis 6+
+- (опционально) S3-совместимое хранилище для медиа (например, Yandex Object Storage)
 
-## Установка
-
-1. Клонируйте репозиторий:
-```bash
-git clone https://github.com/yourusername/vpn_bot.git
+## Установка (локально)
+1) Клонировать репозиторий
+```
+git clone https://github.com/BoriskaGlebov/vpn_bot
 cd vpn_bot
 ```
 
-2. Установите зависимости (через Poetry):
-```bash
-poetry install
+2) Установить зависимости
+- Poetry:
 ```
+poetry install --without dev --no-cache
+```
+Проект содержит pyproject.toml — зависимости можно ставить через предпочитаемый менеджер (pip/poetry).
 
-## Настройка переменных окружения
-Перед запуском создайте файл `.env` в корне проекта.
+3) Настроить переменные окружения
+Создайте файл .env в корне проекта.
 
-### Пример файла .env
-```dotenv
+Пример .env:
+```
 # --- Telegram / Bot ---
 BOT_TOKEN=your_bot_token_here
 ADMIN_IDS=123456789,987654321
@@ -76,73 +104,84 @@ ACCESS_KEY=your_key
 SECRET_KEY=your_key
 ```
 
-Описание ключевых переменных:
+Ключевые переменные:
 - BOT_TOKEN — токен Telegram-бота
-- ADMIN_IDS — запятая-разделенный список Telegram ID администраторов (например: `123,456`)
-- BASE_SITE — базовый URL сервера (используется для webhooks). Вебхук будет установлен на `${BASE_SITE}/webhook`
-- USE_POLLING — переключатель между polling и webhook
-- VPN_HOST / VPN_USERNAME / VPN_CONTAINER — параметры для интеграции с Amnezia VPN
-- MAX_CONFIGS_PER_USER — лимит конфигов на пользователя
-- LOGGER_LEVEL_* — уровни логирования для stdout/файлов
-- DB_* — параметры подключения к PostgreSQL
-- REDIS_* / NUM_DB / DEFAULT_EXPIRE — параметры подключения к Redis
-- BUCKET_NAME / PREFIX / ENDPOINT_URL / ACCESS_KEY / SECRET_KEY — доступ к S3-совместимому хранилищу
+- ADMIN_IDS — список Telegram ID администраторов (через запятую)
+- BASE_SITE — базовый URL для вебхука: ${BASE_SITE}/webhook
+- USE_POLLING — включить polling-режим вместо вебхука
+- VPN_HOST / VPN_USERNAME / VPN_CONTAINER — параметры интеграции с Amnezia VPN
+- MAX_CONFIGS_PER_USER — лимит конфигов для пользователя
+- LOGGER_LEVEL_* — уровни логирования
+- DB_* — подключение к PostgreSQL
+- REDIS_* / NUM_DB / DEFAULT_EXPIRE — параметры Redis
+- BUCKET_NAME / PREFIX / ENDPOINT_URL / ACCESS_KEY / SECRET_KEY — доступ к S3
 
 Примечания:
-- В коде заложены значения по умолчанию: `DB_HOST=postgres`, `REDIS_HOST=redis`. Переопределите их в `.env`, если запускаете локально без Docker.
-- ADMIN_IDS может быть строкой со списком через запятую или коллекцией. Внутренний парсер преобразует значения к множеству целых чисел.
+- По умолчанию DB_HOST=postgres, REDIS_HOST=redis (актуально для Docker). Для локального запуска без контейнеров поменяйте на localhost.
+
+## Инициализация БД
+Запустите миграции Alembic:
+```
+alembic upgrade head
+```
+Конфиг Alembic находится в alembic.ini, скрипты — в bot/migrations/versions.
 
 ## Запуск
 
-### Локально (через Python)
-```bash
+- Локально:
+```
 python bot/main.py
 ```
-Приложение поднимет FastAPI с жизненным циклом бота. Если включен polling, вебхук будет удалён и запустится обработка обновлений через polling. Если polling выключен, будет установлен вебхук на `BASE_SITE/webhook`.
+По умолчанию поднимется FastAPI и инициализируется бот. Включённый USE_POLLING удалит вебхук и запустит polling. Если USE_POLLING=False — будет установлен вебхук на BASE_SITE/webhook.
 
-Документация API: http://localhost:8088/bot/docs (по умолчанию, если запускаете локально и не меняли порт).
+Документация API (по умолчанию):
+- http://localhost:8088/bot/docs
 
-### Docker / Docker Compose (рекомендовано)
-В репозитории есть несколько compose-файлов:
-- `docker-compose.develop.yml` — режим разработки
-- `docker-compose.prod.yml` — продакшн-конфигурация
-- `docker-compose.common.yml` — общие сервисы
+- Docker Compose (рекомендовано):
+Доступны:
+- docker-compose.develop.yml — режим разработки
+- docker-compose.prod.yml — продакшн
+- docker-compose.common.yml — общие сервисы
 
-Пример запуска (разработка):
-```bash
+Пример (dev):
+```
 docker compose -f docker-compose.develop.yml up -d --build
 ```
-
-Остановить:
-```bash
+Остановка:
+```
 docker compose -f docker-compose.develop.yml down
 ```
 
-## Структура проекта
+## Компоненты доменов
+- bot/vpn — интеграция с Amnezia VPN (utils/amnezia_*.py), модели/DAO/сервисы
+- bot/subscription — подписки, биллинг, планировщик (utils/scheduler_cron.py)
+- bot/referrals — реферальная программа
+- bot/users — пользователи, роли, клавиатуры
+- bot/admin — админ-панели/клавиатуры
+- bot/help — справка/гайды для устройств (android/iphone/pc/tv)
 
-- `bot/` — основной код бота
-  - `admin/`, `users/`, `subscription/`, `vpn/`, `help/` — доменные модули (роутеры, сервисы, клавиатуры)
-  - `middleware/` — промежуточные обработчики (логирование, обработка исключений)
-  - `utils/` — вспомогательные скрипты (инициализация ролей, команды)
-  - `database.py` — конфигурация БД
-  - `config.py` — настройки приложения, логирование, инициализация бота/dispatcher
-  - `main.py` — FastAPI-приложение и lifecycle бота
-  - `logs/` — файлы логов
-  - `migrations/` — миграции Alembic
-- `tests/` — unit и integration тесты
+## Middleware
+- bot/middleware/exception_middleware.py — обработка исключений
+- bot/middleware/user_action_middleware.py — аудит/логирование действий
 
-## Вебхук
-- Эндпоинт: `POST /webhook`
-- Ожидает JSON-обновления от Telegram, валидирует и передаёт в Aiogram dispatcher.
+## Скрипты/утилиты
+- bot/utils/start_stop_bot.py — запуск/остановка бота
+- bot/utils/init_default_roles.py — инициализация ролей
+- bot/utils/commands.py — команды бота
+- bot/utils/set_description_file.py — описание бота
 
-## Разработка
-- Стиль кода: ruff + mypy (конфиги в `ruff.toml`, `pyproject.toml`, `pytest.ini`)
-- Тесты: `pytest`
+## Тестирование
+Конфигурация pytest — pytest.ini. Тесты находятся в tests/.
 
-Запуск тестов:
-```bash
+Запуск:
+```
 pytest -q
 ```
+
+Стиль кода: ruff, mypy (pyproject.toml, ruff.toml). Pre-commit хуки — .pre-commit-config.yaml.
+
+## Деплой Nginx
+В репозитории есть примеры конфигураций nginx.conf и nginx_test.conf для проксирования FastAPI/вебхука.
 
 ## Лицензия
 MIT
