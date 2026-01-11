@@ -29,6 +29,7 @@ from bot.subscription.keyboards.inline_kb import (
     subscription_options_kb,
 )
 from bot.subscription.services import SubscriptionService
+from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
@@ -62,8 +63,8 @@ class SubscriptionRouter(BaseRouter):
         self.router.message.register(
             self.start_subscription,
             or_f(
-                F.text == "💰 Выбрать подписку VPN-Boriska",
-                F.text == "💎 Продлить VPN-Boriska",
+                F.text == MainMenuText.CHOOSE_SUBSCRIPTION,
+                F.text == MainMenuText.RENEW_SUBSCRIPTION,
             ),
         )
         self.router.callback_query.register(

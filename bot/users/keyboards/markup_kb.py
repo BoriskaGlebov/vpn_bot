@@ -2,6 +2,7 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 from bot.config import settings_bot
+from bot.users.enums import MainMenuText
 
 
 def main_kb(
@@ -22,18 +23,18 @@ def main_kb(
     builder = ReplyKeyboardBuilder()
     if active_subscription:
         builder.row(
-            KeyboardButton(text="🔑 AmneziaVPN"),
-            KeyboardButton(text="🌐 AmneziaWG"),
+            KeyboardButton(text=MainMenuText.AMNEZIA_VPN),
+            KeyboardButton(text=MainMenuText.AMNEZIA_WG),
         )
-        builder.row(KeyboardButton(text="💎 Продлить VPN-Boriska"))
+        builder.row(KeyboardButton(text=MainMenuText.RENEW_SUBSCRIPTION))
     else:
-        builder.row(KeyboardButton(text="💰 Выбрать подписку VPN-Boriska"))
+        builder.row(KeyboardButton(text=MainMenuText.CHOOSE_SUBSCRIPTION))
     builder.row(
-        KeyboardButton(text="📈 Проверить статус подписки"),
-        KeyboardButton(text="❓ Помощь в настройке VPN"),
+        KeyboardButton(text=MainMenuText.CHECK_STATUS),
+        KeyboardButton(text=MainMenuText.HELP),
     )
     if user_telegram_id in settings_bot.admin_ids:
-        builder.row(KeyboardButton(text="⚙️ Панель администратора"))
+        builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL))
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,
