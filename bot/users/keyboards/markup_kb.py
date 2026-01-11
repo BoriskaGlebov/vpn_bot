@@ -23,18 +23,18 @@ def main_kb(
     builder = ReplyKeyboardBuilder()
     if active_subscription:
         builder.row(
-            KeyboardButton(text=MainMenuText.AMNEZIA_VPN),
-            KeyboardButton(text=MainMenuText.AMNEZIA_WG),
+            KeyboardButton(text=MainMenuText.AMNEZIA_VPN.value),
+            KeyboardButton(text=MainMenuText.AMNEZIA_WG.value),
         )
-        builder.row(KeyboardButton(text=MainMenuText.RENEW_SUBSCRIPTION))
+        builder.row(KeyboardButton(text=MainMenuText.RENEW_SUBSCRIPTION.value))
     else:
-        builder.row(KeyboardButton(text=MainMenuText.CHOOSE_SUBSCRIPTION))
+        builder.row(KeyboardButton(text=MainMenuText.CHOOSE_SUBSCRIPTION.value))
     builder.row(
-        KeyboardButton(text=MainMenuText.CHECK_STATUS),
-        KeyboardButton(text=MainMenuText.HELP),
+        KeyboardButton(text=MainMenuText.CHECK_STATUS.value),
+        KeyboardButton(text=MainMenuText.HELP.value),
     )
     if user_telegram_id in settings_bot.admin_ids:
-        builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL))
+        builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL.value))
     return builder.as_markup(
         resize_keyboard=True,
         one_time_keyboard=False,

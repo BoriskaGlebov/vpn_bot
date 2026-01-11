@@ -35,16 +35,16 @@ m_start = settings_bot.messages.modes.start
 m_error = settings_bot.messages.errors
 m_echo = settings_bot.messages.general.echo
 INVALID_FOR_USER = [
-    MainMenuText.CHOOSE_SUBSCRIPTION,
-    MainMenuText.AMNEZIA_VPN,
-    MainMenuText.AMNEZIA_WG,
-    MainMenuText.CHECK_STATUS,
-    MainMenuText.HELP,
-    MainMenuText.RENEW_SUBSCRIPTION,
+    MainMenuText.CHOOSE_SUBSCRIPTION.value,
+    MainMenuText.AMNEZIA_VPN.value,
+    MainMenuText.AMNEZIA_WG.value,
+    MainMenuText.CHECK_STATUS.value,
+    MainMenuText.HELP.value,
+    MainMenuText.RENEW_SUBSCRIPTION.value,
 ]
 INVALID_FOR_ADMIN = [
-    MainMenuText.ADMIN_PANEL,
-    MainMenuText.HELP,
+    MainMenuText.ADMIN_PANEL.value,
+    MainMenuText.HELP.value,
 ]
 
 
