@@ -17,7 +17,7 @@ from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
 from bot.help.utils.tv_device import TVDevice
 from bot.redis_manager import SettingsRedis
-from bot.users.enums import ChatType
+from bot.users.enums import ChatType, MainMenuText
 from bot.utils.base_router import BaseRouter
 
 m_help = settings_bot.messages.modes.help
@@ -46,7 +46,7 @@ class HelpRouter(BaseRouter):
     def _register_handlers(self) -> None:
         self.router.message.register(
             self.help_cmd,
-            or_f(Command("help"), F.text.contains("❓ Помощь в настройке VPN")),
+            or_f(Command("help"), F.text == MainMenuText.HELP.value),
             F.chat.type == ChatType.PRIVATE,
         )
         self.router.callback_query.register(

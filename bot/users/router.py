@@ -23,7 +23,7 @@ from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import SettingsRedis
 from bot.referrals.services import ReferralService
-from bot.users.enums import ChatType
+from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SUserOut
 from bot.users.services import UserService
@@ -35,17 +35,16 @@ m_start = settings_bot.messages.modes.start
 m_error = settings_bot.messages.errors
 m_echo = settings_bot.messages.general.echo
 INVALID_FOR_USER = [
-    "💰 Выбрать подписку VPN-Boriska",
-    "🔑 Получить VPN-конфиг AmneziaVPN",
-    "🌐 Получить VPN-конфиг AmneziaWG",
-    "📈 Проверить статус подписки",
-    "❓ Помощь в настройке VPN",
-    "💰 Выбрать подписку VPN-Boriska",
-    "💎 Продлить VPN-Boriska",
+    MainMenuText.CHOOSE_SUBSCRIPTION.value,
+    MainMenuText.AMNEZIA_VPN.value,
+    MainMenuText.AMNEZIA_WG.value,
+    MainMenuText.CHECK_STATUS.value,
+    MainMenuText.HELP.value,
+    MainMenuText.RENEW_SUBSCRIPTION.value,
 ]
 INVALID_FOR_ADMIN = [
-    "⚙️ Админ-панель",
-    "❓ Помощь в настройке VPN",
+    MainMenuText.ADMIN_PANEL.value,
+    MainMenuText.HELP.value,
 ]
 
 
@@ -96,7 +95,7 @@ class UserRouter(BaseRouter):
         self.router.message.register(
             self.admin_start,
             and_f(
-                or_f(Command("admin"), F.text.contains("⚙️ Панель администратора")),
+                or_f(Command("admin"), F.text == MainMenuText.ADMIN_PANEL.value),
                 F.chat.type == ChatType.PRIVATE,
             ),
         )

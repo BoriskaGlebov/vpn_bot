@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import SettingsRedis
+from bot.users.enums import MainMenuText
 from bot.utils.base_router import BaseRouter
 from bot.vpn.services import VPNService
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
@@ -37,15 +38,15 @@ class VPNRouter(BaseRouter):
         """Регистрация хендлеров."""
         self.router.message.register(
             self.get_config_amnezia_vpn,
-            F.text.contains("🔑 Получить VPN-конфиг AmneziaVPN"),
+            F.text == MainMenuText.AMNEZIA_VPN.value,
         )
         self.router.message.register(
             self.get_config_amnezia_wg,
-            F.text.contains("🌐 Получить VPN-конфиг AmneziaWG"),
+            F.text == MainMenuText.AMNEZIA_WG.value,
         )
         self.router.message.register(
             self.check_subscription,
-            F.text.contains("📈 Проверить статус подписки"),
+            F.text == MainMenuText.CHECK_STATUS.value,
         )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
