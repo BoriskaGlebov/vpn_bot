@@ -4,7 +4,7 @@ from typing import Any
 
 import uvicorn
 from aiogram.types import Update
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel, ValidationError
 from starlette.responses import JSONResponse
@@ -108,8 +108,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # TODO упростить nginx на проде, не надо делать через мастер и воркер
     scheduler.add_job(
         scheduled_check,
-        trigger=IntervalTrigger(seconds=30),
-        # trigger=CronTrigger(hour=8, minute=0),
+        # trigger=IntervalTrigger(seconds=30),
+        trigger=CronTrigger(hour=8, minute=0),
         kwargs={"logger": logger},
     )
     scheduler.start()
