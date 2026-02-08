@@ -65,7 +65,7 @@ class UserDAO(BaseDAO[User]):
             session.add(new_user)
             await session.flush()
             subscription = Subscription(
-                user_id=new_user.id, type=SubscriptionType.STANDARD
+                user_id=new_user.id  # Убрал создание сразу стандартной подписки, так как некорректно потом удаляется конфиги у пользователей.
             )
             new_user.role = role
             if role.name == FilterTypeEnum.ADMIN:
