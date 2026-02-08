@@ -20,6 +20,7 @@ from bot.vpn.utils.amnezia_exceptions import (
 )
 
 USE_LOCAL = settings_bot.use_local
+CONNECT_TIMEOUT = 10  # секунд, можно вынести в settings
 
 
 class AsyncSSHClientWG:
@@ -79,19 +80,31 @@ class AsyncSSHClientWG:
             return
 
         try:
-            self._conn = await asyncssh.connect(
-                host=self.host,
-                port=self.port,
-                username=self.username,
-                known_hosts=self.known_hosts,
-                agent_forwarding=True,
+            self._conn = await asyncio.wait_for(
+                asyncssh.connect(
+                    host=self.host,
+                    port=self.port,
+                    username=self.username,
+                    known_hosts=self.known_hosts,
+                    agent_forwarding=True,
+                ),
+                timeout=CONNECT_TIMEOUT,
             )
-            self._process = await self._conn.create_process(
-                f"docker exec -i {self.container} sh;\n"
+            self._process = await asyncio.wait_for(
+                self._conn.create_process(f"docker exec -i {self.container} sh;\n"),
+                timeout=CONNECT_TIMEOUT,
             )
             logger.bind(user=self.username).debug(
                 f"AsyncSSH: подключение и shell-сессия установлены к {self.host}"
             )
+        except TimeoutError:
+            logger.bind(user=self.username).error(
+                f"AsyncSSH: таймаут подключения к {self.host}"
+            )
+            raise AmneziaSSHError(
+                message=f"SSH timeout при подключении к {self.host}:{self.port}"
+            )
+
         except (OSError, asyncssh.Error) as exc:
             logger.bind(user=self.username).error(
                 f"AsyncSSH: ошибка подключения: {exc}"
