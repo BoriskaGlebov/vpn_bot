@@ -1,3 +1,5 @@
+# TODO Надо как то в приветсвии писать кома можно написать за помощью сразу
+# TODO проверить ссылки на програмки
 from pathlib import Path
 from typing import Any
 
