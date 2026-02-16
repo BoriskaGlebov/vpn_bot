@@ -1,3 +1,5 @@
+import asyncio
+import importlib
 from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
@@ -113,7 +115,8 @@ async def test_device_send_message(
     # --- Подменяем настройки и sleep ---
     module_name = f"bot.help.utils.{device_key}_device"
     monkeypatch.setattr(f"{module_name}.settings_bot", fake_settings)
-    monkeypatch.setattr(f"{module_name}.asyncio.sleep", AsyncMock())
+    monkeypatch.setattr(asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(device_class, "MESSAGES_PATH", fake_messages)
     mocked_urls = [f"https://example.com/{media_folder}/{i}.png" for i in range(3)]
     monkeypatch.setattr(
         device_class, "_list_files", AsyncMock(return_value=mocked_urls)
@@ -128,7 +131,8 @@ async def test_device_send_message(
     for i, call in enumerate(fake_bot.send_photo.await_args_list):
         kwargs = call.kwargs
         assert kwargs["chat_id"] == 1234
-        assert kwargs["caption"] == f"Шаг {i}"
+        expected_caption = fake_messages[i]
+        assert kwargs["caption"] == expected_caption
         photo_url = kwargs["photo"]
         assert isinstance(photo_url, str)
         assert photo_url.endswith(f"{i}.png")

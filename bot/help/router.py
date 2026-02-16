@@ -125,13 +125,13 @@ class HelpRouter(BaseRouter):
                     if hasattr(msg, "delete"):
                         await msg.delete()
                     await device_class.send_message(bot=self.bot, chat_id=chat_id)
-                elif call_device == "developer":
+                elif "developer" in call_device:
                     if hasattr(msg, "delete"):
                         await msg.delete()
 
                     await self.bot.send_message(
-                        text="Для связи напишите @BorisisTheBlade",
                         chat_id=chat_id,
+                        text="Для связи напишите @BorisisTheBlade",
                         reply_markup=inline_developer_keyboard(),
                     )
         finally:

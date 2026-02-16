@@ -1,9 +1,11 @@
-from abc import ABC, abstractmethod
+import asyncio
+from abc import ABC
 
 import aioboto3
 from aiogram import Bot
 
 from bot.config import settings_bucket
+from bot.help.keyboards.inline_kb import send_link_button
 
 
 class Device(ABC):
@@ -16,9 +18,10 @@ class Device(ABC):
 
     PREFIX = settings_bucket.prefix
     BUCKET_NAME = settings_bucket.bucket_name
+    MESSAGES_PATH: str
+    LINK_PATH: str
 
     @classmethod
-    @abstractmethod
     async def send_message(cls, bot: Bot, chat_id: int) -> None:
         """Отправляет сообщение в указанный чат.
 
@@ -34,7 +37,16 @@ class Device(ABC):
             TelegramAPIError: Если при взаимодействии с Telegram API возникает ошибка.
 
         """
-        ...
+        media = await cls._list_files()
+        messages = cls.MESSAGES_PATH
+        link = cls.LINK_PATH
+        for file, caption in zip(media, messages):
+            await bot.send_photo(chat_id=chat_id, photo=file, caption=caption)
+            await asyncio.sleep(1.5)
+        if link:
+            await send_link_button(
+                bot, chat_id, text="Скачайте приложение по ссылке:", url=link
+            )
 
     @classmethod
     async def _list_files(cls) -> list[str]:
