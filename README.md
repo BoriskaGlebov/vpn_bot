@@ -178,6 +178,29 @@ docker compose -f docker-compose.develop.yml down
 pytest -q
 ```
 
+
+
+```bash
+  # перезапуск wg
+  wg-quick down /opt/amnezia/awg/wg0.conf 2>/dev/null
+  wg-quick up /opt/amnezia/awg/wg0.conf
+  # очищаем старые правила
+  iptables -F
+  iptables -t nat -F
+
+  # разрешаем туннель
+  iptables -A INPUT -i wg0 -j ACCEPT
+  iptables -A OUTPUT -o wg0 -j ACCEPT
+  iptables -A FORWARD -i wg0 -j ACCEPT
+  iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+  # FORWARD + NAT для новой подсети
+  iptables -A FORWARD -i wg0 -o eth0 -s 10.8.0.0/16 -j ACCEPT
+  iptables -A FORWARD -i wg0 -o eth1 -s 10.8.0.0/16 -j ACCEPT
+  iptables -t nat -A POSTROUTING -s 10.8.0.0/16 -o eth0 -j MASQUERADE
+  iptables -t nat -A POSTROUTING -s 10.8.0.0/16 -o eth1 -j MASQUERADE
+
+```
 Стиль кода: ruff, mypy (pyproject.toml, ruff.toml). Pre-commit хуки — .pre-commit-config.yaml.
 
 ## Деплой Nginx

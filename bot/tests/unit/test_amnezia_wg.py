@@ -207,10 +207,18 @@ async def test_get_vpn_params_config_error(ssh_client):
 @pytest.mark.vpn
 @pytest.mark.vpn
 async def test_get_correct_ip_success(ssh_client):
-    async def mock_gen(_):
-        yield "10.0.0.1/32", "", 0, "cat lastip"
+    async def mock_run_commands(cmds):
+        cmd = cmds[0]
+        if "AllowedIPs" in cmd:
+            # Возвращаем занятые IP без /32
+            yield "10.0.0.1\n", "", 0, "mocked AllowedIPs"
+        elif "Address" in cmd:
+            # Возвращаем подсеть
+            yield "10.0.0.0/24\n", "", 0, "mocked Address"
+        else:
+            yield "", "", 0, "other mocked"
 
-    ssh_client.run_commands_in_container = mock_gen
+    ssh_client.run_commands_in_container = mock_run_commands
 
     result = await ssh_client._get_correct_ip()
 
@@ -221,7 +229,7 @@ async def test_get_correct_ip_success(ssh_client):
 @pytest.mark.vpn
 async def test_get_correct_ip_invalid_ip(ssh_client):
     async def mock_gen(_):
-        yield "invalid_ip/32", "", 0, "cat lastip"
+        yield "invalid_ip\n", "", 0, "cat lastip"
 
     ssh_client.run_commands_in_container = mock_gen
 
@@ -230,34 +238,42 @@ async def test_get_correct_ip_invalid_ip(ssh_client):
 
 
 @pytest.mark.vpn
-@pytest.mark.vpn
 async def test_get_correct_ip_stderr(ssh_client):
-    async def mock_gen(_):
-        yield "", "Ошибка чтения файла", 1, "cat lastip"
+    """Тест обработки ошибки при пустой подсети (Address вернул stderr)."""
 
-    ssh_client.run_commands_in_container = mock_gen
+    async def mock_run_commands(cmds):
+        # Мокируем команду Address
+        yield "", "Ошибка чтения файла", 1, "mocked command"
+
+    ssh_client.run_commands_in_container = mock_run_commands
 
     with pytest.raises(AmneziaConfigError) as excinfo:
         await ssh_client._get_correct_ip()
 
     err = excinfo.value
-    assert "Ошибка при получении IP" in str(err)
-    assert err.file == "/opt/amnezia/awg/wg0.conf"
-    assert "Ошибка чтения файла" in err.stderr
+    # Проверяем, что текст ошибки содержит реальный префикс и stderr
+    assert "Ошибка при получении подсети" in str(err)
+    assert "Ошибка чтения файла" in str(err)
+    assert err.file == ssh_client.WG_CONF
 
 
 @pytest.mark.vpn
 @pytest.mark.vpn
 async def test_get_correct_ip_none(ssh_client):
-    async def mock_gen(_):
-        if False:
-            yield
+    """Тест для случая, когда нет подсети (пустой вывод Address)."""
 
-    ssh_client.run_commands_in_container = mock_gen
+    async def mock_run_commands(cmds):
+        # Имитация пустого вывода для директивы Address
+        yield "", "", 0, "mocked Address"
 
-    result = await ssh_client._get_correct_ip()
+    ssh_client.run_commands_in_container = mock_run_commands
 
-    assert result is None
+    with pytest.raises(AmneziaConfigError) as excinfo:
+        await ssh_client._get_correct_ip()
+
+    err = excinfo.value
+    assert "Не удалось определить подсеть" in str(err)
+    assert err.file == ssh_client.WG_CONF
 
 
 @pytest.mark.vpn
