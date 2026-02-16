@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 from aiogram.types import CallbackQuery
@@ -81,6 +81,7 @@ async def test_device_cb(
         fake_bot.send_message.assert_awaited_with(
             text="Для связи напишите @BorisisTheBlade",
             chat_id=fake_message.chat.id,
+            reply_markup=ANY,
         )
 
 
