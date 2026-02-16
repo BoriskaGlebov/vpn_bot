@@ -4,6 +4,7 @@ from itertools import zip_longest
 from aiogram import Bot
 
 from bot.config import settings_bot, settings_bucket
+from bot.help.keyboards.inline_kb import send_link_button
 from bot.help.utils.common_device import Device
 
 
@@ -31,6 +32,7 @@ class TVDevice(Device):
         """
         media = await cls._list_files()
         m_tv = settings_bot.messages.modes.help.instructions.tv
+        link = settings_bot.messages.modes.help.instructions.links.tv
         for file, answertext in zip_longest(media, m_tv):
             await bot.send_photo(
                 chat_id=chat_id,
@@ -39,3 +41,10 @@ class TVDevice(Device):
                 show_caption_above_media=True,
             )
             await asyncio.sleep(1)
+        if link:
+            await send_link_button(
+                bot=bot,
+                chat_id=chat_id,
+                text="Скачайте приложение по ссылке:",
+                url=link,
+            )
