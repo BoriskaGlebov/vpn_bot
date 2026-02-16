@@ -181,6 +181,7 @@ pytest -q
 
 
 ```bash
+  Address = 10.8.0.1/16
   # перезапуск wg
   wg-quick down /opt/amnezia/awg/wg0.conf 2>/dev/null
   wg-quick up /opt/amnezia/awg/wg0.conf
