@@ -55,6 +55,10 @@ class Device:
         media = await cls._list_files()
         messages = cls.MESSAGES_PATH
         link = cls.LINK_PATH
+        if len(media) != len(messages):
+            raise ValueError(
+                f"{cls.__name__}: media ({len(media)}) != messages ({len(messages)})"
+            )
         for file, caption in zip(media, messages):
             await bot.send_photo(
                 chat_id=chat_id, photo=file, caption=caption, parse_mode="HTML"

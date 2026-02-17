@@ -38,19 +38,24 @@ class SplitDevice(Device):
         if not media:
             raise ValueError(f"{cls.__name__}: Нет файлов в  S3")
 
-        if len(messages) < 1:
+        if len(messages) not in {len(media) + 1, len(media) + 2}:
             raise ValueError(
-                f"{cls.__name__}: сообщения должны содержать хотя бы 1 элемент"
-            )
-
-        if len(messages) not in {len(media), len(media) + 1, len(media) + 2}:
-            raise ValueError(
-                f"{cls.__name__}: media({len(media)}) and messages({len(messages)}) Неподходит"
+                f"{cls.__name__}: несоответствие длин media({len(media)}) "
+                f"и messages({len(messages)}). "
+                "Ожидается: вступление + подписи ко всем фото (+ опционально финал)"
             )
 
         await bot.send_message(chat_id, messages[0], disable_web_page_preview=True)
-        for file, caption in zip(media, messages[1:]):
-            await bot.send_photo(chat_id=chat_id, photo=file, caption=caption)
-            await asyncio.sleep(1.5)
-        if (len(messages) - len(media)) > 1:
-            await bot.send_message(chat_id, messages[-1])
+        has_final = len(messages) == len(media) + 2
+        captions = messages[1:-1] if has_final else messages[1:]
+        for file, caption in zip(media, captions):
+            await bot.send_photo(
+                chat_id=chat_id,
+                photo=file,
+                caption=caption,
+                parse_mode="HTML",
+            )
+            await asyncio.sleep(1.2)
+
+        if has_final:
+            await bot.send_message(chat_id, messages[-1], disable_web_page_preview=True)
