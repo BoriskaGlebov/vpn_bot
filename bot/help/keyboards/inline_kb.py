@@ -19,13 +19,14 @@ def device_keyboard() -> InlineKeyboardMarkup:
         ("🍏 iOS", "device_ios"),
         ("💻 Windows / Linux", "device_pc"),
         ("📺 Smart TV", "device_tv"),
+        ("🔀 Раздельное туннелирование", "device_split"),
         ("─────────────", "device_noop"),
         ("👨‍💻 Связаться с разработчиком", "device_developer"),
     ]
 
     for text, cb in buttons:
         builder.button(text=text, callback_data=cb)
-    builder.adjust(2, 2, 1, 1)
+    builder.adjust(2, 2, 1, 1, 1)
     return builder.as_markup()
 
 

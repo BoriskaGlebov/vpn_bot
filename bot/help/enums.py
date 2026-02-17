@@ -8,3 +8,4 @@ class DeviceEnum(str, Enum):
     IOS = "ios"
     PC = "pc"
     TV = "tv"
+    SPLIT = "split"

@@ -19,6 +19,7 @@ from bot.help.utils.android_device import AndroidDevice
 from bot.help.utils.common_device import Device
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
+from bot.help.utils.split_device import SplitDevice
 from bot.help.utils.tv_device import TVDevice
 from bot.redis_manager import SettingsRedis
 from bot.users.enums import ChatType, MainMenuText
@@ -41,6 +42,7 @@ class HelpRouter(BaseRouter):
         DeviceEnum.IOS: IphoneDevice,
         DeviceEnum.PC: PCDevice,
         DeviceEnum.TV: TVDevice,
+        DeviceEnum.SPLIT: SplitDevice,
     }
 
     def __init__(self, bot: Bot, logger: Logger, redis: SettingsRedis) -> None:
