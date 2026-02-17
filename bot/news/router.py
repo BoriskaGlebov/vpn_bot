@@ -25,6 +25,7 @@ from bot.news.filters import IsAdmin
 from bot.news.keyboards.inline_kb import NewsAction, NewsCB, news_confirm_kb
 from bot.news.services import NewsService
 from bot.utils.base_router import BaseRouter
+from bot.utils.start_stop_bot import send_to_admins
 
 m_news = settings_bot.messages.modes.news
 
@@ -217,18 +218,30 @@ class NewsRouter(BaseRouter):
                     self.logger.warning(
                         f"Пользователь {user_id} заблокировал бота, пропускаем."
                     )
+                    await send_to_admins(
+                        bot=self.bot,
+                        message_text=f"Пользователь {user_id} "
+                        f"заблокировал бота, пропускаем.",
+                    )
 
                 except TelegramBadRequest as e:
                     self.logger.warning(f"Ошибка TelegramBadRequest для {user_id}: {e}")
-
+                    await send_to_admins(
+                        bot=self.bot,
+                        message_text=f"Ошибка TelegramBadRequest для {user_id}: {e}",
+                    )
                 except Exception as exc:
                     self.logger.error(
                         f"Неизвестная ошибка при отправке {user_id}: {exc}"
                     )
+                    await send_to_admins(
+                        bot=self.bot,
+                        message_text=f"Неизвестная ошибка при отправке {user_id}: {exc}",
+                    )
 
                 await asyncio.sleep(0.05)
             self.logger.info(f"Рассылка завершена. Отправлено сообщений: {sent}")
-
+            await state.clear()
             if msg.photo:
                 await self.bot.edit_message_caption(
                     chat_id=msg.chat.id,
@@ -241,8 +254,6 @@ class NewsRouter(BaseRouter):
                     message_id=msg.message_id,
                     text=f"✅ Новость отправлена.\nПолучателей: {sent}",
                 )
-
-            await state.clear()
 
     @BaseRouter.log_method
     @BaseRouter.require_message

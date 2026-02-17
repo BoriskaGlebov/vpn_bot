@@ -1,4 +1,5 @@
 import asyncio
+import time
 from abc import ABC
 
 import aioboto3
@@ -41,7 +42,9 @@ class Device(ABC):
         messages = cls.MESSAGES_PATH
         link = cls.LINK_PATH
         for file, caption in zip(media, messages):
-            await bot.send_photo(chat_id=chat_id, photo=file, caption=caption)
+            await bot.send_photo(
+                chat_id=chat_id, photo=file, caption=caption, parse_mode="HTML"
+            )
             await asyncio.sleep(1.5)
         if link:
             await send_link_button(
@@ -78,8 +81,9 @@ class Device(ABC):
                 Bucket=cls.BUCKET_NAME, Prefix=cls.PREFIX
             ):
                 for obj in page.get("Contents", []):
-                    if not obj["Key"].endswith("/"):
+                    if not obj["Key"].endswith("/") and obj.get("Size", 0) > 0:
                         files.append(
-                            f"{settings_bucket.endpoint_url}/{settings_bucket.bucket_name}/{obj['Key']}"
+                            f"{settings_bucket.endpoint_url}/{settings_bucket.bucket_name}/{obj['Key']}?ts={int(time.time())}"
+                            # f"{settings_bucket.endpoint_url}/{settings_bucket.bucket_name}/{obj['Key']}"
                         )
             return files
