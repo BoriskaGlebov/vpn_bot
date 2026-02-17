@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import asdict
 from datetime import datetime
 
@@ -35,6 +36,7 @@ async def scheduled_check(
             **asdict(stats),
             elapsed=elapsed,
         )
+        await asyncio.sleep(0.05)
 
     except TelegramForbiddenError as e:
         logger.exception(f"❌ Ошибка при проверке подписок: {e}")

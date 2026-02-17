@@ -99,7 +99,7 @@ jobs:
     needs: [ lint, test ]
     runs-on: ubuntu-latest
     environment: develop
-    if: github.ref == 'refs/heads/developssss'
+    if: github.ref == 'refs/heads/develop'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

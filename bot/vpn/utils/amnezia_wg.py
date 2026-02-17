@@ -327,37 +327,96 @@ class AsyncSSHClientWG:
 
         return None
 
-    async def _get_correct_ip(self) -> str | None:
-        """Определяет корректный IP-адрес клиента для WireGuard.
+    async def _get_used_ips(self) -> set[ipaddress.IPv4Address]:
+        """Возвращает множество всех занятых IP из `wg0.conf`.
 
-        Returns
-           Optional[str]: IP-адрес в формате "x.x.x.x/32" или None.
+        Все IP берутся из директив `AllowedIPs`, а суффикс `/32` отбрасывается.
 
-        Raises
-            ValueError: Если полученный IP некорректен.
-            AmneziaConfigError: Если произошла ошибка при получении IP.
+        Returns:
+            Set[ipaddress.IPv4Address]: Множество всех занятых IP.
 
+        Raises:
+            AmneziaConfigError: Если произошла ошибка при получении IP или список пуст.
         """
         cmd = [
-            f"cat {self.WG_CONF} | grep 'AllowedIPs =' | tail -n 1 | awk '{{print $3}}'>lastip",
-            "cat lastip",
+            f"cat {self.WG_CONF} | "
+            f"grep 'AllowedIPs =' | "
+            f"awk -F'= ' '{{split($2,a,\",\"); for(i in a){{split(a[i],b,\"/\"); print b[1]}}}}'"
         ]
+        used_ips: set[ipaddress.IPv4Address] = set()
         async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
             if stdout:
-                try:
-                    ip_str = stdout.rpartition("/")[0]
-                    ip_correct = ipaddress.ip_address(ip_str) + 1
-                    return f"{ip_correct}/32"
-                except ValueError:
-                    logger.bind(user=self.username).error(f"Некорректный IP: {stdout}")
-                    raise
-            elif stderr:
+                for line in stdout.splitlines():
+                    try:
+                        used_ips.add(ipaddress.ip_address(line.strip()))
+                    except ValueError:
+                        logger.bind(user=self.username).warning(
+                            f"Некорректный IP в конфиге: {line.strip()}"
+                        )
+            if stderr:
                 raise AmneziaConfigError(
                     message=f"Ошибка при получении IP: {stderr}",
                     file=self.WG_CONF,
                     stderr=stderr,
                 )
-        return None
+        if not used_ips:
+            raise AmneziaConfigError(
+                message="Не удалось определить занятые IP", file=self.WG_CONF
+            )
+        logger.info(f"Найдено {len(used_ips)} занятых IP")
+        return used_ips
+
+    async def _find_free_ip(self) -> str:
+        """Находит первый свободный IP в подсети WireGuard, исключая `.0` и `.255`.
+
+        Получает подсеть из первой директивы `Address` в `wg0.conf`, затем
+        проверяет все возможные хосты и возвращает первый свободный IP, который
+        ещё не занят.
+
+        Returns:
+            str: Первый свободный IP в формате `x.x.x.x/32`.
+
+        Raises:
+            AmneziaConfigError: Если не удалось определить подсеть или нет свободных IP.
+        """
+        cmd_subnet = [
+            f"grep 'Address' {self.WG_CONF} | head -n1 | awk -F'= ' '{{print $2}}'"
+        ]
+        subnet_ip: str | None = None
+        async for stdout, stderr, *_ in self.run_commands_in_container(cmd_subnet):
+            if stdout:
+                subnet_ip = stdout.strip()
+            if stderr:
+                raise AmneziaConfigError(
+                    message=f"Ошибка при получении подсети: {stderr}",
+                    file=self.WG_CONF,
+                )
+        if not subnet_ip:
+            raise AmneziaConfigError(
+                message="Не удалось определить подсеть", file=self.WG_CONF
+            )
+
+        subnet = ipaddress.ip_network(subnet_ip, strict=False)
+
+        used_ips = await self._get_used_ips()
+        logger.info(f"Ищем свободный IP в подсети {subnet}")
+
+        for ip in subnet.hosts():
+            if ip not in used_ips and ip.packed[-1] not in (0, 255):
+                logger.info(f"Выбран свободный IP: {ip}/32")
+                return f"{ip}/32"
+
+        raise AmneziaConfigError(
+            message="Нет свободных IP в подсети", file=self.WG_CONF
+        )
+
+    async def _get_correct_ip(self) -> str | None:
+        """Определяет корректный IP-адрес клиента для WireGuard.
+
+        Returns:
+            str: Свободный IP в формате `x.x.x.x/32`.
+        """
+        return await self._find_free_ip()
 
     async def _get_psk_key(self) -> str | None:
         """Определяет preshared_key от  WireGuard.

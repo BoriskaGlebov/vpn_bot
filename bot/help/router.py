@@ -4,17 +4,22 @@ from aiogram import Bot, F
 from aiogram.filters import Command, StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message, ReplyKeyboardRemove
+from aiogram.types import (
+    CallbackQuery,
+    Message,
+    ReplyKeyboardRemove,
+)
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
 from bot.config import settings_bot
 from bot.help.enums import DeviceEnum
-from bot.help.keyboards.inline_kb import device_keyboard
+from bot.help.keyboards.inline_kb import device_keyboard, inline_developer_keyboard
 from bot.help.utils.android_device import AndroidDevice
 from bot.help.utils.common_device import Device
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
+from bot.help.utils.split_device import SplitDevice
 from bot.help.utils.tv_device import TVDevice
 from bot.redis_manager import SettingsRedis
 from bot.users.enums import ChatType, MainMenuText
@@ -37,6 +42,7 @@ class HelpRouter(BaseRouter):
         DeviceEnum.IOS: IphoneDevice,
         DeviceEnum.PC: PCDevice,
         DeviceEnum.TV: TVDevice,
+        DeviceEnum.SPLIT: SplitDevice,
     }
 
     def __init__(self, bot: Bot, logger: Logger, redis: SettingsRedis) -> None:
@@ -121,12 +127,14 @@ class HelpRouter(BaseRouter):
                     if hasattr(msg, "delete"):
                         await msg.delete()
                     await device_class.send_message(bot=self.bot, chat_id=chat_id)
-                elif call_device == "developer":
+                elif "developer" in call_device:
                     if hasattr(msg, "delete"):
                         await msg.delete()
+
                     await self.bot.send_message(
-                        text="Для связи напишите @BorisisTheBlade",
                         chat_id=chat_id,
+                        text="Для связи напишите @BorisisTheBlade",
+                        reply_markup=inline_developer_keyboard(),
                     )
         finally:
             await self.redis.delete(redis_key)
