@@ -1,6 +1,5 @@
 import asyncio
 import time
-from abc import ABC
 
 import aioboto3
 from aiogram import Bot
@@ -9,33 +8,48 @@ from bot.config import settings_bucket
 from bot.help.keyboards.inline_kb import send_link_button
 
 
-class Device(ABC):
-    """Абстрактный базовый класс для устройств, отправляющих сообщения пользователям.
+class Device:
+    """Базовый класс устройств для отправки инструкций пользователю.
 
-    Этот класс определяет интерфейс для всех типов устройств (например,
-    Android, iOS, PC, TV), которые должны реализовать метод `send_message`.
+    Класс реализует общую логику:
+    - получение файлов из S3-хранилища
+    - отправку изображений с подписями
+    - отправку кнопки со ссылкой (если задана)
 
+    Подклассы должны определить:
+        MESSAGES_PATH: list[str] — список caption для изображений
+        LINK_PATH: str | None — ссылка на скачивание приложения (опционально)
+
+    Используется как template-base класс для конкретных устройств
+    (Android, iOS, Windows и т.д.).
     """
 
     PREFIX = settings_bucket.prefix
     BUCKET_NAME = settings_bucket.bucket_name
     MESSAGES_PATH: str
-    LINK_PATH: str
+    LINK_PATH: str | None
 
     @classmethod
     async def send_message(cls, bot: Bot, chat_id: int) -> None:
-        """Отправляет сообщение в указанный чат.
+        """Отправляет пользователю серию инструкций с изображениями.
 
-        Этот метод должен быть реализован в подклассах для отправки
-        определённого типа сообщения (текста, фото, видео и т.д.) с помощью
-        экземпляра бота Aiogram.
+        Метод реализует общую логику отправки:
+        - получает список файлов из S3-хранилища
+        - отправляет изображения по порядку с подписями
+        - при наличии ссылки отправляет кнопку скачивания приложения
+
+        Подкласс должен определить:
+            MESSAGES_PATH (list[str]): список caption для изображений
+            LINK_PATH (str | None): ссылка на установку приложения (опционально)
 
         Args:
-            bot (Bot): Экземпляр бота Aiogram, используемый для отправки сообщения.
-            chat_id (int): Идентификатор чата Telegram, куда будет отправлено сообщение.
+            bot (Bot): Экземпляр aiogram-бота.
+            chat_id (int): Telegram chat_id пользователя.
 
         Raises
-            TelegramAPIError: Если при взаимодействии с Telegram API возникает ошибка.
+            TelegramAPIError: при ошибке отправки сообщения в Telegram.
+            botocore.exceptions.ClientError: при ошибке обращения к S3.
+            asyncio.TimeoutError: если запрос к хранилищу завис.
 
         """
         media = await cls._list_files()
