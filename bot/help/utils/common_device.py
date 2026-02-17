@@ -26,7 +26,7 @@ class Device:
 
     PREFIX = settings_bucket.prefix
     BUCKET_NAME = settings_bucket.bucket_name
-    MESSAGES_PATH: str
+    MESSAGES_PATH: list[str]
     LINK_PATH: str | None
 
     @classmethod
