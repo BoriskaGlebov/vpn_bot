@@ -7,7 +7,7 @@ from bot.help.utils.common_device import Device
 
 
 class SplitDevice(Device):
-    """Класс устройства, отвечающий за отправку инструкций для Android."""
+    """Отправляет пользователю инструкции по настройке раздельного туннелирования."""
 
     PREFIX = f"{settings_bucket.prefix}amnezia_split/"
     MESSAGES_PATH = settings_bot.messages.modes.help.instructions.split
@@ -31,6 +31,23 @@ class SplitDevice(Device):
         """
         media = await cls._list_files()
         messages = cls.MESSAGES_PATH
+
+        if not messages:
+            raise ValueError(f"{cls.__name__}: Пустой список инстуркций")
+
+        if not media:
+            raise ValueError(f"{cls.__name__}: Нет файлов в  S3")
+
+        if len(messages) < 1:
+            raise ValueError(
+                f"{cls.__name__}: сообщения должны содержать хотя бы 1 элемент"
+            )
+
+        if len(messages) not in {len(media), len(media) + 1, len(media) + 2}:
+            raise ValueError(
+                f"{cls.__name__}: media({len(media)}) and messages({len(messages)}) Неподходит"
+            )
+
         await bot.send_message(chat_id, messages[0], disable_web_page_preview=True)
         for file, caption in zip(media, messages[1:]):
             await bot.send_photo(chat_id=chat_id, photo=file, caption=caption)
