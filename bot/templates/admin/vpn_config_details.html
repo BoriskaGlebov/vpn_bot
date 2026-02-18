@@ -1,0 +1,55 @@
+{% extends "sqladmin/details.html" %}
+
+{% block content %}
+
+<div style="margin-bottom:20px">
+    <a href="/bot/admin/vpn-config/list" class="btn btn-secondary">⬅ Назад</a>
+
+    <button type="button" class="btn btn-danger"
+            onclick="if(confirm('Удалить конфиг?')) {
+            fetch('/bot/admin/vpn-config/delete?pks={{ model.id }}', { method: 'DELETE' })
+            .then(response => {
+                if(response.ok) window.location.href = '/bot/admin/vpn-config/list';
+                else alert('Ошибка при удалении');
+            });
+        }">
+        🗑 Удалить
+    </button>
+
+
+</div>
+
+<h2>🔐 VPN конфиг</h2>
+
+<table class="table table-bordered table-striped">
+    <tr>
+        <th>ID</th>
+        <td>{{ model.id }}</td>
+    </tr>
+    <tr>
+        <th>Пользователь</th>
+        <td>
+            {% if model.user %}
+                {{ model.user.username }} ({{ model.user.telegram_id }})
+            {% else %}
+                -
+            {% endif %}
+        </td>
+    </tr>
+    <tr>
+        <th>Имя файла</th>
+        <td>{{ model.file_name if model.file_name else "config" }}</td>
+    </tr>
+    <tr>
+        <th>Public Key</th>
+        <td>
+            {% if model.pub_key %}
+                <textarea readonly style="width:100%;height:120px;font-family:monospace;">{{ model.pub_key }}</textarea>
+            {% else %}
+                -
+            {% endif %}
+        </td>
+    </tr>
+</table>
+
+{% endblock %}
