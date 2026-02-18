@@ -1,0 +1,143 @@
+{% extends "sqladmin/details.html" %}
+
+{% block content %}
+
+<div style="margin-bottom:20px">
+
+    <a href="/bot/admin/user/list" class="btn btn-secondary">⬅ Назад</a>
+
+    <a href="/bot/admin/user/edit/{{ model.id }}" class="btn btn-primary">
+        ✏️ Редактировать
+    </a>
+
+    <a href="/bot/admin/user/delete/{{ model.id }}"
+       class="btn btn-danger"
+       onclick="return confirm('Удалить пользователя?')">
+        🗑 Удалить
+    </a>
+
+</div>
+
+
+<h2>👤 Пользователь</h2>
+
+<table class="table table-bordered">
+    <tr>
+        <th>ID</th>
+        <td>{{ model.id }}</td>
+    </tr>
+    <tr>
+        <th>Telegram ID</th>
+        <td>{{ model.telegram_id }}</td>
+    </tr>
+    <tr>
+        <th>Username</th>
+        <td>{{ model.username }}</td>
+    </tr>
+    <tr>
+        <th>Имя</th>
+        <td>{{ model.first_name }}</td>
+    </tr>
+    <tr>
+        <th>Фамилия</th>
+        <td>{{ model.last_name }}</td>
+    </tr>
+    <tr>
+        <th>Роль</th>
+        <td>{{ model.role.name if model.role else "-" }}</td>
+    </tr>
+    <tr>
+        <th>Использовал триал</th>
+        <td>{{ "Да" if model.has_used_trial else "Нет" }}</td>
+    </tr>
+</table>
+
+<hr>
+
+<h3>💳 Подписки пользователя</h3>
+
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Тип</th>
+        <th>Активна</th>
+        <th>Начало</th>
+        <th>Окончание</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for sub in model.subscriptions %}
+    <tr {% if sub.is_active %} style="background:#e6ffe6;" {% endif %}>
+        <td>{{ sub.id }}</td>
+        <td>{{ sub.type.name if sub.type else "-" }}</td>
+
+        <td>
+            {% if sub.is_active %}
+            <span style="color:green;font-weight:bold">АКТИВНА</span>
+            {% else %}
+            ❌
+            {% endif %}
+        </td>
+
+        <td>{{ sub.start_date.strftime("%Y-%m-%d") if sub.start_date else "-" }}</td>
+        <td>{{ sub.end_date.strftime("%Y-%m-%d") if sub.end_date else "∞" }}</td>
+
+        <td>
+            <a href="/bot/admin/subscription/details/{{ sub.id }}"
+               class="btn btn-sm btn-info">
+                👁 Открыть
+            </a>
+
+            <a href="/bot/admin/subscription/edit/{{ sub.id }}"
+               class="btn btn-sm btn-primary">
+                ✏️
+            </a>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="6">Нет подписок</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<hr>
+
+<h3>🔐 VPN конфиги</h3>
+
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Название</th>
+        <th>Создан</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for vpn in model.vpn_configs %}
+    <tr>
+        <td>{{ vpn.id }}</td>
+        <td>{{ vpn.file_name if vpn.file_name else "config" }}</td>
+        <td>{{ vpn.created_at.strftime("%Y-%m-%d %H:%M") if vpn.created_at else "-" }}</td>
+
+        <td>
+
+            <a href="/bot/admin/vpn-config/details/{{ vpn.id }}"
+               class="btn btn-sm btn-info">
+                👁
+            </a>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="4">Нет конфигов</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
