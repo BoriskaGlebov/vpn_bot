@@ -1,7 +1,9 @@
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import sqladmin
 import uvicorn
 from aiogram.types import Update
 from apscheduler.triggers.cron import CronTrigger
@@ -10,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 from sqladmin import Admin
 from sqladmin.templating import Jinja2Templates
 from starlette.responses import JSONResponse
+from starlette.staticfiles import StaticFiles
 
 from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
@@ -194,6 +197,13 @@ admin.add_view(RoleAdmin)
 admin.add_view(SubscriptionAdmin)
 admin.add_view(VPNConfigAdmin)
 admin.add_view(ReferralAdmin)
+
+sqladmin_static_path = os.path.join(os.path.dirname(sqladmin.__file__), "static")
+app.mount(
+    "/bot/admin/statics",
+    StaticFiles(directory=sqladmin_static_path),
+    name="sqladmin_static",
+)
 
 
 @app.post(
