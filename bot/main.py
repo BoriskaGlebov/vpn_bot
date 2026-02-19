@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 from sqladmin import Admin
 from sqladmin.templating import Jinja2Templates
 from starlette.responses import JSONResponse
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
@@ -194,6 +195,8 @@ admin.add_view(RoleAdmin)
 admin.add_view(SubscriptionAdmin)
 admin.add_view(VPNConfigAdmin)
 admin.add_view(ReferralAdmin)
+
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 
 @app.post(
