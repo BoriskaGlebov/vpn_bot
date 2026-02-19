@@ -9,6 +9,8 @@ services:
       TZ: Europe/Moscow
     volumes:
       - vpn_bot_logs:/vpn_bot/bot/logs
+      - static_files1:/vpn_bot/.venv/lib/python3.12/site-packages/sqladmin
+      - static_files2:/vpn_bot/bot/templates
     deploy:
       resources:
         limits:
