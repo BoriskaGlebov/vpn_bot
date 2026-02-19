@@ -25,6 +25,7 @@ class SettingsBot(BaseSettings):
         bot_token (SecretStr): Токен бота для подключения к Telegram Bot API.
         admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
         base_site (str): Базовый URL сайта, используемый для формирования вебхука.
+        session_secret (SecretStr): Подпись сессии.
         vpn_host (str): Хост VPN-сервера.
         vpn_username (str): Имя пользователя для подключения к VPN.
         vpn_container (str): Имя Docker-контейнера VPN (если используется).
@@ -48,6 +49,7 @@ class SettingsBot(BaseSettings):
     bot_token: SecretStr
     admin_ids: set[int] | str = ""
     base_site: str
+    session_secret: SecretStr
 
     vpn_host: str
     vpn_username: str

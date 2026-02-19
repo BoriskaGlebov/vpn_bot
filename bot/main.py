@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel, ValidationError
 from sqladmin import Admin
 from sqladmin.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
@@ -29,6 +30,7 @@ from bot.subscription.router import SubscriptionRouter
 from bot.subscription.services import SubscriptionService
 from bot.subscription.utils.scheduler_cron import scheduled_check, scheduler
 from bot.users.admin import RoleAdmin, UserAdmin
+from bot.users.auth_admin import AdminAuth
 from bot.users.router import UserRouter
 from bot.users.services import UserService
 from bot.utils.init_default_roles import init_default_roles_admins
@@ -187,8 +189,22 @@ API предоставляет доступ к функционалу бота �
     },
     lifespan=lifespan,
 )
+
+app.add_middleware(
+    SessionMiddleware, secret_key=settings_bot.session_secret.get_secret_value()
+)
+authentication_backend = AdminAuth(
+    secret_key=settings_bot.session_secret.get_secret_value()
+)
+
 templates = Jinja2Templates(directory="bot/templates")
-admin = Admin(app, engine, title="Админ панель Админа", templates_dir="bot/templates")
+admin = Admin(
+    app,
+    engine,
+    title="Админ панель Админа",
+    templates_dir="bot/templates",
+    authentication_backend=authentication_backend,
+)
 admin.add_view(UserAdmin)
 admin.add_view(RoleAdmin)
 admin.add_view(SubscriptionAdmin)

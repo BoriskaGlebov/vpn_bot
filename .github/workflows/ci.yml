@@ -78,6 +78,7 @@ jobs:
           ENV_FILE: .env.test
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          SESSION_SECRET: ${{secrets.SESSION_SECRET}}
           BASE_SITE: ${{ vars.BASE_SITE }}
           DB_DATABASE: ${{vars.DB_DATABASE}}
           DB_PASSWORD: ${{vars.DB_PASSWORD}}
@@ -134,6 +135,7 @@ jobs:
             echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env.local
             echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env.local
             echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env.local
+            echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}">>env.local
             echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env.local
 
             echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env.local
