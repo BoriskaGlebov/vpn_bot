@@ -75,11 +75,11 @@ class UserAdmin(ModelView, model=User):
         "vpn_files_count": "Количество конфиг файлов",
     }
     column_formatters = {
-        "role": format_role,
-        "current_subscription": format_current_subscription,
-        "format_files_count": format_files_count,
-        User.username: lambda m, a: m.username[:10],
-    }
+        "role": format_role,  # type: ignore[misc, dict-item]
+        "current_subscription": format_current_subscription,  # type: ignore[misc, dict-item]
+        "format_files_count": format_files_count,  # type: ignore[misc, dict-item]
+        User.username: lambda m, a: m.username[:10],  # type: ignore[misc, attr-defined]
+    }  # type: ignore[misc, assignment]
     name = "Пользователь"
     name_plural = "Пользователи"
     form_columns = [
@@ -143,10 +143,10 @@ class RoleAdmin(ModelView, model=Role):
     column_sortable_list = [Role.id, Role.name]
     column_searchable_list = [Role.name, Role.description]
     column_formatters = {
-        "users_list": lambda m, a: (
-            ", ".join(str(u) for u in m.users) if m.users else "-"
+        "users_list": lambda m, a: (  # type: ignore[misc, dict-item]
+            ", ".join(str(u) for u in m.users) if m.users else "-"  # type: ignore[misc, attr-defined,dict-item]
         ),
-        "users_count": format_users_count,
+        "users_count": format_users_count,  # type: ignore[misc, dict-item]
     }
 
     can_create = False

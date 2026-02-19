@@ -92,7 +92,7 @@ class User(Base):
         """
         return len(self.vpn_configs)
 
-    @vpn_files_count.expression
+    @vpn_files_count.expression  # type: ignore[no-redef]
     def vpn_files_count(cls) -> ScalarSelect[Any]:
         """Выражение для сортировки и фильтрации по количеству VPN конфигов.
 

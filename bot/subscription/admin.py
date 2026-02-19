@@ -5,6 +5,27 @@ from bot.subscription.models import Subscription
 from bot.users.models import User
 
 
+def fmt_remaining_days(m: Subscription, _: str) -> str:
+    """Форматер для оставшихся дней подписки."""
+    value = m.remaining_days()
+    return "∞" if value is None else str(value)
+
+
+def fmt_type(m: Subscription, _: str) -> str:
+    """Форматер для типа подписки."""
+    return m.type.value.upper() if m.type else "-"
+
+
+def fmt_active(m: Subscription, _: str) -> str:
+    """Форматер для статуса подписки."""
+    return "🟢 АКТИВНА" if m.is_active else "🔴 НЕТ"
+
+
+def fmt_user(m: Subscription, _: str) -> str:
+    """Форматер для отображения пользователя."""
+    return f"{m.user.username} ({m.user.telegram_id})" if m.user else "-"
+
+
 class SubscriptionAdmin(ModelView, model=Subscription):
     """Админка для управления объектами Subscription.
 
@@ -81,15 +102,11 @@ class SubscriptionAdmin(ModelView, model=Subscription):
     }
 
     column_formatters = {
-        "remaining_days": lambda m, a: (
-            "∞" if m.remaining_days() is None else m.remaining_days()
-        ),
-        "type": lambda m, a: (m.type.value.upper() if m.type else "-"),
-        "is_active": lambda m, a: ("🟢 АКТИВНА" if m.is_active else "🔴 НЕТ"),
-        "user": lambda m, a: (
-            f"{m.user.username} ({m.user.telegram_id})" if m.user else "-"
-        ),
-    }
+        "remaining_days": fmt_remaining_days,  # type: ignore[misc, dict-item]
+        "type": fmt_type,  # type: ignore[misc, dict-item]
+        "is_active": fmt_active,  # type: ignore[misc, dict-item]
+        "user": fmt_user,  # type: ignore[misc, dict-item]
+    }  # type: ignore[misc, assignment]
 
     can_create = True
     can_edit = True

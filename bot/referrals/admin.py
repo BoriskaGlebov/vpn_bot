@@ -76,14 +76,14 @@ class ReferralAdmin(ModelView, model=Referral):
 
     column_formatters = {
         "inviter": lambda m, a: (
-            f"{m.inviter.username} ({m.inviter.telegram_id})" if m.inviter else "-"
+            f"{m.inviter.username} ({m.inviter.telegram_id})" if m.inviter else "-"  # type: ignore[misc, attr-defined]
         ),
         "invited": lambda m, a: (
-            f"{m.invited.username} ({m.invited.telegram_id})" if m.invited else "-"
+            f"{m.invited.username} ({m.invited.telegram_id})" if m.invited else "-"  # type: ignore[misc, attr-defined]
         ),
-        "bonus_given": lambda m, a: ("✅ Да" if m.bonus_given else "❌ Нет"),
-        "bonus_given_at": lambda m, a: (
-            m.bonus_given_at.strftime("%Y-%m-%d %H:%M") if m.bonus_given_at else "-"
+        "bonus_given": lambda m, a: ("✅ Да" if m.bonus_given else "❌ Нет"),  # type: ignore[misc, attr-defined]
+        "bonus_given_at": lambda m, a: (  # type: ignore[misc, dict-item]
+            m.bonus_given_at.strftime("%Y-%m-%d %H:%M") if m.bonus_given_at else "-"  # type: ignore[misc, attr-defined]
         ),
     }
 

@@ -20,7 +20,7 @@ class ActiveSubscriptionFilter:
     title = "Активная подписка"
     parameter_name = "active_subscription"
 
-    def lookups(
+    async def lookups(
         self, request: Request, model: Any, run_query: Any
     ) -> list[tuple[str, str]]:
         """Возвращает возможные значения фильтра и их человекочитаемые названия.
