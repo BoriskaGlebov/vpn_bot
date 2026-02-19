@@ -135,7 +135,7 @@ jobs:
             echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env.local
             echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env.local
             echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env.local
-            echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}">>env.local
+            echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}">> .env.local
             echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env.local
 
             echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env.local
@@ -208,6 +208,7 @@ jobs:
             echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env
             echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env
             echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env
+            echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}" >> .env
             echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env
 
             echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env
