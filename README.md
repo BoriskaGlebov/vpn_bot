@@ -102,6 +102,8 @@ PREFIX=media/
 ENDPOINT_URL=https://storage.yandexcloud.net
 ACCESS_KEY=your_key
 SECRET_KEY=your_key
+#SESSION
+SESSION_SECRET=secret
 ```
 
 Ключевые переменные:

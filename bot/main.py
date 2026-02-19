@@ -7,30 +7,38 @@ from aiogram.types import Update
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel, ValidationError
+from sqladmin import Admin
+from sqladmin.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
 from bot.config import bot, dp, logger, settings_bot
+from bot.database import engine
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.news.router import NewsRouter
 from bot.news.services import NewsService
 from bot.redis_manager import redis_manager
+from bot.referrals.admin import ReferralAdmin
 from bot.referrals.router import ReferralRouter
 from bot.referrals.services import ReferralService
+from bot.subscription.admin import SubscriptionAdmin
 from bot.subscription.router import SubscriptionRouter
 from bot.subscription.services import SubscriptionService
 from bot.subscription.utils.scheduler_cron import scheduled_check, scheduler
+from bot.users.admin import RoleAdmin, UserAdmin
+from bot.users.auth_admin import AdminAuth
 from bot.users.router import UserRouter
 from bot.users.services import UserService
 from bot.utils.init_default_roles import init_default_roles_admins
 from bot.utils.start_stop_bot import start_bot, stop_bot
+from bot.vpn.admin import VPNConfigAdmin
 from bot.vpn.router import VPNRouter
 from bot.vpn.services import VPNService
 
-#
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
     {
@@ -46,7 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Менеджер жизненного цикла для FastAPI-приложения.
 
     Эта функция управляет настройкой и завершением работы бота, включая регистрацию роутеров,
-    запуск бота, настройку вебхука и очистку при завершении работы.
+    запуск бота, настройку вебхука и очистку при завершении работы бота.
     """
     logger.info("Запуск настройки бота...")
     await redis_manager.connect()
@@ -182,6 +190,27 @@ API предоставляет доступ к функционалу бота �
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    SessionMiddleware, secret_key=settings_bot.session_secret.get_secret_value()
+)
+authentication_backend = AdminAuth(
+    secret_key=settings_bot.session_secret.get_secret_value()
+)
+
+templates = Jinja2Templates(directory="bot/templates")
+admin = Admin(
+    app,
+    engine,
+    title="Админ панель Админа",
+    templates_dir="bot/templates",
+    authentication_backend=authentication_backend,
+)
+admin.add_view(UserAdmin)
+admin.add_view(RoleAdmin)
+admin.add_view(SubscriptionAdmin)
+admin.add_view(VPNConfigAdmin)
+admin.add_view(ReferralAdmin)
+
 
 @app.post(
     "/webhook",
@@ -283,4 +312,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8088,
         reload=settings_bot.reload_fast_api,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
     )
