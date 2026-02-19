@@ -297,5 +297,5 @@ if __name__ == "__main__":
         port=8088,
         reload=settings_bot.reload_fast_api,
         proxy_headers=True,
-        forwarded_allow_ips="127.0.0.1,localhost,help-blocks.ru, vpn-boriska.ru",
+        forwarded_allow_ips="*",
     )
