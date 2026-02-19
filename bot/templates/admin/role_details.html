@@ -1,0 +1,73 @@
+{% extends "sqladmin/details.html" %}
+
+{% block content %}
+{{ super() }}
+
+<hr>
+<h3>Пользователи с этой ролью</h3>
+
+{% if model.users %}
+<table class="table table-striped table-hover">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Telegram</th>
+        <th>Username</th>
+        <th>Имя</th>
+        <th>Фамилия</th>
+        <th>Триал использован</th>
+        <th>Подписка</th>
+        <th>Конфиг файлы</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for user in model.users %}
+    <tr>
+        <td>{{ user.id }}</td>
+        <td>{{ user.telegram_id }}</td>
+        <td>{{ user.username or "-" }}</td>
+        <td>{{ user.first_name or "-" }}</td>
+        <td>{{ user.last_name or "-" }}</td>
+        <td>
+            {% if user.has_used_trial %}
+            <span class="text-success">✔</span>
+            {% else %}
+            <span class="text-danger">✖</span>
+            {% endif %}
+        </td>
+        <td>
+            {% if user.current_subscription %}
+            {% set sub = user.current_subscription %}
+            {% set type_color = {
+            "TRIAL": "warning",
+            "STANDARD": "secondary",
+            "PREMIUM": "success"
+            }[sub.type.name] %}
+            <span class="badge bg-{{ type_color }}">
+            {{ sub.type.name }}
+            {% if sub.end_date %}
+                до {{ sub.end_date.strftime('%Y-%m-%d') }}
+            {% endif %}
+        </span>
+            {% else %}
+            <span class="badge bg-light text-dark">Нет</span>
+            {% endif %}
+        </td>
+        <td>{{ user.vpn_configs | length or "Пока нет" }}</td>
+
+        <td>
+            <a href="{{ url_for('admin:details', identity='user', pk=user.id) }}"
+               class="btn btn-sm btn-primary">
+                открыть
+            </a>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Нет пользователей</p>
+{% endif %}
+
+{% endblock %}

@@ -1,4 +1,7 @@
-from sqlalchemy import BigInteger, ForeignKey, case
+from typing import Any
+
+from sqlalchemy import BigInteger, ForeignKey, ScalarSelect, case, func, select
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from bot.database import Base, int_pk, str_null_true, str_uniq
@@ -77,6 +80,39 @@ class User(Base):
 
         return self.subscriptions[0]
 
+    @hybrid_property
+    def vpn_files_count(self) -> int:
+        """Возвращает количество VPN конфигов, связанных с пользователем.
+
+        Это обычный Python property, которое считает элементы в списке `vpn_configs`.
+
+        Returns
+            int: Количество VPN конфигов пользователя.
+
+        """
+        return len(self.vpn_configs)
+
+    @vpn_files_count.expression  # type: ignore[no-redef]
+    def vpn_files_count(cls) -> ScalarSelect[Any]:
+        """Выражение для сортировки и фильтрации по количеству VPN конфигов.
+
+        Используется в запросах SQLAlchemy, чтобы можно было сортировать или фильтровать
+        пользователей по числу их VPN конфигов без загрузки всех объектов в память.
+
+        Returns
+           sqlalchemy.sql.elements.ScalarSelect: Подзапрос, возвращающий количество
+           VPN конфигов для каждого пользователя.
+
+        """
+        from bot.vpn.models import VPNConfig
+
+        return (
+            select(func.count(VPNConfig.id))
+            .where(VPNConfig.user_id == cls.id)
+            .correlate(cls)
+            .scalar_subquery()
+        )
+
 
 class Role(Base):
     """Модель роли пользователя.
@@ -101,3 +137,8 @@ class Role(Base):
     def __str__(self) -> str:
         """Строковое представление для записи."""
         return f"{self.name} - {self.description}"
+
+    @property
+    def users_count(self) -> int:
+        """Свойство отображает количество пользователй Роли."""
+        return len(self.users) if self.users else 0

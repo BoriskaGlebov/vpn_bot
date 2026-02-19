@@ -1,0 +1,52 @@
+{% extends "sqladmin/details.html" %}
+
+{% block content %}
+
+<div style="margin-bottom:20px">
+    <a href="/bot/admin/subscription/list" class="btn btn-secondary">⬅ Назад</a>
+
+    <a href="/bot/admin/subscription/edit/{{ model.id }}" class="btn btn-primary">
+        ✏️ Редактировать
+    </a>
+</div>
+
+<h2>💳 Подписка пользователя</h2>
+
+<table class="table table-bordered table-striped">
+    <tr>
+        <th>ID</th>
+        <td>{{ model.id }}</td>
+    </tr>
+    <tr>
+        <th>Пользователь</th>
+        <td>{{ model.user.username if model.user else "-" }} ({{ model.user.telegram_id if model.user else "-" }})</td>
+    </tr>
+    <tr>
+        <th>Тип</th>
+        <td>{{ model.type.value.upper() if model.type else "-" }}</td>
+    </tr>
+    <tr>
+        <th>Активна</th>
+        <td>
+            {% if model.is_active %}
+                <span style="color:green;font-weight:bold">🟢 АКТИВНА</span>
+            {% else %}
+                <span style="color:red;font-weight:bold">🔴 НЕТ</span>
+            {% endif %}
+        </td>
+    </tr>
+    <tr>
+        <th>Начало</th>
+        <td>{{ model.start_date.strftime("%Y-%m-%d") if model.start_date else "-" }}</td>
+    </tr>
+    <tr>
+        <th>Конец</th>
+        <td>{{ model.end_date.strftime("%Y-%m-%d") if model.end_date else "∞" }}</td>
+    </tr>
+    <tr>
+        <th>Осталось дней</th>
+        <td>{{ model.remaining_days() if model.remaining_days() is not none else "∞" }}</td>
+    </tr>
+</table>
+
+{% endblock %}

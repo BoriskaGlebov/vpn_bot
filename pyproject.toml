@@ -28,6 +28,8 @@ python-box = "^7.3.2"
 pyyaml = "^6.0.3"
 asyncssh = "^2.21.1"
 requests = "^2.32.5"
+sqladmin = "^0.23.0"
+flask-admin = "^2.0.2"
 
 
 [tool.poetry.group.dev.dependencies]
