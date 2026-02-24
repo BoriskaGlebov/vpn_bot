@@ -15,19 +15,23 @@ services:
       - infrastructure_net
   nginx_vpn_bot:
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+#      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - /var/www/certbot:/var/www/certbot:ro   # Монтируем директорию с хоста
       - /etc/letsencrypt:/etc/letsencrypt:ro # Путь к сертификатам, если используете Certbot
       - /etc/ssl/private/dhparam.pem:/etc/ssl/private/dhparam.pem:ro  # Монтируем файл DH параметров
       - static_files1:/usr/src/app/static # Подключение статических файлов
       - static_files2:/usr/src/app/templates  # Подключение шаблонов Jinja2
+    ports:
+      - "80:80"
+      - "443:443"
     networks:
-      - shared_net
+#      - shared_net
       - infrastructure_net
 networks:
-  shared_net:
-    name: shared_net
-    external: true
+#  shared_net:
+#    name: shared_net
+#    external: true
   infrastructure_net:
     name: infrastructure_net
     driver: bridge

@@ -121,7 +121,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
             set -e
-            cd /home/vpn_user/test_zone/vpn_bot || exit 1
+            cd /home/prod_server/production/vpn_bot || exit 1
             echo "Pull latest code..."
             git checkout develop
             git fetch origin develop
@@ -164,7 +164,10 @@ jobs:
             echo "Restart Docker containers..."
             make compose-down
             make compose-up
+
+            docker service update --force --detach=false monitoring_nginx
           EOF
+
 
 
 
@@ -194,7 +197,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
             set -e
-            cd /home/prod_server/production/vpn_bot || exit 1
+            cd /home/vpn_user/test_zone/vpn_bot || exit 1
             echo "Pull latest code..."
             git checkout main
             git fetch origin main
