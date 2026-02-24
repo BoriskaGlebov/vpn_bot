@@ -171,6 +171,7 @@ jobs:
 
 
 
+
   deploy_prod:
     needs: [ lint, test ]
     runs-on: ubuntu-latest
@@ -196,7 +197,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
             set -e
-            cd /home/prod_server/production/vpn_bot || exit 1
+            cd /home/vpn_user/test_zone/vpn_bot || exit 1
             echo "Pull latest code..."
             git checkout main
             git fetch origin main
