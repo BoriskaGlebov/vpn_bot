@@ -11,7 +11,7 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - shared_net
+#      - shared_net
       - infrastructure_net
   nginx_vpn_bot:
     volumes:
