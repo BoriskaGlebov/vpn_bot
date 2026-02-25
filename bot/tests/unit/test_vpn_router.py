@@ -3,6 +3,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from aiogram.types import Chat, Message, ReplyKeyboardRemove, User
+from subscription.router import m_subscription
+from vpn.router import m_vpn
 
 from bot.vpn.router import VPNRouter
 from bot.vpn.services import VPNService
@@ -43,7 +45,7 @@ async def test_get_config_amnezia_vpn(
 
         # Проверяем что бот отправил сообщение о генерации
         fake_message.answer.assert_any_await(
-            "⏳ Генерирую твой конфиг AmneziaVPN...\nЭто может занять несколько секунд.",
+            text=m_vpn.amnezia_vpn,
             reply_markup=ReplyKeyboardRemove(),
         )
 
@@ -95,7 +97,7 @@ async def test_get_config_amnezia_wg(
         )
 
         fake_message.answer.assert_any_await(
-            "⏳ Генерирую твой конфиг AmneziaWG...\nЭто может занять несколько секунд.",
+            text=m_vpn.amnezia_wg,
             reply_markup=ReplyKeyboardRemove(),
         )
 
@@ -133,7 +135,7 @@ async def test_check_subscription(
             tg_id=fake_message.from_user.id, session=session
         )
         fake_message.answer.assert_awaited_with(
-            "Проверка статуса подписки", reply_markup=ReplyKeyboardRemove()
+            text=m_subscription.check_subscription, reply_markup=ReplyKeyboardRemove()
         )
         fake_bot.send_message.assert_awaited_with(
             chat_id=fake_message.from_user.id, text="Подписка активна"
