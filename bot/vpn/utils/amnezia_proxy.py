@@ -4,10 +4,11 @@ from collections.abc import AsyncGenerator
 from types import TracebackType
 
 import asyncssh
-from config import settings_bot
 from loguru import logger
-from vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
-from vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
+
+from bot.config import settings_bot
+from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
+from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
 
 
 class AsyncDockerSSHClient:
@@ -297,7 +298,6 @@ class AmneziaProxy:
         stdout, _, exit_code, _ = await self.client.write_single_cmd(check_cmd)
 
         if exit_code == 0:
-            # Пользователь уже есть — извлекаем пароль
             try:
                 existing_password = stdout.strip().split(":")[2]
             except (IndexError, ValueError):
@@ -316,6 +316,7 @@ class AmneziaProxy:
 
         if code == 0:
             logger.success(f"Пользователь {username} успешно добавлен")
+            await self.reload_3proxy()
             return self._build_tg_link(username, password)
 
         raise AmneziaSSHError(
