@@ -29,6 +29,7 @@ class SettingsBot(BaseSettings):
         vpn_host (str): Хост VPN-сервера.
         vpn_username (str): Имя пользователя для подключения к VPN.
         vpn_container (str): Имя Docker-контейнера VPN (если используется).
+        vpn_proxy (str) : Имя Docker-контейнера PROXY (если используется).
         max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
         use_polling (bool): Использовать polling вместо webhook (по умолчанию False, удобно для тестов).
         use_local (bool): Учитывать место развертывание бота, локальная машина или целевой хост.
@@ -49,11 +50,12 @@ class SettingsBot(BaseSettings):
     bot_token: SecretStr
     admin_ids: set[int] | str = ""
     base_site: str
-    session_secret: SecretStr
+    session_secret: SecretStr = SecretStr("secret")
 
     vpn_host: str
     vpn_username: str
     vpn_container: str
+    vpn_proxy: str
     max_configs_per_user: int = 10
 
     use_polling: bool = False

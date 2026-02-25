@@ -1,20 +1,29 @@
 import asyncio
+import uuid
 from typing import TYPE_CHECKING
 
 from aiogram import Bot, F
 from aiogram.fsm.context import FSMContext
-from aiogram.types import FSInputFile, Message, ReplyKeyboardRemove
+from aiogram.types import (
+    FSInputFile,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+    ReplyKeyboardRemove,
+)
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import SettingsRedis
 from bot.users.enums import MainMenuText
 from bot.utils.base_router import BaseRouter
 from bot.vpn.services import VPNService
+from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
@@ -47,6 +56,10 @@ class VPNRouter(BaseRouter):
         self.router.message.register(
             self.check_subscription,
             F.text == MainMenuText.CHECK_STATUS.value,
+        )
+        self.router.message.register(
+            self.create_proxy_url,
+            F.text == MainMenuText.AMNEZIA_PROXY.value,
         )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
@@ -162,3 +175,47 @@ class VPNRouter(BaseRouter):
             )
             await self.bot.send_message(chat_id=user.id, text=info_text)
             await state.clear()
+
+    @BaseRouter.log_method
+    @connection()
+    @BaseRouter.require_user
+    async def create_proxy_url(
+        self, message: Message, session: AsyncSession, user: TgUser
+    ) -> None:
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await message.answer(
+                "⏳ Генерирую твою ссылку для подключения к прокси...\n"
+                "Это может занять несколько секунд.",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            async with ssh_lock:
+                async with AsyncDockerSSHClient(
+                    host=settings_bot.vpn_host,
+                    username=settings_bot.vpn_username,
+                    container=settings_bot.vpn_proxy,
+                ) as client:
+                    info = await self.vpn_service.get_subscription_info(
+                        tg_id=user.id, session=session
+                    )
+                    if "Активна" in info:
+                        proxy = AmneziaProxy(client=client)
+                        password = uuid.uuid4().hex
+                        url_proxy = await proxy.add_user(
+                            username=str(user.id), password=password
+                        )
+                        keyboard = InlineKeyboardMarkup(
+                            inline_keyboard=[
+                                [
+                                    InlineKeyboardButton(
+                                        text="📨 Поделиться ссылкой",
+                                        url=url_proxy,
+                                    )
+                                ]
+                            ]
+                        )
+                        await message.answer(
+                            text="Нажать и добавить прокси в телеграм",
+                            reply_markup=keyboard,
+                        )
+                    else:
+                        raise SubscriptionNotFoundError(user_id=user.id)

@@ -2,6 +2,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.config import logger, settings_bot
 from bot.dao.base import BaseDAO
 from bot.subscription.models import DEVICE_LIMITS
@@ -43,7 +44,9 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 or 0
             )
             logger.debug(f"[DAO] У пользователя {user_id} конфигов: {count}")
-
+            if user and not user.current_subscription.is_active:
+                logger.warning("Нет активной подписки.")
+                raise SubscriptionNotFoundError(user_id=user_id)
             if user and count == 0:
                 return True
             sub_type = user.current_subscription.type
@@ -54,7 +57,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             return count < max_configs
 
         except SQLAlchemyError as e:
-            logger.error(f"[DAO] Ошибка при припроверке лимита конфиг файлов: {e}")
+            logger.error(f"[DAO] Ошибка при при проверке лимита конфиг файлов: {e}")
             raise e
 
     @classmethod

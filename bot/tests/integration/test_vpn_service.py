@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -5,6 +6,9 @@ import pytest
 from aiogram.types import User as TgUser
 
 from bot.app_error.base_error import UserNotFoundError, VPNLimitError
+from bot.subscription.models import Subscription, SubscriptionType
+from bot.users.dao import UserDAO
+from bot.users.schemas import SUserTelegramID
 from bot.vpn.services import VPNService
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
@@ -25,7 +29,16 @@ async def test_generate_user_config_success(session, user_service):
         is_bot=False,
     )
     user_out, created = await user_service.register_or_get_user(session, telegram_user)
+    user_db = await UserDAO.find_one_or_none(
+        session=session,
+        filters=SUserTelegramID(telegram_id=telegram_user.id),
+    )
 
+    user_db.current_subscription.is_active = True
+    user_db.current_subscription.type = SubscriptionType.STANDARD
+    user_db.current_subscription.end_date = datetime.now() + timedelta(days=30)
+
+    await session.commit()
     # Мокаем SSH-клиент
     ssh_client = AsyncSSHClientWG(
         host="127.0.0.1",
