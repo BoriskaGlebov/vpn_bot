@@ -137,6 +137,7 @@ jobs:
             echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env.local
             echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env.local
             echo "VPN_PROXY=${{ secrets.VPN_PROXY }}" >> .env.local
+            echo "PROXY_PORT=${{ secrets.PROXY_PORT }}" >> .env.local
             echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}">> .env.local
             echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env.local
 
@@ -214,6 +215,7 @@ jobs:
             echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env
             echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env
             echo "VPN_PROXY=${{ secrets.VPN_PROXY }}" >> .env
+            echo "PROXY_PORT=${{ secrets.PROXY_PORT }}" >> .env
             echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}" >> .env
             echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env
 

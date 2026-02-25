@@ -205,7 +205,9 @@ class VPNRouter(BaseRouter):
                         tg_id=user.id, session=session
                     )
                     if "Активна" in info:
-                        proxy = AmneziaProxy(client=client)
+                        proxy = AmneziaProxy(
+                            client=client, port=settings_bot.proxy_port
+                        )
                         password = uuid.uuid4().hex
                         url_proxy = await proxy.add_user(
                             username=str(user.id), password=password

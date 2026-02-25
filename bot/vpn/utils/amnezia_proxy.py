@@ -408,7 +408,7 @@ if __name__ == "__main__":
             container=settings_bot.vpn_proxy,
         ) as client:
             await client.connect()
-            proxy = AmneziaProxy(client=client)
+            proxy = AmneziaProxy(client=client, port=settings_bot.proxy_port)
             await proxy._check_container()
             await proxy.add_user(username="user1", password="password")
             # await proxy.delete_user(username="user1")
