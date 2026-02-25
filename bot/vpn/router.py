@@ -32,6 +32,9 @@ if TYPE_CHECKING:
 
 ssh_lock = asyncio.Lock()
 
+m_vpn = settings_bot.messages.modes.vpn
+m_subscription = settings_bot.messages.modes.subscription
+
 
 class VPNRouter(BaseRouter):
     """Роутер для обработки команд VPN."""
@@ -86,7 +89,7 @@ class VPNRouter(BaseRouter):
             return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             status_msg = await message.answer(
-                "⏳ Генерирую твой конфиг AmneziaVPN...\nЭто может занять несколько секунд.",
+                text=m_vpn.amnezia_vpn,
                 reply_markup=ReplyKeyboardRemove(),
             )
             try:
@@ -105,7 +108,7 @@ class VPNRouter(BaseRouter):
                             user=user,
                             ssh_client=ssh_client,
                         )
-                        await status_msg.answer("✅ Конфиг готов! Отправляю...")
+                        await status_msg.answer(text=m_vpn.config_ready)
 
                         await message.answer_document(
                             document=FSInputFile(path=file_path)
@@ -128,7 +131,7 @@ class VPNRouter(BaseRouter):
             return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             status_msg = await message.answer(
-                "⏳ Генерирую твой конфиг AmneziaWG...\nЭто может занять несколько секунд.",
+                text=m_vpn.amnezia_wg,
                 reply_markup=ReplyKeyboardRemove(),
             )
             try:
@@ -147,7 +150,7 @@ class VPNRouter(BaseRouter):
                             user=user,
                             ssh_client=ssh_client,
                         )
-                        await status_msg.answer("✅ Конфиг готов! Отправляю...")
+                        await status_msg.answer(text=m_vpn.config_ready)
 
                         await message.answer_document(
                             document=FSInputFile(path=file_path)
@@ -171,7 +174,8 @@ class VPNRouter(BaseRouter):
             )
 
             await message.answer(
-                "Проверка статуса подписки", reply_markup=ReplyKeyboardRemove()
+                text=m_subscription.check_subscription,
+                reply_markup=ReplyKeyboardRemove(),
             )
             await self.bot.send_message(chat_id=user.id, text=info_text)
             await state.clear()
@@ -184,8 +188,11 @@ class VPNRouter(BaseRouter):
     ) -> None:
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await message.answer(
-                "⏳ Генерирую твою ссылку для подключения к прокси...\n"
-                "Это может занять несколько секунд.",
+                text=m_vpn.proxy_intro,
+            )
+            await asyncio.sleep(0.5)
+            await message.answer(
+                text=m_vpn.amnezia_proxy,
                 reply_markup=ReplyKeyboardRemove(),
             )
             async with ssh_lock:
@@ -213,9 +220,15 @@ class VPNRouter(BaseRouter):
                                 ]
                             ]
                         )
-                        await message.answer(
-                            text="Нажать и добавить прокси в телеграм",
-                            reply_markup=keyboard,
-                        )
+                        for num, mess in enumerate(m_vpn.proxy_ready):
+                            if not num:
+                                await message.answer(
+                                    text=mess,
+                                    reply_markup=keyboard,
+                                )
+                                continue
+
+                            await message.answer(text=mess)
+
                     else:
                         raise SubscriptionNotFoundError(user_id=user.id)
