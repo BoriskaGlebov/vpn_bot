@@ -23,6 +23,7 @@ from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.models import VPNConfig
 from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
+from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -305,6 +306,7 @@ class SubscriptionService:
                 tg_id=user.telegram_id,
             )
             stats.notified += 1
+            await self._delete_proxy(user=user)
 
         if sub.end_date:
             delta = datetime.datetime.now(datetime.UTC) - sub.end_date
@@ -442,6 +444,25 @@ class SubscriptionService:
                         raise
 
         return deleted_count
+
+    async def _delete_proxy(self, user: User) -> None:
+        async with ssh_lock:
+            async with AsyncDockerSSHClient(
+                host=settings_bot.vpn_host,
+                username=settings_bot.vpn_username,
+                container=settings_bot.vpn_proxy,
+            ) as client:
+                proxy = AmneziaProxy(client=client)
+                try:
+                    res = await proxy.delete_user(username=str(user.telegram_id))
+                    if res:
+                        await self._send_user_message(
+                            tg_id=user.telegram_id,
+                            message="⚠️ Настройки прокси удалены.",
+                        )
+                except AmneziaError as e:
+                    self.logger.error(f"SSH deletion error: {e}")
+                    raise
 
     async def _delete_all_configs(self, session: AsyncSession, user: User) -> int:
         """Удаляет все VPN-конфиги пользователя.
