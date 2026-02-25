@@ -21,7 +21,7 @@ from aiogram.exceptions import (
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from loguru._logger import Logger
 
-from bot.app_error.base_error import VPNLimitError
+from bot.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
 from bot.config import settings_bot
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
@@ -58,6 +58,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
         self.error_messages: dict[type[Exception], str] = {
             VPNLimitError: "⚠️ Слишком много запросов. Превышен лимит на количество устройств",
+            SubscriptionNotFoundError: "⚠️ Ошибка отсутствует подписка",
             TelegramRetryAfter: "⚠️ Слишком много запросов.",
             TelegramForbiddenError: "⚠️ Доступ запрещён.",
             TelegramUnauthorizedError: "⚠️ Ошибка авторизации.",

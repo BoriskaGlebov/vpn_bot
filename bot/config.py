@@ -50,7 +50,7 @@ class SettingsBot(BaseSettings):
     bot_token: SecretStr
     admin_ids: set[int] | str = ""
     base_site: str
-    session_secret: SecretStr
+    session_secret: SecretStr = "secret"
 
     vpn_host: str
     vpn_username: str

@@ -16,6 +16,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import SettingsRedis
@@ -217,7 +218,4 @@ class VPNRouter(BaseRouter):
                             reply_markup=keyboard,
                         )
                     else:
-                        await message.answer(
-                            text="Нужна любая активная подписка для использования прокси!",
-                            reply_markup=ReplyKeyboardRemove(),
-                        )
+                        raise SubscriptionNotFoundError(user_id=user.id)

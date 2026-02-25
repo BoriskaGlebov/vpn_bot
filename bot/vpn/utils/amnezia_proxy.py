@@ -362,6 +362,7 @@ class AmneziaProxy:
 
         if code == 0:
             logger.success(f"Пользователь {username} удалён")
+            await self.client.restart_container()
             return True
 
         raise AmneziaSSHError(

@@ -25,6 +25,8 @@ def main_kb(
         builder.row(
             KeyboardButton(text=MainMenuText.AMNEZIA_VPN.value),
             KeyboardButton(text=MainMenuText.AMNEZIA_WG.value),
+        )
+        builder.row(
             KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value),
         )
         builder.row(KeyboardButton(text=MainMenuText.RENEW_SUBSCRIPTION.value))

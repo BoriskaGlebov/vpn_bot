@@ -32,7 +32,7 @@ class MainMenuText(str, Enum):
 
     AMNEZIA_VPN = "🔑 AmneziaVPN"
     AMNEZIA_WG = "🌐 AmneziaWG"
-    AMNEZIA_PROXY = "🛡️ AmneziaProxy"
+    AMNEZIA_PROXY = "📦 AmneziaProxy"
     RENEW_SUBSCRIPTION = "💎 Продлить VPN-Boriska"
     CHOOSE_SUBSCRIPTION = "💰 Выбрать подписку VPN-Boriska"
     CHECK_STATUS = "📈 Проверить статус подписки"
