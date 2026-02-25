@@ -229,6 +229,5 @@ class VPNRouter(BaseRouter):
                                 continue
 
                             await message.answer(text=mess)
-
                     else:
                         raise SubscriptionNotFoundError(user_id=user.id)
