@@ -2,11 +2,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from aiogram.types import Chat, Message, ReplyKeyboardRemove, User
-from subscription.router import m_subscription
-from vpn.router import m_vpn
+from aiogram.types import ReplyKeyboardRemove
 
-from bot.vpn.router import VPNRouter
+from bot.subscription.router import m_subscription
+from bot.vpn.router import VPNRouter, m_vpn
 from bot.vpn.services import VPNService
 
 
