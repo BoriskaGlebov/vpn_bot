@@ -88,6 +88,7 @@ jobs:
           VPN_CONTAINER: ${{vars.VPN_CONTAINER}}
           VPN_HOST: ${{vars.VPN_HOST}}
           VPN_USERNAME: ${{vars.VPN_USERNAME}}
+          VPN_PROXY: ${{ vars.VPN_PROXY }}
           BUCKET_NAME: ${{vars.BUCKET_NAME}}
           PREFIX: ${{vars.PREFIX}}
           ENDPOINT_URL: ${{vars.ENDPOINT_URL}}
@@ -113,7 +114,7 @@ jobs:
       - name: Add known hosts
         run: echo "${{ secrets.SERVER_IP }} $(ssh-keyscan -H ${{ secrets.SERVER_IP }})" >> ~/.ssh/known_hosts  # Добавление сервера в known_hosts
 
-      - name: Test SSH connection
+      - name: Test SSH  connection
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET # Проверка подключения
 
