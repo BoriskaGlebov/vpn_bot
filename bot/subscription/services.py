@@ -452,7 +452,7 @@ class SubscriptionService:
                 username=settings_bot.vpn_username,
                 container=settings_bot.vpn_proxy,
             ) as client:
-                proxy = AmneziaProxy(client=client)
+                proxy = AmneziaProxy(client=client, port=settings_bot.proxy_port)
                 try:
                     res = await proxy.delete_user(username=str(user.telegram_id))
                     if res:

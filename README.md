@@ -57,28 +57,70 @@ poetry install --without dev --no-cache
 ```
 Проект содержит pyproject.toml — зависимости можно ставить через предпочитаемый менеджер (pip/poetry).
 
-3) Настроить переменные окружения
-Создайте файл .env в корне проекта.
+3) Настроить переменные окружения (.env)
+Создайте файл .env в корне проекта. Переменные читаются из bot/.env и bot/.env.local (второй перекрывает первый). Ниже — полный перечень с пометками обязательных/опциональных и назначением.
 
-Пример .env:
+Обязательные переменные
+- BOT_TOKEN — токен Telegram-бота. Выдаётся @BotFather.
+- ADMIN_IDS — список Telegram ID администраторов через запятую. Пример: 123,456. Можно оставить пустым, но для админ-функций нужны id. Формат парсится в множество чисел.
+- BASE_SITE — базовый публичный URL, используется для формирования webhook: ${BASE_SITE}/webhook. Требуется даже при USE_POLLING=False/True, чтобы корректно строить ссылки API.
+- VPN_HOST — хост сервера Amnezia VPN (домен или IP), куда подключается бот.
+- VPN_USERNAME — системный пользователь на VPN-сервере, от имени которого выполняются команды.
+- VPN_CONTAINER — имя Docker-контейнера с Amnezia VPN на сервере (используется для exec).
+- VPN_PROXY — имя Docker-контейнера c proxy (используется в функционале прокси/подписок). Обязателен, если используется прокси.
+- DB_USER, DB_PASSWORD, DB_DATABASE — доступ к PostgreSQL.
+- REDIS_USER, REDIS_PASSWORD — доступ к Redis.
+
+Опциональные переменные и значения по умолчанию
+- PROXY_PORT — порт прокси на сервере. По умолчанию 40711. Используется в AmneziaProxy.
+- MAX_CONFIGS_PER_USER — лимит конфигураций на пользователя. По умолчанию 10.
+- USE_POLLING — режим получения обновлений. False — webhook, True — long-polling. По умолчанию False.
+- DEBUG_FAST_API — режим отладки FastAPI. По умолчанию False.
+- RELOAD_FAST_API — авто-перезапуск FastAPI при изменениях. По умолчанию False.
+- USE_LOCAL — учитывать локальный запуск (влияет на сетевое подключение к VPN). По умолчанию True.
+- LOGGER_LEVEL_STDOUT — уровень логирования для stdout. По умолчанию INFO.
+- LOGGER_LEVEL_FILE — уровень логирования для файла. По умолчанию INFO.
+- LOGGER_ERROR_FILE — уровень логирования для файла ошибок. По умолчанию WARNING.
+- DB_HOST — хост PostgreSQL. По умолчанию postgres (для Docker). Для локального запуска без контейнеров выставьте localhost.
+- DB_PORT — порт PostgreSQL. По умолчанию 5432.
+- REDIS_HOST — хост Redis. По умолчанию redis (для Docker). Для локального запуска без контейнеров выставьте localhost.
+- REDIS_PORT — порт Redis. По умолчанию 6379.
+- NUM_DB — номер базы Redis. По умолчанию 0.
+- DEFAULT_EXPIRE — TTL ключей Redis (сек). По умолчанию 3600.
+- SESSION_SECRET — секрет подписи сессии. По умолчанию secret.
+- PRICE_MAP — словарь цен подписок в JSON-формате. По умолчанию {1:70,3:160,6:300,12:600,7:0}. Пример значения: {"1":70,"3":160}.
+
+S3/Object Storage (используйте, если включена загрузка медиа в бакет)
+Все переменные обязательны для работы раздела справки с медиа из бакета:
+- BUCKET_NAME — имя бакета.
+- PREFIX — префикс путей внутри бакета. Например media/ или media/amnezia_pc/.
+- ENDPOINT_URL — конечная точка S3-совместимого хранилища, например https://storage.yandexcloud.net.
+- ACCESS_KEY — access key.
+- SECRET_KEY — secret key.
+
+Пример .env (с комментариями)
 ```
 # --- Telegram / Bot ---
 BOT_TOKEN=your_bot_token_here
 ADMIN_IDS=123456789,987654321
 BASE_SITE=https://your-domain.com
-USE_POLLING=True
-DEBUG_FAST_API=True
-RELOAD_FAST_API=True
+USE_POLLING=False
+DEBUG_FAST_API=False
+RELOAD_FAST_API=False
+USE_LOCAL=True
+SESSION_SECRET=secret
 
 # --- VPN backend ---
 VPN_HOST=vpn.example.com
 VPN_USERNAME=vpnuser
 VPN_CONTAINER=amnezia-vpn
+VPN_PROXY=amnezia-proxy
+PROXY_PORT=40711
 MAX_CONFIGS_PER_USER=10
 
 # --- Logging ---
-LOGGER_LEVEL_STDOUT=DEBUG
-LOGGER_LEVEL_FILE=DEBUG
+LOGGER_LEVEL_STDOUT=INFO
+LOGGER_LEVEL_FILE=INFO
 LOGGER_ERROR_FILE=WARNING
 
 # --- Database (PostgreSQL) ---
@@ -96,30 +138,21 @@ REDIS_PASSWORD=your_redis_password
 NUM_DB=0
 DEFAULT_EXPIRE=3600
 
-# --- S3 / Object Storage (опционально) ---
+# --- S3 / Object Storage (если используете хранение медиа в бакете) ---
 BUCKET_NAME=vpn-bot-images
 PREFIX=media/
 ENDPOINT_URL=https://storage.yandexcloud.net
 ACCESS_KEY=your_key
 SECRET_KEY=your_key
-#SESSION
-SESSION_SECRET=secret
+
+# --- Подписки/цены (опционально, JSON) ---
+PRICE_MAP={"1":70,"3":160,"6":300,"12":600,"7":0}
 ```
 
-Ключевые переменные:
-- BOT_TOKEN — токен Telegram-бота
-- ADMIN_IDS — список Telegram ID администраторов (через запятую)
-- BASE_SITE — базовый URL для вебхука: ${BASE_SITE}/webhook
-- USE_POLLING — включить polling-режим вместо вебхука
-- VPN_HOST / VPN_USERNAME / VPN_CONTAINER — параметры интеграции с Amnezia VPN
-- MAX_CONFIGS_PER_USER — лимит конфигов для пользователя
-- LOGGER_LEVEL_* — уровни логирования
-- DB_* — подключение к PostgreSQL
-- REDIS_* / NUM_DB / DEFAULT_EXPIRE — параметры Redis
-- BUCKET_NAME / PREFIX / ENDPOINT_URL / ACCESS_KEY / SECRET_KEY — доступ к S3
-
-Примечания:
-- По умолчанию DB_HOST=postgres, REDIS_HOST=redis (актуально для Docker). Для локального запуска без контейнеров поменяйте на localhost.
+Примечания
+- По умолчанию DB_HOST=postgres и REDIS_HOST=redis (актуально для Docker). Для локального запуска без контейнеров поменяйте на localhost.
+- Переменные S3 обязательны только если вы хотите подгружать медиа-файлы справки из бакета. Иначе модуль справки не сможет получать картинки из S3.
+- Переменные читаются через pydantic-settings; любые лишние значения в .env игнорируются.
 
 ## Инициализация БД
 Запустите миграции Alembic:
