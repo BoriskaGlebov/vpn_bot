@@ -4,11 +4,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 from aiogram.types import User as TgUser
-from users.dao import UserDAO
-from users.schemas import SUserTelegramID
 
 from bot.app_error.base_error import UserNotFoundError, VPNLimitError
 from bot.subscription.models import Subscription, SubscriptionType
+from bot.users.dao import UserDAO
+from bot.users.schemas import SUserTelegramID
 from bot.vpn.services import VPNService
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
