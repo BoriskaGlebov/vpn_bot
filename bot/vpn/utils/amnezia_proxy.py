@@ -190,9 +190,11 @@ class AsyncDockerSSHClient:
     async def close(self) -> None:
         """Закрывает shell-сессию и соединение."""
         if self._process is not None:
-            self._process.stdin.write("exit\n")
-            await self._process.stdin.drain()
-            self._process = None
+            try:
+                self._process.close()  # Закрываем процесс
+                await self._process.wait_closed()  # Ждём завершения
+            except (BrokenPipeError, OSError):
+                logger.debug("Shell-сессия уже закрыта")
 
         if self._conn is not None:
             self._conn.close()
@@ -230,8 +232,9 @@ class AmneziaProxy:
     CONF_DIR = "/usr/local/3proxy/conf"
     USER_FILE = "users.txt"
 
-    def __init__(self, client: AsyncDockerSSHClient) -> None:
+    def __init__(self, client: AsyncDockerSSHClient, port: str = "40711") -> None:
         self.client = client
+        self.port = port
 
     async def _check_container(self) -> bool:
         """Проверяет доступность контейнера.
@@ -255,7 +258,17 @@ class AmneziaProxy:
                 stderr=stderr,
             )
 
-    async def add_user(self, username: str, password: str) -> bool:
+    def _build_tg_link(self, username: str, password: str) -> str:
+        """Формирует Telegram socks-ссылку."""
+        return (
+            f"https://t.me/socks?"
+            f"server={self.client.host}"
+            f"&port={self.port}"
+            f"&user={username}"
+            f"&pass={password}"
+        )
+
+    async def add_user(self, username: str, password: str) -> str:
         """Добавляет пользователя в users.txt 3proxy.
 
         Строка добавляется в формате:
@@ -266,8 +279,7 @@ class AmneziaProxy:
             password: Пароль пользователя (без символа ':').
 
         Returns
-            True: если пользователь успешно добавлен.
-            False: если пользователь уже существует.
+            str: если пользователь успешно добавлен ссылку на прокси
 
         Raises
             ValueError: Если username или password содержат ':'.
@@ -281,19 +293,30 @@ class AmneziaProxy:
         user_file = f"{self.CONF_DIR}/{self.USER_FILE}"
         line = f"{username}:CL:{password}"
 
-        check_cmd = f"grep -q '^{shlex.quote(username)}:' {user_file}"
-        _, _, exit_code, _ = await self.client.write_single_cmd(check_cmd)
+        check_cmd = f"grep '^{shlex.quote(username)}:' {user_file}"
+        stdout, _, exit_code, _ = await self.client.write_single_cmd(check_cmd)
 
         if exit_code == 0:
-            logger.warning("Пользователь уже существует")
-            return False
+            # Пользователь уже есть — извлекаем пароль
+            try:
+                existing_password = stdout.strip().split(":")[2]
+            except (IndexError, ValueError):
+                raise AmneziaSSHError(
+                    message="Некорректный формат строки пользователя",
+                    cmd=check_cmd,
+                    stdout=stdout,
+                    stderr="",
+                )
+
+            logger.info(f"Пользователь {username} уже существует")
+            return self._build_tg_link(username, existing_password)
 
         append_cmd = f"echo {shlex.quote(line)} >> {user_file}"
         stdout, stderr, code, cmd = await self.client.write_single_cmd(append_cmd)
 
         if code == 0:
             logger.success(f"Пользователь {username} успешно добавлен")
-            return True
+            return self._build_tg_link(username, password)
 
         raise AmneziaSSHError(
             message="Ошибка при добавлении пользователя",
@@ -385,9 +408,8 @@ if __name__ == "__main__":
             await client.connect()
             proxy = AmneziaProxy(client=client)
             await proxy._check_container()
-            # await proxy.add_user(username="user1",
-            #                      password="password")
-            await proxy.delete_user(username="dd")
-            # await proxy.reload_3proxy()
+            await proxy.add_user(username="user1", password="password")
+            # await proxy.delete_user(username="user1")
+            await proxy.reload_3proxy()
 
     asyncio.run(main())
