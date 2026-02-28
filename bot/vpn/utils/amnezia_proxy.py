@@ -313,15 +313,10 @@ class AmneziaProxy:
 
         append_cmd = f"echo {shlex.quote(line)} >> {user_file}"
         stdout, stderr, code, cmd = await self.client.write_single_cmd(append_cmd)
-
+        print(stdout)
         if code == 0:
             logger.success(f"Пользователь {username} успешно добавлен")
-            cmd_exit = "exit"
-            _, _, code_exit, _ = await self.client.write_single_cmd(cmd_exit)
-            if code_exit == 0:
-                await self.client.restart_container()
-            else:
-                raise AmneziaSSHError(message="Не вышел из контейнера корректно")
+            await self.client.restart_container()
             return self._build_tg_link(username, password)
 
         raise AmneziaSSHError(
