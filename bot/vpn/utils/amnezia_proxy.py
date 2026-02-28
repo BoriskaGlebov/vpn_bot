@@ -4,6 +4,8 @@ from collections.abc import AsyncGenerator
 from types import TracebackType
 
 import asyncssh
+import docker
+from docker.errors import DockerException
 from loguru import logger
 
 from bot.config import settings_bot
@@ -11,6 +13,7 @@ from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
 
 
+# TODO для преезагрузки сервера при создании прокси конфига я подключаюсь на хост через ssh, потому что не могу дать нормльно преезагрузить контейнер локлаьно
 class AsyncDockerSSHClient:
     def __init__(
         self,
@@ -22,7 +25,7 @@ class AsyncDockerSSHClient:
         use_local: bool = USE_LOCAL,
     ) -> None:
         self.container = container
-        self.use_local = False
+        self.use_local = USE_LOCAL
         if not use_local:
             if username is None:
                 raise AmneziaError(message="Username обязательное поле")
@@ -164,12 +167,23 @@ class AsyncDockerSSHClient:
             bool: True если контейнер успешно перезапущен.
 
         """
-        cmd = f"docker restart {self.container}"
-
         if self.use_local:
-            stdout, stderr, code, _ = await self.write_single_cmd(cmd)
+            client_docker = docker.DockerClient(base_url="unix://var/run/docker.sock")
+            try:
+                container = client_docker.containers.get(self.container)
+                container.restart()
+                logger.success(f"Контейнер {self.container} успешно перезапущен")
+                return True
+            except DockerException as e:
+                raise AmneziaSSHError(
+                    message="Ошибка при перезапуске контейнера через Docker API",
+                    cmd=f"restart {self.container}",
+                    stdout="",
+                    stderr=str(e),
+                )
         else:
             assert self._conn is not None
+            cmd = f"docker restart {self.container}"
             result = await self._conn.run(cmd)
             stdout, stderr, code = (
                 result.stdout,
