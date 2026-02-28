@@ -222,14 +222,15 @@ class VPNRouter(BaseRouter):
                                 ]
                             ]
                         )
-                        for num, mess in enumerate(m_vpn.proxy_ready):
-                            if not num:
-                                await message.answer(
-                                    text=mess,
-                                    reply_markup=keyboard,
-                                )
-                                continue
+                        if url_proxy:
+                            for num, mess in enumerate(m_vpn.proxy_ready):
+                                if not num:
+                                    await message.answer(
+                                        text=mess,
+                                        reply_markup=keyboard,
+                                    )
+                                    continue
 
-                            await message.answer(text=mess)
+                                await message.answer(text=mess)
                     else:
                         raise SubscriptionNotFoundError(user_id=user.id)

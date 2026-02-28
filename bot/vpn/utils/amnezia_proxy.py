@@ -13,7 +13,6 @@ from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
 
 
-# TODO для преезагрузки сервера при создании прокси конфига я подключаюсь на хост через ssh, потому что не могу дать нормльно преезагрузить контейнер локлаьно
 class AsyncDockerSSHClient:
     def __init__(
         self,
