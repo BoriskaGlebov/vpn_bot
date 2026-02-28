@@ -4,6 +4,8 @@ from collections.abc import AsyncGenerator
 from types import TracebackType
 
 import asyncssh
+import docker
+from docker.errors import DockerException
 from loguru import logger
 
 from bot.config import settings_bot
@@ -22,7 +24,7 @@ class AsyncDockerSSHClient:
         use_local: bool = USE_LOCAL,
     ) -> None:
         self.container = container
-        self.use_local = use_local
+        self.use_local = USE_LOCAL
         if not use_local:
             if username is None:
                 raise AmneziaError(message="Username обязательное поле")
@@ -164,12 +166,23 @@ class AsyncDockerSSHClient:
             bool: True если контейнер успешно перезапущен.
 
         """
-        cmd = f"docker restart {self.container}"
-
         if self.use_local:
-            stdout, stderr, code, _ = await self.write_single_cmd(cmd)
+            client_docker = docker.DockerClient(base_url="unix://var/run/docker.sock")
+            try:
+                container = client_docker.containers.get(self.container)
+                container.restart()
+                logger.success(f"Контейнер {self.container} успешно перезапущен")
+                return True
+            except DockerException as e:
+                raise AmneziaSSHError(
+                    message="Ошибка при перезапуске контейнера через Docker API",
+                    cmd=f"restart {self.container}",
+                    stdout="",
+                    stderr=str(e),
+                )
         else:
             assert self._conn is not None
+            cmd = f"docker restart {self.container}"
             result = await self._conn.run(cmd)
             stdout, stderr, code = (
                 result.stdout,
@@ -313,15 +326,9 @@ class AmneziaProxy:
 
         append_cmd = f"echo {shlex.quote(line)} >> {user_file}"
         stdout, stderr, code, cmd = await self.client.write_single_cmd(append_cmd)
-
         if code == 0:
             logger.success(f"Пользователь {username} успешно добавлен")
-            cmd_exit = "exit"
-            _, _, code_exit, _ = await self.client.write_single_cmd(cmd_exit)
-            if code_exit == 0:
-                await self.client.restart_container()
-            else:
-                raise AmneziaSSHError(message="Не вышел из контейнера корректно")
+            await self.client.restart_container()
             return self._build_tg_link(username, password)
 
         raise AmneziaSSHError(

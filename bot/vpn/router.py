@@ -184,8 +184,27 @@ class VPNRouter(BaseRouter):
     @connection()
     @BaseRouter.require_user
     async def create_proxy_url(
-        self, message: Message, session: AsyncSession, user: TgUser
+        self, message: Message, session: AsyncSession, user: TgUser, state: FSMContext
     ) -> None:
+        """
+        Генерирует уникальный прокси для пользователя и отправляет ссылку в Telegram.
+
+        Args:
+            message (Message): Объект сообщения из Telegram.
+            session (AsyncSession): Асинхронная сессия SQLAlchemy для работы с БД.
+            user (TgUser): Пользователь Telegram.
+            state (FSMContext): Контекст конечного автомата состояния (FSM).
+
+        Raises
+            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
+            AmneziaSSHError: При ошибках подключения к контейнеру или выполнении команд.
+            ValueError: Если данные пользователя некорректны.
+
+        """
+        redis_key = f"vpn:config:{user.id}:amnezia_proxy"
+        acquired_check = await self._check_acquired(redis_key, message)
+        if not acquired_check:
+            return
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await message.answer(
                 text=m_vpn.proxy_intro,
@@ -195,41 +214,46 @@ class VPNRouter(BaseRouter):
                 text=m_vpn.amnezia_proxy,
                 reply_markup=ReplyKeyboardRemove(),
             )
-            async with ssh_lock:
-                async with AsyncDockerSSHClient(
-                    host=settings_bot.vpn_host,
-                    username=settings_bot.vpn_username,
-                    container=settings_bot.vpn_proxy,
-                ) as client:
-                    info = await self.vpn_service.get_subscription_info(
-                        tg_id=user.id, session=session
-                    )
-                    if "Активна" in info:
-                        proxy = AmneziaProxy(
-                            client=client, port=settings_bot.proxy_port
+            try:
+                async with ssh_lock:
+                    async with AsyncDockerSSHClient(
+                        host=settings_bot.vpn_host,
+                        username=settings_bot.vpn_username,
+                        container=settings_bot.vpn_proxy,
+                    ) as client:
+                        info = await self.vpn_service.get_subscription_info(
+                            tg_id=user.id, session=session
                         )
-                        password = uuid.uuid4().hex
-                        url_proxy = await proxy.add_user(
-                            username=str(user.id), password=password
-                        )
-                        keyboard = InlineKeyboardMarkup(
-                            inline_keyboard=[
-                                [
-                                    InlineKeyboardButton(
-                                        text="📨 Поделиться ссылкой",
-                                        url=url_proxy,
-                                    )
+                        if "Активна" in info:
+                            proxy = AmneziaProxy(
+                                client=client, port=settings_bot.proxy_port
+                            )
+                            password = uuid.uuid4().hex
+                            url_proxy = await proxy.add_user(
+                                username=str(user.id), password=password
+                            )
+                            keyboard = InlineKeyboardMarkup(
+                                inline_keyboard=[
+                                    [
+                                        InlineKeyboardButton(
+                                            text="📨 Поделиться ссылкой",
+                                            url=url_proxy,
+                                        )
+                                    ]
                                 ]
-                            ]
-                        )
-                        for num, mess in enumerate(m_vpn.proxy_ready):
-                            if not num:
-                                await message.answer(
-                                    text=mess,
-                                    reply_markup=keyboard,
-                                )
-                                continue
+                            )
+                            if url_proxy:
+                                for num, mess in enumerate(m_vpn.proxy_ready):
+                                    if not num:
+                                        await message.answer(
+                                            text=mess,
+                                            reply_markup=keyboard,
+                                        )
+                                        continue
 
-                            await message.answer(text=mess)
-                    else:
-                        raise SubscriptionNotFoundError(user_id=user.id)
+                                    await message.answer(text=mess)
+                        else:
+                            raise SubscriptionNotFoundError(user_id=user.id)
+            finally:
+                await state.clear()
+                await self.redis.delete(redis_key)
