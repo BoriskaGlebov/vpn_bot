@@ -186,7 +186,21 @@ class VPNRouter(BaseRouter):
     async def create_proxy_url(
         self, message: Message, session: AsyncSession, user: TgUser, state: FSMContext
     ) -> None:
-        """"""
+        """
+        Генерирует уникальный прокси для пользователя и отправляет ссылку в Telegram.
+
+        Args:
+            message (Message): Объект сообщения из Telegram.
+            session (AsyncSession): Асинхронная сессия SQLAlchemy для работы с БД.
+            user (TgUser): Пользователь Telegram.
+            state (FSMContext): Контекст конечного автомата состояния (FSM).
+
+        Raises
+            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
+            AmneziaSSHError: При ошибках подключения к контейнеру или выполнении команд.
+            ValueError: Если данные пользователя некорректны.
+
+        """
         redis_key = f"vpn:config:{user.id}:amnezia_proxy"
         acquired_check = await self._check_acquired(redis_key, message)
         if not acquired_check:
