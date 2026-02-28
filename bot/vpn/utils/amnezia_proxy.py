@@ -164,7 +164,7 @@ class AsyncDockerSSHClient:
             bool: True если контейнер успешно перезапущен.
 
         """
-        cmd = f"docker restart {self.container}"
+        cmd = f"/usr/bin/docker restart {self.container}"
 
         if self.use_local:
             stdout, stderr, code, _ = await self.write_single_cmd(cmd)
@@ -313,7 +313,6 @@ class AmneziaProxy:
 
         append_cmd = f"echo {shlex.quote(line)} >> {user_file}"
         stdout, stderr, code, cmd = await self.client.write_single_cmd(append_cmd)
-        print(stdout)
         if code == 0:
             logger.success(f"Пользователь {username} успешно добавлен")
             await self.client.restart_container()
