@@ -22,7 +22,7 @@ class AsyncDockerSSHClient:
         use_local: bool = USE_LOCAL,
     ) -> None:
         self.container = container
-        self.use_local = use_local
+        self.use_local = True
         if not use_local:
             if username is None:
                 raise AmneziaError(message="Username обязательное поле")
