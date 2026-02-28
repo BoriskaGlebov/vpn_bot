@@ -22,7 +22,7 @@ class AsyncDockerSSHClient:
         use_local: bool = USE_LOCAL,
     ) -> None:
         self.container = container
-        self.use_local = True
+        self.use_local = False
         if not use_local:
             if username is None:
                 raise AmneziaError(message="Username обязательное поле")
@@ -164,7 +164,7 @@ class AsyncDockerSSHClient:
             bool: True если контейнер успешно перезапущен.
 
         """
-        cmd = f"/usr/bin/docker restart {self.container}"
+        cmd = f"docker restart {self.container}"
 
         if self.use_local:
             stdout, stderr, code, _ = await self.write_single_cmd(cmd)
