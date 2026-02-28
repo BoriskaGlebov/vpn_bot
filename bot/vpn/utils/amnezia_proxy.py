@@ -316,7 +316,7 @@ class AmneziaProxy:
 
         if code == 0:
             logger.success(f"Пользователь {username} успешно добавлен")
-            await self.reload_3proxy()
+            await self.client.restart_container()
             return self._build_tg_link(username, password)
 
         raise AmneziaSSHError(
