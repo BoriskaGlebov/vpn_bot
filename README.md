@@ -237,6 +237,16 @@ pytest -q
   iptables -t nat -A POSTROUTING -s 10.8.0.0/16 -o eth1 -j MASQUERADE
 
 ```
+На прокси надо создать файл users.txt
+```aiignore
+proxy_user:CL:j88WSiGkjVdbLWxZ
+
+```
+Тае же надо отредактировать файл 3proxy.cfg
+```aiignore
+users $/usr/local/3proxy/conf/users.txt
+
+```
 Стиль кода: ruff, mypy (pyproject.toml, ruff.toml). Pre-commit хуки — .pre-commit-config.yaml.
 
 ## Деплой Nginx
