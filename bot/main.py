@@ -14,6 +14,7 @@ from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
+from bot.ai.router import AIRouter
 from bot.config import bot, dp, logger, settings_bot
 from bot.database import engine
 from bot.help.router import HelpRouter
@@ -101,6 +102,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
     news_service = NewsService(bot=bot, logger=logger)  # type: ignore[arg-type]
     news_router = NewsRouter(bot=bot, logger=logger, news_service=news_service)  # type: ignore[arg-type]
+    ai_router = AIRouter(bot=bot, logger=logger, redis_manager=redis_manager)
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
@@ -109,6 +111,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
+    dp.include_router(ai_router.router)
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)

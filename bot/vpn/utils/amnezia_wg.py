@@ -332,11 +332,12 @@ class AsyncSSHClientWG:
 
         Все IP берутся из директив `AllowedIPs`, а суффикс `/32` отбрасывается.
 
-        Returns:
+        Returns
             Set[ipaddress.IPv4Address]: Множество всех занятых IP.
 
-        Raises:
+        Raises
             AmneziaConfigError: Если произошла ошибка при получении IP или список пуст.
+
         """
         cmd = [
             f"cat {self.WG_CONF} | "
@@ -373,11 +374,12 @@ class AsyncSSHClientWG:
         проверяет все возможные хосты и возвращает первый свободный IP, который
         ещё не занят.
 
-        Returns:
+        Returns
             str: Первый свободный IP в формате `x.x.x.x/32`.
 
-        Raises:
+        Raises
             AmneziaConfigError: Если не удалось определить подсеть или нет свободных IP.
+
         """
         cmd_subnet = [
             f"grep 'Address' {self.WG_CONF} | head -n1 | awk -F'= ' '{{print $2}}'"
@@ -413,8 +415,9 @@ class AsyncSSHClientWG:
     async def _get_correct_ip(self) -> str | None:
         """Определяет корректный IP-адрес клиента для WireGuard.
 
-        Returns:
+        Returns
             str: Свободный IP в формате `x.x.x.x/32`.
+
         """
         return await self._find_free_ip()
 

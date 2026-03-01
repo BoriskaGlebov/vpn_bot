@@ -10,6 +10,7 @@ bot:
     admins:
       admin: 🧰  Панель администратора
       news: 📢 Объявление
+      ai:  🤖 Функции
       <<: *defaults
     group:
       start: 🚀  Начать пользоваться VPN

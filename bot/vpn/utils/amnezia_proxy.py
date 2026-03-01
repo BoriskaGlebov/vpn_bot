@@ -14,6 +14,25 @@ from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
 
 
 class AsyncDockerSSHClient:
+    """Асинхронный клиент для выполнения команд в Docker-контейнере.
+
+    Поддерживает два режима работы:
+        1. Локальный — через docker CLI / Docker SDK.
+        2. Удалённый — через SSH с использованием asyncssh.
+
+    Attributes
+        container (str): Имя Docker-контейнера.
+        use_local (bool): Флаг использования локального режима.
+        host (str): SSH-хост.
+        username (str | None): SSH-пользователь.
+        port (int): SSH-порт.
+        known_hosts (str | None): Путь к known_hosts.
+        _conn (asyncssh.SSHClientConnection | None): SSH-соединение.
+        _process (asyncssh.SSHClientProcess[str] | None):
+            Открытая shell-сессия внутри контейнера.
+
+    """
+
     def __init__(
         self,
         host: str = "localhost",
@@ -300,7 +319,6 @@ class AmneziaProxy:
             AmneziaSSHError: Если произошла ошибка при записи в файл.
 
         """
-
         if ":" in username or ":" in password:
             raise ValueError("Username и password не должны содержать ':'")
 
@@ -356,7 +374,6 @@ class AmneziaProxy:
             AmneziaSSHError: Если произошла ошибка при модификации файла.
 
         """
-
         if ":" in username:
             raise ValueError("Username не должен содержать ':'")
 
@@ -414,6 +431,7 @@ class AmneziaProxy:
 if __name__ == "__main__":
 
     async def main() -> None:
+        """Для тестов."""
         async with AsyncDockerSSHClient(
             host=settings_bot.vpn_host,
             username=settings_bot.vpn_username,
