@@ -7,8 +7,10 @@ from aiogram.filters import (
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 from loguru._logger import Logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.ai.services.chat.service import ChatService
+from bot.database import connection
 from bot.redis_manager import SettingsRedis
 from bot.utils.base_router import BaseRouter
 
@@ -42,7 +44,8 @@ class AIRouter(BaseRouter):
             reply_markup=ReplyKeyboardRemove(),
         )
 
+    @connection()
     @BaseRouter.log_method
-    async def ai_questions(self, message: Message) -> None:
-        answer = await self.chat_service.ask(message.text)
+    async def ai_questions(self, message: Message, session: AsyncSession) -> None:
+        answer = await self.chat_service.ask(message.text, session=session)
         await message.answer(answer)

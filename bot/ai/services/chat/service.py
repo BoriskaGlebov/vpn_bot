@@ -1,3 +1,6 @@
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from bot.ai.dao import KnowledgeChunkDAO
 from bot.ai.services.chat.base import BaseLLMProvider
 from bot.ai.services.chat.embeddings_service import EmbeddingService
 
@@ -7,5 +10,21 @@ class ChatService:
         self._llm = llm
         self._emb_service = emb_service
 
-    async def ask(self, question: str) -> str:
-        return await self._llm.generate(question)
+    async def ask(self, question: str, session: AsyncSession) -> str:
+        print("1. Получаем вектор вопроса")
+        q_vector = await self._emb_service.encode_query(question)
+        print(len(q_vector))
+        print("---" * 30)
+        print("2. Ищем релевантные документы")
+        docs = await KnowledgeChunkDAO.search_by_embedding(
+            session, q_vector, top_k=5, threshold=0.7
+        )
+        print(docs)
+        print("---" * 30)
+        if not docs:
+            return "Извините, по этой теме информации нет."
+
+        context = "\n".join([d.content for d in docs])
+        prompt = f"Используя эту информацию:\n{context}\n\nВопрос: {question}"
+
+        return await self._llm.generate(prompt)

@@ -103,4 +103,4 @@ def extract_knowledge_chunks(data: Any, parent_key: str = "") -> list[dict]:
 
 
 dialogs = load_dialogs()
-chunks = extract_knowledge_chunks(dialogs)
+chunks = extract_knowledge_chunks(dialogs.instructions_ai)
