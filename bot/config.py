@@ -12,7 +12,7 @@ from loguru import logger
 from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from bot.dialogs.dialogs_text import dialogs
+from bot.dialogs.dialogs_text import chunks, dialogs
 
 __all__ = ["logger", "settings_bot", "settings_db", "bot", "dp"]
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -216,6 +216,10 @@ class SettingsAI(BaseSettings):
     secret_key_ai: SecretStr
     yandex_folder_id: str
     yandex_model: str = "yandexgpt-lite"
+    common_chunks: list = chunks
+    model_llm_name: str
+    normalize: bool = True
+    model_llm_name: str
 
     model_config = SettingsConfigDict(
         env_file=[

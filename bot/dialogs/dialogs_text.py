@@ -1,6 +1,7 @@
 # TODO Надо как то в приветсвии писать кома можно написать за помощью сразу
 # TODO проверить ссылки на програмки
 from pathlib import Path
+from pprint import pprint
 from typing import Any
 
 import yaml
@@ -61,4 +62,45 @@ def load_dialogs(filename: Path | str | None = None) -> Box:
     return Box(processed_data, default_box=True, default_box_attr=None)
 
 
+# TODO документация
+def extract_knowledge_chunks(data: Any, parent_key: str = "") -> list[dict]:
+    """
+    Рекурсивно извлекает смысловые текстовые блоки
+    для последующей генерации эмбеддингов.
+    """
+    chunks = []
+
+    if isinstance(data, dict):
+        for key, value in data.items():
+            new_key = f"{parent_key}.{key}" if parent_key else key
+            chunks.extend(extract_knowledge_chunks(value, new_key))
+
+    elif isinstance(data, list):
+        if all(isinstance(i, str) for i in data):
+            content = "\n".join(data).strip()
+
+            if len(content) > 100:
+                chunks.append(
+                    {
+                        "source": parent_key,
+                        "content": content,
+                    }
+                )
+        else:
+            for item in data:
+                chunks.extend(extract_knowledge_chunks(item, parent_key))
+
+    elif isinstance(data, str):
+        if len(data) > 150:
+            chunks.append(
+                {
+                    "source": parent_key,
+                    "content": data.strip(),
+                }
+            )
+
+    return chunks
+
+
 dialogs = load_dialogs()
+chunks = extract_knowledge_chunks(dialogs)

@@ -34,6 +34,8 @@ itsdangerous = "^2.2.0"
 docker = "^7.1.0"
 yandex-ai-studio-sdk = "^0.19.2"
 pgvector = "^0.4.2"
+sentence-transformers = "^5.2.3"
+
 
 
 [tool.poetry.group.dev.dependencies]
