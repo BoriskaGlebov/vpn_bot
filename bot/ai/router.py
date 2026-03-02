@@ -4,7 +4,8 @@ from aiogram import Bot, F
 from aiogram.filters import (
     Command,
 )
-from aiogram.types import Message
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Message, ReplyKeyboardRemove
 from loguru._logger import Logger
 
 from bot.ai.services.chat.service import ChatService
@@ -32,13 +33,14 @@ class AIRouter(BaseRouter):
         self.router.message.register(self.ai_questions, F.text)
 
     @BaseRouter.log_method
-    async def ai_start(
-        self,
-        message: Message,
-    ) -> None:
+    async def ai_start(self, message: Message, state: FSMContext) -> None:
         """ДОки потом."""
+        await state.clear()
         await message.answer("Функции ИИ")
-        await message.answer("Сюда можно написать вопросы для ИИ бота")
+        await message.answer(
+            "Сюда можно написать вопросы для ИИ бота",
+            reply_markup=ReplyKeyboardRemove(),
+        )
 
     @BaseRouter.log_method
     async def ai_questions(self, message: Message) -> None:
