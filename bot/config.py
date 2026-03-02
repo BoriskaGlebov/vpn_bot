@@ -210,6 +210,23 @@ class SettingsBucket(BaseSettings):
     )
 
 
+# TODO документация
+class SettingsAI(BaseSettings):
+    access_key_ai: SecretStr
+    secret_key_ai: SecretStr
+    yandex_folder_id: str
+    yandex_model: str = "yandexgpt-lite"
+
+    model_config = SettingsConfigDict(
+        env_file=[
+            str(BASE_DIR / ".env"),
+            str(BASE_DIR / ".env.local"),
+        ],
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
 class LoggerConfig:
     """Настройка логирования с использованием loguru.
 
@@ -372,6 +389,7 @@ class LoggerConfig:
 settings_bot = SettingsBot()
 settings_db = SettingsDB()
 settings_bucket = SettingsBucket()
+settings_ai = SettingsAI()
 
 LoggerConfig(
     log_dir=Path(__file__).resolve().parent / "logs",
