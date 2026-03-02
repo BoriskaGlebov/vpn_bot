@@ -17,7 +17,7 @@ class ChatService:
         print("---" * 30)
         print("2. Ищем релевантные документы")
         docs = await KnowledgeChunkDAO.search_by_embedding(
-            session, q_vector, top_k=5, threshold=0.885
+            session, q_vector, top_k=5, threshold=0.75
         )
         print(docs)
         print("---" * 30)
@@ -25,14 +25,6 @@ class ChatService:
             return "Извините, по этой теме информации нет."
 
         context = "\n\n".join([d.content for d in docs])
-        # prompt = (
-        #     "На основе приведённого контекста сформулируй ответ своими словами.\n"
-        #     "Не копируй текст дословно.\n"
-        #     "Сделай ответ кратким и структурированным.\n\n"
-        #     f"Контекст:\n{context}\n\n"
-        #     f"Вопрос: {question}"
-        # )
-
         return await self._llm.generate(
             context=context,
             question=question,
