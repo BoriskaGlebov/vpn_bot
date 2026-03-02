@@ -1,6 +1,3 @@
-import asyncio
-from pprint import pprint
-
 from yandex_ai_studio_sdk import AsyncAIStudio
 
 from bot.ai.services.chat.base import BaseLLMProvider
@@ -20,26 +17,27 @@ class YandexLLMProvider(BaseLLMProvider):
         )
 
         self._system_prompt = (
-            "Ты полезный ассистент VPN бота.\n"
-            "Та знаещь все про VPN и его технологии"
-            "Отвечай кратко и по делу.\n"
-            "Если информации нет — честно скажи."
-            "Ответы давай со смайликами что б пользователю было приятно."
+            "Ты ассистент Telegram-бота VPN Boriska.\n\n"
+            "Ты отвечаешь ТОЛЬКО на основе переданного контекста.\n"
+            "Контекст содержит фрагменты базы знаний бота.\n\n"
+            "Правила ответа:\n"
+            "1. Сформулируй ответ своими словами.\n"
+            "2. Не копируй предложения из контекста дословно.\n"
+            "3. Если это инструкция — пересобери её в логичные шаги.\n"
+            "4. Убери повторы и лишние детали.\n"
+            "5. Сделай ответ кратким, структурированным и понятным.\n"
+            "6. Используй 1–2 уместных эмодзи.\n\n"
+            "Если в контексте нет информации для ответа — честно скажи, "
+            "что информации недостаточно.\n"
+            "Не добавляй знания от себя и не придумывай."
         )
 
-    async def generate(self, prompt: str) -> str:
-        full_prompt = f"{self._system_prompt}\n\nВопрос:\n{prompt}"
+    async def generate(self, context: str, question: str) -> str:
+        full_prompt = (
+            f"{self._system_prompt}\n\n"
+            f"Контекст:\n{context}\n\n"
+            f"Вопрос:\n{question}"
+        )
 
         result = await self._model.run(full_prompt)
-
         return result.text
-
-
-if __name__ == "__main__":
-
-    async def main():
-        llm = YandexLLMProvider()
-        res = await llm.generate(prompt="Земля круглая?")
-        pprint(res)
-
-    asyncio.run(main())
