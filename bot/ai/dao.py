@@ -39,7 +39,7 @@ class KnowledgeChunkDAO(BaseDAO[KnowledgeChunk]):
 
         """
         if not query_vector or not all(
-            isinstance(x, (int, float)) for x in query_vector
+            isinstance(x, int | float) for x in query_vector
         ):
             raise ValueError("query_vector должен быть непустым списком чисел")
         try:
@@ -64,7 +64,7 @@ class KnowledgeChunkDAO(BaseDAO[KnowledgeChunk]):
             filtered: list[KnowledgeChunk] = []
             for row in rows:
                 doc, dist = row
-                if dist is None or not isinstance(dist, (int, float)):
+                if dist is None or not isinstance(dist, int | float):
                     logger.warning(
                         "Пропущен документ с некорректным distance: {} (source={})",
                         dist,

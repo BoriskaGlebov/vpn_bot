@@ -29,54 +29,32 @@ class ChatService:
         self._llm = llm
         self._emb_service = emb_service
 
-    async def ask(
-        self, question: str, session: AsyncSession, max_context_chars: int = 2000
-    ) -> str:
-        """Обрабатывает вопрос пользователя и возвращает ответ на основе базы знаний.
-
-        Args:
-            question (str): Вопрос пользователя.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy для поиска документов.
-            max_context_chars (int, optional): Максимальная длина контекста для LLM. Defaults to 2000.
-
-        Returns
-            str: Ответ на вопрос.
-
-        """
-        # Проверка минимальной длины
+    def _is_valid_question(self, question: str) -> bool:
+        """Проверка минимальной длины вопроса."""
         if len(question.split()) < 3:
             logger.info("Вопрос слишком короткий: '{}'", question)
-            return "Напишите подробнее, не могу понять что вы хотите."
+            return False
+        return True
 
-        logger.info("Начало обработки вопроса: '{}'", question[:50])
-
-        logger.debug("1. Генерация вектора вопроса")
+    async def _get_base_context(
+        self, question: str, session: AsyncSession, max_context_chars: int
+    ) -> str:
+        """Поиск релевантных документов и формирование контекста базы знаний."""
         try:
-            q_vector: list[float] = await self._emb_service.encode_query(question)
+            q_vector = await self._emb_service.encode_query(question)
         except Exception as e:
             logger.exception("Ошибка при генерации эмбеддинга вопроса: {}", e)
-            return "Произошла ошибка при обработке вашего вопроса."
+            return ""
 
-        logger.debug("Вектор вопроса сгенерирован (длина {})", len(q_vector))
-
-        logger.debug("2. Поиск релевантных документов в базе")
         try:
             docs = await KnowledgeChunkDAO.search_by_embedding(
-                session=session,
-                query_vector=q_vector,
-                top_k=5,
-                threshold=0.6,
+                session=session, query_vector=q_vector, top_k=5, threshold=0.6
             )
         except Exception as e:
             logger.exception("Ошибка при поиске документов: {}", e)
-            return "Не удалось найти релевантные документы."
+            raise
 
-        logger.info("Найдено {} релевантных документов", len(docs))
-
-        if not docs:
-            return "Извините, по этой теме информации нет."
-
-        context_pieces: list[str] = []
+        context_pieces = []
         total_chars = 0
         for doc in docs:
             piece = doc.content.strip()
@@ -89,16 +67,41 @@ class ChatService:
             context_pieces.append(piece)
             total_chars += len(piece)
 
-        context = "\n\n".join(context_pieces)
-        logger.debug("Длина контекста для LLM: {} символов", len(context))
+        return "\n\n".join(context_pieces)
 
+    def _merge_context(self, base_context: str, user_context: list[str] | None) -> str:
+        """Объединяет контекст базы с историей пользователя."""
+        if not user_context:
+            return base_context
+        history_text = "Предыдущие вопросы от пользователя" + "\n".join(user_context)
+        if base_context:
+            return f"{history_text}\n\n" f"Данные из базы знаний: {base_context}"
+        return history_text
+
+    async def _generate_answer(self, question: str, context: str) -> str:
+        """Генерация ответа через LLM."""
         try:
             answer = await self._llm.generate(context=context, question=question)
             if not answer.strip():
                 logger.warning("LLM вернул пустой ответ")
                 return "Не удалось сгенерировать ответ по контексту."
-            logger.info("Ответ сгенерирован успешно ({} символов)", len(answer))
             return answer
         except Exception as e:
             logger.exception("Ошибка при генерации ответа LLM: {}", e)
-            return "Произошла ошибка при генерации ответа."
+            raise
+
+    async def ask(
+        self,
+        question: str,
+        session: AsyncSession,
+        user_context: list[str] | None = None,
+        max_context_chars: int = 2000,
+    ) -> str:
+        """Основной метод: отвечает на вопрос пользователя с учетом истории."""
+        if not self._is_valid_question(question):
+            return "Напишите подробнее, не могу понять что вы хотите."
+        base_context = await self._get_base_context(
+            question, session, max_context_chars
+        )
+        full_context = self._merge_context(base_context, user_context)
+        return await self._generate_answer(question, full_context)

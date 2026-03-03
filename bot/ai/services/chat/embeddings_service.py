@@ -105,7 +105,7 @@ class KnowledgeBaseInitializer:
         emb_service: EmbeddingService,
         source: str = "dialog_messages.yaml",
         chunks: list[str | dict] = None,
-    ):
+    ) -> None:
         """Инициализация класса.
 
         Args:

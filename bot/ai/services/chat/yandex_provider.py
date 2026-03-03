@@ -1,3 +1,5 @@
+from typing import Any
+
 from loguru import logger
 from yandex_ai_studio_sdk import AsyncAIStudio
 
@@ -63,32 +65,39 @@ class YandexLLMProvider(BaseLLMProvider):
 
         """
         if not context.strip():
-            raise ValueError("context не может быть пустым")
+            logger.warning("Контекст пустой, генерация ответа невозможна")
+            return "Извините, недостаточно информации для ответа."
         if not question.strip():
-            raise ValueError("question не может быть пустым")
+            logger.warning("Вопрос пустой, генерация ответа невозможна")
+            return "Вопрос некорректный, попробуйте уточнить."
 
         full_prompt = (
-            f"{self._system_prompt}\n\nКонтекст:\n{context}\n\nВопрос:\n{question}"
+            f"{self._system_prompt}\n\n"
+            f"Контекст:\n{context}\n\n"
+            f"Вопрос:\n{question}"
         )
 
         logger.debug(
-            "Генерация ответа: контекст {} символов, вопрос {} символов",
+            "Генерация ответа: контекст {} символов, вопрос {} символов, весь promt {}",
             len(context),
             len(question),
+            len(full_prompt),
         )
 
         try:
-            result = await self._model.run(full_prompt)
-            answer = result.text.strip() if result.text else ""
+            result: Any = await self._model.run(full_prompt)
+            answer: str = (getattr(result, "text", "") or "").strip()
+
             if not answer:
                 logger.warning(
-                    "Результат генерации пустой, возможно нет подходящего контекста"
+                    "LLM вернул пустой ответ, возможно нет подходящего контекста"
                 )
-            else:
-                logger.info("Ответ сгенерирован успешно ({} символов)", len(answer))
+                return "Извините, не удалось сгенерировать ответ по контексту."
+
+            logger.info("Ответ сгенерирован успешно (%s символов)", len(answer))
             return answer
         except Exception as e:
             logger.exception(
-                "Ошибка при генерации ответа через Yandex AI Studio: {}", e
+                "Ошибка при генерации ответа через Yandex AI Studio: %s", e
             )
             raise
