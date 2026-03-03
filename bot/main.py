@@ -114,7 +114,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     llm = YandexLLMProvider()
     chat_service = ChatService(llm=llm, emb_service=embedding_service)
     ai_router = AIRouter(
-        bot=bot, logger=logger, redis_manager=redis_manager, chat_service=chat_service  # type: ignore[arg-type]
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        redis_manager=redis_manager,
+        chat_service=chat_service,
     )
 
     dp.include_router(user_router.router)
