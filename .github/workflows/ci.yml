@@ -95,6 +95,10 @@ jobs:
           ACCESS_KEY: ${{secrets.ACCESS_KEY}}
           SECRET_KEY: ${{secrets.SECRET_KEY}}
           USE_LOCAL: ${{ vars.USE_LOCAL }}
+          ACCESS_KEY_AI: ${{ vars.ACCESS_KEY_AI }}
+          SECRET_KEY_AI: ${{ vars.SECRET_KEY_AI }}
+          YANDEX_FOLDER_ID: ${{ vars.YANDEX_FOLDER_ID }}
+          MODEL_LLM_NAME: ${{ vars.MODEL_LLM_NAME }}
         run: poetry run pytest -vs .
 
   deploy_develop:
