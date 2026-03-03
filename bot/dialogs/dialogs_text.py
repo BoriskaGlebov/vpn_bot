@@ -59,6 +59,7 @@ def load_dialogs(filename: Path | str | None = None) -> Box:
     return Box(processed_data, default_box=True, default_box_attr=None)
 
 
+# TODO отсутствуют тесты этой функции
 def extract_knowledge_chunks(
     data: Any,
     parent_key: str = "",

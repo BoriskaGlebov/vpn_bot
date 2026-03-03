@@ -131,8 +131,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
-    # ToDO НА проде надо перезагружать nginx при обновлении бота CI
-    # TODO упростить nginx на проде, не надо делать через мастер и воркер
     scheduler.add_job(
         scheduled_check,
         # trigger=IntervalTrigger(seconds=30),

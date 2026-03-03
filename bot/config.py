@@ -210,8 +210,40 @@ class SettingsBucket(BaseSettings):
     )
 
 
-# TODO документация
 class SettingsAI(BaseSettings):
+    """Настройки конфигурации для интеграции с AI-сервисом.
+
+    Класс загружает параметры из переменных окружения и файлов `.env`.
+    Используется для хранения ключей доступа, параметров модели и
+    дополнительных настроек обработки.
+
+    Attributes
+        access_key_ai (SecretStr):
+            Ключ доступа для аутентификации в AI-сервисе.
+
+        secret_key_ai (SecretStr):
+            Секретный ключ для безопасной аутентификации.
+
+        yandex_folder_id (str):
+            Идентификатор каталога в Yandex Cloud.
+
+        yandex_model (str):
+            Название используемой модели Yandex GPT.
+            По умолчанию "yandexgpt-lite".
+
+        common_chunks (list[dict[str, str]]):
+            Список базовых сообщений (контекстных чанков),
+            передаваемых в модель по умолчанию.
+
+        model_llm_name (str):
+            Имя основной LLM-модели, используемой в приложении.
+
+        normalize (bool):
+            Флаг нормализации входных данных перед отправкой в модель.
+            По умолчанию True.
+
+    """
+
     access_key_ai: SecretStr
     secret_key_ai: SecretStr
     yandex_folder_id: str
