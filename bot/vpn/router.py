@@ -186,8 +186,7 @@ class VPNRouter(BaseRouter):
     async def create_proxy_url(
         self, message: Message, session: AsyncSession, user: TgUser, state: FSMContext
     ) -> None:
-        """
-        Генерирует уникальный прокси для пользователя и отправляет ссылку в Telegram.
+        """Генерирует уникальный прокси для пользователя и отправляет ссылку в Telegram.
 
         Args:
             message (Message): Объект сообщения из Telegram.

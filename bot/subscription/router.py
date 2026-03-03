@@ -100,17 +100,17 @@ class SubscriptionRouter(BaseRouter):
             self.admin_decline_payment,
             AdminPaymentCB.filter(F.action == AdminPaymentAction.DECLINE),
         )
-        # self.router.message.register(
-        #     self.mistake_handler_user,
-        #     and_f(
-        #         or_f(
-        #             StateFilter(SubscriptionStates.subscription_start),
-        #             StateFilter(SubscriptionStates.select_period),
-        #             StateFilter(SubscriptionStates.wait_for_paid),
-        #         ),
-        #         ~F.text.startswith("/"),
-        #     ),
-        # )
+        self.router.message.register(
+            self.mistake_handler_user,
+            and_f(
+                or_f(
+                    StateFilter(SubscriptionStates.subscription_start),
+                    StateFilter(SubscriptionStates.select_period),
+                    StateFilter(SubscriptionStates.wait_for_paid),
+                ),
+                ~F.text.startswith("/"),
+            ),
+        )
 
     @BaseRouter.log_method
     @connection()

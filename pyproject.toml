@@ -32,6 +32,10 @@ sqladmin = "^0.23.0"
 flask-admin = "^2.0.2"
 itsdangerous = "^2.2.0"
 docker = "^7.1.0"
+yandex-ai-studio-sdk = "^0.19.2"
+pgvector = "^0.4.2"
+sentence-transformers = "^5.2.3"
+
 
 
 [tool.poetry.group.dev.dependencies]
@@ -55,6 +59,7 @@ aiosqlite = "^0.21.0"
 types-aiofiles = "^25.1.0.20251011"
 types-python-dateutil = "^2.9.0.20251115"
 asyncssh = "^2.21.1"
+sqladmin = "^0.23.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -113,7 +118,7 @@ exclude = [
     "^dist/",
     "^\\.venv/",
     "^bot/migrations/",
-    "bot/vpn"
+    "^bot/vpn/utils/",
 ]
 plugins = [
     "pydantic.mypy",

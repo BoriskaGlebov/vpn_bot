@@ -18,9 +18,7 @@ def referral_service(fake_bot, fake_logger):
 @pytest.mark.asyncio
 @pytest.mark.referrals
 async def test_invite_handler_sends_referral_link(
-    fake_bot,
-    fake_logger,
-    make_fake_message,
+    fake_bot, fake_logger, make_fake_message, fake_state
 ):
     # Arrange
     message = make_fake_message(user_id=123)
@@ -33,7 +31,7 @@ async def test_invite_handler_sends_referral_link(
     )
 
     # Act
-    await router.invite_handler(message)
+    await router.invite_handler(message=message, state=fake_state)
 
     # Assert
     fake_bot.get_me.assert_awaited_once()

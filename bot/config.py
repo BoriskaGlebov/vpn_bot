@@ -12,7 +12,7 @@ from loguru import logger
 from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from bot.dialogs.dialogs_text import dialogs
+from bot.dialogs.dialogs_text import chunks, dialogs
 
 __all__ = ["logger", "settings_bot", "settings_db", "bot", "dp"]
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -210,6 +210,59 @@ class SettingsBucket(BaseSettings):
     )
 
 
+class SettingsAI(BaseSettings):
+    """Настройки конфигурации для интеграции с AI-сервисом.
+
+    Класс загружает параметры из переменных окружения и файлов `.env`.
+    Используется для хранения ключей доступа, параметров модели и
+    дополнительных настроек обработки.
+
+    Attributes
+        access_key_ai (SecretStr):
+            Ключ доступа для аутентификации в AI-сервисе.
+
+        secret_key_ai (SecretStr):
+            Секретный ключ для безопасной аутентификации.
+
+        yandex_folder_id (str):
+            Идентификатор каталога в Yandex Cloud.
+
+        yandex_model (str):
+            Название используемой модели Yandex GPT.
+            По умолчанию "yandexgpt-lite".
+
+        common_chunks (list[dict[str, str]]):
+            Список базовых сообщений (контекстных чанков),
+            передаваемых в модель по умолчанию.
+
+        model_llm_name (str):
+            Имя основной LLM-модели, используемой в приложении.
+
+        normalize (bool):
+            Флаг нормализации входных данных перед отправкой в модель.
+            По умолчанию True.
+
+    """
+
+    access_key_ai: SecretStr
+    secret_key_ai: SecretStr
+    yandex_folder_id: str
+    yandex_model: str = "yandexgpt-lite"
+    common_chunks: list[dict[str, str]] = chunks
+    model_llm_name: str
+    normalize: bool = True
+    skip_ai_init: bool = False
+
+    model_config = SettingsConfigDict(
+        env_file=[
+            str(BASE_DIR / ".env"),
+            str(BASE_DIR / ".env.local"),
+        ],
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
 class LoggerConfig:
     """Настройка логирования с использованием loguru.
 
@@ -372,6 +425,7 @@ class LoggerConfig:
 settings_bot = SettingsBot()
 settings_db = SettingsDB()
 settings_bucket = SettingsBucket()
+settings_ai = SettingsAI()
 
 LoggerConfig(
     log_dir=Path(__file__).resolve().parent / "logs",

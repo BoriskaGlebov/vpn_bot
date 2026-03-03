@@ -247,6 +247,10 @@ proxy_user:CL:j88WSiGkjVdbLWxZ
 users $/usr/local/3proxy/conf/users.txt
 
 ```
+Там нестандартная утснаовка Pytorch
+```aiignore
+  poetry run pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+```
 Стиль кода: ruff, mypy (pyproject.toml, ruff.toml). Pre-commit хуки — .pre-commit-config.yaml.
 
 ## Деплой Nginx
