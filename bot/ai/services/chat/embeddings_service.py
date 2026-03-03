@@ -104,7 +104,7 @@ class KnowledgeBaseInitializer:
         self,
         emb_service: EmbeddingService,
         source: str = "dialog_messages.yaml",
-        chunks: list[str | dict] = None,
+        chunks: list[str | dict[str, str]] | None = None,
     ) -> None:
         """Инициализация класса.
 
@@ -155,11 +155,10 @@ class KnowledgeBaseInitializer:
             chunks_to_save: list[SKnowledgeChunk] = []
             for text_obj, vector in zip(self._chunks, embeddings):
                 try:
-                    content = (
-                        text_obj.get("content")
-                        if isinstance(text_obj, dict)
-                        else str(text_obj)
-                    )
+                    if isinstance(text_obj, dict):
+                        content: str = str(text_obj.get("content", ""))
+                    else:
+                        content = str(text_obj)
 
                     if vector is None or not np.isfinite(vector).all():
                         raise ValueError("Эмбеддинг содержит недопустимые значения")

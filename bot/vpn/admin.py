@@ -7,12 +7,12 @@ from bot.users.models import User
 from bot.vpn.models import VPNConfig
 
 
-def format_user(model: VPNConfig, _: Any) -> str:
+def format_user(model_class: type[VPNConfig], value: Any) -> str:
     """Форматирует отображение пользователя в списке.
 
     Args
-        model: Экземпляр VPNConfig.
-        _: Контекст SQLAdmin (не используется).
+        model_class: Экземпляр VPNConfig.
+        value: Контекст SQLAdmin (не используется).
 
     Returns
         str: Строка формата
@@ -20,27 +20,27 @@ def format_user(model: VPNConfig, _: Any) -> str:
             или "-" если пользователь отсутствует.
 
     """
-    if model.user is None:
+    if model_class.user is None:
         return "-"
-    return f"{model.user.username} ({model.user.telegram_id})"
+    return f"{model_class.user.username} ({model_class.user.telegram_id})"
 
 
-def format_pub_key(model: VPNConfig, _: Any) -> str:
+def format_pub_key(model_class: type[VPNConfig], value: Any) -> str:
     """Форматирует публичный ключ для отображения.
 
     Обрезает ключ до 25 символов для компактного вывода.
 
     Args
-        model: Экземпляр VPNConfig.
-        _: Контекст SQLAdmin (не используется).
+        model_class: Экземпляр VPNConfig.
+        value: Контекст SQLAdmin (не используется).
 
     Returns
         str: Укороченный публичный ключ или "-".
 
     """
-    if not model.pub_key:
+    if not model_class.pub_key:
         return "-"
-    return f"{model.pub_key[:25]}..."
+    return f"{model_class.pub_key[:25]}..."
 
 
 class VPNConfigAdmin(ModelView, model=VPNConfig):

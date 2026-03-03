@@ -216,10 +216,9 @@ class SettingsAI(BaseSettings):
     secret_key_ai: SecretStr
     yandex_folder_id: str
     yandex_model: str = "yandexgpt-lite"
-    common_chunks: list = chunks
+    common_chunks: list[dict[str, str]] = chunks
     model_llm_name: str
     normalize: bool = True
-    model_llm_name: str
 
     model_config = SettingsConfigDict(
         env_file=[

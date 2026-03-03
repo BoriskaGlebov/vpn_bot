@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import (
     Any,
     Generic,
@@ -254,7 +255,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     async def add_many(
-        cls, session: AsyncSession, instances: list[BaseModel]
+        cls, session: AsyncSession, instances: Sequence[BaseModel]
     ) -> list[T]:
         """Добавляет несколько записей в базу данных.
 

@@ -93,31 +93,32 @@ class AIRouter(BaseRouter):
             - Логирование ведется с привязкой к username или id пользователя.
 
         """
-        if len(message.text.split()) < 3:
+        text = message.text or ""
+        if len(text.split()) < 3:
             await message.answer(text=m_ai.short_question)
             return
         user_logger = self.logger.bind(user=user.username or user.id or "undefined")
         history = await state.get_data()
         conversation: list[str] = history.get("conversation", [])
 
-        conversation.append(message.text)
+        conversation.append(text)
         conversation = conversation[-5:]
         await state.update_data(conversation=conversation)
 
         user_logger.info(
             "Пользователь {}: история сообщений ({}): {}",
-            message.from_user.id,
+            user.id,
             len(conversation),
             conversation,
         )
 
         answer = await self.chat_service.ask(
-            question=message.text, session=session, user_context=conversation
+            question=text, session=session, user_context=conversation
         )
 
         await message.answer(answer)
         user_logger.info(
             "Ответ пользователю {} отправлен ({} символов)",
-            message.from_user.id,
+            user.id,
             len(answer),
         )
