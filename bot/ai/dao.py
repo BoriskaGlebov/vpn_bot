@@ -78,4 +78,4 @@ class KnowledgeChunkDAO(BaseDAO[KnowledgeChunk]):
             return filtered
         except Exception as e:
             logger.exception("Ошибка при поиске по эмбеддингам: {}", e)
-            return []
+            raise
