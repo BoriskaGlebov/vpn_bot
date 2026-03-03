@@ -5,12 +5,12 @@ bot:
   commands:
     users: &defaults
       start: 🚀  Начать пользоваться VPN
+      ai_assistant:  🤖 ИИ помощник
       help: 💡  Как получить и настроить VPN
       friends: 🎁 Пригласить друга
     admins:
       admin: 🧰  Панель администратора
       news: 📢 Объявление
-      ai:  🤖 Функции ИИ
       <<: *defaults
     group:
       start: 🚀  Начать пользоваться VPN

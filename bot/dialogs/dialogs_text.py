@@ -1,7 +1,4 @@
-# TODO Надо как то в приветсвии писать кома можно написать за помощью сразу
-# TODO проверить ссылки на програмки
 from pathlib import Path
-from pprint import pprint
 from typing import Any
 
 import yaml
@@ -62,42 +59,132 @@ def load_dialogs(filename: Path | str | None = None) -> Box:
     return Box(processed_data, default_box=True, default_box_attr=None)
 
 
-# TODO документация
-def extract_knowledge_chunks(data: Any, parent_key: str = "") -> list[dict]:
+def extract_knowledge_chunks(
+    data: Any,
+    parent_key: str = "",
+    *,
+    min_list_length: int = 100,
+    min_str_length: int = 150,
+) -> list[dict[str, str]]:
+    """Рекурсивно извлекает смысловые текстовые блоки для генерации эмбеддингов.
+
+    Функция обходит вложенную структуру (dict / list / str) и формирует
+    список текстовых фрагментов (чанков), пригодных для индексирования
+    в векторной базе.
+
+    Правила извлечения:
+        - dict: рекурсивный обход значений.
+        - list[str]: объединяется через перенос строки и добавляется,
+          если длина итоговой строки >= min_list_length.
+        - list[mixed]: рекурсивный обход элементов.
+        - str: добавляется как отдельный чанк,
+          если длина строки >= min_str_length.
+
+    Для каждого чанка формируется словарь:
+        {
+            "source": <иерархический путь ключей через точку>,
+            "content": <текст чанка>
+        }
+
+    Args:
+        data: Произвольная вложенная структура данных.
+        parent_key: Иерархический путь (через точку),
+            используется для формирования поля "source".
+        min_list_length: Минимальная длина текста (в символах)
+            для списка строк.
+        min_str_length: Минимальная длина строки (в символах)
+            для добавления как отдельного чанка.
+
+    Returns
+        Список словарей с ключами "source" и "content".
+
+    Raises
+        Исключения не выбрасываются. Неподдерживаемые типы
+        данных игнорируются.
+
     """
-    Рекурсивно извлекает смысловые текстовые блоки
-    для последующей генерации эмбеддингов.
-    """
-    chunks = []
+    chunks: list[dict[str, str]] = []
 
     if isinstance(data, dict):
+        logger.debug("Обход словаря: {}", parent_key or "<root>")
         for key, value in data.items():
             new_key = f"{parent_key}.{key}" if parent_key else key
-            chunks.extend(extract_knowledge_chunks(value, new_key))
+            chunks.extend(
+                extract_knowledge_chunks(
+                    value,
+                    new_key,
+                    min_list_length=min_list_length,
+                    min_str_length=min_str_length,
+                )
+            )
 
     elif isinstance(data, list):
+        logger.debug(
+            "Обработка списка: '{}' (элементов: {})",
+            parent_key or "<root>",
+            len(data),
+        )
+
         if all(isinstance(i, str) for i in data):
             content = "\n".join(data).strip()
 
-            if len(content) > 100:
+            if len(content) >= min_list_length:
+                logger.debug(
+                    "Добавлен чанк из списка: '{}' (длина: {})",
+                    parent_key,
+                    len(content),
+                )
                 chunks.append(
                     {
                         "source": parent_key,
                         "content": content,
                     }
                 )
+            else:
+                logger.trace(
+                    "Список пропущен (слишком короткий): '{}' (длина: {})",
+                    parent_key,
+                    len(content),
+                )
         else:
             for item in data:
-                chunks.extend(extract_knowledge_chunks(item, parent_key))
+                chunks.extend(
+                    extract_knowledge_chunks(
+                        item,
+                        parent_key,
+                        min_list_length=min_list_length,
+                        min_str_length=min_str_length,
+                    )
+                )
 
     elif isinstance(data, str):
-        if len(data) > 150:
+        content = data.strip()
+
+        if len(content) >= min_str_length:
+            logger.debug(
+                "Добавлен чанк из строки: '{}' (длина: {})",
+                parent_key,
+                len(content),
+            )
             chunks.append(
                 {
                     "source": parent_key,
-                    "content": data.strip(),
+                    "content": content,
                 }
             )
+        else:
+            logger.trace(
+                "Строка пропущена (слишком короткая): '{}' (длина: {})",
+                parent_key,
+                len(content),
+            )
+
+    else:
+        logger.trace(
+            "Тип данных не поддерживается: '{}' ({})",
+            parent_key,
+            type(data).__name__,
+        )
 
     return chunks
 

@@ -81,6 +81,10 @@ class NewsRouter(BaseRouter):
                 is_admin,
             ),
         )
+        self.router.message.register(
+            self.mistake_handler_user,
+            and_f(StateFilter(NewStates.confirm_news, F.text)),
+        )
 
     async def _send_news(self, user_id: int, news_data: dict[str, Any]) -> None:
         """Фунция расслыки новостей."""

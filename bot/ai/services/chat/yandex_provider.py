@@ -1,3 +1,4 @@
+from loguru import logger
 from yandex_ai_studio_sdk import AsyncAIStudio
 
 from bot.ai.services.chat.base import BaseLLMProvider
@@ -5,7 +6,20 @@ from bot.config import settings_ai
 
 
 class YandexLLMProvider(BaseLLMProvider):
+    """Провайдер LLM для работы с Yandex AI Studio (асинхронный).
+
+    Используется для генерации ответов Telegram-бота на основе
+    переданного контекста. Генерация происходит строго на основе
+    контекста, без добавления внешних знаний.
+    """
+
     def __init__(self) -> None:
+        """Инициализация провайдера.
+
+        Создаёт объект SDK Yandex AI Studio и конфигурирует
+        модель чат-комплешенов.
+
+        """
         self._sdk = AsyncAIStudio(
             folder_id=settings_ai.yandex_folder_id,
             auth=settings_ai.secret_key_ai.get_secret_value(),
@@ -31,13 +45,50 @@ class YandexLLMProvider(BaseLLMProvider):
             "что информации недостаточно.\n"
             "Не добавляй знания от себя и не придумывай."
         )
+        logger.info("YandexLLMProvider инициализирован успешно")
 
     async def generate(self, context: str, question: str) -> str:
+        """Генерирует ответ на вопрос на основе переданного контекста.
+
+        Args:
+            context (str): Контекст, содержащий информацию из базы знаний.
+            question (str): Вопрос пользователя.
+
+        Returns
+            str: Ответ модели на основе контекста.
+
+        Raises
+            ValueError: Если `context` или `question` пустые.
+            Exception: Пробрасывает ошибки SDK Yandex AI Studio.
+
+        """
+        if not context.strip():
+            raise ValueError("context не может быть пустым")
+        if not question.strip():
+            raise ValueError("question не может быть пустым")
+
         full_prompt = (
-            f"{self._system_prompt}\n\n"
-            f"Контекст:\n{context}\n\n"
-            f"Вопрос:\n{question}"
+            f"{self._system_prompt}\n\nКонтекст:\n{context}\n\nВопрос:\n{question}"
         )
 
-        result = await self._model.run(full_prompt)
-        return result.text
+        logger.debug(
+            "Генерация ответа: контекст {} символов, вопрос {} символов",
+            len(context),
+            len(question),
+        )
+
+        try:
+            result = await self._model.run(full_prompt)
+            answer = result.text.strip() if result.text else ""
+            if not answer:
+                logger.warning(
+                    "Результат генерации пустой, возможно нет подходящего контекста"
+                )
+            else:
+                logger.info("Ответ сгенерирован успешно ({} символов)", len(answer))
+            return answer
+        except Exception as e:
+            logger.exception(
+                "Ошибка при генерации ответа через Yandex AI Studio: {}", e
+            )
+            raise

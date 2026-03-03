@@ -1,5 +1,6 @@
 from aiogram import Bot
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -29,7 +30,9 @@ class ReferralRouter(BaseRouter):
 
     @BaseRouter.log_method
     @BaseRouter.require_user
-    async def invite_handler(self, message: Message, user: TGUser) -> None:
+    async def invite_handler(
+        self, message: Message, user: TGUser, state: FSMContext
+    ) -> None:
         """Обрабатывает команду приглашения друзей.
 
         Формирует персональную реферальную ссылку пользователя и
@@ -38,8 +41,10 @@ class ReferralRouter(BaseRouter):
         Args:
             user: Пользователь для работы
             message (Message): Входящее сообщение от пользователя.
+            state (FSMContext):Машина состояния.
 
         """
+        await state.clear()
         bot = await self.bot.get_me()
         ref_link = f"https://t.me/{bot.username}?start=ref_{user.id}"
 
