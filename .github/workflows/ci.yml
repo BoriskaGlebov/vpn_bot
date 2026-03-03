@@ -99,6 +99,7 @@ jobs:
           SECRET_KEY_AI: ${{ vars.SECRET_KEY_AI }}
           YANDEX_FOLDER_ID: ${{ vars.YANDEX_FOLDER_ID }}
           MODEL_LLM_NAME: ${{ vars.MODEL_LLM_NAME }}
+          SKIP_AI_INIT: ${{vars.SKIP_AI_INIT}}
         run: poetry run pytest -vs .
 
   deploy_develop:

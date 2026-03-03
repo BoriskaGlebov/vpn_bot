@@ -5,6 +5,7 @@ from typing import Any
 import uvicorn
 from aiogram.types import Update
 from apscheduler.triggers.cron import CronTrigger
+from config import settings_ai
 from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel, ValidationError
 from sqladmin import Admin
@@ -108,17 +109,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
     news_service = NewsService(bot=bot, logger=logger)  # type: ignore[arg-type]
     news_router = NewsRouter(bot=bot, logger=logger, news_service=news_service)  # type: ignore[arg-type]
-    embedding_service = EmbeddingService()
-    knowledge_initializer = KnowledgeBaseInitializer(emb_service=embedding_service)
-    await knowledge_initializer.initialize()
-    llm = YandexLLMProvider()
-    chat_service = ChatService(llm=llm, emb_service=embedding_service)
-    ai_router = AIRouter(
-        bot=bot,
-        logger=logger,  # type: ignore[arg-type]
-        redis_manager=redis_manager,
-        chat_service=chat_service,
-    )
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
@@ -127,7 +117,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
-    dp.include_router(ai_router.router)
+
+    if not settings_ai.skip_ai_init:
+        embedding_service = EmbeddingService()
+        knowledge_initializer = KnowledgeBaseInitializer(emb_service=embedding_service)
+        await knowledge_initializer.initialize()
+        llm = YandexLLMProvider()
+        chat_service = ChatService(llm=llm, emb_service=embedding_service)
+        ai_router = AIRouter(
+            bot=bot,
+            logger=logger,  # type: ignore[arg-type]
+            redis_manager=redis_manager,
+            chat_service=chat_service,
+        )
+        dp.include_router(ai_router.router)
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)

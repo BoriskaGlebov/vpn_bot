@@ -251,6 +251,7 @@ class SettingsAI(BaseSettings):
     common_chunks: list[dict[str, str]] = chunks
     model_llm_name: str
     normalize: bool = True
+    skip_ai_init = False
 
     model_config = SettingsConfigDict(
         env_file=[
