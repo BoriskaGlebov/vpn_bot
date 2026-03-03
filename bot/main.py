@@ -5,7 +5,6 @@ from typing import Any
 import uvicorn
 from aiogram.types import Update
 from apscheduler.triggers.cron import CronTrigger
-from config import settings_ai
 from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel, ValidationError
 from sqladmin import Admin
@@ -22,7 +21,7 @@ from bot.ai.services.chat.embeddings_service import (
 )
 from bot.ai.services.chat.service import ChatService
 from bot.ai.services.chat.yandex_provider import YandexLLMProvider
-from bot.config import bot, dp, logger, settings_bot
+from bot.config import bot, dp, logger, settings_ai, settings_bot
 from bot.database import engine
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
