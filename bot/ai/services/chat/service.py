@@ -75,7 +75,7 @@ class ChatService:
             return base_context
         history_text = "Предыдущие вопросы от пользователя" + "\n".join(user_context)
         if base_context:
-            return f"{history_text}\n\n" f"Данные из базы знаний: {base_context}"
+            return f"{history_text}\n\nДанные из базы знаний: {base_context}"
         return history_text
 
     async def _generate_answer(self, question: str, context: str) -> str:

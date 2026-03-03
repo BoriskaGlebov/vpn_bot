@@ -72,9 +72,7 @@ class YandexLLMProvider(BaseLLMProvider):
             return "Вопрос некорректный, попробуйте уточнить."
 
         full_prompt = (
-            f"{self._system_prompt}\n\n"
-            f"Контекст:\n{context}\n\n"
-            f"Вопрос:\n{question}"
+            f"{self._system_prompt}\n\nКонтекст:\n{context}\n\nВопрос:\n{question}"
         )
 
         logger.debug(
