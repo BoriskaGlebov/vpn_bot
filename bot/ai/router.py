@@ -31,7 +31,7 @@ class AIRouter(BaseRouter):
         self.chat_service = chat_service
 
     def _register_handlers(self) -> None:
-        self.router.message.register(self.ai_start, Command("ai"))
+        self.router.message.register(self.ai_start, Command("ai_assistant"))
         self.router.message.register(self.ai_questions, F.text)
 
     @BaseRouter.log_method
