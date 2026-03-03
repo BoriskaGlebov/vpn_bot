@@ -117,6 +117,7 @@ exclude = [
     "^dist/",
     "^\\.venv/",
     "^bot/migrations/",
+    "^bot/vpn/utils/",
 ]
 plugins = [
     "pydantic.mypy",
