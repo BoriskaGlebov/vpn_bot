@@ -14,6 +14,13 @@ from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
+from bot.ai.router import AIRouter
+from bot.ai.services.chat.embeddings_service import (
+    EmbeddingServiceFactory,
+    KnowledgeBaseInitializer,
+)
+from bot.ai.services.chat.service import ChatService
+from bot.ai.services.chat.yandex_provider import YandexLLMProvider
 from bot.config import bot, dp, logger, settings_bot
 from bot.database import engine
 from bot.help.router import HelpRouter
@@ -110,10 +117,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
 
+    embedding_service = EmbeddingServiceFactory().create()
+    knowledge_initializer = KnowledgeBaseInitializer(emb_service=embedding_service)
+    await knowledge_initializer.initialize()
+    llm = YandexLLMProvider()
+    chat_service = ChatService(llm=llm, emb_service=embedding_service)
+    ai_router = AIRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        redis_manager=redis_manager,
+        chat_service=chat_service,
+    )
+    dp.include_router(ai_router.router)
+
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
-    # ToDO НА проде надо перезагружать nginx при обновлении бота CI
-    # TODO упростить nginx на проде, не надо делать через мастер и воркер
     scheduler.add_job(
         scheduled_check,
         # trigger=IntervalTrigger(seconds=30),

@@ -44,7 +44,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 or 0
             )
             logger.debug(f"[DAO] У пользователя {user_id} конфигов: {count}")
-            if user and not user.current_subscription.is_active:
+            if not user.current_subscription or not user.current_subscription.is_active:
                 logger.warning("Нет активной подписки.")
                 raise SubscriptionNotFoundError(user_id=user_id)
             if user and count == 0:

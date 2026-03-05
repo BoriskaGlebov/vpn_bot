@@ -4,6 +4,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from bot.ai.models import KnowledgeChunk
 from bot.config import settings_db  # твои Pydantic Settings
 from bot.database import Base  # твой Base с моделями
 from bot.referrals.models import Referral

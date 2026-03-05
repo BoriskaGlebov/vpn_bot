@@ -35,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          poetry install --no-root --with dev
+          poetry install --only dev --no-root --no-interaction --no-ansi
       - name: Run Black
         run: poetry run black --check .
       - name: Run isort
@@ -95,6 +95,11 @@ jobs:
           ACCESS_KEY: ${{secrets.ACCESS_KEY}}
           SECRET_KEY: ${{secrets.SECRET_KEY}}
           USE_LOCAL: ${{ vars.USE_LOCAL }}
+          ACCESS_KEY_AI: ${{ vars.ACCESS_KEY_AI }}
+          SECRET_KEY_AI: ${{ vars.SECRET_KEY_AI }}
+          YANDEX_FOLDER_ID: ${{ vars.YANDEX_FOLDER_ID }}
+          MODEL_LLM_NAME: ${{ vars.MODEL_LLM_NAME }}
+          SKIP_AI_INIT: ${{vars.SKIP_AI_INIT}}
         run: poetry run pytest -vs .
 
   deploy_develop:
@@ -161,8 +166,14 @@ jobs:
             echo "ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}" >> .env.local
             echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env.local
             echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.local
-            echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
+            echo "ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}" >> .env.local
+            echo "SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}" >> .env.local
+            echo "YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}" >> .env.local
+            echo "MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}" >> .env.local
+            echo "NORMALIZE=${{ vars.NORMALIZE }}" >> .env.local
 
+            echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
+            echo "SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}" >> .env.local
 
             echo "Restart Docker containers..."
             make compose-down
@@ -239,6 +250,13 @@ jobs:
             echo "ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}" >> .env
             echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env
             echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
+            echo "ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}" >> .env
+            echo "SECRET_KEY_AI=${{ secrets.SECRET_KEY_AII }}" >> .env
+            echo "YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}" >> .env
+            echo "MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}" >> .env
+            echo "NORMALIZE=${{ vars.NORMALIZE }}" >> .env
+            echo "SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}" >> .env
+
             echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env
 
 

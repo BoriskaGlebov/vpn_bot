@@ -1,5 +1,6 @@
 import sys
 from collections.abc import Iterable, Mapping
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -12,8 +13,6 @@ from loguru import logger
 from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from bot.dialogs.dialogs_text import dialogs
-
 __all__ = ["logger", "settings_bot", "settings_db", "bot", "dp"]
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -22,6 +21,7 @@ class SettingsBot(BaseSettings):
     """Конфигурация бота и логирования.
 
     Attributes
+        stage (str): Стадия проекта develop, prod, local, в зависимости от места разработки.
         bot_token (SecretStr): Токен бота для подключения к Telegram Bot API.
         admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
         base_site (str): Базовый URL сайта, используемый для формирования вебхука.
@@ -48,6 +48,7 @@ class SettingsBot(BaseSettings):
 
     """
 
+    stage: str = "prod"
     bot_token: SecretStr
     admin_ids: set[int] | str = ""
     base_site: str
@@ -57,7 +58,7 @@ class SettingsBot(BaseSettings):
     vpn_username: str
     vpn_container: str
     vpn_proxy: str
-    proxy_port: str = "40711"
+    proxy_port: str = "8443"
     max_configs_per_user: int = 10
 
     use_polling: bool = False
@@ -70,8 +71,6 @@ class SettingsBot(BaseSettings):
     logger_level_stdout: str = "INFO"
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
-
-    messages: Box = dialogs
 
     price_map: dict[int, int] = Field(
         default_factory=lambda: {1: 70, 3: 160, 6: 300, 12: 600, 7: 0},
@@ -104,6 +103,12 @@ class SettingsBot(BaseSettings):
                 raise ValueError("admin_ids должна содержать только целые числа")
 
         raise TypeError("admin_ids должно быть строкой или коллекцией")
+
+    @cached_property
+    def messages(self) -> Box:
+        from bot.dialogs.dialogs_text import dialogs
+
+        return dialogs
 
 
 class SettingsDB(BaseSettings):
@@ -208,6 +213,64 @@ class SettingsBucket(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+
+class SettingsAI(BaseSettings):
+    """Настройки конфигурации для интеграции с AI-сервисом.
+
+    Класс загружает параметры из переменных окружения и файлов `.env`.
+    Используется для хранения ключей доступа, параметров модели и
+    дополнительных настроек обработки.
+
+    Attributes
+        access_key_ai (SecretStr):
+            Ключ доступа для аутентификации в AI-сервисе.
+
+        secret_key_ai (SecretStr):
+            Секретный ключ для безопасной аутентификации.
+
+        yandex_folder_id (str):
+            Идентификатор каталога в Yandex Cloud.
+
+        yandex_model (str):
+            Название используемой модели Yandex GPT.
+            По умолчанию "yandexgpt-lite".
+
+        common_chunks (list[dict[str, str]]):
+            Список базовых сообщений (контекстных чанков),
+            передаваемых в модель по умолчанию.
+
+        model_llm_name (str):
+            Имя основной LLM-модели, используемой в приложении.
+
+        normalize (bool):
+            Флаг нормализации входных данных перед отправкой в модель.
+            По умолчанию True.
+
+    """
+
+    access_key_ai: SecretStr
+    secret_key_ai: SecretStr
+    yandex_folder_id: str
+    yandex_model: str = "yandexgpt-lite"
+    model_llm_name: str
+    normalize: bool = True
+    skip_ai_init: bool = True
+
+    model_config = SettingsConfigDict(
+        env_file=[
+            str(BASE_DIR / ".env"),
+            str(BASE_DIR / ".env.local"),
+        ],
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    @cached_property
+    def common_chunks(self) -> list[dict[str, str]]:
+        from bot.dialogs.dialogs_text import chunks
+
+        return chunks
 
 
 class LoggerConfig:
@@ -372,6 +435,7 @@ class LoggerConfig:
 settings_bot = SettingsBot()
 settings_db = SettingsDB()
 settings_bucket = SettingsBucket()
+settings_ai = SettingsAI()
 
 LoggerConfig(
     log_dir=Path(__file__).resolve().parent / "logs",

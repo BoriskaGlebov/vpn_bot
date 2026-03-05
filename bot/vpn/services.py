@@ -41,7 +41,7 @@ class VPNService:
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user
         )
-        if user_model is None:
+        if user_model is None or not user_model.current_subscription:
             raise UserNotFoundError(tg_id=user.id)
 
         can_add = await VPNConfigDAO.can_add_config(

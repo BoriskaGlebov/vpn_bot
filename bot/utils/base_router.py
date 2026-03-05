@@ -130,7 +130,7 @@ class BaseRouter(ABC):
             current_state = await state.get_state()
             state_me = current_state.split(":")[1] if current_state else None
             if state_me:
-                answer_text = m_error.get("unknown_command", "")
+                answer_text = m_error.unknown_command
                 counter = await self.counter_handler(command_key=state_me, state=state)
             if counter >= 2:
                 await state.clear()
@@ -145,9 +145,7 @@ class BaseRouter(ABC):
                 else:
                     username = "Гость"
 
-                answer_text = m_error.get("help_limit_reached", "").format(
-                    username=username
-                )
+                answer_text = m_error.help_limit_reached.format(username=username)
 
                 await message.answer(
                     text=answer_text, reply_markup=ReplyKeyboardRemove()
