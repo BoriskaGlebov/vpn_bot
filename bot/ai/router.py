@@ -7,6 +7,7 @@ from aiogram.filters import (
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.types import User as TgUser
+from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -64,10 +65,11 @@ class AIRouter(BaseRouter):
 
         """
         await state.clear()
-        await message.answer(
-            text=m_ai.start,
-            reply_markup=ReplyKeyboardRemove(),
-        )
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await message.answer(
+                text=m_ai.start,
+                reply_markup=ReplyKeyboardRemove(),
+            )
 
     @connection()
     @BaseRouter.log_method
@@ -93,32 +95,33 @@ class AIRouter(BaseRouter):
             - Логирование ведется с привязкой к username или id пользователя.
 
         """
-        text = message.text or ""
-        if len(text.split()) < 3:
-            await message.answer(text=m_ai.short_question)
-            return
-        user_logger = self.logger.bind(user=user.username or user.id or "undefined")
-        history = await state.get_data()
-        conversation: list[str] = history.get("conversation", [])
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            text = message.text or ""
+            if len(text.split()) < 3:
+                await message.answer(text=m_ai.short_question)
+                return
+            user_logger = self.logger.bind(user=user.username or user.id or "undefined")
+            history = await state.get_data()
+            conversation: list[str] = history.get("conversation", [])
 
-        conversation.append(text)
-        conversation = conversation[-5:]
-        await state.update_data(conversation=conversation)
+            conversation.append(text)
+            conversation = conversation[-5:]
+            await state.update_data(conversation=conversation)
 
-        user_logger.info(
-            "Пользователь {}: история сообщений ({}): {}",
-            user.id,
-            len(conversation),
-            conversation,
-        )
+            user_logger.info(
+                "Пользователь {}: история сообщений ({}): {}",
+                user.id,
+                len(conversation),
+                conversation,
+            )
 
-        answer = await self.chat_service.ask(
-            question=text, session=session, user_context=conversation
-        )
+            answer = await self.chat_service.ask(
+                question=text, session=session, user_context=conversation
+            )
 
-        await message.answer(answer)
-        user_logger.info(
-            "Ответ пользователю {} отправлен ({} символов)",
-            user.id,
-            len(answer),
-        )
+            await message.answer(answer)
+            user_logger.info(
+                "Ответ пользователю {} отправлен ({} символов)",
+                user.id,
+                len(answer),
+            )
