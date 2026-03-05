@@ -255,7 +255,7 @@ class SettingsAI(BaseSettings):
     yandex_model: str = "yandexgpt-lite"
     model_llm_name: str
     normalize: bool = True
-    skip_ai_init: bool = False
+    skip_ai_init: bool = True
 
     model_config = SettingsConfigDict(
         env_file=[

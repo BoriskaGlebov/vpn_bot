@@ -173,7 +173,7 @@ jobs:
             echo "NORMALIZE=${{ vars.NORMALIZE }}" >> .env.local
 
             echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
-
+            echo "SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}" >> .env.local
 
             echo "Restart Docker containers..."
             make compose-down
@@ -255,6 +255,7 @@ jobs:
             echo "YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}" >> .env
             echo "MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}" >> .env
             echo "NORMALIZE=${{ vars.NORMALIZE }}" >> .env
+            echo "SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}" >> .env
 
             echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env
 
