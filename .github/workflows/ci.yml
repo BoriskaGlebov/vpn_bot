@@ -251,7 +251,7 @@ jobs:
             echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env
             echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
             echo "ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}" >> .env
-            echo "SECRET_KEY_AI=${{ secrets.SECRET_KEY_AII }}" >> .env
+            echo "SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}" >> .env
             echo "YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}" >> .env
             echo "MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}" >> .env
             echo "NORMALIZE=${{ vars.NORMALIZE }}" >> .env
