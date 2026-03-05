@@ -1,5 +1,6 @@
 import sys
 from collections.abc import Iterable, Mapping
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -12,8 +13,6 @@ from loguru import logger
 from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from bot.dialogs.dialogs_text import chunks, dialogs
-
 __all__ = ["logger", "settings_bot", "settings_db", "bot", "dp"]
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -22,6 +21,7 @@ class SettingsBot(BaseSettings):
     """Конфигурация бота и логирования.
 
     Attributes
+        stage (str): Стадия проекта develop, prod, local, в зависимости от места разработки.
         bot_token (SecretStr): Токен бота для подключения к Telegram Bot API.
         admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
         base_site (str): Базовый URL сайта, используемый для формирования вебхука.
@@ -48,6 +48,7 @@ class SettingsBot(BaseSettings):
 
     """
 
+    stage: str = "prod"
     bot_token: SecretStr
     admin_ids: set[int] | str = ""
     base_site: str
@@ -57,7 +58,7 @@ class SettingsBot(BaseSettings):
     vpn_username: str
     vpn_container: str
     vpn_proxy: str
-    proxy_port: str = "40711"
+    proxy_port: str = "8443"
     max_configs_per_user: int = 10
 
     use_polling: bool = False
@@ -70,8 +71,6 @@ class SettingsBot(BaseSettings):
     logger_level_stdout: str = "INFO"
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
-
-    messages: Box = dialogs
 
     price_map: dict[int, int] = Field(
         default_factory=lambda: {1: 70, 3: 160, 6: 300, 12: 600, 7: 0},
@@ -104,6 +103,12 @@ class SettingsBot(BaseSettings):
                 raise ValueError("admin_ids должна содержать только целые числа")
 
         raise TypeError("admin_ids должно быть строкой или коллекцией")
+
+    @cached_property
+    def messages(self) -> Box:
+        from bot.dialogs.dialogs_text import dialogs
+
+        return dialogs
 
 
 class SettingsDB(BaseSettings):
@@ -248,10 +253,9 @@ class SettingsAI(BaseSettings):
     secret_key_ai: SecretStr
     yandex_folder_id: str
     yandex_model: str = "yandexgpt-lite"
-    common_chunks: list[dict[str, str]] = chunks
     model_llm_name: str
     normalize: bool = True
-    skip_ai_init: bool = False
+    skip_ai_init: bool = True
 
     model_config = SettingsConfigDict(
         env_file=[
@@ -261,6 +265,12 @@ class SettingsAI(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @cached_property
+    def common_chunks(self) -> list[dict[str, str]]:
+        from bot.dialogs.dialogs_text import chunks
+
+        return chunks
 
 
 class LoggerConfig:

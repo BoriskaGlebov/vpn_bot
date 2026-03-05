@@ -16,12 +16,12 @@ from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
 from bot.ai.router import AIRouter
 from bot.ai.services.chat.embeddings_service import (
-    EmbeddingService,
+    EmbeddingServiceFactory,
     KnowledgeBaseInitializer,
 )
 from bot.ai.services.chat.service import ChatService
 from bot.ai.services.chat.yandex_provider import YandexLLMProvider
-from bot.config import bot, dp, logger, settings_ai, settings_bot
+from bot.config import bot, dp, logger, settings_bot
 from bot.database import engine
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
@@ -117,19 +117,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
 
-    if not settings_ai.skip_ai_init:
-        embedding_service = EmbeddingService()
-        knowledge_initializer = KnowledgeBaseInitializer(emb_service=embedding_service)
-        await knowledge_initializer.initialize()
-        llm = YandexLLMProvider()
-        chat_service = ChatService(llm=llm, emb_service=embedding_service)
-        ai_router = AIRouter(
-            bot=bot,
-            logger=logger,  # type: ignore[arg-type]
-            redis_manager=redis_manager,
-            chat_service=chat_service,
-        )
-        dp.include_router(ai_router.router)
+    embedding_service = EmbeddingServiceFactory().create()
+    knowledge_initializer = KnowledgeBaseInitializer(emb_service=embedding_service)
+    await knowledge_initializer.initialize()
+    llm = YandexLLMProvider()
+    chat_service = ChatService(llm=llm, emb_service=embedding_service)
+    ai_router = AIRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        redis_manager=redis_manager,
+        chat_service=chat_service,
+    )
+    dp.include_router(ai_router.router)
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)

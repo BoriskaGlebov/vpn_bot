@@ -8,6 +8,7 @@ ENV POETRY_VERSION=1.8.0 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     PATH="/vpn_bot/.venv/bin:/vpn_bot/.local/bin:$PATH"
 
+
 # Создаём пользователя
 RUN groupadd -r bot && \
     useradd -r -g bot -d /vpn_bot -s /bin/bash -m botuser

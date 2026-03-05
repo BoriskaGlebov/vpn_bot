@@ -3,7 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.ai.dao import KnowledgeChunkDAO
 from bot.ai.services.chat.base import BaseLLMProvider
-from bot.ai.services.chat.embeddings_service import EmbeddingService
+from bot.ai.services.chat.embeddings_service import (
+    BaseEmbeddingService,
+)
 
 
 class ChatService:
@@ -18,7 +20,7 @@ class ChatService:
 
     """
 
-    def __init__(self, llm: BaseLLMProvider, emb_service: EmbeddingService) -> None:
+    def __init__(self, llm: BaseLLMProvider, emb_service: BaseEmbeddingService) -> None:
         """Инициализация класса.
 
         Args:
@@ -44,7 +46,7 @@ class ChatService:
             q_vector = await self._emb_service.encode_query(question)
         except Exception as e:
             logger.exception("Ошибка при генерации эмбеддинга вопроса: {}", e)
-            return ""
+            raise
 
         try:
             docs = await KnowledgeChunkDAO.search_by_embedding(

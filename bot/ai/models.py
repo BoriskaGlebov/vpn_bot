@@ -20,5 +20,6 @@ class KnowledgeChunk(Base):
     source: Mapped[str] = mapped_column(String, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(
-        Vector(768)
+        Vector(256)
     )  # 768 для intfloat/multilingual-e5-base
+    # 256 для intfloat/multilingual-e5-small
