@@ -12,8 +12,6 @@ from bot.config import settings_bot
 from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
 
-# TODO Нет тестов
-
 
 class AsyncDockerSSHClient:
     """Асинхронный клиент для выполнения команд в Docker-контейнере.
