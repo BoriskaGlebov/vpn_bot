@@ -1,17 +1,121 @@
 import asyncio
+from abc import ABC, abstractmethod
 from collections.abc import Iterable
 
 import numpy as np
 from loguru import logger
-from sentence_transformers import SentenceTransformer
+from yandex_ai_studio_sdk import AsyncAIStudio
 
 from bot.ai.dao import KnowledgeChunkDAO
 from bot.ai.schemas import SKnowledgeChunk, SKnowledgeChunkFilter
-from bot.config import settings_ai
+from bot.app_error.base_error import AppError
+from bot.config import settings_ai, settings_bot
 from bot.database import async_session
 
+if not settings_ai.skip_ai_init:
+    from sentence_transformers import SentenceTransformer
 
-class EmbeddingService:
+
+class BaseEmbeddingService(ABC):
+    """Абстрактный базовый класс для генерации эмбеддингов."""
+
+    def __init__(self, normalize: bool) -> None:
+        """Инициализация класса.
+
+        Args:
+            normalize (bool): Флаг для L2-нормализации эмбеддингов.
+
+        """
+        self._normalize = normalize
+
+    @abstractmethod
+    async def encode_documents(self, texts: list[str]) -> list[list[float]]:
+        """Генерация эмбеддингов для списка документов.
+
+        Args:
+            texts (List[str]): Список текстов.
+
+        Returns
+            List[List[float]]: Список эмбеддингов.
+
+        """
+        ...
+
+    @abstractmethod
+    async def encode_query(self, text: str) -> list[float]:
+        """Генерация эмбеддинга для одного запроса.
+
+        Args:
+            text (str): Текст запроса.
+
+        Returns
+            List[float]: Эмбеддинг запроса.
+
+        """
+        ...
+
+
+class YandexEmbeddingService(BaseEmbeddingService):
+    """Генерация эмбеддингов через Yandex AI Studio (асинхронно)."""
+
+    def __init__(self, normalize: bool, folder_id: str, api_key: str) -> None:
+        """Инициализация класса.
+
+        Args:
+            normalize (bool): Флаг нормализации векторов по L2.
+            folder_id (str): Идентификатор папки в Yandex AI Studio.
+            api_key (str): API-ключ для Yandex AI Studio.
+
+
+        """
+        super().__init__(normalize)
+        self._sdk = AsyncAIStudio(folder_id=folder_id, auth=api_key)
+        self._model = self._sdk.models.text_embeddings("text-search-query")
+        logger.info("YandexEmbeddingService инициализирована с моделью 'query'")
+
+    async def encode_documents(self, texts: list[str]) -> list[list[float]]:
+        """Генерация эмбеддингов для списка текстов через Yandex API.
+
+        Args:
+            texts (List[str]): Список текстов.
+
+        Returns
+            List[List[float]]: Список эмбеддингов.
+
+        """
+        coros = [self._model.run(text) for text in texts]
+        results = await asyncio.gather(*coros)
+        embeddings = np.array([r.embedding for r in results])
+        if self._normalize:
+            embeddings = embeddings / np.linalg.norm(embeddings, axis=1, keepdims=True)
+        logger.info("Сгенерировано {} эмбеддингов через Yandex API", len(embeddings))
+        return embeddings.tolist()
+
+    async def encode_query(self, text: str) -> list[float]:
+        """Генерация эмбеддинга для одного запроса через Yandex API.
+
+        Args:
+            text (str): Текст запроса.
+
+        Returns
+            List[float]: Эмбеддинг запроса.
+
+        """
+        result = await self._model.run(text)
+        embedding = np.array(result.embedding)
+
+        if self._normalize:
+            embedding = embedding / np.linalg.norm(embedding)
+
+        logger.debug(
+            "Сгенерирован эмбеддинг запроса через Yandex API, токенов {}",
+            result.num_tokens,
+        )
+
+        return embedding.tolist()
+
+
+class EmbeddingService(BaseEmbeddingService):
     """Сервис для генерации эмбеддингов текстов с использованием SentenceTransformer.
 
     Attributes
@@ -32,8 +136,8 @@ class EmbeddingService:
             normalize (bool): Нужно ли нормализовать эмбеддинги.
 
         """
+        super().__init__(normalize)
         self._model = SentenceTransformer(model_name)
-        self._normalize = normalize
         logger.info(
             "EmbeddingService инициализирована с моделью '{}' normalize={}",
             model_name,
@@ -91,6 +195,26 @@ class EmbeddingService:
         return embedding[0].tolist()
 
 
+class EmbeddingServiceFactory:
+    """Фабрика для выбора локального или Yandex EmbeddingService."""
+
+    @staticmethod
+    def create() -> EmbeddingService | YandexEmbeddingService:
+        """Возвращает сервис генерации эмбеддингов в зависимости от окружения."""
+        env = settings_bot.stage
+
+        if env == "prod":
+            logger.info("Используем YandexEmbeddingService для PROD")
+            return YandexEmbeddingService(
+                normalize=settings_ai.normalize,
+                folder_id=settings_ai.yandex_folder_id,
+                api_key=settings_ai.secret_key_ai.get_secret_value(),
+            )
+        else:
+            logger.info("Используем локальный EmbeddingService для DEV")
+            return EmbeddingService()
+
+
 class KnowledgeBaseInitializer:
     """Инициализация базы знаний с эмбеддингами.
 
@@ -102,14 +226,14 @@ class KnowledgeBaseInitializer:
 
     def __init__(
         self,
-        emb_service: EmbeddingService,
+        emb_service: BaseEmbeddingService,
         source: str = "dialog_messages.yaml",
         chunks: list[str | dict[str, str]] | None = None,
     ) -> None:
         """Инициализация класса.
 
         Args:
-            emb_service (EmbeddingService): Сервис генерации эмбеддингов.
+            emb_service (BaseEmbeddingService): Сервис генерации эмбеддингов.
             source (str): Источник текстов, используется в поле `source` в БД.
             chunks (List[Union[str, dict]]): Список текстов или словарей с ключом `content`.
 
@@ -161,7 +285,7 @@ class KnowledgeBaseInitializer:
                         content = str(text_obj)
 
                     if vector is None or not np.isfinite(vector).all():
-                        raise ValueError("Эмбеддинг содержит недопустимые значения")
+                        raise AppError("Эмбеддинг содержит недопустимые значения")
 
                     chunks_to_save.append(
                         SKnowledgeChunk(
