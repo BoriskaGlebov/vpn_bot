@@ -9,7 +9,7 @@ from yandex_ai_studio_sdk import AsyncAIStudio
 from bot.ai.dao import KnowledgeChunkDAO
 from bot.ai.schemas import SKnowledgeChunk, SKnowledgeChunkFilter
 from bot.app_error.base_error import AppError
-from bot.config import settings_ai, settings_bot
+from bot.config import settings_ai
 from bot.database import async_session
 
 if not settings_ai.skip_ai_init:
@@ -126,7 +126,9 @@ class EmbeddingService(BaseEmbeddingService):
 
     def __init__(
         self,
-        model_name: str = settings_ai.model_llm_name,
+        model_name: str = (
+            settings_ai.model_llm_name if settings_ai.model_llm_name else "model_name"
+        ),
         normalize: bool = settings_ai.normalize,
     ) -> None:
         """Инициализация EmbeddingService.
@@ -201,9 +203,7 @@ class EmbeddingServiceFactory:
     @staticmethod
     def create() -> EmbeddingService | YandexEmbeddingService:
         """Возвращает сервис генерации эмбеддингов в зависимости от окружения."""
-        env = settings_bot.stage
-
-        if env == "prod":
+        if settings_ai.skip_ai_init:
             logger.info("Используем YandexEmbeddingService для PROD")
             return YandexEmbeddingService(
                 normalize=settings_ai.normalize,

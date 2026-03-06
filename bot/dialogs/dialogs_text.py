@@ -117,6 +117,7 @@ def extract_knowledge_chunks(
                     min_str_length=min_str_length,
                 )
             )
+        logger.debug(" ✅  Чанки получены из словаря с инструкциями")
 
     elif isinstance(data, list):
         logger.debug(
@@ -129,11 +130,6 @@ def extract_knowledge_chunks(
             content = "\n".join(data).strip()
 
             if len(content) >= min_list_length:
-                logger.debug(
-                    "Добавлен чанк из списка: '{}' (длина: {})",
-                    parent_key,
-                    len(content),
-                )
                 chunks.append(
                     {
                         "source": parent_key,
@@ -156,16 +152,12 @@ def extract_knowledge_chunks(
                         min_str_length=min_str_length,
                     )
                 )
+        logger.debug(" ✅  Чанки получены из словаря с инструкциями")
 
     elif isinstance(data, str):
         content = data.strip()
 
         if len(content) >= min_str_length:
-            logger.debug(
-                "Добавлен чанк из строки: '{}' (длина: {})",
-                parent_key,
-                len(content),
-            )
             chunks.append(
                 {
                     "source": parent_key,

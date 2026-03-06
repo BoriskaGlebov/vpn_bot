@@ -223,9 +223,6 @@ class SettingsAI(BaseSettings):
     дополнительных настроек обработки.
 
     Attributes
-        access_key_ai (SecretStr):
-            Ключ доступа для аутентификации в AI-сервисе.
-
         secret_key_ai (SecretStr):
             Секретный ключ для безопасной аутентификации.
 
@@ -240,8 +237,8 @@ class SettingsAI(BaseSettings):
             Список базовых сообщений (контекстных чанков),
             передаваемых в модель по умолчанию.
 
-        model_llm_name (str):
-            Имя основной LLM-модели, используемой в приложении.
+        model_llm_name (str|None ):
+            Имя основной LLM-модели, используемой в приложении если локально делаю.
 
         normalize (bool):
             Флаг нормализации входных данных перед отправкой в модель.
@@ -249,11 +246,10 @@ class SettingsAI(BaseSettings):
 
     """
 
-    access_key_ai: SecretStr
     secret_key_ai: SecretStr
     yandex_folder_id: str
     yandex_model: str = "yandexgpt-lite"
-    model_llm_name: str
+    model_llm_name: str | None
     normalize: bool = True
     skip_ai_init: bool = True
 
