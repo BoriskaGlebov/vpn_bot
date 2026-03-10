@@ -37,7 +37,7 @@ repos:
       # Run the linter.
       - id: ruff-check
         args: [ --fix ]
-      #        stages: [pre-push]
+        stages: [pre-push]
       # Run the formatter.
       - id: ruff-format
         stages: [ pre-push ]
@@ -46,7 +46,7 @@ repos:
     rev: 6.3.0
     hooks:
       - id: pydocstyle
-        #        stages: [pre-push]
+        stages: [pre-push]
         args: [ "--ignore=D100,D104,D107,D213,D203,D407" ]
         files: '^(?!(bot/tests/|bot/migrations/)).*\.py$'
 
@@ -54,7 +54,7 @@ repos:
     rev: v1.17.1
     hooks:
       - id: mypy
-        #        stages: [pre-push]
+        stages: [pre-push]
         additional_dependencies:
           - types-atomicwrites
           - types-tabulate

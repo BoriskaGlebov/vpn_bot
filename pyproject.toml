@@ -33,7 +33,10 @@ flask-admin = "^2.0.2"
 itsdangerous = "^2.2.0"
 docker = "^7.1.0"
 yandex-ai-studio-sdk = "^0.19.2"
-pgvector = "^0.4.2"
+langchain = "^1.2.10"
+langchain-core = "^1.2.18"
+pgvector = "^0.3.0"
+langchain-postgres = "^0.0.17"
 
 
 
