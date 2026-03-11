@@ -1,3 +1,5 @@
+from typing import Any, Sequence
+
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,8 +19,8 @@ class KnowledgeChunkDAO(BaseDAO[KnowledgeChunk]):
         session: AsyncSession,
         query_vector: list[float],
         top_k: int = 5,
-        threshold: float = 0.2,
-    ) -> list[KnowledgeChunk]:
+        threshold: float | None = None,
+    ) -> Sequence[KnowledgeChunk]:
         """Поиск документов по косинусной близости эмбеддингов.
 
         Метод выполняет поиск ближайших документов в базе по вектору запроса,
@@ -29,7 +31,7 @@ class KnowledgeChunkDAO(BaseDAO[KnowledgeChunk]):
             query_vector (List[float]): Вектор запроса.
             top_k (int, optional): Сколько ближайших документов вернуть. Defaults to 5.
             threshold (float, optional): Порог косинусного расстояния для фильтрации.
-                                         Чем меньше — тем ближе. Defaults to 0.2.
+                                         Чем меньше — тем ближе. Опционально.
 
         Returns
             List[KnowledgeChunk]: Список объектов KnowledgeChunk, которые прошли фильтр.
@@ -43,39 +45,23 @@ class KnowledgeChunkDAO(BaseDAO[KnowledgeChunk]):
         ):
             raise ValueError("query_vector должен быть непустым списком чисел")
         try:
-            query = (
-                select(
-                    cls.model,
-                    cls.model.embedding.cosine_distance(query_vector).label("distance"),
-                )
-                .order_by(cls.model.embedding.cosine_distance(query_vector))
-                .limit(top_k)
-            )
+            distance = cls.model.embedding.cosine_distance(query_vector)
+            stmt = select(cls.model).order_by(distance).limit(top_k)
+            if threshold is not None:
+                stmt = stmt.where(distance < threshold)
+            result = await session.execute(stmt)
+            chunks = result.scalars().all()
 
-            result = await session.execute(query)
-            rows = result.all()
-
-            for doc, dist in rows:
+            logger.info("Найдено {} чанков для запроса", len(chunks))
+            for chunk in chunks:
                 logger.debug(
-                    "Найден документ: '{}...', distance={:.3f}", doc.content[:50], dist
+                    "chunk id={} source={} text='{}...'",
+                    chunk.id,
+                    chunk.source,
+                    chunk.content[:50],
                 )
 
-            logger.info("Найдено {} документов для запроса", len(rows))
-            filtered: list[KnowledgeChunk] = []
-            for row in rows:
-                doc, dist = row
-                if dist is None or not isinstance(dist, int | float):
-                    logger.warning(
-                        "Пропущен документ с некорректным distance: {} (source={})",
-                        dist,
-                        getattr(doc, "source", "<unknown>"),
-                    )
-                    continue
-                if dist < threshold:
-                    filtered.append(doc)
-
-            logger.info("После фильтрации осталось {} документов", len(filtered))
-            return filtered
+            return chunks
         except Exception as e:
             logger.exception("Ошибка при поиске по эмбеддингам: {}", e)
             raise
