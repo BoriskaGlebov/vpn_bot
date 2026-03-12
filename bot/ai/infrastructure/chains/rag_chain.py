@@ -1,21 +1,45 @@
-import asyncio
+import time
 
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from loguru import logger
 
 from bot.ai.infrastructure.context.context_builder import SimpleContextBuilder
-from bot.ai.infrastructure.embeddings.factory_embeddings import EmbeddingsFactory
-from bot.ai.infrastructure.llm.yandex_llm import YandexChatModel
 from bot.ai.infrastructure.promts.promt_rag import rag_prompt
 from bot.ai.infrastructure.retrievers.pgvector_retriever import PgVectorRetriever
-from bot.database import async_session
 
 
 class RAGChain:
+    """Класс для построения RAG (Retrieval-Augmented Generation) цепочки.
+
+    Цепочка выполняет следующие шаги:
+        1. Получение релевантного контекста через retriever.
+        2. Построение контекста через context_builder.
+        3. Формирование запроса через RAG prompt.
+        4. Генерация ответа через LLM.
+        5. Парсинг ответа через StrOutputParser.
+
+    Attributes
+        _chain: Собранная runnable цепочка для аcинхронного вызова.
+
+    """
 
     def __init__(
-        self, llm, retriever: PgVectorRetriever, context_builder: SimpleContextBuilder
+        self,
+        llm: BaseChatModel,
+        retriever: PgVectorRetriever,
+        context_builder: SimpleContextBuilder,
     ) -> None:
+        """Инициализация RAGChain.
+
+        Args:
+           llm (BaseChatModel): Ядро LLM модели для генерации ответа.
+           retriever (PgVectorRetriever): Retriever для поиска релевантных документов.
+           context_builder (SimpleContextBuilder): Контекстный билдер для сборки контекста из документов.
+
+        """
+        logger.info("Инициализация RAGChain")
         retriever_runnable = RunnableLambda(retriever.aretrieve)
         context_builder = RunnableLambda(context_builder.build)
 
@@ -28,24 +52,36 @@ class RAGChain:
             | llm
             | StrOutputParser()
         )
+        logger.debug("RAGChain успешно инициализирован")
 
-    async def run(self, question: str):
-        return await self._chain.ainvoke(question)
+    async def run(self, question: str) -> str:
+        """Асинхронный запуск RAG цепочки для заданного вопроса.
 
+        Args:
+            question (str): Вопрос пользователя.
 
-if __name__ == "__main__":
+        Returns
+            str: Сгенерированный ответ LLM с учетом контекста.
 
-    async def main():
-        emb = EmbeddingsFactory().create()
+        Raises
+            Exception: Любые ошибки внутри retriever, context_builder или LLM пробрасываются наружу.
 
-        retriever = PgVectorRetriever(embeddings=emb, session_factory=async_session)
+        """
+        start_time = time.perf_counter()
+        logger.info("Запуск RAGChain для вопроса: {}", question[:50])
 
-        context_builder = SimpleContextBuilder()
-        question = "Что такое твой VPN?"
-        llm = YandexChatModel()
-        rag_chain = RAGChain(llm, retriever, context_builder)
-        answer = await rag_chain.run(question)
-        print("\n===== ANSWER =====\n")
-        print(answer)
+        try:
+            answer = await self._chain.ainvoke(question)
+        except Exception as e:
+            logger.exception("Ошибка при выполнении RAGChain: {}", e)
+            raise
+        finally:
+            elapsed = time.perf_counter() - start_time
+            logger.info("RAGChain завершен за {:.3f} секунд", elapsed)
 
-    asyncio.run(main())
+        logger.debug(
+            "Сгенерирован ответ: {}",
+            answer[:100] + ("..." if len(answer) > 100 else ""),
+        )
+
+        return answer

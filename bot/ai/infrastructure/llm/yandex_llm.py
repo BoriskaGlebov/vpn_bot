@@ -1,11 +1,10 @@
-import asyncio
+import time
 from typing import Any
 
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_core.prompts import ChatPromptTemplate
 from loguru import logger
 from yandex_ai_studio_sdk import AsyncAIStudio
 
@@ -13,8 +12,25 @@ from bot.config import settings_ai
 
 
 class YandexChatModel(BaseChatModel):
+    """Чат-модель LangChain для работы с Yandex AI Studio.
+
+    Класс реализует адаптер над SDK Yandex AI Studio и позволяет использовать
+    модели Yandex через интерфейс `BaseChatModel` из LangChain.
+
+    Attributes
+       _sdk (AsyncAIStudio): Асинхронный клиент Yandex AI Studio.
+       _model: Сконфигурированный объект модели чата.
+
+    """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Инициализирует клиент Yandex AI Studio и конфигурирует модель.
+
+        Args:
+            *args: Позиционные аргументы, передаваемые в `BaseChatModel`.
+            **kwargs: Именованные аргументы, передаваемые в `BaseChatModel`.
+
+        """
         super().__init__(*args, **kwargs)
         self._sdk = AsyncAIStudio(
             folder_id=settings_ai.yandex_folder_id,
@@ -29,23 +45,59 @@ class YandexChatModel(BaseChatModel):
 
     @property
     def _llm_type(self) -> str:
+        """Возвращает тип LLM.
+
+        Используется LangChain для идентификации типа модели.
+
+        Returns
+           str: Строковый идентификатор модели.
+
+        """
         return "yandex"
 
     async def _agenerate(
         self,
-        messages: list[Any],
+        messages: list[BaseMessage],
         stop: list[str] | None = None,
         **kwargs: Any,
     ) -> ChatResult:
+        """Асинхронно генерирует ответ модели.
+
+        Args:
+            messages: Список сообщений диалога.
+            stop: Список стоп-последовательностей.
+            **kwargs: Дополнительные параметры генерации.
+
+        Returns
+            ChatResult: Результат генерации модели.
+
+        """
+        start_time = time.perf_counter()
+        logger.debug(
+            "Запрос к Yandex LLM | messages_count={} stop={}",
+            len(messages),
+            stop,
+        )
         prompt = "\n".join(m.content for m in messages)
+        try:
+            result = await self._model.run(prompt)
+            latency = time.perf_counter() - start_time
+            logger.debug(
+                "Ответ от Yandex LLM получен | latency={:.3f}s response_length={}",
+                latency,
+                len(result.text),
+            )
 
-        result = await self._model.run(prompt)
+            message = AIMessage(content=result.text)
+            generation = ChatGeneration(message=message)
 
-        message = AIMessage(content=result.text)
-
-        generation = ChatGeneration(message=message)
-
-        return ChatResult(generations=[generation])
+            return ChatResult(generations=[generation])
+        except Exception:
+            logger.exception(
+                "Ошибка при вызове Yandex LLM | messages_count={}",
+                len(messages),
+            )
+            raise
 
     def _generate(
         self,
@@ -54,22 +106,5 @@ class YandexChatModel(BaseChatModel):
         run_manager: CallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> ChatResult:
+        """Синхронно генерирует ответ модели."""
         pass
-
-
-if __name__ == "__main__":
-
-    async def main():
-        llm = YandexChatModel()
-
-        prompt = ChatPromptTemplate.from_template(
-            "Ответь коротко на вопрос: {question}"
-        )
-
-        chain = prompt | llm
-
-        result = await chain.ainvoke({"question": "Что такое VPN?"})
-
-        print(result.content)
-
-    asyncio.run(main())

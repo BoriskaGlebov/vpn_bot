@@ -1,6 +1,9 @@
+from typing import Any
+
 import numpy as np
 from langchain_core.embeddings import Embeddings
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from bot.ai.dao import KnowledgeChunkDAO
 from bot.ai.schemas import SKnowledgeChunk, SKnowledgeChunkFilter
@@ -12,10 +15,7 @@ from bot.database import async_session
 class KnowledgeBaseInitializer:
     """Инициализация базы знаний с эмбеддингами.
 
-    Задачи:
-        - Проверка наличия эмбеддингов в базе для источника.
-        - Генерация эмбеддингов через EmbeddingService.
-        - Сохранение эмбеддингов в базу через KnowledgeChunkDAO.
+    Проверяет наличие эмбеддингов в базе, генерирует недостающие и сохраняет их.
     """
 
     def __init__(
@@ -23,6 +23,7 @@ class KnowledgeBaseInitializer:
         emb_service: Embeddings,
         source: str = "dialog_messages.yaml",
         chunks: list[str | dict[str, str]] | None = None,
+        session_factory: async_sessionmaker[AsyncSession | Any] = async_session,
     ) -> None:
         """Инициализация класса.
 
@@ -30,11 +31,13 @@ class KnowledgeBaseInitializer:
             emb_service (Embeddings): Сервис генерации эмбеддингов.
             source (str): Источник текстов, используется в поле `source` в БД.
             chunks (List[Union[str, dict]]): Список текстов или словарей с ключом `content`.
+            session_factory (async_sessionmaker[AsyncSession | Any]): Фабрика асинхронных сессий SQLAlchemy.
 
         """
         self._emb_service = emb_service
         self._source = source
         self._chunks = chunks or settings_ai.common_chunks
+        self._session_factory = session_factory
         logger.info(
             "KnowledgeBaseInitializer инициализирована для источника '{}'", source
         )
@@ -42,13 +45,13 @@ class KnowledgeBaseInitializer:
     async def initialize(self) -> None:
         """Инициализация базы знаний.
 
-        Логика:
-            1. Проверяем, есть ли эмбеддинги для данного источника.
-            2. Если есть — пропускаем.
-            3. Если нет — генерируем и сохраняем эмбеддинги.
+        Проверяет наличие эмбеддингов для источника и создает недостающие.
+
+        Raises
+            AppError: Если эмбеддинг содержит недопустимые значения.
 
         """
-        async with async_session() as session:
+        async with self._session_factory() as session:
             logger.info("Проверка существующих эмбеддингов для '{}'", self._source)
             existing_count = await KnowledgeChunkDAO.count(
                 session=session, filters=SKnowledgeChunkFilter(source=self._source)

@@ -8,11 +8,13 @@ from sentence_transformers import SentenceTransformer
 
 
 class LocalEmbeddings(Embeddings):
-    """Embedding сервис на базе SentenceTransformer для LangChain.
+    """Сервис генерации эмбеддингов на базе SentenceTransformer.
+
+    Используется для локальной генерации векторов без обращения к внешним API.
 
     Attributes
-        model_name (SentenceTransformer): Модель для генерации эмбеддингов.
-        normalize (bool): Флаг нормализации векторов по L2.
+        _model (SentenceTransformer): Загруженная модель эмбеддингов.
+        _normalize (bool): Признак L2-нормализации выходных векторов.
 
     """
 
@@ -21,11 +23,18 @@ class LocalEmbeddings(Embeddings):
         model_name: str,
         normalize: bool = True,
     ) -> None:
+        """Инициализирует модель эмбеддингов.
+
+        Args:
+            model_name: Имя модели SentenceTransformer.
+            normalize: Выполнять ли L2-нормализацию эмбеддингов.
+
+        """
         self._model = SentenceTransformer(model_name)
         self._normalize = normalize
 
         logger.info(
-            "LocalEmbeddings инициализирована с моделью '{}' normalize={}",
+            "LocalEmbeddings initialized | model={} normalize={}",
             model_name,
             normalize,
         )
@@ -40,7 +49,6 @@ class LocalEmbeddings(Embeddings):
             np.ndarray: Массив эмбеддингов размерности (len(texts), dim).
 
         """
-
         embeddings = self._model.encode(
             list(texts),
             batch_size=32,
@@ -65,7 +73,6 @@ class LocalEmbeddings(Embeddings):
             List[List[float]]: Список эмбеддингов.
 
         """
-
         embeddings = await asyncio.to_thread(self._encode_sync, texts)
 
         logger.info("Создано {} эмбеддингов для документов", len(texts))
@@ -82,7 +89,6 @@ class LocalEmbeddings(Embeddings):
             List[float]: Эмбеддинг запроса.
 
         """
-
         embedding = await asyncio.to_thread(self._encode_sync, [text])
 
         logger.debug("Эмбеддинг для запроса сгенерирован")
@@ -91,7 +97,9 @@ class LocalEmbeddings(Embeddings):
 
     # sync методы (fallback для LangChain)
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """Синхронная версия генерации эмбеддингов документов."""
         return self._encode_sync(texts).tolist()
 
     def embed_query(self, text: str) -> list[float]:
+        """Синхронная версия генерации эмбеддинга запроса."""
         return self._encode_sync([text])[0].tolist()
