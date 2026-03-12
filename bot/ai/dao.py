@@ -46,20 +46,33 @@ class KnowledgeChunkDAO(BaseDAO[KnowledgeChunk]):
             raise ValueError("query_vector должен быть непустым списком чисел")
         try:
             distance = cls.model.embedding.cosine_distance(query_vector)
-            stmt = select(cls.model).order_by(distance).limit(top_k)
+            stmt = (
+                select(cls.model, distance.label("distance"))
+                .order_by(distance)
+                .limit(top_k)
+            )
             if threshold is not None:
                 stmt = stmt.where(distance < threshold)
             result = await session.execute(stmt)
-            chunks = result.scalars().all()
+            rows = result.all()
+            chunks = []
 
-            logger.info("Найдено {} чанков для запроса", len(chunks))
-            for chunk in chunks:
-                logger.debug(
-                    "chunk id={} source={} text='{}...'",
+            logger.info("Найдено {} чанков", len(rows))
+
+            for chunk, dist in rows:
+                logger.info(
+                    "chunk id={} source={} distance={:.4f}",
                     chunk.id,
                     chunk.source,
-                    chunk.content[:50],
+                    dist,
                 )
+
+                logger.debug(
+                    "text='{}...'",
+                    chunk.content[:80],
+                )
+
+                chunks.append(chunk)
 
             return chunks
         except Exception as e:

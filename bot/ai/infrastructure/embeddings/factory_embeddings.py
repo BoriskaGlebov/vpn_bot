@@ -1,7 +1,8 @@
-from ai.infrastructure.embeddings.local_embeddings import LocalEmbeddings
-from ai.infrastructure.embeddings.yandex_embeddings import YandexEmbeddings
-from config import settings_ai
 from loguru import logger
+
+from bot.ai.infrastructure.embeddings.local_embeddings import LocalEmbeddings
+from bot.ai.infrastructure.embeddings.yandex_embeddings import YandexEmbeddings
+from bot.config import settings_ai
 
 
 class EmbeddingsFactory:

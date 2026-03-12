@@ -1,10 +1,10 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from ai.services.service import ChatService
 
 from bot.ai.dao import KnowledgeChunkDAO
 from bot.ai.models import KnowledgeChunk
-from bot.ai.services.chat.service import ChatService
 
 
 class DummyRow:
@@ -118,7 +118,7 @@ class TestChatService:
         )
 
         # Also mute noisy logs
-        import bot.ai.services.chat.service as service_module
+        import ai.services.service as service_module
 
         monkeypatch.setattr(service_module, "logger", MagicMock())
 

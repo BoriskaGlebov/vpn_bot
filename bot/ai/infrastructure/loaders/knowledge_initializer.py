@@ -1,11 +1,12 @@
 import numpy as np
-from ai.dao import KnowledgeChunkDAO
-from ai.schemas import SKnowledgeChunk, SKnowledgeChunkFilter
-from app_error.base_error import AppError
-from config import settings_ai
-from database import async_session
 from langchain_core.embeddings import Embeddings
 from loguru import logger
+
+from bot.ai.dao import KnowledgeChunkDAO
+from bot.ai.schemas import SKnowledgeChunk, SKnowledgeChunkFilter
+from bot.app_error.base_error import AppError
+from bot.config import settings_ai
+from bot.database import async_session
 
 
 class KnowledgeBaseInitializer:
@@ -62,7 +63,7 @@ class KnowledgeBaseInitializer:
             logger.info(
                 "Начало генерации эмбеддингов для {} документов", len(self._chunks)
             )
-            embeddings = await self._emb_service.encode_documents(
+            embeddings = await self._emb_service.aembed_documents(
                 texts=[
                     c["content"] if isinstance(c, dict) else str(c)
                     for c in self._chunks

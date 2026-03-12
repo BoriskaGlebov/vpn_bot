@@ -1,48 +1,51 @@
 import asyncio
 
-from ai.infrastructure.context.context_builder import SimpleContextBuilder
-from ai.infrastructure.embeddings.factory_embeddings import EmbeddingsFactory
-from ai.infrastructure.llm.yandex_llm import YandexChatModel
-from ai.infrastructure.retrievers.pgvector_retriever import PgVectorRetriever
-from database import async_session
 from langchain_core.output_parsers import StrOutputParser
-from transformers import RagRetriever
-from transformers.models.distilbert.modeling_distilbert import Embeddings
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 
+from bot.ai.infrastructure.context.context_builder import SimpleContextBuilder
+from bot.ai.infrastructure.embeddings.factory_embeddings import EmbeddingsFactory
+from bot.ai.infrastructure.llm.yandex_llm import YandexChatModel
 from bot.ai.infrastructure.promts.promt_rag import rag_prompt
+from bot.ai.infrastructure.retrievers.pgvector_retriever import PgVectorRetriever
+from bot.database import async_session
 
 
 class RAGChain:
 
-    def __init__(self, llm):
-        self._chain = rag_prompt | llm | StrOutputParser()
+    def __init__(
+        self, llm, retriever: PgVectorRetriever, context_builder: SimpleContextBuilder
+    ) -> None:
+        retriever_runnable = RunnableLambda(retriever.aretrieve)
+        context_builder = RunnableLambda(context_builder.build)
 
-    async def run(self, question: str, context: str):
-        return await self._chain.ainvoke(
+        self._chain = (
             {
-                "question": question,
-                "context": context,
+                "context": retriever_runnable | context_builder,
+                "question": RunnablePassthrough(),
             }
+            | rag_prompt
+            | llm
+            | StrOutputParser()
         )
+
+    async def run(self, question: str):
+        return await self._chain.ainvoke(question)
 
 
 if __name__ == "__main__":
 
     async def main():
-        async with async_session() as session:
-            question = "Как подключить VPN?"
-            llm = YandexChatModel()
-            emb = EmbeddingsFactory().create()
-            retriever = PgVectorRetriever(embeddings=emb)
-            documents = await retriever.aretrieve(question, session)
-            print(documents)
-            context_builder = SimpleContextBuilder()
-            context = await context_builder.build(documents)
-            print("\n===== CONTEXT =====\n")
-            print(context)
-            rag_chain = RAGChain(llm)
-            answer = await rag_chain.run(question, context)
-            print("\n===== ANSWER =====\n")
-            print(answer)
+        emb = EmbeddingsFactory().create()
+
+        retriever = PgVectorRetriever(embeddings=emb, session_factory=async_session)
+
+        context_builder = SimpleContextBuilder()
+        question = "Что такое твой VPN?"
+        llm = YandexChatModel()
+        rag_chain = RAGChain(llm, retriever, context_builder)
+        answer = await rag_chain.run(question)
+        print("\n===== ANSWER =====\n")
+        print(answer)
 
     asyncio.run(main())

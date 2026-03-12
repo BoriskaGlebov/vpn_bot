@@ -15,12 +15,7 @@ from starlette.responses import JSONResponse
 from bot.admin.router import AdminRouter
 from bot.admin.services import AdminService
 from bot.ai.router import AIRouter
-from bot.ai.services.chat.embeddings_service import (
-    EmbeddingServiceFactory,
-    KnowledgeBaseInitializer,
-)
-from bot.ai.services.chat.service import ChatService
-from bot.ai.services.chat.yandex_provider import YandexLLMProvider
+from bot.ai.services.service import ChatService, build_chat_service
 from bot.config import bot, dp, logger, settings_bot
 from bot.database import engine
 from bot.help.router import HelpRouter
@@ -116,12 +111,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
-
-    embedding_service = EmbeddingServiceFactory().create()
-    knowledge_initializer = KnowledgeBaseInitializer(emb_service=embedding_service)
-    await knowledge_initializer.initialize()
-    llm = YandexLLMProvider()
-    chat_service = ChatService(llm=llm, emb_service=embedding_service)
+    chat_service: ChatService = await build_chat_service()
     ai_router = AIRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]

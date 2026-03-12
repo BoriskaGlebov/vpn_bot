@@ -29,7 +29,7 @@ class YandexEmbeddings(Embeddings):
         self._model = self._sdk.models.text_embeddings("text-search-query")
         logger.info("YandexEmbeddings инициализирована с моделью 'query'")
 
-    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+    async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
         """Генерация эмбеддингов для списка текстов через Yandex API.
 
         Args:
@@ -50,7 +50,7 @@ class YandexEmbeddings(Embeddings):
         logger.info("Сгенерировано {} эмбеддингов через Yandex API", len(vectors))
         return vectors.tolist()
 
-    async def embed_query(self, text: str) -> list[float]:
+    async def aembed_query(self, text: str) -> list[float]:
         """Генерация эмбеддинга для одного запроса через Yandex API.
 
         Args:
@@ -72,3 +72,10 @@ class YandexEmbeddings(Embeddings):
             result.num_tokens,
         )
         return vector.tolist()
+        # fallback sync методы для совместимости с LangChain
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return asyncio.run(self.aembed_documents(texts))
+
+    def embed_query(self, text: str) -> list[float]:
+        return asyncio.run(self.aembed_query(text))

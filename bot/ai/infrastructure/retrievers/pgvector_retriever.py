@@ -1,20 +1,26 @@
-from ai.dao import KnowledgeChunkDAO
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from loguru import logger
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from bot.ai.dao import KnowledgeChunkDAO
 
 
 class PgVectorRetriever:
 
-    def __init__(self, embeddings: Embeddings, top_k: int = 5) -> None:
+    def __init__(
+        self,
+        embeddings: Embeddings,
+        session_factory: async_sessionmaker[AsyncSession],
+        top_k: int = 5,
+    ) -> None:
         self._embeddings = embeddings
+        self._session_factory = session_factory
         self._top_k = top_k
 
     async def aretrieve(
         self,
         question: str,
-        session: AsyncSession,
     ) -> list[Document]:
         """Получение релевантных документов для вопроса."""
 
@@ -25,11 +31,13 @@ class PgVectorRetriever:
             raise
 
         try:
-            chunks = await KnowledgeChunkDAO.search_by_embedding(
-                session=session,
-                query_vector=query_vector,
-                top_k=self._top_k,
-            )
+            async with self._session_factory() as session:
+                chunks = await KnowledgeChunkDAO.search_by_embedding(
+                    session=session,
+                    query_vector=query_vector,
+                    top_k=self._top_k,
+                    threshold=0.5,
+                )
         except Exception:
             logger.exception("Ошибка при поиске документов")
             raise
