@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Any
 
 import numpy as np
@@ -50,7 +51,7 @@ class YandexEmbeddings(Embeddings):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        before_sleep=before_sleep_log(logger, "WARNING"),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     async def _run_embedding(self, text: str) -> Any:
         """Безопасный вызов Yandex API с retry."""

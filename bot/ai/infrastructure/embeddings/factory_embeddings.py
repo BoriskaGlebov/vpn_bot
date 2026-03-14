@@ -27,6 +27,10 @@ class EmbeddingsFactory:
                 cache=redis_embedding_cache,
             )
         logger.info("Используем локальный LocalEmbeddings для DEV")
+        if settings_ai.model_llm_name is None:
+            raise ValueError(
+                "model_llm_name должно быть установлено для LocalEmbeddings"
+            )
         return LocalEmbeddings(
             model_name=settings_ai.model_llm_name,
             normalize=settings_ai.normalize,

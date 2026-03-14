@@ -1,8 +1,9 @@
 import time
+from typing import Any
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import Runnable, RunnableLambda, RunnablePassthrough
 from loguru import logger
 
 from bot.ai.infrastructure.context.context_builder import SimpleContextBuilder
@@ -41,11 +42,11 @@ class RAGChain:
         """
         logger.info("Инициализация RAGChain")
         retriever_runnable = RunnableLambda(retriever.aretrieve)
-        context_builder = RunnableLambda(context_builder.build)
+        context_builder_runnable = RunnableLambda(context_builder.build)
 
-        self._chain = (
+        self._chain: Runnable[Any, str] = (
             {
-                "context": retriever_runnable | context_builder,
+                "context": retriever_runnable | context_builder_runnable,
                 "question": RunnablePassthrough(),
             }
             | rag_prompt

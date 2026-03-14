@@ -1,3 +1,5 @@
+from typing import Any
+
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -25,7 +27,7 @@ class KnowledgeChunk(Base):
         Vector(settings_db.embedding_dim)
     )  # 768 для intfloat/multilingual-e5-base
     # 256 для intfloat/multilingual-e5-small
-    meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     __table_args__ = (
         Index(
             "knowledge_chunk_embedding_idx",

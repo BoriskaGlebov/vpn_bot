@@ -1,7 +1,10 @@
 import time
 from typing import Any
 
-from langchain_core.callbacks import CallbackManagerForLLMRun
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForLLMRun,
+    CallbackManagerForLLMRun,
+)
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -59,6 +62,7 @@ class YandexChatModel(BaseChatModel):
         self,
         messages: list[BaseMessage],
         stop: list[str] | None = None,
+        run_manager: AsyncCallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> ChatResult:
         """Асинхронно генерирует ответ модели.
@@ -78,7 +82,7 @@ class YandexChatModel(BaseChatModel):
             len(messages),
             stop,
         )
-        prompt = "\n".join(m.content for m in messages)
+        prompt = "\n".join(str(m.content) for m in messages)
         try:
             result = await self._model.run(prompt)
             latency = time.perf_counter() - start_time
@@ -107,4 +111,4 @@ class YandexChatModel(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         """Синхронно генерирует ответ модели."""
-        pass
+        raise NotImplementedError("Sync generation not supported")
