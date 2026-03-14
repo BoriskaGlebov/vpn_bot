@@ -337,7 +337,9 @@ class SubscriptionRouter(BaseRouter):
 
         """
         msg = query.message
-        if not msg or isinstance(msg, InaccessibleMessage):
+        if not msg:
+            return
+        if isinstance(msg, InaccessibleMessage):
             return
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id

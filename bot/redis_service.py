@@ -59,7 +59,6 @@ class RedisAdminMessageStorage:
         logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
 
 
-# TODO СЮДА нужны тесты?
 class RedisEmbeddingCache:
     """Redis-кэш для хранения эмбеддингов текстов.
 
