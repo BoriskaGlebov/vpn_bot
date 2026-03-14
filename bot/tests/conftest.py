@@ -50,7 +50,9 @@ def fake_redis(fake_logger):
 
 @pytest.fixture
 def fake_redis_service(fake_redis, fake_logger):
-    redis_service = RedisAdminMessageStorage(redis=fake_redis, logger=fake_logger)
+    redis_service = RedisAdminMessageStorage(
+        redis=fake_redis,
+    )
     redis_service.get = AsyncMock(return_value=[])
     redis_service.add = AsyncMock()
     redis_service.clear = AsyncMock()
