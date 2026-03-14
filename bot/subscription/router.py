@@ -338,8 +338,10 @@ class SubscriptionRouter(BaseRouter):
         """
         msg = query.message
         if not msg:
+            self.logger.warning("Сообщения нет, оно уже удалено")
             return
         if isinstance(msg, InaccessibleMessage):
+            self.logger.warning("Сообщение уже старое его нельзя удалить")
             return
         user_logger = self.logger.bind(
             user=query.from_user.username or query.from_user.id
