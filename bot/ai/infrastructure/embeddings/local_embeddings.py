@@ -7,9 +7,6 @@ from loguru import logger
 
 from bot.config import settings_ai
 
-if not settings_ai.skip_ai_init:
-    from sentence_transformers import SentenceTransformer
-
 
 class LocalEmbeddings(Embeddings):
     """Сервис генерации эмбеддингов на базе SentenceTransformer.
@@ -34,6 +31,11 @@ class LocalEmbeddings(Embeddings):
             normalize: Выполнять ли L2-нормализацию эмбеддингов.
 
         """
+        if settings_ai.skip_ai_init:
+            raise RuntimeError("AI initialization skipped")
+
+        from sentence_transformers import SentenceTransformer
+
         self._model = SentenceTransformer(model_name)
         self._normalize = normalize
 
