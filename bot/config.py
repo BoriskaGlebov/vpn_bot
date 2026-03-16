@@ -73,7 +73,7 @@ class SettingsBot(BaseSettings):
     logger_error_file: str = "WARNING"
 
     price_map: dict[int, int] = Field(
-        default_factory=lambda: {1: 70, 3: 160, 6: 300, 12: 600, 7: 0},
+        default_factory=lambda: {1: 100, 3: 280, 6: 520, 12: 1000, 7: 0},
         description="Карта цен подписок по месяцам",
     )
     model_config = SettingsConfigDict(
