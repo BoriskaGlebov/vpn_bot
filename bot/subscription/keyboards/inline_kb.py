@@ -95,7 +95,9 @@ def subscription_options_kb(
     options: list[tuple[str, int]] = []
     for m in (1, 3, 6, 12):
         price = price_map.get(m)
-        if isinstance(price, int) and price >= 0:
+        if m == 12 and isinstance(price, int) and price >= 0:
+            options.append((f"{m} месяц — 🔥 {price * multiplier}₽", m))
+        elif isinstance(price, int) and price >= 0:
             options.append((f"{m} месяц — {price * multiplier}₽", m))
 
     for label, months in options:
