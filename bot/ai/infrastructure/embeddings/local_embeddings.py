@@ -7,7 +7,7 @@ from loguru import logger
 
 from bot.config import settings_ai
 
-if settings_ai.skip_ai_init:
+if not settings_ai.skip_ai_init:
     from sentence_transformers import SentenceTransformer
 
 
