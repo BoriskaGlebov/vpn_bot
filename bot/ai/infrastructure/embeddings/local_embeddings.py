@@ -4,7 +4,11 @@ from collections.abc import Iterable
 import numpy as np
 from langchain_core.embeddings import Embeddings
 from loguru import logger
-from sentence_transformers import SentenceTransformer
+
+from bot.config import settings_ai
+
+if settings_ai.skip_ai_init:
+    from sentence_transformers import SentenceTransformer
 
 
 class LocalEmbeddings(Embeddings):
