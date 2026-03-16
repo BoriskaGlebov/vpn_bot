@@ -1,17 +1,16 @@
+import hashlib
 from typing import Any
 
-from loguru._logger import Logger
+from loguru import logger
 
-from bot.config import logger
 from bot.redis_manager import SettingsRedis, redis_manager
 
 
 class RedisAdminMessageStorage:
     """Хранение сообщений администраторов в Redis."""
 
-    def __init__(self, redis: SettingsRedis, logger: Logger) -> None:
+    def __init__(self, redis: SettingsRedis) -> None:
         self.redis = redis
-        self.logger = logger
 
     def _key(self, user_id: int) -> str:
         return f"admin_messages:{user_id}"
@@ -32,7 +31,7 @@ class RedisAdminMessageStorage:
 
         messages.append({"chat_id": admin_id, "message_id": message_id})
         await self.redis.set(key, messages)
-        self.logger.debug(f"💾 Сохранены админские сообщения user_id={user_id}")
+        logger.debug(f"💾 Сохранены админские сообщения user_id={user_id}")
 
     async def get(self, user_id: int) -> list[dict[str, Any]]:
         """Возвращает список сообщений администраторов для пользователя.
@@ -57,7 +56,79 @@ class RedisAdminMessageStorage:
         """
         key = self._key(user_id)
         await self.redis.delete(key)
-        self.logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
+        logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
 
 
-redis_admin_mess_storage = RedisAdminMessageStorage(redis_manager, logger)  # type: ignore[arg-type]
+class RedisEmbeddingCache:
+    """Redis-кэш для хранения эмбеддингов текстов.
+
+    Используется для ускорения генерации эмбеддингов через внешние API
+    (например, Yandex AI Studio) и уменьшения количества повторных запросов.
+
+    Attributes
+        _redis (SettingsRedis): Асинхронный клиент Redis.
+
+    """
+
+    def __init__(self, redis: SettingsRedis) -> None:
+        """Инициализация Redis-кэша.
+
+        Args:
+            redis (SettingsRedis): Асинхронный Redis клиент.
+
+        """
+        self._redis = redis
+
+    def _key(self, text: str) -> str:
+        """Генерация уникального ключа для текста в Redis.
+
+        Используется SHA256 хеширование, чтобы ключ был безопасным и фиксированной длины.
+
+        Args:
+            text (str): Текст, для которого нужно создать ключ.
+
+        Returns
+            str: Уникальный ключ для хранения в Redis.
+
+        """
+        digest = hashlib.sha256(text.encode()).hexdigest()
+        return f"embedding:{digest}"
+
+    async def get(self, text: str) -> list[float] | None:
+        """Получить эмбеддинг текста из Redis-кэша.
+
+        Args:
+            text (str): Текст запроса.
+
+        Returns
+            Optional[List[float]]: Эмбеддинг, если он найден в кэше, иначе None.
+
+        """
+        key = self._key(text)
+
+        value = await self._redis.get(key)
+
+        if value is not None:
+            logger.debug("Embedding кэш получен для ключа {}", key)
+        else:
+            logger.debug("Embedding отсутствует в кэше для ключа {}", key)
+
+        return value
+
+    async def set(self, text: str, embedding: list[float]) -> None:
+        """Сохранить эмбеддинг текста в Redis-кэш.
+
+        Args:
+            text (str): Текст запроса.
+            embedding (List[float]): Список значений эмбеддинга.
+
+        """
+        key = self._key(text)
+
+        await self._redis.set(key=key, value=embedding, expire=86400)
+
+        logger.debug("Embedding кэш сохранен для ключа {}", key)
+
+
+redis_admin_mess_storage = RedisAdminMessageStorage(redis_manager)
+redis_embedding_cache = RedisEmbeddingCache(redis_manager)

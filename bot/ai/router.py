@@ -11,7 +11,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.ai.services.chat.service import ChatService
+from bot.ai.services.service import ChatService
 from bot.config import settings_bot
 from bot.database import connection
 from bot.redis_manager import SettingsRedis
@@ -101,23 +101,21 @@ class AIRouter(BaseRouter):
                 await message.answer(text=m_ai.short_question)
                 return
             user_logger = self.logger.bind(user=user.username or user.id or "undefined")
-            history = await state.get_data()
-            conversation: list[str] = history.get("conversation", [])
+            # history = await state.get_data()
+            # conversation: list[str] = history.get("conversation", [])
+            #
+            # conversation.append(text)
+            # conversation = conversation[-5:]
+            # await state.update_data(conversation=conversation)
 
-            conversation.append(text)
-            conversation = conversation[-5:]
-            await state.update_data(conversation=conversation)
+            # user_logger.info(
+            #     "Пользователь {}: история сообщений ({}): {}",
+            #     user.id,
+            #     len(conversation),
+            #     conversation,
+            # )
 
-            user_logger.info(
-                "Пользователь {}: история сообщений ({}): {}",
-                user.id,
-                len(conversation),
-                conversation,
-            )
-
-            answer = await self.chat_service.ask(
-                question=text, session=session, user_context=conversation
-            )
+            answer = await self.chat_service.ask(question=text)
 
             await message.answer(answer)
             user_logger.info(

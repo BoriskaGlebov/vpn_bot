@@ -126,6 +126,7 @@ class SettingsDB(BaseSettings):
         num_db (int): Номер базы данных Redis. По умолчанию 0.
         redis_user (str) : Имя пользователя Redis для приложения.
         default_expire (int) : Время жизни ключей в Redis по умолчанию (в секундах). По умолчанию 3600 секунд (1 час).
+        embedding_dim (int): Размерность Эмбеддингов, которые можно записать в БД. В яндекс по умолчанию 256.
     Properties
         database_url (str): Строка подключения к PostgreSQL в формате
             `postgresql+asyncpg://user:password@host:port/database`.
@@ -150,6 +151,7 @@ class SettingsDB(BaseSettings):
     default_expire: int = 3600
     redis_user: str
     num_db: int = 0
+    embedding_dim: int = 256
 
     model_config = SettingsConfigDict(
         env_file=[
@@ -223,9 +225,6 @@ class SettingsAI(BaseSettings):
     дополнительных настроек обработки.
 
     Attributes
-        access_key_ai (SecretStr):
-            Ключ доступа для аутентификации в AI-сервисе.
-
         secret_key_ai (SecretStr):
             Секретный ключ для безопасной аутентификации.
 
@@ -240,8 +239,8 @@ class SettingsAI(BaseSettings):
             Список базовых сообщений (контекстных чанков),
             передаваемых в модель по умолчанию.
 
-        model_llm_name (str):
-            Имя основной LLM-модели, используемой в приложении.
+        model_llm_name (str|None ):
+            Имя основной LLM-модели, используемой в приложении если локально делаю.
 
         normalize (bool):
             Флаг нормализации входных данных перед отправкой в модель.
@@ -249,11 +248,10 @@ class SettingsAI(BaseSettings):
 
     """
 
-    access_key_ai: SecretStr
     secret_key_ai: SecretStr
     yandex_folder_id: str
     yandex_model: str = "yandexgpt-lite"
-    model_llm_name: str
+    model_llm_name: str | None
     normalize: bool = True
     skip_ai_init: bool = True
 
