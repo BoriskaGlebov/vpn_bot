@@ -282,7 +282,7 @@ async def test_user_paid_standard(fake_bot, fake_logger, fake_state, make_fake_q
     state.set_state.assert_awaited_once_with(SubscriptionStates.wait_for_paid)
 
     # Проверка вызова query.answer
-    query.answer.assert_awaited_once_with("Пользователь нажал оплату (1 мес, 70₽)")
+    query.answer.assert_awaited_once_with("Пользователь нажал оплату (1 мес, 100₽)")
 
     # Проверка редактирования сообщения
     query.message.edit_text.assert_awaited_once_with(
@@ -319,7 +319,7 @@ async def test_user_paid_premium(fake_bot, fake_logger, fake_state, make_fake_qu
         await router.user_paid(query=query, state=state, callback_data=callback_data)
 
     # Цена удваивается для премиум
-    query.answer.assert_awaited_once_with("Пользователь нажал оплату (1 мес, 140₽)")
+    query.answer.assert_awaited_once_with("Пользователь нажал оплату (1 мес, 200₽)")
 
     # Проверка редактирования сообщения
     query.message.edit_text.assert_awaited_once_with(
