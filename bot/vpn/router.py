@@ -235,7 +235,7 @@ class VPNRouter(BaseRouter):
                                 inline_keyboard=[
                                     [
                                         InlineKeyboardButton(
-                                            text="📨 Активировать прокси/долго нажать,\n"
+                                            text="📨 Активировать прокси/долго нажать,<br>"
                                             " скопировать ссылку",
                                             url=url_proxy,
                                         )

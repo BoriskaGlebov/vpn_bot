@@ -52,7 +52,7 @@ class ReferralRouter(BaseRouter):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
-                        text="📨 Долгое нажатие >\nскопировать ссылку",
+                        text="📨 Долгое нажатие ><br>скопировать ссылку",
                         url=ref_link,
                     )
                 ]
