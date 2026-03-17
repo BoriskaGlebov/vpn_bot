@@ -13,33 +13,26 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
-from bot.admin.services import AdminService
 from bot.ai.router import AIRouter
-from bot.ai.services.service import ChatService, build_chat_service
 from bot.config import bot, dp, logger, settings_bot
+from bot.core.container import Container
 from bot.database import engine
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.news.router import NewsRouter
-from bot.news.services import NewsService
-from bot.redis_manager import redis_manager
 from bot.referrals.admin import ReferralAdmin
 from bot.referrals.router import ReferralRouter
-from bot.referrals.services import ReferralService
 from bot.subscription.admin import SubscriptionAdmin
 from bot.subscription.router import SubscriptionRouter
-from bot.subscription.services import SubscriptionService
 from bot.subscription.utils.scheduler_cron import scheduled_check, scheduler
 from bot.users.admin import RoleAdmin, UserAdmin
 from bot.users.auth_admin import AdminAuth
 from bot.users.router import UserRouter
-from bot.users.services import UserService
 from bot.utils.init_default_roles import init_default_roles_admins
 from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.admin import VPNConfigAdmin
 from bot.vpn.router import VPNRouter
-from bot.vpn.services import VPNService
 
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
@@ -48,6 +41,8 @@ tags_metadata: list[dict[str, Any]] = [
         "description": "Получение обновлений телеграмм",
     },
 ]
+
+container = Container()
 
 
 @asynccontextmanager
@@ -59,7 +54,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     запуск бота, настройку вебхука и очистку при завершении работы бота.
     """
     logger.info("Запуск настройки бота...")
-    await redis_manager.connect()
+    await container.init()
     dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     log_data = True if settings_bot.debug_fast_api else False
@@ -71,38 +66,40 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )
 
-    user_service = UserService(redis=redis_manager)
-    referral_service = ReferralService(bot=bot, logger=logger)  # type: ignore[arg-type]
     user_router = UserRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
-        redis_manager=redis_manager,
-        user_service=user_service,
-        referral_service=referral_service,
+        redis_manager=container.redis_manager,
+        user_service=container.user_service,
+        referral_service=container.referral_service,
     )
 
-    help_router = HelpRouter(bot=bot, logger=logger, redis=redis_manager)  # type: ignore[arg-type]
+    help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
 
-    admin_service = AdminService()
-    admin_router = AdminRouter(bot=bot, logger=logger, admin_service=admin_service)  # type: ignore[arg-type]
+    admin_router = AdminRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        admin_service=container.admin_service,
+    )
 
-    subscription_service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]
     subscription_router = SubscriptionRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
-        subscription_service=subscription_service,
-        referral_service=referral_service,
+        subscription_service=container.subscription_service,
+        referral_service=container.referral_service,
     )
-    vpn_service = VPNService()
     vpn_router = VPNRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
-        vpn_service=vpn_service,
-        redis=redis_manager,
+        vpn_service=container.vpn_service,
+        redis=container.redis_manager,
     )
     referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
-    news_service = NewsService(bot=bot, logger=logger)  # type: ignore[arg-type]
-    news_router = NewsRouter(bot=bot, logger=logger, news_service=news_service)  # type: ignore[arg-type]
+    news_router = NewsRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        news_service=container.news_service,
+    )
 
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
@@ -111,12 +108,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
-    chat_service: ChatService = await build_chat_service()
+    if container.chat_service is None:
+        raise RuntimeError("ChatService ещё не инициализирован!")
     ai_router = AIRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
-        redis_manager=redis_manager,
-        chat_service=chat_service,
+        redis_manager=container.redis_manager,
+        chat_service=container.chat_service,
     )
     dp.include_router(ai_router.router)
 
@@ -158,7 +156,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.exception(f"Ошибка при остановке бота: {e}")
     try:
-        await redis_manager.disconnect()
+        await container.shutdown()
     except Exception as e:
         logger.exception(f"Ошибка при отключении от Redis: {e}")
     try:
