@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from bot.database import Base, int_pk
+from shared.db.base import Base, int_pk
 
 if TYPE_CHECKING:
     from bot.users.models import User

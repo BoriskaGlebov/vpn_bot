@@ -6,11 +6,11 @@ from sqlalchemy import engine_from_config, pool
 
 from bot.ai.models import KnowledgeChunk
 from bot.config import settings_db  # твои Pydantic Settings
-from bot.database import Base  # твой Base с моделями
 from bot.referrals.models import Referral
 from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.models import Role, User
 from bot.vpn.models import VPNConfig
+from shared.db.base import Base  # твой Base с моделями
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
