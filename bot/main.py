@@ -34,12 +34,19 @@ from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.admin import VPNConfigAdmin
 from bot.vpn.router import VPNRouter
 
+# from api.users_api.router import router as router_user
+
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
     {
         "name": "webhook",
-        "description": "Получение обновлений телеграмм",
+        "description": "Получение обновлений телеграмм.",
     },
+    {
+        "name": "AI-agent",
+        "description": "Роуты для ИИ агента, которые позволяют ему выполнять действия.",
+    },
+    {"name": "users", "description": "Методы работы с пользователями."},
 ]
 
 container = Container()
@@ -216,6 +223,8 @@ admin.add_view(RoleAdmin)
 admin.add_view(SubscriptionAdmin)
 admin.add_view(VPNConfigAdmin)
 admin.add_view(ReferralAdmin)
+
+# app.include_router(router_user)
 
 
 @app.post(
