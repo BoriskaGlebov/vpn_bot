@@ -19,6 +19,7 @@ from shared.config.db_config import SettingsDB
 from shared.config.logger_config import LoggerConfig
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+# TODO убрать в дальнейшем закомментированный код
 
 
 class SettingsBot(SettingsApp):
