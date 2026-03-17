@@ -13,7 +13,8 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
-from bot.ai.router import AIRouter
+
+# from bot.ai.router import AIRouter
 from bot.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
 from bot.database import engine
@@ -115,15 +116,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
-    if container.chat_service is None:
-        raise RuntimeError("ChatService ещё не инициализирован!")
-    ai_router = AIRouter(
-        bot=bot,
-        logger=logger,  # type: ignore[arg-type]
-        redis_manager=container.redis_manager,
-        chat_service=container.chat_service,
-    )
-    dp.include_router(ai_router.router)
+    # if container.chat_service is None:
+    #     raise RuntimeError("ChatService ещё не инициализирован!")
+    # ai_router = AIRouter(
+    #     bot=bot,
+    #     logger=logger,  # type: ignore[arg-type]
+    #     redis_manager=container.redis_manager,
+    #     chat_service=container.chat_service,
+    # )
+    # dp.include_router(ai_router.router)
 
     await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)

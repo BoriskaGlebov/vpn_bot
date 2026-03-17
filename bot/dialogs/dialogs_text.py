@@ -5,6 +5,8 @@ import yaml
 from box import Box
 from loguru import logger
 
+# TODO их бы надо вынести из сервиса бота они там не нужны я про чанки.
+
 
 def load_dialogs(filename: Path | str | None = None) -> Box:
     """Загружает YAML-файл с диалогами, подставляет шаблоны и возвращает результат как Box (доступ через точку).

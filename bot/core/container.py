@@ -1,7 +1,8 @@
 # bot/core/container.py
 
 from bot.admin.services import AdminService
-from bot.ai.services.service import ChatService, build_chat_service
+
+# from bot.ai.services.service import ChatService, build_chat_service
 from bot.config import bot, logger
 from bot.news.services import NewsService
 from bot.redis_manager import SettingsRedis, redis_manager
@@ -36,7 +37,7 @@ class Container:
     subscription_service: SubscriptionService
     vpn_service: VPNService
     news_service: NewsService
-    chat_service: ChatService | None
+    # chat_service: ChatService | None
 
     def __init__(self) -> None:
         """Инициализирует сервисы без асинхронных операций."""
@@ -49,12 +50,12 @@ class Container:
         self.vpn_service = VPNService()
         self.news_service = NewsService(bot=bot, logger=logger)  # type: ignore[arg-type]
 
-        self.chat_service: ChatService | None = None
+        # self.chat_service: ChatService | None = None
 
     async def init(self) -> None:
         """Асинхронно инициализирует сервисы, требующие await."""
         await self.redis_manager.connect()
-        self.chat_service = await build_chat_service()
+        # self.chat_service = await build_chat_service()
 
     async def shutdown(self) -> None:
         """Асинхронно завершает работу сервисов."""
