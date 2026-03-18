@@ -42,6 +42,7 @@ help:
 	@echo "  compose-down         — остановить контейнеры"
 	@echo ""
 	@echo "  run-bot              — запуск основного бота (bot/main.py)"
+	@echo "  run-api              — запуск api сервиса (api/main.py)"
 	@echo ""
 	@echo "  rev MSG='msg'        — создать новую Alembic ревизию"
 	@echo "  rev-up               — применить все миграции"
@@ -106,6 +107,9 @@ ci-checks: pre-commit
 run-bot: rev-up
 	@echo "🤖 Запускаем бота..."
 	$(PYTHON) -m bot.main
+run-api: rev-up
+	@echo "🤖 Запускаем API сервис..."
+	$(PYTHON) -m api.main
 
 pytests:
 	@echo "🧪 Запускаем тесты..."
