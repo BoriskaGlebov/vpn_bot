@@ -38,6 +38,7 @@ langchain-core = "^1.2.18"
 pgvector = "^0.3.0"
 langchain-postgres = "^0.0.17"
 tenacity = "^9.1.4"
+asyncio = "^4.0.0"
 
 
 

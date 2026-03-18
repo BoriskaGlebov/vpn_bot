@@ -117,9 +117,9 @@ class SettingsBucket(BaseSettings):
     )
 
 
-settings_bot = SettingsBot()
-settings_db = SettingsDB()
-settings_bucket = SettingsBucket()
+settings_bot = SettingsBot()  # type: ignore
+settings_db = SettingsDB()  # type: ignore
+settings_bucket = SettingsBucket()  # type: ignore
 # settings_ai = SettingsAI()
 
 LoggerConfig(

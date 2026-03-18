@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.config import settings_bot
 from bot.database import connection
-from bot.redis_manager import SettingsRedis
+from bot.redis_manager import RedisClient
 from bot.users.enums import MainMenuText
 from bot.utils.base_router import BaseRouter
 from bot.vpn.services import VPNService
@@ -40,7 +40,7 @@ class VPNRouter(BaseRouter):
     """Роутер для обработки команд VPN."""
 
     def __init__(
-        self, bot: Bot, logger: Logger, vpn_service: VPNService, redis: SettingsRedis
+        self, bot: Bot, logger: Logger, vpn_service: VPNService, redis: RedisClient
     ) -> None:
         super().__init__(bot, logger)
         self.vpn_service = vpn_service

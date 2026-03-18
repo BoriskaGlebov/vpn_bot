@@ -2,7 +2,7 @@ from aiogram.types import User as TgUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import settings_bot
-from bot.redis_manager import SettingsRedis
+from bot.redis_manager import RedisClient
 from bot.users.dao import UserDAO
 from bot.users.models import User
 from bot.users.schemas import (
@@ -24,11 +24,11 @@ class UserService:
 
     """
 
-    def __init__(self, redis: SettingsRedis) -> None:
+    def __init__(self, redis: RedisClient) -> None:
         """Инициализация сервиса пользователей.
 
         Args:
-            redis (SettingsRedis): Менеджер работы с Redis для хранения настроек и состояния.
+            redis (RedisClient): Менеджер работы с Redis для хранения настроек и состояния.
 
         """
         self.redis = redis

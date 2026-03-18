@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from bot.config import settings_bot
 from bot.database import Base
-from bot.redis_manager import SettingsRedis
+from bot.redis_manager import RedisClient
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils import commands
 from bot.utils.init_default_roles import init_default_roles_admins
@@ -38,7 +38,7 @@ def fake_logger(monkeypatch):
 @pytest.fixture
 def fake_redis(fake_logger):
     # Создаём экземпляр SettingsRedis, но подменяем методы асинхронными моками
-    redis = SettingsRedis(redis_url="redis://fake_url", logger=fake_logger)
+    redis = RedisClient(redis_url="redis://fake_url", logger=fake_logger)
     redis._ensure_connection = AsyncMock(
         return_value=AsyncMock()
     )  # возвращаем мок соединения

@@ -3,13 +3,14 @@ from typing import Any
 
 from loguru import logger
 
-from bot.redis_manager import SettingsRedis, redis_manager
+from bot.redis_manager import redis_manager
+from shared.clients.redis_client import RedisClient
 
 
 class RedisAdminMessageStorage:
     """Хранение сообщений администраторов в Redis."""
 
-    def __init__(self, redis: SettingsRedis) -> None:
+    def __init__(self, redis: RedisClient) -> None:
         self.redis = redis
 
     def _key(self, user_id: int) -> str:
@@ -70,11 +71,11 @@ class RedisEmbeddingCache:
 
     """
 
-    def __init__(self, redis: SettingsRedis) -> None:
+    def __init__(self, redis: RedisClient) -> None:
         """Инициализация Redis-кэша.
 
         Args:
-            redis (SettingsRedis): Асинхронный Redis клиент.
+            redis (RedisClient): Асинхронный Redis клиент.
 
         """
         self._redis = redis

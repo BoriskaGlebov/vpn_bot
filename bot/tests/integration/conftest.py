@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import SettingsBot
 from bot.config import bot as real_bot
-from bot.redis_manager import SettingsRedis
+from bot.redis_manager import RedisClient
 from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.dao import RoleDAO
 from bot.users.models import Role, User
@@ -27,13 +27,13 @@ def test_settings_bot() -> SettingsBot:
 
 
 @pytest.fixture
-def fake_redis() -> SettingsRedis:
+def fake_redis() -> RedisClient:
     """Простейший мок для Redis."""
-    return AsyncMock(spec=SettingsRedis)
+    return AsyncMock(spec=RedisClient)
 
 
 @pytest.fixture
-def user_service(fake_redis: SettingsRedis) -> UserService:
+def user_service(fake_redis: RedisClient) -> UserService:
     """Инстанс UserService с тестовым Redis."""
     return UserService(redis=fake_redis)
 

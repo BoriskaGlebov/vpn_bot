@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.ai.services.service import ChatService
 from bot.config import settings_bot
 from bot.database import connection
-from bot.redis_manager import SettingsRedis
+from bot.redis_manager import RedisClient
 from bot.utils.base_router import BaseRouter
 
 m_ai = settings_bot.messages.modes.ai_assistant
@@ -32,7 +32,7 @@ class AIRouter(BaseRouter):
         self,
         bot: Bot,
         logger: Logger,
-        redis_manager: SettingsRedis,
+        redis_manager: RedisClient,
         chat_service: ChatService,
     ) -> None:
         """Инициализация AIRouter.
@@ -40,7 +40,7 @@ class AIRouter(BaseRouter):
         Args:
             bot (Bot): Объект бота Aiogram.
             logger (Logger): Логгер Loguru.
-            redis_manager (SettingsRedis): Менеджер настроек Redis.
+            redis_manager (RedisClient): Менеджер настроек Redis.
             chat_service (ChatService): Сервис для общения с LLM.
 
         """
