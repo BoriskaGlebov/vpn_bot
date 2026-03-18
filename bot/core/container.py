@@ -5,7 +5,7 @@ from bot.admin.services import AdminService
 # from bot.ai.services.service import ChatService, build_chat_service
 from bot.config import bot, logger
 from bot.news.services import NewsService
-from bot.redis_manager import RedisClient, redis_manager
+from bot.redis_client import RedisClient, redis_manager
 from bot.referrals.services import ReferralService
 from bot.subscription.services import SubscriptionService
 from bot.users.services import UserService

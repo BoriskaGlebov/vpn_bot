@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.config import settings_bot
 from bot.database import connection
-from bot.redis_manager import RedisClient
+from bot.redis_client import RedisClient
 from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.markup_kb import main_kb

@@ -92,6 +92,7 @@ exclude = '''
   | build
   | dist
   | bot/migrations
+  | api/migrations
   | \.venv
 )/
 '''
@@ -128,6 +129,7 @@ exclude = [
     "^dist/",
     "^\\.venv/",
     "^bot/migrations/",
+    "^api/migrations/",
     "^bot/vpn/utils/",
 ]
 plugins = [

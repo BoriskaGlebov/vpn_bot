@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.ai.services.service import ChatService
 from bot.config import settings_bot
 from bot.database import connection
-from bot.redis_manager import RedisClient
+from bot.redis_client import RedisClient
 from bot.utils.base_router import BaseRouter
 
 m_ai = settings_bot.messages.modes.ai_assistant

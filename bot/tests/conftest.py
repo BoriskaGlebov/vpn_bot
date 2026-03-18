@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from bot.config import settings_bot
 from bot.database import Base
-from bot.redis_manager import RedisClient
+from bot.redis_client import RedisClient
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils import commands
 from bot.utils.init_default_roles import init_default_roles_admins

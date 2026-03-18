@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import SettingsBot
 from bot.config import bot as real_bot
-from bot.redis_manager import RedisClient
+from bot.redis_client import RedisClient
 from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.dao import RoleDAO
 from bot.users.models import Role, User

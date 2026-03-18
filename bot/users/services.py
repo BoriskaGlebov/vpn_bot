@@ -2,7 +2,7 @@ from aiogram.types import User as TgUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import settings_bot
-from bot.redis_manager import RedisClient
+from bot.redis_client import RedisClient
 from bot.users.dao import UserDAO
 from bot.users.models import User
 from bot.users.schemas import (

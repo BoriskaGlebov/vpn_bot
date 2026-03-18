@@ -3,7 +3,7 @@ from typing import Any
 
 from loguru import logger
 
-from bot.redis_manager import redis_manager
+from bot.redis_client import redis_manager
 from shared.clients.redis_client import RedisClient
 
 
