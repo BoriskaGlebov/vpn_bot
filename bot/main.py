@@ -15,9 +15,9 @@ from starlette.responses import JSONResponse
 from bot.admin.router import AdminRouter
 
 # from bot.ai.router import AIRouter
-from bot.config import bot, dp, logger, settings_bot
+from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
-from bot.database import engine
+from bot.core.database import engine
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
@@ -165,6 +165,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.exception(f"Ошибка при остановке бота: {e}")
     try:
         await container.shutdown()
+        logger.info("Отключение от Redis и API")
     except Exception as e:
         logger.exception(f"Ошибка при отключении от Redis: {e}")
     try:

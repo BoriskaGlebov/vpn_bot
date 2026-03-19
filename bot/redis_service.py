@@ -3,8 +3,7 @@ from typing import Any
 
 from loguru import logger
 
-from bot.redis_client import redis_manager
-from shared.clients.redis_client import RedisClient
+from bot.integrations.redis_client import RedisClient, redis_manager
 
 
 class RedisAdminMessageStorage:
