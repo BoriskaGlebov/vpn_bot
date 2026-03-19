@@ -1,3 +1,4 @@
+from core.database import async_session
 from loguru import logger
 
 from bot.ai.infrastructure.chains.rag_chain import RAGChain
@@ -6,7 +7,6 @@ from bot.ai.infrastructure.embeddings.factory_embeddings import EmbeddingsFactor
 from bot.ai.infrastructure.llm.yandex_llm import YandexChatModel
 from bot.ai.infrastructure.loaders.knowledge_initializer import KnowledgeBaseInitializer
 from bot.ai.infrastructure.retrievers.pgvector_retriever import PgVectorRetriever
-from bot.database import async_session
 
 
 class ChatService:

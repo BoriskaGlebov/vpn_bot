@@ -1,9 +1,9 @@
+from core.config import settings_ai
 from langchain_core.embeddings import Embeddings
 from loguru import logger
 
 from bot.ai.infrastructure.embeddings.local_embeddings import LocalEmbeddings
 from bot.ai.infrastructure.embeddings.yandex_embeddings import YandexEmbeddings
-from bot.config import settings_ai
 from bot.redis_service import redis_embedding_cache
 
 

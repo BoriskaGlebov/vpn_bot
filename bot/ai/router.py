@@ -8,13 +8,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
+from core.config import settings_bot
+from core.database import connection
+from integrations.redis_client import RedisClient
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.ai.services.service import ChatService
-from bot.config import settings_bot
-from bot.database import connection
-from bot.redis_client import RedisClient
 from bot.utils.base_router import BaseRouter
 
 m_ai = settings_bot.messages.modes.ai_assistant

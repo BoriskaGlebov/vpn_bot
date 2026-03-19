@@ -2,10 +2,9 @@ import asyncio
 from collections.abc import Iterable
 
 import numpy as np
+from core.config import settings_ai
 from langchain_core.embeddings import Embeddings
 from loguru import logger
-
-from bot.config import settings_ai
 
 
 class LocalEmbeddings(Embeddings):
