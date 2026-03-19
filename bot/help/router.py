@@ -12,7 +12,7 @@ from aiogram.types import (
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 from bot.help.enums import DeviceEnum
 from bot.help.keyboards.inline_kb import device_keyboard, inline_developer_keyboard
 from bot.help.utils.android_device import AndroidDevice
@@ -21,7 +21,7 @@ from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
 from bot.help.utils.split_device import SplitDevice
 from bot.help.utils.tv_device import TVDevice
-from bot.redis_client import RedisClient
+from bot.integrations.redis_client import RedisClient
 from bot.users.enums import ChatType, MainMenuText
 from bot.utils.base_router import BaseRouter
 
