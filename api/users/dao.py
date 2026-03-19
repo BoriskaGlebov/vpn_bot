@@ -1,6 +1,5 @@
 import datetime
 
-from core.dao import BaseDAO
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -8,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from api.core.dao.base import BaseDAO
 from api.users.models import Role, User
 from api.users.schemas import SRole, SUser
 from bot.admin.enums import FilterTypeEnum

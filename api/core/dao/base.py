@@ -6,13 +6,14 @@ from typing import (
     cast,
 )
 
-from core.database import Base
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement, and_, delete, func, select, true
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.core.database import Base
 
 # Объявляем типовой параметр T с ограничением, что это наследник Base
 T = TypeVar("T", bound=Base)

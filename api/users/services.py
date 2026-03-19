@@ -1,6 +1,6 @@
-from core.config import settings_api
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.core.config import settings_api
 from api.users.dao import UserDAO
 from api.users.models import User
 from api.users.schemas import (
