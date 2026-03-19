@@ -3,11 +3,11 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
+from core.config import settings_api
 from fastapi import FastAPI
 from loguru import logger
 from starlette.responses import JSONResponse
 
-from api.config import settings_api
 from api.users.router import router as user_router
 from shared.schemas.health_check import SHealthResponse
 
