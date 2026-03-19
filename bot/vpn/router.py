@@ -17,9 +17,9 @@ from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.app_error.base_error import SubscriptionNotFoundError
-from bot.config import settings_bot
-from bot.database import connection
-from bot.redis_client import RedisClient
+from bot.core.config import settings_bot
+from bot.core.database import connection
+from bot.integrations.redis_client import RedisClient
 from bot.users.enums import MainMenuText
 from bot.utils.base_router import BaseRouter
 from bot.vpn.services import VPNService

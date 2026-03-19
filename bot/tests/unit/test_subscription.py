@@ -1,8 +1,8 @@
 from unittest.mock import ANY, AsyncMock, patch
 
 import pytest
+from core.config import settings_bot
 
-from bot.config import settings_bot
 from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.services import ReferralService
 from bot.subscription.keyboards.inline_kb import (

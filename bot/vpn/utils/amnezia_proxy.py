@@ -8,7 +8,7 @@ import docker
 from docker.errors import DockerException
 from loguru import logger
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
 

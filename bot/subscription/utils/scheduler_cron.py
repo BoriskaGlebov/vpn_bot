@@ -6,7 +6,7 @@ from aiogram.exceptions import TelegramForbiddenError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru._logger import Logger
 
-from bot.config import bot, logger
+from bot.core.config import bot, logger
 from bot.subscription.services import SubscriptionService
 
 scheduler = AsyncIOScheduler()

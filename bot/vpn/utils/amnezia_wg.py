@@ -12,7 +12,7 @@ from typing import Any
 import aiofiles
 import asyncssh
 
-from bot.config import logger, settings_bot
+from bot.core.config import logger, settings_bot
 from bot.vpn.utils.amnezia_exceptions import (
     AmneziaConfigError,
     AmneziaError,

@@ -8,8 +8,8 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from bot.config import logger, settings_bot
-from bot.database import Base, int_pk
+from bot.core.config import logger, settings_bot
+from bot.core.database import Base, int_pk
 
 if TYPE_CHECKING:
     from bot.users.models import User

@@ -10,8 +10,8 @@ from sqlalchemy.orm import selectinload
 
 from bot.admin.enums import FilterTypeEnum
 from bot.app_error.base_error import AppError, UserNotFoundError
-from bot.config import settings_bot
-from bot.database import connection
+from bot.core.config import settings_bot
+from bot.core.database import connection
 from bot.subscription.dao import SubscriptionDAO
 from bot.subscription.enums import ToggleSubscriptionMode
 from bot.subscription.models import DEVICE_LIMITS, Subscription, SubscriptionType

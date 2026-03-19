@@ -7,14 +7,14 @@ import pytest
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from core.config import SettingsBot
+from core.config import bot as real_bot
+from integrations.redis_client import RedisClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.config import SettingsBot
-from bot.config import bot as real_bot
-from bot.redis_client import RedisClient
 from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.dao import RoleDAO
-from bot.users.models import Role, User
+from bot.users.models import User
 from bot.users.services import UserService
 
 

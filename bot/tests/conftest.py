@@ -5,12 +5,12 @@ import pytest
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Chat, Message, User
+from core.config import settings_bot
+from core.database import Base
+from integrations.redis_client import RedisClient
 from loguru import logger as real_logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from bot.config import settings_bot
-from bot.database import Base
-from bot.redis_client import RedisClient
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils import commands
 from bot.utils.init_default_roles import init_default_roles_admins
@@ -76,9 +76,6 @@ def test_engine():
 
 @pytest.fixture(autouse=True)
 async def setup_database(test_engine):
-    from bot.referrals.models import Referral
-    from bot.users.models import Role, Subscription, User, VPNConfig
-
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

@@ -2,10 +2,9 @@ import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup
+from core.config import settings_bot
 
-from bot.config import settings_bot
 from bot.referrals.router import ReferralRouter
 from bot.referrals.services import ReferralService
 

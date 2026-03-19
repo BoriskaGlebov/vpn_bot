@@ -2,7 +2,7 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 from bot.subscription.enums import (
     AdminPaymentAction,
     SubscriptionAction,

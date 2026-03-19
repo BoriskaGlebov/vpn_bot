@@ -2,7 +2,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup, Message
 
-from bot.config import logger, settings_bot
+from bot.core.config import logger, settings_bot
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils.commands import set_bot_commands
 from bot.utils.set_description_file import set_description

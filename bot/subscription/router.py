@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.enums import FilterTypeEnum
 from bot.app_error.base_error import UserNotFoundError
-from bot.config import settings_bot
-from bot.database import connection
+from bot.core.config import settings_bot
+from bot.core.database import connection
 from bot.redis_service import redis_admin_mess_storage as redis_service
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (

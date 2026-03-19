@@ -3,8 +3,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.app_error.base_error import SubscriptionNotFoundError
-from bot.config import logger, settings_bot
-from bot.dao.base import BaseDAO
+from bot.core.config import logger, settings_bot
+from bot.core.dao.base import BaseDAO
 from bot.subscription.models import DEVICE_LIMITS
 from bot.users.dao import UserDAO
 from bot.vpn.models import VPNConfig

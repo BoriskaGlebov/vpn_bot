@@ -1,8 +1,8 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.config import settings_bot
-from bot.database import connection
+from bot.core.config import settings_bot
+from bot.core.database import connection
 from bot.users.dao import RoleDAO
 from bot.users.models import Role, User
 from bot.users.schemas import SRole

@@ -15,7 +15,7 @@ from aiogram.types import (
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 
 T = TypeVar("T")
 F = TypeVar("F", bound=Callable[..., Any])

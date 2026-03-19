@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock
 import pytest
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardRemove
+from core.config import settings_bot
 
-from bot.config import settings_bot
 from bot.referrals.services import ReferralService
 from bot.users.router import (
     UserRouter,
@@ -81,7 +81,7 @@ async def test_admin_start_with_admin_monkeypatch(
     fake_message = make_fake_message(user_id=123)
 
     # Настраиваем пользователя как админа
-    from bot.config import settings_bot
+    from core.config import settings_bot
 
     monkeypatch.setattr(settings_bot, "admin_ids", {123})
     referral_service = AsyncMock(spec=ReferralService)
@@ -112,7 +112,7 @@ async def test_admin_start_non_admin_monkeypatch(
     fake_message = make_fake_message(user_id=999)
 
     # Настраиваем ADMIN_IDS так, чтобы пользователь не был админом
-    from bot.config import settings_bot
+    from core.config import settings_bot
 
     monkeypatch.setattr(settings_bot, "admin_ids", {123})
     referral_service = AsyncMock(spec=ReferralService)

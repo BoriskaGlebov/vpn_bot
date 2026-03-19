@@ -1,9 +1,9 @@
 from unittest.mock import AsyncMock
 
+import core.config as config
 import pytest
 from aiogram.exceptions import TelegramBadRequest
 
-import bot.config as config
 from bot.utils import start_stop_bot as start_module
 
 
