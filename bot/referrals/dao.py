@@ -1,8 +1,8 @@
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.config import logger
-from bot.dao.base import BaseDAO
+from bot.core.config import logger
+from bot.core.dao.base import BaseDAO
 from bot.referrals.models import Referral
 
 

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from bot.database import Base, int_pk
+from bot.core.database import Base, int_pk
 
 if TYPE_CHECKING:
     from bot.users.models import User

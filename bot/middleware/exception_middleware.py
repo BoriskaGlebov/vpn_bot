@@ -22,7 +22,7 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 from loguru._logger import Logger
 
 from bot.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 

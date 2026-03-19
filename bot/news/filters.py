@@ -1,7 +1,7 @@
 from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 
 
 class IsAdmin(BaseFilter):

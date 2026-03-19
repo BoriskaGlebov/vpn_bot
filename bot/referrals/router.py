@@ -9,7 +9,7 @@ from aiogram.types import (
 from aiogram.types import User as TGUser
 from loguru._logger import Logger
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 from bot.utils.base_router import BaseRouter
 
 m_referrals = settings_bot.messages.modes.referrals

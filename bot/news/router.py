@@ -19,8 +19,8 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.config import settings_bot
-from bot.database import connection
+from bot.core.config import settings_bot
+from bot.core.database import connection
 from bot.news.filters import IsAdmin
 from bot.news.keyboards.inline_kb import NewsAction, NewsCB, news_confirm_kb
 from bot.news.services import NewsService
