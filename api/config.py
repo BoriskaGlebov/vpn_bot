@@ -1,4 +1,8 @@
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
+
+from pydantic import field_validator
 
 from shared.config.app_config import SettingsApp
 from shared.config.db_config import SettingsDB
@@ -14,14 +18,25 @@ class SettingsAPI(SettingsApp):
     специфичными для FastAPI-сервиса.
 
     Attributes
-        debug_fast_api (bool): Включает режим отладки FastAPI.
-            Влияет на вывод ошибок и поведение приложения.
-        reload_fast_api (bool): Включает авто-перезагрузку сервера при изменении кода.
-            Используется только в режиме разработки.
+        admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
 
     """
 
-    ...
+    admin_ids: set[int] | str = ""
+
+    @field_validator("admin_ids", mode="before")
+    @classmethod
+    def parse_admin_ids(cls, v: Any) -> set[int]:
+        """Парсит строку с ID администраторов в множество целых чисел."""
+        if isinstance(v, str):
+            return set(int(i) for i in v.split(",") if i.strip().isdigit())
+        if isinstance(v, Iterable):
+            try:
+                return {int(i) for i in v}
+            except (ValueError, TypeError):
+                raise ValueError("admin_ids должна содержать только целые числа")
+
+        raise TypeError("admin_ids должно быть строкой или коллекцией")
 
 
 settings_api = SettingsAPI()  # type: ignore

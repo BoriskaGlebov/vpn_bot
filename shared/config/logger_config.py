@@ -30,7 +30,7 @@ class LoggerConfig:
         self.logger_level_stdout = logger_level_stdout
         self.logger_level_file = logger_level_file
         self.logger_error_file = logger_error_file
-        self.extra_defaults = extra_defaults or {"user": "-"}
+        self.extra_defaults = extra_defaults or {"user": "undefined_user"}
 
         self._ensure_log_dir_exists()
         self._setup_logging()
@@ -51,7 +51,7 @@ class LoggerConfig:
 
         """
         user = record.get("extra", {}).get("user")
-        return bool(user and user != "-")
+        return bool(user and user != "undefined_user")
 
     @staticmethod
     def _default_filter(record: Mapping[str, Any]) -> bool:
@@ -65,7 +65,7 @@ class LoggerConfig:
 
         """
         user = record.get("extra", {}).get("user")
-        return user in (None, "-")
+        return user in (None, "undefined_user")
 
     @staticmethod
     def _exclude_errors(record: Mapping[str, Any]) -> bool:

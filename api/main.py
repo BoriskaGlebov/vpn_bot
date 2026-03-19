@@ -8,6 +8,7 @@ from loguru import logger
 from starlette.responses import JSONResponse
 
 from api.config import settings_api
+from api.users.router import router as user_router
 from shared.schemas.health_check import SHealthResponse
 
 # API теги и их описание
@@ -50,32 +51,32 @@ app: FastAPI = FastAPI(
     root_path="/api",
     summary="API для взаимодействия с ботом и AI-агентом",
     description="""
-    ## 📡 Boriska API
+## 📡 Boriska API
 
-    Сервис предоставляет HTTP API для взаимодействия между внутренними компонентами системы.
+Сервис предоставляет HTTP API для взаимодействия между внутренними компонентами системы.
 
-    ### Основные направления:
+### Основные направления:
 
-    ### 🤖 Bot API
-    Методы для интеграции с Telegram-ботом:
-    - отправка событий
-    - управление пользователями
-    - триггер действий
+### 🤖 Bot API
+Методы для интеграции с Telegram-ботом:
+- отправка событий
+- управление пользователями
+- триггер действий
 
-    ### 🧠 LLM API
-    Методы для AI-агента:
-    - обработка пользовательских сообщений
-    - генерация ответов
-    - выполнение команд
+### 🧠 LLM API
+Методы для AI-агента:
+- обработка пользовательских сообщений
+- генерация ответов
+- выполнение команд
 
-    ### ⚙️ System API
-    Служебные эндпоинты:
-    - проверка состояния сервиса
-    - мониторинг
+### ⚙️ System API
+Служебные эндпоинты:
+- проверка состояния сервиса
+- мониторинг
 
-    ---
+---
 
-    Сервис предназначен для использования внутренними компонентами (bot, workers, AI-agent).
+Сервис предназначен для использования внутренними компонентами (bot, workers, AI-agent).
     """,
     openapi_tags=tags_metadata,
     contact={
@@ -85,6 +86,7 @@ app: FastAPI = FastAPI(
     },
     lifespan=lifespan,
 )
+app.include_router(user_router)
 
 
 @app.get(
