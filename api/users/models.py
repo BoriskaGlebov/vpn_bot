@@ -4,7 +4,8 @@ from sqlalchemy import BigInteger, ForeignKey, ScalarSelect, case, func, select
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from api.core.database import Base, int_pk, str_null_true, str_uniq
+# TODO преезарегитсрировать модели и настройки
+from bot.core.database import Base, int_pk, str_null_true, str_uniq
 from bot.subscription.models import Subscription  # импорт только для type hints
 from bot.vpn.models import VPNConfig
 

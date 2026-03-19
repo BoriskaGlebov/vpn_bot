@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
-from bot.core.config import settings_db
+from api.core.config import settings_db
 
 engine = create_async_engine(cast(str, settings_db.database_url))
 
