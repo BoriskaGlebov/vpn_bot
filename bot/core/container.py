@@ -3,11 +3,13 @@
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
-from bot.config import bot, logger
+from bot.core.config import bot, logger
+from bot.integrations.api_client import APIClient
+from bot.integrations.redis_client import RedisClient, redis_manager
 from bot.news.services import NewsService
-from bot.redis_client import RedisClient, redis_manager
 from bot.referrals.services import ReferralService
 from bot.subscription.services import SubscriptionService
+from bot.users.adapter import UsersAPI
 from bot.users.services import UserService
 from bot.vpn.services import VPNService
 
@@ -37,13 +39,20 @@ class Container:
     subscription_service: SubscriptionService
     vpn_service: VPNService
     news_service: NewsService
+    api_client: APIClient
+    user_adapter: UsersAPI
+
     # chat_service: ChatService | None
 
     def __init__(self) -> None:
         """Инициализирует сервисы без асинхронных операций."""
         self.redis_manager = redis_manager
+        self.api_client = APIClient(base_url="http://127.0.0.1:8089")
+        self.user_adapter = UsersAPI(client=self.api_client)
 
-        self.user_service = UserService(redis=self.redis_manager)
+        self.user_service = UserService(
+            redis=self.redis_manager, adapter=self.user_adapter
+        )
         self.admin_service = AdminService()
         self.referral_service = ReferralService(bot=bot, logger=logger)  # type: ignore[arg-type]
         self.subscription_service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]
@@ -60,3 +69,4 @@ class Container:
     async def shutdown(self) -> None:
         """Асинхронно завершает работу сервисов."""
         await self.redis_manager.disconnect()
+        await self.api_client.close()
