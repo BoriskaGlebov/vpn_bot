@@ -20,7 +20,7 @@ from bot.admin.keyboards.inline_kb import (
 )
 from bot.admin.services import AdminService
 from bot.app_error.base_error import SubscriptionNotFoundError
-from bot.database import connection
+from bot.core.database import connection
 from bot.utils.base_router import BaseRouter
 
 

@@ -5,7 +5,7 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.admin.enums import ActionEnum, FilterTypeEnum
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 
 
 class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,call-arg]
