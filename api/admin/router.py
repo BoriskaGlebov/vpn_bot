@@ -4,11 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.admin.dependencies import get_admin_service
-from api.admin.enums import FilterTypeEnum
-from api.admin.schemas import SChangeRole, SExtendSubscription
+from api.admin.enums import RoleEnum
 from api.admin.services import AdminService
 from api.core.dependencies import get_session
-from api.users.schemas import SUserOut
+from shared.schemas.admin import SChangeRole, SExtendSubscription
+from shared.schemas.users import SUserOut
 
 router = APIRouter(prefix="/admin", tags=["bot"])
 
@@ -80,15 +80,14 @@ async def get_user(
     description=(
         "Возвращает список пользователей с возможностью фильтрации по ролям.\n\n"
         "Доступные значения фильтра:\n"
-        "- `all` — все пользователи\n"
         "- `user` — обычные пользователи\n"
         "- `admin` — администраторы\n"
         "- `founder` — владельцы системы"
     ),
 )
 async def get_users(
-    filter_type: FilterTypeEnum = Query(
-        default=FilterTypeEnum.ALL,
+    filter_type: RoleEnum = Query(
+        default=RoleEnum.USER,
         description="Фильтр пользователей по роли",
     ),
     session: AsyncSession = Depends(get_session),
@@ -100,7 +99,7 @@ async def get_users(
     типа фильтра. Если фильтр не задан, возвращаются все пользователи.
 
     Args:
-        filter_type (UserFilter): Тип фильтра пользователей:
+        filter_type (RoleEnum): Тип фильтра пользователей:
             - ALL — все пользователи
             - USER — обычные пользователи
             - ADMIN — администраторы

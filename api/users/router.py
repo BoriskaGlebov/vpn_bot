@@ -4,8 +4,8 @@ from starlette import status
 
 from api.core.dependencies import get_session
 from api.users.dependencies import get_user_service
-from api.users.schemas import SUser, SUserOut
 from api.users.services import UserService
+from shared.schemas.users import SUser, SUserOut
 
 router = APIRouter(prefix="/users", tags=["bot"])
 

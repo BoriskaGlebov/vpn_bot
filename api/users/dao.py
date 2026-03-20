@@ -11,8 +11,8 @@ from api.admin.enums import FilterTypeEnum
 from api.app_error.base_error import SubscriptionNotFoundError
 from api.core.dao.base import BaseDAO
 from api.users.models import Role, User
-from api.users.schemas import SRole, SUser
 from bot.subscription.models import Subscription, SubscriptionType
+from shared.schemas.users import SRole, SUser
 
 
 class UserDAO(BaseDAO[User]):
