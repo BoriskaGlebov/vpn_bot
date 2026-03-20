@@ -4,7 +4,7 @@ from typing import Any
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 
-from bot.config import settings_db
+from bot.core.config import settings_db
 
 
 class AdminAuth(AuthenticationBackend):

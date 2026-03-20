@@ -1,7 +1,7 @@
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 from bot.users.enums import MainMenuText
 
 

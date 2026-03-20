@@ -4,7 +4,8 @@ from typing import Any
 
 import uvicorn
 from aiogram.types import Update
-from apscheduler.triggers.cron import CronTrigger
+
+# from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel, ValidationError
 from sqladmin import Admin
@@ -12,28 +13,35 @@ from sqladmin.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
-from bot.admin.router import AdminRouter
-
 # from bot.ai.router import AIRouter
 from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
 from bot.core.database import engine
-from bot.help.router import HelpRouter
+
+# from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
-from bot.news.router import NewsRouter
+
+# from bot.news.router import NewsRouter
 from bot.referrals.admin import ReferralAdmin
-from bot.referrals.router import ReferralRouter
+
+# from bot.referrals.router import ReferralRouter
 from bot.subscription.admin import SubscriptionAdmin
-from bot.subscription.router import SubscriptionRouter
-from bot.subscription.utils.scheduler_cron import scheduled_check, scheduler
+
+# from bot.subscription.router import SubscriptionRouter
+from bot.subscription.utils.scheduler_cron import scheduler
 from bot.users.admin import RoleAdmin, UserAdmin
 from bot.users.auth_admin import AdminAuth
 from bot.users.router import UserRouter
-from bot.utils.init_default_roles import init_default_roles_admins
+
+# from bot.utils.init_default_roles import init_default_roles_admins
 from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.admin import VPNConfigAdmin
-from bot.vpn.router import VPNRouter
+
+# from bot.admin.router import AdminRouter
+
+
+# from bot.vpn.router import VPNRouter
 
 # from api.users_api.router import router as router_user
 
@@ -82,40 +90,40 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         referral_service=container.referral_service,
     )
 
-    help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
-
-    admin_router = AdminRouter(
-        bot=bot,
-        logger=logger,  # type: ignore[arg-type]
-        admin_service=container.admin_service,
-    )
-
-    subscription_router = SubscriptionRouter(
-        bot=bot,
-        logger=logger,  # type: ignore[arg-type]
-        subscription_service=container.subscription_service,
-        referral_service=container.referral_service,
-    )
-    vpn_router = VPNRouter(
-        bot=bot,
-        logger=logger,  # type: ignore[arg-type]
-        vpn_service=container.vpn_service,
-        redis=container.redis_manager,
-    )
-    referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
-    news_router = NewsRouter(
-        bot=bot,
-        logger=logger,  # type: ignore[arg-type]
-        news_service=container.news_service,
-    )
+    # help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
+    #
+    # admin_router = AdminRouter(
+    #     bot=bot,
+    #     logger=logger,  # type: ignore[arg-type]
+    #     admin_service=container.admin_service,
+    # )
+    #
+    # subscription_router = SubscriptionRouter(
+    #     bot=bot,
+    #     logger=logger,  # type: ignore[arg-type]
+    #     subscription_service=container.subscription_service,
+    #     referral_service=container.referral_service,
+    # )
+    # vpn_router = VPNRouter(
+    #     bot=bot,
+    #     logger=logger,  # type: ignore[arg-type]
+    #     vpn_service=container.vpn_service,
+    #     redis=container.redis_manager,
+    # )
+    # referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
+    # news_router = NewsRouter(
+    #     bot=bot,
+    #     logger=logger,  # type: ignore[arg-type]
+    #     news_service=container.news_service,
+    # )
 
     dp.include_router(user_router.router)
-    dp.include_router(help_router.router)
-    dp.include_router(admin_router.router)
-    dp.include_router(subscription_router.router)
-    dp.include_router(vpn_router.router)
-    dp.include_router(referral_router.router)
-    dp.include_router(news_router.router)
+    # dp.include_router(help_router.router)
+    # dp.include_router(admin_router.router)
+    # dp.include_router(subscription_router.router)
+    # dp.include_router(vpn_router.router)
+    # dp.include_router(referral_router.router)
+    # dp.include_router(news_router.router)
     # if container.chat_service is None:
     #     raise RuntimeError("ChatService ещё не инициализирован!")
     # ai_router = AIRouter(
@@ -126,16 +134,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # )
     # dp.include_router(ai_router.router)
 
-    await init_default_roles_admins()  # type: ignore
+    # await init_default_roles_admins()  # type: ignore
     await start_bot(bot=bot)
-    scheduler.add_job(
-        scheduled_check,
-        # trigger=IntervalTrigger(seconds=30),
-        trigger=CronTrigger(hour=8, minute=0),
-        kwargs={"logger": logger},
-    )
-    scheduler.start()
-    logger.info("🕒 Планировщик запущен — проверка каждые 1 минуту")
+    # scheduler.add_job(
+    #     scheduled_check,
+    #     # trigger=IntervalTrigger(seconds=30),
+    #     trigger=CronTrigger(hour=8, minute=0),
+    #     kwargs={"logger": logger},
+    # )
+    # scheduler.start()
+    # logger.info("🕒 Планировщик запущен — проверка каждые 1 минуту")
     if settings_bot.use_polling:
         await bot.delete_webhook(drop_pending_updates=True)
 

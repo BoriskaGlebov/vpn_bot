@@ -8,8 +8,8 @@ from sqlalchemy.orm import selectinload
 
 from bot.admin.enums import FilterTypeEnum
 from bot.app_error.base_error import SubscriptionNotFoundError
-from bot.config import logger
-from bot.dao.base import BaseDAO
+from bot.core.config import logger
+from bot.core.dao.base import BaseDAO
 from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.models import Role, User
 from bot.users.schemas import SRole, SUser

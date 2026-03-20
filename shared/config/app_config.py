@@ -19,6 +19,8 @@ class SettingsApp(BaseSettings):
      logger_level_file (str): Уровень логирования для файла логов.
      logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
      model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
+     api_url (str): Адрес api интеграции.
+     api_port (int): Порт для api.
 
     """
 
@@ -30,6 +32,9 @@ class SettingsApp(BaseSettings):
     logger_level_stdout: str = "INFO"
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
+
+    api_url: str = "127.0.0.1"
+    api_port: str = 8089
 
     model_config = SettingsConfigDict(
         env_file=[

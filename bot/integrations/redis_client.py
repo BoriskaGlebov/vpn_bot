@@ -1,10 +1,12 @@
 from typing import Any
 
 import orjson
+from loguru import logger
 from loguru._logger import Logger
 from redis import RedisError
 from redis.asyncio import Redis
 
+from bot.core.config import settings_db
 from shared.interfaces.redis_client import RedisClientProtocol
 
 
@@ -108,3 +110,8 @@ class RedisClient(RedisClientProtocol):
         """
         redis = await self._ensure_connection()
         await redis.delete(key)
+
+
+redis_manager = RedisClient(
+    str(settings_db.redis_url), logger=logger, default_expire=settings_db.default_expire
+)  # type: ignore[arg-type]

@@ -19,9 +19,9 @@ from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
-from bot.config import settings_bot
-from bot.database import connection
-from bot.redis_client import RedisClient
+from bot.core.config import settings_bot
+from bot.core.database import connection
+from bot.integrations.redis_client import RedisClient
 from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
@@ -199,7 +199,7 @@ class UserRouter(BaseRouter):
                 )
                 return
             user_info, is_new = await self.user_service.register_or_get_user(
-                session=session, telegram_user=user
+                telegram_user=user
             )
             welcome_messages = m_start.welcome
 

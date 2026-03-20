@@ -3,7 +3,7 @@
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
-from bot.core.config import bot, logger
+from bot.core.config import bot, logger, settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient, redis_manager
 from bot.news.services import NewsService
@@ -47,12 +47,12 @@ class Container:
     def __init__(self) -> None:
         """Инициализирует сервисы без асинхронных операций."""
         self.redis_manager = redis_manager
-        self.api_client = APIClient(base_url="http://127.0.0.1:8089")
+        self.api_client = APIClient(
+            base_url=settings_bot.api_url, port=settings_bot.api_port
+        )
         self.user_adapter = UsersAPI(client=self.api_client)
 
-        self.user_service = UserService(
-            redis=self.redis_manager, adapter=self.user_adapter
-        )
+        self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService()
         self.referral_service = ReferralService(bot=bot, logger=logger)  # type: ignore[arg-type]
         self.subscription_service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]

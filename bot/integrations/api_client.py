@@ -1,0 +1,161 @@
+import asyncio
+from typing import Any
+
+import httpx
+from loguru import logger
+
+from bot.app_error.api_error import (
+    APIClientConnectionError,
+    APIClientError,
+    APIClientHTTPError,
+)
+
+
+class APIClient:
+    """Асинхронный HTTP клиент с retry, логированием и обработкой ошибок.
+
+    Args:
+        base_url (str): Базовый URL API.
+        timeout (float): Таймаут запроса.
+        max_retries (int): Количество попыток.
+        retry_delay (float): Задержка между попытками.
+
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        port: int,
+        timeout: float = 5.0,
+        max_retries: int = 3,
+        retry_delay: float = 0.5,
+    ) -> None:
+        self.base_url = f"http://{base_url.rstrip('/')}:{port}"
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            timeout=httpx.Timeout(
+                connect=2.0, read=self.timeout, write=self.timeout, pool=self.timeout
+            ),
+        )
+
+    async def close(self) -> None:
+        """Закрывает HTTP клиент."""
+        await self._client.aclose()
+
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Выполняет HTTP запрос с retry и логированием.
+
+        Args:
+            method (str): HTTP метод.
+            url (str): URL endpoint.
+
+        Raises
+            APIClientHTTPError: Ошибка HTTP.
+            APIClientConnectionError: Ошибка соединения.
+
+        Returns
+            httpx.Response: Ответ сервера.
+
+        """
+        last_exc: Exception | None = None
+
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                logger.debug(
+                    "HTTP запрос: {} {} (попытка {}/{})",
+                    method,
+                    url,
+                    attempt,
+                    self.max_retries,
+                )
+                response = await self._client.request(method, url, **kwargs)
+                logger.debug(
+                    "HTTP ответ: {} {} -> {}",
+                    method,
+                    url,
+                    response.status_code,
+                )
+                if response.status_code >= 400:
+                    logger.warning(
+                        "HTTP error: {} {} -> {} | body={}",
+                        method,
+                        url,
+                        response.status_code,
+                        response.text,
+                    )
+                    raise APIClientHTTPError(
+                        status_code=response.status_code,
+                        detail=response.text,
+                    )
+
+                return response
+
+            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+                last_exc = exc
+                logger.warning(
+                    "Connection error: {} {} (попытка {}/{}): {}",
+                    method,
+                    url,
+                    attempt,
+                    self.max_retries,
+                    exc,
+                )
+                if attempt == self.max_retries:
+                    raise APIClientConnectionError(
+                        "Не удалось подключиться к API",
+                        cause=exc,
+                    ) from exc
+
+                await asyncio.sleep(self.retry_delay)
+            except httpx.RequestError as exc:
+                logger.error(
+                    "Ошибка без повторного запрашивания request error: {} {}: {}",
+                    method,
+                    url,
+                    exc,
+                )
+                raise APIClientConnectionError(
+                    "Ошибка запроса",
+                    cause=exc,
+                ) from exc
+        raise APIClientConnectionError("Неизвестная ошибка", cause=last_exc)
+
+    async def _parse_json(self, response: httpx.Response) -> dict[str, Any]:
+        """Парсит JSON с обработкой ошибок."""
+        try:
+            data = response.json()
+        except ValueError as exc:
+            logger.error(
+                "Невалидный JSON ответ: {} {}",
+                response.request.method,
+                response.request.url,
+            )
+            raise APIClientError(
+                "Ответ API не является корректным JSON",
+                cause=exc,
+            ) from exc
+
+        if not isinstance(data, dict):
+            logger.error("Неподдерживаемый  JSON type: {}", type(data))
+            raise APIClientError("Ожидался JSON объект")
+
+        return data
+
+    async def get(self, url: str, **kwargs: Any) -> dict[str, Any]:
+        """GET запрос."""
+        response = await self._request("GET", url, **kwargs)
+        return await self._parse_json(response)
+
+    async def post(self, url: str, **kwargs: Any) -> tuple[dict[str, Any], int]:
+        """POST запрос."""
+        response = await self._request("POST", url, **kwargs)
+        return await self._parse_json(response), response.status_code
