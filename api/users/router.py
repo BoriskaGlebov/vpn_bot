@@ -10,7 +10,11 @@ from api.users.services import UserService
 router = APIRouter(prefix="/users", tags=["bot"])
 
 
-@router.post("/register", response_model=SUserOut)
+@router.post(
+    "/register",
+    response_model=SUserOut,
+    summary="Регистрирует пользователя или возвращает существующего.",
+)
 async def register_user(
     user_data: SUser,
     response: Response,

@@ -4,10 +4,18 @@ from typing import Any
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from loguru import logger
 from starlette.responses import JSONResponse
 
+from api.admin.router import router as admin_router
+from api.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError
 from api.core.config import settings_api
+from api.core.exceptions.handlers.business import (
+    subscription_not_found_handler,
+    user_not_found_handler,
+)
+from api.core.exceptions.handlers.http import request_validation_handler
 from api.users.router import router as user_router
 from shared.schemas.health_check import SHealthResponse
 
@@ -87,6 +95,12 @@ app: FastAPI = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(user_router)
+app.include_router(admin_router)
+
+app.add_exception_handler(UserNotFoundError, user_not_found_handler)
+app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
+
+app.add_exception_handler(RequestValidationError, request_validation_handler)
 
 
 @app.get(
