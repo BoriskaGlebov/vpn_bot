@@ -30,6 +30,7 @@ class APIClient:
         max_retries: int = 3,
         retry_delay: float = 0.5,
     ) -> None:
+        """Инициализация класса Клиента."""
         self.base_url = f"http://{base_url.rstrip('/')}:{port}"
         self.timeout = timeout
         self.max_retries = max_retries
