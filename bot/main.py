@@ -13,6 +13,8 @@ from sqladmin.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
+from bot.admin.router import AdminRouter
+
 # from bot.ai.router import AIRouter
 from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
@@ -37,9 +39,6 @@ from bot.users.router import UserRouter
 # from bot.utils.init_default_roles import init_default_roles_admins
 from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.admin import VPNConfigAdmin
-
-# from bot.admin.router import AdminRouter
-
 
 # from bot.vpn.router import VPNRouter
 
@@ -92,11 +91,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
     #
-    # admin_router = AdminRouter(
-    #     bot=bot,
-    #     logger=logger,  # type: ignore[arg-type]
-    #     admin_service=container.admin_service,
-    # )
+    admin_router = AdminRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        admin_service=container.admin_service,
+    )
     #
     # subscription_router = SubscriptionRouter(
     #     bot=bot,
@@ -119,7 +118,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     dp.include_router(user_router.router)
     # dp.include_router(help_router.router)
-    # dp.include_router(admin_router.router)
+    dp.include_router(admin_router.router)
     # dp.include_router(subscription_router.router)
     # dp.include_router(vpn_router.router)
     # dp.include_router(referral_router.router)

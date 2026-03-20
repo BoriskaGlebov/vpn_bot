@@ -7,7 +7,7 @@ from loguru import logger
 from bot.app_error.api_error import (
     APIClientConnectionError,
     APIClientError,
-    APIClientHTTPError,
+    map_http_error,
 )
 
 
@@ -93,10 +93,7 @@ class APIClient:
                         response.status_code,
                         response.text,
                     )
-                    raise APIClientHTTPError(
-                        status_code=response.status_code,
-                        detail=response.text,
-                    )
+                    raise map_http_error(response.status_code, response.text)
 
                 return response
 
@@ -144,11 +141,6 @@ class APIClient:
                 "Ответ API не является корректным JSON",
                 cause=exc,
             ) from exc
-
-        if not isinstance(data, dict):
-            logger.error("Неподдерживаемый  JSON type: {}", type(data))
-            raise APIClientError("Ожидался JSON объект")
-
         return data
 
     async def get(self, url: str, **kwargs: Any) -> dict[str, Any]:
@@ -159,4 +151,9 @@ class APIClient:
     async def post(self, url: str, **kwargs: Any) -> tuple[dict[str, Any], int]:
         """POST запрос."""
         response = await self._request("POST", url, **kwargs)
+        return await self._parse_json(response), response.status_code
+
+    async def patch(self, url: str, **kwargs: Any) -> tuple[dict[str, Any], int]:
+        """PATCH запрос."""
+        response = await self._request("PATCH", url, **kwargs)
         return await self._parse_json(response), response.status_code

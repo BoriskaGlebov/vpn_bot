@@ -21,6 +21,15 @@ from aiogram.exceptions import (
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from loguru._logger import Logger
 
+from bot.app_error.api_error import (
+    APIClientConflictError,
+    APIClientConnectionError,
+    APIClientForbiddenError,
+    APIClientHTTPError,
+    APIClientNotFoundError,
+    APIClientUnauthorizedError,
+    APIClientValidationError,
+)
 from bot.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
 from bot.core.config import settings_bot
 
@@ -59,6 +68,14 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         self.error_messages: dict[type[Exception], str] = {
             VPNLimitError: "⚠️ Слишком много запросов. Превышен лимит на количество устройств",
             SubscriptionNotFoundError: "⚠️ Ошибка отсутствует подписка",
+            # --- API ---
+            APIClientConnectionError: "⚠️ Нет соединения с сервером. Попробуйте позже",
+            APIClientUnauthorizedError: "⚠️ Ошибка авторизации",
+            APIClientForbiddenError: "⚠️ Доступ запрещён",
+            APIClientNotFoundError: "⚠️ Объект не найден",
+            APIClientValidationError: "⚠️ Ошибка данных",
+            APIClientConflictError: "⚠️ Конфликт данных",
+            APIClientHTTPError: "⚠️ Ошибка сервера",
             TelegramRetryAfter: "⚠️ Слишком много запросов.",
             TelegramForbiddenError: "⚠️ Доступ запрещён.",
             TelegramUnauthorizedError: "⚠️ Ошибка авторизации.",

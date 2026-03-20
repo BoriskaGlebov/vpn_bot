@@ -7,10 +7,10 @@ from bot.app_error.base_error import UserNotFoundError, VPNLimitError
 from bot.subscription.models import DEVICE_LIMITS
 from bot.users.dao import UserDAO
 from bot.users.models import User
-from bot.users.schemas import SUserTelegramID
 from bot.vpn.dao import VPNConfigDAO
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from shared.schemas.users import SUserTelegramID
 
 
 class VPNService:

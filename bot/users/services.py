@@ -1,9 +1,9 @@
 from aiogram.types import User as TgUser
 from loguru import logger
 
-from bot.users.adapter import UsersAPI
+from bot.users.adapter import UsersAPIAdapter
 from bot.users.models import User
-from bot.users.schemas import (
+from shared.schemas.users import (
     SRoleOut,
     SSubscriptionOut,
     SUser,
@@ -21,7 +21,7 @@ class UserService:
         - подготовку схем (DTO) для внешнего использования.
     """
 
-    def __init__(self, adapter: UsersAPI) -> None:
+    def __init__(self, adapter: UsersAPIAdapter) -> None:
         """Инициализирует сервис пользователей.
 
         Args:

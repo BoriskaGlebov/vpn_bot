@@ -17,7 +17,6 @@ from bot.subscription.enums import ToggleSubscriptionMode
 from bot.subscription.models import DEVICE_LIMITS, Subscription, SubscriptionType
 from bot.users.dao import UserDAO
 from bot.users.models import User
-from bot.users.schemas import SUserOut, SUserTelegramID
 from bot.users.services import UserService
 from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.models import VPNConfig
@@ -25,6 +24,7 @@ from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from shared.schemas.users import SUserOut, SUserTelegramID
 
 m_subscription_local = settings_bot.messages.modes.subscription
 

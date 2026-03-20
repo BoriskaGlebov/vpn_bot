@@ -1,8 +1,8 @@
-from api.users.schemas import SUser, SUserOut
 from bot.integrations.api_client import APIClient
+from shared.schemas.users import SUser, SUserOut
 
 
-class UsersAPI:
+class UsersAPIAdapter:
     """Клиент для работы с users API."""
 
     def __init__(self, client: APIClient) -> None:

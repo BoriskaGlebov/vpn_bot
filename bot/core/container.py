@@ -1,5 +1,5 @@
 # bot/core/container.py
-
+from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
@@ -9,7 +9,7 @@ from bot.integrations.redis_client import RedisClient, redis_manager
 from bot.news.services import NewsService
 from bot.referrals.services import ReferralService
 from bot.subscription.services import SubscriptionService
-from bot.users.adapter import UsersAPI
+from bot.users.adapter import UsersAPIAdapter
 from bot.users.services import UserService
 from bot.vpn.services import VPNService
 
@@ -40,7 +40,7 @@ class Container:
     vpn_service: VPNService
     news_service: NewsService
     api_client: APIClient
-    user_adapter: UsersAPI
+    user_adapter: UsersAPIAdapter
 
     # chat_service: ChatService | None
 
@@ -50,10 +50,11 @@ class Container:
         self.api_client = APIClient(
             base_url=settings_bot.api_url, port=settings_bot.api_port
         )
-        self.user_adapter = UsersAPI(client=self.api_client)
+        self.user_adapter = UsersAPIAdapter(client=self.api_client)
+        self.admin_adapter = AdminAPIAdapter(client=self.api_client)
 
         self.user_service = UserService(adapter=self.user_adapter)
-        self.admin_service = AdminService()
+        self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(bot=bot, logger=logger)  # type: ignore[arg-type]
         self.subscription_service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]
         self.vpn_service = VPNService()

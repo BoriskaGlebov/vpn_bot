@@ -12,7 +12,7 @@ from bot.core.config import logger
 from bot.core.dao.base import BaseDAO
 from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.models import Role, User
-from bot.users.schemas import SRole, SUser
+from shared.schemas.users import SRole, SUser
 
 
 class UserDAO(BaseDAO[User]):

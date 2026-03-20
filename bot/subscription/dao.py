@@ -6,7 +6,7 @@ from bot.core.config import logger
 from bot.core.dao.base import BaseDAO
 from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.dao import UserDAO
-from bot.users.schemas import SSubscription, SUserTelegramID
+from shared.schemas.users import SSubscription, SUserTelegramID
 
 
 class SubscriptionDAO(BaseDAO[Subscription]):

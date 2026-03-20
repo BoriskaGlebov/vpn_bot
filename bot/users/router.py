@@ -25,10 +25,10 @@ from bot.integrations.redis_client import RedisClient
 from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
-from bot.users.schemas import SUserOut
 from bot.users.services import UserService
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
+from shared.schemas.users import SUserOut
 
 m_admin = settings_bot.messages.modes.admin
 m_start = settings_bot.messages.modes.start

@@ -9,7 +9,7 @@ from bot.referrals.schemas import SReferralByInvite
 from bot.subscription.dao import SubscriptionDAO
 from bot.subscription.models import SubscriptionType
 from bot.users.dao import UserDAO
-from bot.users.schemas import SUserOut, SUserTelegramID
+from shared.schemas.users import SUserOut, SUserTelegramID
 
 
 class ReferralService:
