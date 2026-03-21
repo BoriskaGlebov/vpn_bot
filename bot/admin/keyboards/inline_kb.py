@@ -4,8 +4,9 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.admin.enums import ActionEnum, RoleEnum
+from bot.admin.enums import ActionEnum
 from bot.core.config import settings_bot
+from shared.enums.admin_enum import RoleEnum
 
 
 class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,call-arg]

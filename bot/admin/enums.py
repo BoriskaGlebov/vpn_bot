@@ -18,20 +18,3 @@ class AdminModeKeys(str, Enum):
 
     USER = "user"
     EDIT_USER = "edit_user"
-
-
-class FilterTypeEnum(str, Enum):
-    """Перечисление типов фильтров пользователей."""
-
-    ADMIN = "admin"
-    FOUNDER = "founder"
-    USER = "user"
-    ALL = "all"
-
-
-class RoleEnum(str, Enum):
-    """Перечисление ролей пользователей."""
-
-    ADMIN = "admin"
-    FOUNDER = "founder"
-    USER = "user"

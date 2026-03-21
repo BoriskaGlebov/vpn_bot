@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.admin.enums import RoleEnum
 from api.app_error.base_error import RoleNotFoundError, UserNotFoundError
 from api.core.mapper.user_mapper import UserMapper
 from api.users.dao import RoleDAO, UserDAO
+from shared.enums.admin_enum import RoleEnum
 from shared.schemas.users import (
     SRole,
     SUserOut,

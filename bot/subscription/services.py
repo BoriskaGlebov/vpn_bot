@@ -8,7 +8,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from bot.admin.enums import FilterTypeEnum
 from bot.app_error.base_error import AppError, UserNotFoundError
 from bot.core.config import settings_bot
 from bot.core.database import connection
@@ -24,6 +23,7 @@ from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from shared.enums.admin_enum import FilterTypeEnum
 from shared.schemas.users import SUserOut, SUserTelegramID
 
 m_subscription_local = settings_bot.messages.modes.subscription

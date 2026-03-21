@@ -4,9 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.admin.dependencies import get_admin_service
-from api.admin.enums import RoleEnum
 from api.admin.services import AdminService
 from api.core.dependencies import get_session
+from shared.enums.admin_enum import RoleEnum
 from shared.schemas.admin import SChangeRole, SExtendSubscription
 from shared.schemas.users import SUserOut
 

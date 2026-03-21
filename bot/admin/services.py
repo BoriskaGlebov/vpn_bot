@@ -1,6 +1,7 @@
 from bot.admin.adapter import AdminAPIAdapter
-from bot.admin.enums import AdminModeKeys, RoleEnum
+from bot.admin.enums import AdminModeKeys
 from bot.users.router import m_admin
+from shared.enums.admin_enum import RoleEnum
 from shared.schemas.admin import SChangeRole, SExtendSubscription
 from shared.schemas.users import (
     SUserOut,

@@ -6,12 +6,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from bot.admin.enums import FilterTypeEnum
 from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.core.config import logger
 from bot.core.dao.base import BaseDAO
 from bot.subscription.models import Subscription, SubscriptionType
 from bot.users.models import Role, User
+from shared.enums.admin_enum import FilterTypeEnum
 from shared.schemas.users import SRole, SUser
 
 

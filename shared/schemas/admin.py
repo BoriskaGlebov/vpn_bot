@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from api.admin.enums import RoleEnum
+from shared.enums.admin_enum import RoleEnum
 
 
 class SChangeRole(BaseModel):

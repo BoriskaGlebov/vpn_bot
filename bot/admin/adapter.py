@@ -1,7 +1,7 @@
 from loguru import logger
 
-from bot.admin.enums import RoleEnum
 from bot.integrations.api_client import APIClient
+from shared.enums.admin_enum import RoleEnum
 from shared.schemas.admin import SChangeRole, SExtendSubscription
 from shared.schemas.users import SUserOut
 
