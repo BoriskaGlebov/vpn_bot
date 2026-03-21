@@ -143,6 +143,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         except Exception:
             self.logger.warning("Не удалось отправить сообщение админам")
 
+    def _is_expected_error(self, exc: Exception) -> bool:
+        """Проверяю, что тип ошибки ожидаемый и не надо весь trace выводить."""
+        return any(isinstance(exc, exc_type) for exc_type in self.error_messages)
+
     async def __call__(
         self,
         handler: Handler,
@@ -165,12 +169,17 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             await self._notify_admins(event, exc)
             update_id = getattr(event, "update_id", None)
             exception_type = type(exc).__name__
-            self.logger.bind(
-                user=user_id,
-            ).exception(
-                f"[update_id] - {update_id}\n"
-                f"[exception_type]{exception_type}\n"
-                f"Ошибка при обработке обновления"
-            )
+            if self._is_expected_error(exc):
+                self.logger.bind(user=user_id).error(
+                    f"[update_id] - {update_id}\n"
+                    f"[exception_type]{exception_type}\n"
+                    f"{str(exc)}"
+                )
+            else:
+                self.logger.bind(user=user_id).exception(
+                    f"[update_id] - {update_id}\n"
+                    f"[exception_type]{exception_type}\n"
+                    f"Неожиданная ошибка"
+                )
 
             return None
