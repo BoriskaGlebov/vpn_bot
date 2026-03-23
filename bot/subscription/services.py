@@ -1,6 +1,5 @@
 from dataclasses import astuple, dataclass
 
-
 from bot.core.config import settings_bot
 from bot.subscription.adapter import (
     SubscriptionAdapter,
