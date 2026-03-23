@@ -1,8 +1,8 @@
+from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import UserNotFoundError
-from loguru import logger
 from api.core.dao.base import BaseDAO
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.dao import UserDAO

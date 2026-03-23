@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,6 +12,7 @@ class SSubscriptionCheck(BaseModel):
     premium: bool = Field(..., description="Есть ли премиум-подписка")
     role: RoleEnum = Field(..., description="Роль пользователя (user, admin, founder)")
     is_active: bool = Field(..., description="Активна ли текущая подписка")
+
 
 class STrialActivate(BaseModel):
     """Запрос на активацию пробного периода."""
@@ -27,10 +28,12 @@ class TrialStatus(str, Enum):
 class STrialActivateResponse(BaseModel):
     status: TrialStatus
 
+
 class ActivateSubscriptionRequest(BaseModel):
     tg_id: int = Field(..., description="Telegram ID пользователя")
     months: int = Field(..., ge=1, le=24, description="Количество месяцев")
     premium: bool = Field(..., description="Флаг премиум подписки")
+
 
 class SSubscription(BaseModel):
     """Схема подписки пользователя.
@@ -57,7 +60,7 @@ class UserNotifyEventSchema(EventBase):
 class DeleteVPNConfigsEventSchema(EventBase):
     type: Literal["delete_vpn_configs"]
     user_id: int
-    configs: List[str]
+    configs: list[str]
 
 
 class DeleteProxyEventSchema(EventBase):
@@ -77,11 +80,14 @@ SubscriptionEventSchema = (
     | DeleteProxyEventSchema
     | AdminNotifyEventSchema
 )
+
+
 class SubscriptionStatsSchema(BaseModel):
     checked: int
     expired: int
     notified: int
     configs_deleted: int
+
 
 class CheckAllSubscriptionsResponse(BaseModel):
     stats: SubscriptionStatsSchema

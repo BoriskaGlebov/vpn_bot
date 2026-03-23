@@ -3,12 +3,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.core.dependencies import get_session
-from api.subscription.dependencies import get_subscription_service, get_subscription_scheduler_service
-from api.subscription.services import SubscriptionService, SubscriptionScheduler, SubscriptionEvent, UserNotifyEvent, \
-    DeleteVPNConfigsEvent, AdminNotifyEvent, DeleteProxyEvent
-from api.subscription.schemas import SSubscriptionCheck, STrialActivateResponse, STrialActivate, TrialStatus, \
-    ActivateSubscriptionRequest, CheckAllSubscriptionsResponse, SubscriptionStatsSchema, UserNotifyEventSchema, \
-    DeleteVPNConfigsEventSchema, DeleteProxyEventSchema, AdminNotifyEventSchema
+from api.subscription.dependencies import (
+    get_subscription_scheduler_service,
+    get_subscription_service,
+)
+from api.subscription.schemas import (
+    ActivateSubscriptionRequest,
+    AdminNotifyEventSchema,
+    CheckAllSubscriptionsResponse,
+    DeleteProxyEventSchema,
+    DeleteVPNConfigsEventSchema,
+    SSubscriptionCheck,
+    STrialActivate,
+    STrialActivateResponse,
+    SubscriptionStatsSchema,
+    TrialStatus,
+    UserNotifyEventSchema,
+)
+from api.subscription.services import (
+    AdminNotifyEvent,
+    DeleteProxyEvent,
+    DeleteVPNConfigsEvent,
+    SubscriptionEvent,
+    SubscriptionScheduler,
+    SubscriptionService,
+    UserNotifyEvent,
+)
 from shared.schemas.users import SUserOut
 
 router = APIRouter(prefix="/subscriptions", tags=["bot"])
@@ -20,9 +40,9 @@ router = APIRouter(prefix="/subscriptions", tags=["bot"])
     summary="Проверяет наличие премиум-подписки",
 )
 async def check_premium(
-        tg_id: int,
-        session: AsyncSession = Depends(get_session),
-        service: SubscriptionService = Depends(get_subscription_service),
+    tg_id: int,
+    session: AsyncSession = Depends(get_session),
+    service: SubscriptionService = Depends(get_subscription_service),
 ) -> SSubscriptionCheck:
     premium, role, is_active = await service.check_premium(
         session=session,
@@ -43,9 +63,9 @@ async def check_premium(
     summary="Активирует пробный период",
 )
 async def start_trial(
-        data: STrialActivate,
-        session: AsyncSession = Depends(get_session),
-        service: SubscriptionService = Depends(get_subscription_service),
+    data: STrialActivate,
+    session: AsyncSession = Depends(get_session),
+    service: SubscriptionService = Depends(get_subscription_service),
 ) -> STrialActivateResponse:
     await service.start_trial_subscription(
         session=session,
@@ -64,10 +84,9 @@ async def start_trial(
     response_model=SUserOut,
 )
 async def activate_subscription(
-        data: ActivateSubscriptionRequest,
-        session: AsyncSession = Depends(get_session),
-        service: SubscriptionService = Depends(get_subscription_service),
-
+    data: ActivateSubscriptionRequest,
+    session: AsyncSession = Depends(get_session),
+    service: SubscriptionService = Depends(get_subscription_service),
 ):
     user = await service.activate_paid_subscription(
         session=session,
@@ -77,6 +96,7 @@ async def activate_subscription(
     )
 
     return user
+
 
 def map_event_to_schema(event: SubscriptionEvent):
     if isinstance(event, UserNotifyEvent):
@@ -107,6 +127,7 @@ def map_event_to_schema(event: SubscriptionEvent):
         )
 
     raise ValueError(f"Unknown event: {event}")
+
 
 @router.post(
     "/check-all",

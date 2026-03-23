@@ -1,4 +1,4 @@
-from enum import StrEnum, Enum
+from enum import Enum, StrEnum
 
 
 class ToggleSubscriptionMode(StrEnum):
@@ -12,7 +12,6 @@ class ToggleSubscriptionMode(StrEnum):
 
     STANDARD = "standard"
     PREMIUM = "premium"
-
 
 
 class SubscriptionEventType(str, Enum):

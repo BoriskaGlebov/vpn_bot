@@ -42,6 +42,7 @@ class SubscriptionNotFoundError(AppError):
         super().__init__(f"У пользователя {user_id} нет подписки / не активна.")
         self.user_id = user_id
 
+
 class ActiveSubscriptionExistsError(AppError):
     """У пользователя уже есть активная подписка."""
 
@@ -54,6 +55,7 @@ class TrialAlreadyUsedError(AppError):
 
     def __init__(self) -> None:
         super().__init__("Пробный период уже был использован")
+
 
 class VPNLimitError(AppError):
     """Пользователь достиг лимита VPN-конфигов.

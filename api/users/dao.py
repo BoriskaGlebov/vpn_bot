@@ -9,8 +9,8 @@ from sqlalchemy.orm import selectinload
 
 from api.app_error.base_error import SubscriptionNotFoundError
 from api.core.dao.base import BaseDAO
-from api.users.models import Role, User
 from api.subscription.models import Subscription, SubscriptionType
+from api.users.models import Role, User
 from shared.enums.admin_enum import FilterTypeEnum
 from shared.schemas.users import SRole, SUser
 

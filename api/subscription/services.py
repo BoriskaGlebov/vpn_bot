@@ -1,29 +1,34 @@
 import datetime
+from dataclasses import dataclass
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from api.app_error.base_error import AppError, UserNotFoundError, ActiveSubscriptionExistsError, TrialAlreadyUsedError
+
+from api.app_error.base_error import (
+    ActiveSubscriptionExistsError,
+    AppError,
+    TrialAlreadyUsedError,
+    UserNotFoundError,
+)
 from api.core.database import connection
+from api.core.mapper.user_mapper import UserMapper
 from api.subscription.dao import SubscriptionDAO
-from api.subscription.enums import ToggleSubscriptionMode
+from api.subscription.enums import SubscriptionEventType, ToggleSubscriptionMode
 from api.subscription.models import DEVICE_LIMITS, Subscription, SubscriptionType
 from api.users.dao import UserDAO
 from api.users.models import User
-from api.core.mapper.user_mapper import UserMapper
-from shared.enums.admin_enum import RoleEnum
-from shared.enums.admin_enum import FilterTypeEnum
-from shared.schemas.users import SUserOut, SUserTelegramID
-from api.subscription.enums import SubscriptionEventType
-from dataclasses import dataclass
-
 from api.vpn.models import VPNConfig
+from shared.enums.admin_enum import FilterTypeEnum, RoleEnum
+from shared.schemas.users import SUserOut, SUserTelegramID
+
 
 class SubscriptionService:
     """Сервис для бизнес-логики подписки."""
 
     @staticmethod
     async def check_premium(
-            session: AsyncSession, tg_id: int
+        session: AsyncSession, tg_id: int
     ) -> tuple[bool, RoleEnum, bool]:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
 
@@ -58,7 +63,7 @@ class SubscriptionService:
 
     @staticmethod
     async def start_trial_subscription(
-            session: AsyncSession, tg_id: int, days: int
+        session: AsyncSession, tg_id: int, days: int
     ) -> None:
         """Активирует пробный период подписки для пользователя.
 
@@ -82,19 +87,19 @@ class SubscriptionService:
         )
         try:
             if (
-                    user_model
-                    and user_model.current_subscription
-                    and user_model.current_subscription.is_active
-                    and not user_model.has_used_trial
+                user_model
+                and user_model.current_subscription
+                and user_model.current_subscription.is_active
+                and not user_model.has_used_trial
             ):
                 user_model.current_subscription.extend(days=days)
                 user_model.has_used_trial = True
                 # await session.commit()
                 return
             if (
-                    user_model
-                    and user_model.current_subscription
-                    and user_model.current_subscription.is_active
+                user_model
+                and user_model.current_subscription
+                and user_model.current_subscription.is_active
             ):
                 raise ActiveSubscriptionExistsError()
             if user_model and user_model.has_used_trial:
@@ -114,7 +119,7 @@ class SubscriptionService:
 
     @staticmethod
     async def activate_paid_subscription(
-            session: AsyncSession, user_id: int, months: int, premium: bool
+        session: AsyncSession, user_id: int, months: int, premium: bool
     ) -> SUserOut | None:
         """Активирует платную подписку после подтверждения оплаты.
 
@@ -197,17 +202,17 @@ class DeleteVPNConfigsEvent(BaseEvent):
     user_id: int
     configs: list[str]  # или pub_keys
 
+
 @dataclass
 class DeletedVPNConfig:
     file_name: str
     pub_key: str
 
+
 SubscriptionEvent = (
-    UserNotifyEvent |
-    AdminNotifyEvent |
-    DeleteProxyEvent |
-    DeleteVPNConfigsEvent
+    UserNotifyEvent | AdminNotifyEvent | DeleteProxyEvent | DeleteVPNConfigsEvent
 )
+
 
 @dataclass
 class SubscriptionStats:
@@ -247,14 +252,9 @@ class SubscriptionStats:
         self.configs_deleted += other.configs_deleted
 
 
-
-
-
-
 class SubscriptionScheduler:
-
     async def _process_user(
-            self, session: AsyncSession, user: User
+        self, session: AsyncSession, user: User
     ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Обрабатывает подписку конкретного пользователя и собирает статистику.
 
@@ -298,7 +298,7 @@ class SubscriptionScheduler:
         return stats, events
 
     async def _handle_expired(
-            self, session: AsyncSession, user: User, sub: Subscription
+        self, session: AsyncSession, user: User, sub: Subscription
     ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Обрабатывает истёкшую подписку пользователя.
 
@@ -325,42 +325,44 @@ class SubscriptionScheduler:
             sub.is_active = False
             stats.expired += 1
 
-            events.append(UserNotifyEvent(
-                type=SubscriptionEventType.USER_NOTIFY,
-                user_id=user.telegram_id,
-                message="Подписка истекла"
-            ))
+            events.append(
+                UserNotifyEvent(
+                    type=SubscriptionEventType.USER_NOTIFY,
+                    user_id=user.telegram_id,
+                    message="Подписка истекла",
+                )
+            )
 
         if sub.end_date:
             delta = datetime.datetime.now(datetime.UTC) - sub.end_date
 
             if delta.days >= 1:
                 deleted_configs = await self._delete_configs(
-                    session,
-                    user,
-                    user.vpn_configs
+                    session, user, user.vpn_configs
                 )
 
                 stats.configs_deleted += len(deleted_configs)
 
                 if deleted_configs:
-                    events.append(DeleteVPNConfigsEvent(
-                        type=SubscriptionEventType.DELETE_VPN_CONFIGS,
-                        user_id=user.telegram_id,
-                        configs=[
-                            c.file_name for c in deleted_configs
-                        ]
-                    ))
+                    events.append(
+                        DeleteVPNConfigsEvent(
+                            type=SubscriptionEventType.DELETE_VPN_CONFIGS,
+                            user_id=user.telegram_id,
+                            configs=[c.file_name for c in deleted_configs],
+                        )
+                    )
 
-                events.append(DeleteProxyEvent(
-                    type=SubscriptionEventType.DELETE_PROXY,
-                    user_id=user.telegram_id
-                ))
+                events.append(
+                    DeleteProxyEvent(
+                        type=SubscriptionEventType.DELETE_PROXY,
+                        user_id=user.telegram_id,
+                    )
+                )
 
         return stats, events
 
     async def _handle_expiring_soon(
-            self, user: User, sub: Subscription
+        self, user: User, sub: Subscription
     ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Обрабатывает подписку, которая скоро истечет, и уведомляет пользователя.
 
@@ -384,16 +386,18 @@ class SubscriptionScheduler:
         remaining = sub.remaining_days()
 
         if remaining is not None and remaining <= 3:
-            events.append(UserNotifyEvent(
-                type=SubscriptionEventType.USER_NOTIFY,
-                user_id=user.telegram_id,
-                message=f"Осталось {remaining} дней подписки"
-            ))
+            events.append(
+                UserNotifyEvent(
+                    type=SubscriptionEventType.USER_NOTIFY,
+                    user_id=user.telegram_id,
+                    message=f"Осталось {remaining} дней подписки",
+                )
+            )
 
         return stats, events
 
     async def _handle_unlimited_overuse(
-            self, session: AsyncSession, user: User
+        self, session: AsyncSession, user: User
     ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Обрабатывает превышение лимита VPN-конфигов для пользователя.
 
@@ -415,7 +419,6 @@ class SubscriptionScheduler:
         stats = SubscriptionStats()
         events: list[SubscriptionEvent] = []
 
-
         sub = user.current_subscription
         if not sub or not sub.is_active:
             return stats, events
@@ -427,44 +430,37 @@ class SubscriptionScheduler:
         if len(user.vpn_configs) > limit:
             extra_cfgs = user.vpn_configs[limit:]
 
-            deleted_configs = await self._delete_configs(
-                session,
-                user,
-                extra_cfgs
-            )
+            deleted_configs = await self._delete_configs(session, user, extra_cfgs)
 
             stats.configs_deleted += len(deleted_configs)
 
-            events.append(DeleteVPNConfigsEvent(
-                type=SubscriptionEventType.DELETE_VPN_CONFIGS,
-                user_id=user.telegram_id,
-                configs=[c.file_name for c in deleted_configs]
-            ))
+            events.append(
+                DeleteVPNConfigsEvent(
+                    type=SubscriptionEventType.DELETE_VPN_CONFIGS,
+                    user_id=user.telegram_id,
+                    configs=[c.file_name for c in deleted_configs],
+                )
+            )
 
         return stats, events
 
     async def _delete_configs(
-            self,
-            session: AsyncSession,
-            user: User,
-            configs: list[VPNConfig]
+        self, session: AsyncSession, user: User, configs: list[VPNConfig]
     ) -> list[DeletedVPNConfig]:
         deleted: list[DeletedVPNConfig] = []
 
         for cfg in configs:
             deleted.append(
-                DeletedVPNConfig(
-                    file_name=cfg.file_name,
-                    pub_key=cfg.pub_key
-                )
+                DeletedVPNConfig(file_name=cfg.file_name, pub_key=cfg.pub_key)
             )
             await session.delete(cfg)
 
         return deleted
 
-
     @connection()
-    async def check_all_subscriptions(self, session: AsyncSession) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
+    async def check_all_subscriptions(
+        self, session: AsyncSession
+    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Проверяет все подписки пользователей и собирает статистику.
 
         Метод выполняет выборку всех пользователей с подгрузкой их подписок,

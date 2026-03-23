@@ -1,4 +1,4 @@
-from api.subscription.services import SubscriptionService, SubscriptionScheduler
+from api.subscription.services import SubscriptionScheduler, SubscriptionService
 
 
 def get_subscription_service() -> SubscriptionService:
@@ -6,6 +6,6 @@ def get_subscription_service() -> SubscriptionService:
     return SubscriptionService()
 
 
-def get_subscription_scheduler_service()->SubscriptionScheduler:
+def get_subscription_scheduler_service() -> SubscriptionScheduler:
     """Depends для SubscriptionScheduler."""
     return SubscriptionScheduler()

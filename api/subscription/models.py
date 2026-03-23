@@ -3,13 +3,14 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from dateutil.relativedelta import relativedelta
+from loguru import logger
 from sqlalchemy import DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from loguru import logger
-from api.core.database import Base, int_pk
+
 from api.core.config import settings_api
+from api.core.database import Base, int_pk
 
 if TYPE_CHECKING:
     from api.users.models import User

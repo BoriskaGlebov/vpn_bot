@@ -5,8 +5,8 @@ from sqlalchemy import engine_from_config, pool
 
 from api.core.config import settings_db
 from api.core.database import Base
-from api.users.models import User,Role
 from api.subscription.models import Subscription
+from api.users.models import Role, User
 from api.vpn.models import VPNConfig
 
 # this is the Alembic Config object, which provides

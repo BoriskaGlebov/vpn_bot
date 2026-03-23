@@ -3,8 +3,12 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette import status
 
-from api.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError, ActiveSubscriptionExistsError, \
-    TrialAlreadyUsedError
+from api.app_error.base_error import (
+    ActiveSubscriptionExistsError,
+    SubscriptionNotFoundError,
+    TrialAlreadyUsedError,
+    UserNotFoundError,
+)
 
 
 async def user_not_found_handler(
@@ -67,6 +71,7 @@ async def subscription_not_found_handler(
         },
     )
 
+
 async def active_subscription_exists_handler(
     request: Request,
     exc: ActiveSubscriptionExistsError,
@@ -82,6 +87,7 @@ async def active_subscription_exists_handler(
             "detail": str(exc),
         },
     )
+
 
 async def trial_already_used_handler(
     request: Request,
