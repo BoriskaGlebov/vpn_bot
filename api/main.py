@@ -9,16 +9,17 @@ from loguru import logger
 from starlette.responses import JSONResponse
 
 from api.admin.router import router as admin_router
-from api.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError
+from api.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError, ActiveSubscriptionExistsError, \
+    TrialAlreadyUsedError
 from api.core.config import settings_api
 from api.core.exceptions.handlers.business import (
     subscription_not_found_handler,
-    user_not_found_handler,
+    user_not_found_handler, active_subscription_exists_handler, trial_already_used_handler,
 )
 from api.core.exceptions.handlers.http import request_validation_handler
 from api.users.router import router as user_router
 from shared.schemas.health_check import SHealthResponse
-
+from api.subscription.router import router as subscription_router
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
     {
@@ -96,12 +97,14 @@ app: FastAPI = FastAPI(
 )
 app.include_router(user_router)
 app.include_router(admin_router)
+app.include_router(subscription_router)
 
 app.add_exception_handler(UserNotFoundError, user_not_found_handler)
 app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
 
 app.add_exception_handler(RequestValidationError, request_validation_handler)
-
+app.add_exception_handler(ActiveSubscriptionExistsError,active_subscription_exists_handler)
+app.add_exception_handler(TrialAlreadyUsedError,trial_already_used_handler)
 
 @app.get(
     "/health",

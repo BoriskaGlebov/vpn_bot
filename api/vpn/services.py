@@ -3,11 +3,11 @@ from pathlib import Path
 from aiogram.types import User as TGUser
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.subscription.models import DEVICE_LIMITS
-from api.users.dao import UserDAO
-from api.users.models import User
-from api.vpn.dao import VPNConfigDAO
 from bot.app_error.base_error import UserNotFoundError, VPNLimitError
+from bot.subscription.models import DEVICE_LIMITS
+from bot.users.dao import UserDAO
+from bot.users.models import User
+from bot.vpn.dao import VPNConfigDAO
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 from shared.schemas.users import SUserTelegramID

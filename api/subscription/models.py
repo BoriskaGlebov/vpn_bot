@@ -7,12 +7,12 @@ from sqlalchemy import DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from bot.core.config import logger, settings_bot
-from bot.core.database import Base, int_pk
+from loguru import logger
+from api.core.database import Base, int_pk
+from api.core.config import settings_api
 
 if TYPE_CHECKING:
-    from bot.users.models import User
+    from api.users.models import User
 
 
 class SubscriptionType(str, Enum):
@@ -32,8 +32,8 @@ class SubscriptionType(str, Enum):
 
 DEVICE_LIMITS = {
     SubscriptionType.TRIAL: 1,
-    SubscriptionType.STANDARD: settings_bot.max_configs_per_user,
-    SubscriptionType.PREMIUM: int(settings_bot.max_configs_per_user * 2.5),
+    SubscriptionType.STANDARD: settings_api.max_configs_per_user,
+    SubscriptionType.PREMIUM: int(settings_api.max_configs_per_user * 2.5),
 }
 
 

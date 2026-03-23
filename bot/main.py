@@ -8,8 +8,6 @@ from aiogram.types import Update
 # from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel, ValidationError
-from sqladmin import Admin
-from sqladmin.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import JSONResponse
 
@@ -18,27 +16,27 @@ from bot.admin.router import AdminRouter
 # from bot.ai.router import AIRouter
 from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
-from bot.core.database import engine
-
-# from bot.help.router import HelpRouter
+from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
-
-# from bot.news.router import NewsRouter
-from bot.referrals.admin import ReferralAdmin
-
-# from bot.referrals.router import ReferralRouter
-from bot.subscription.admin import SubscriptionAdmin
+from bot.news.router import NewsRouter
 
 # from bot.subscription.router import SubscriptionRouter
-from bot.subscription.utils.scheduler_cron import scheduler
-from bot.users.admin import RoleAdmin, UserAdmin
-from bot.users.auth_admin import AdminAuth
+# from bot.subscription.utils.scheduler_cron import scheduler
+# from bot.users.admin import RoleAdmin, UserAdmin
+# from bot.users.auth_admin import AdminAuth
 from bot.users.router import UserRouter
 
 # from bot.utils.init_default_roles import init_default_roles_admins
 from bot.utils.start_stop_bot import start_bot, stop_bot
-from bot.vpn.admin import VPNConfigAdmin
+
+# from bot.referrals.admin import ReferralAdmin
+
+# from bot.referrals.router import ReferralRouter
+# from bot.subscription.admin import SubscriptionAdmin
+
+
+# from bot.vpn.admin import VPNConfigAdmin
 
 # from bot.vpn.router import VPNRouter
 
@@ -86,11 +84,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger=logger,  # type: ignore[arg-type]
         redis_manager=container.redis_manager,
         user_service=container.user_service,
-        referral_service=container.referral_service,
+        # referral_service=container.referral_service,
     )
 
-    # help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
-    #
+    help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
+
     admin_router = AdminRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
@@ -110,19 +108,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     #     redis=container.redis_manager,
     # )
     # referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
-    # news_router = NewsRouter(
-    #     bot=bot,
-    #     logger=logger,  # type: ignore[arg-type]
-    #     news_service=container.news_service,
-    # )
+    news_router = NewsRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        news_service=container.news_service,
+    )
 
     dp.include_router(user_router.router)
-    # dp.include_router(help_router.router)
+    dp.include_router(help_router.router)
     dp.include_router(admin_router.router)
     # dp.include_router(subscription_router.router)
     # dp.include_router(vpn_router.router)
     # dp.include_router(referral_router.router)
-    # dp.include_router(news_router.router)
+    dp.include_router(news_router.router)
     # if container.chat_service is None:
     #     raise RuntimeError("ChatService ещё не инициализирован!")
     # ai_router = AIRouter(
@@ -215,23 +213,23 @@ API предоставляет доступ к функционалу бота �
 app.add_middleware(
     SessionMiddleware, secret_key=settings_bot.session_secret.get_secret_value()
 )
-authentication_backend = AdminAuth(
-    secret_key=settings_bot.session_secret.get_secret_value()
-)
+# authentication_backend = AdminAuth(
+#     secret_key=settings_bot.session_secret.get_secret_value()
+# )
 
-templates = Jinja2Templates(directory="bot/templates")
-admin = Admin(
-    app,
-    engine,
-    title="Админ панель Админа",
-    templates_dir="bot/templates",
-    authentication_backend=authentication_backend,
-)
-admin.add_view(UserAdmin)
-admin.add_view(RoleAdmin)
-admin.add_view(SubscriptionAdmin)
-admin.add_view(VPNConfigAdmin)
-admin.add_view(ReferralAdmin)
+# templates = Jinja2Templates(directory="bot/templates")
+# admin = Admin(
+#     app,
+#     engine,
+#     title="Админ панель Админа",
+#     templates_dir="bot/templates",
+#     authentication_backend=authentication_backend,
+# )
+# admin.add_view(UserAdmin)
+# admin.add_view(RoleAdmin)
+# admin.add_view(SubscriptionAdmin)
+# admin.add_view(VPNConfigAdmin)
+# admin.add_view(ReferralAdmin)
 
 # app.include_router(router_user)
 

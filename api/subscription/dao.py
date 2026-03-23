@@ -1,11 +1,11 @@
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.app_error.base_error import UserNotFoundError
-from bot.core.config import logger
-from bot.core.dao.base import BaseDAO
-from bot.subscription.models import Subscription, SubscriptionType
-from bot.users.dao import UserDAO
+from api.app_error.base_error import UserNotFoundError
+from loguru import logger
+from api.core.dao.base import BaseDAO
+from api.subscription.models import Subscription, SubscriptionType
+from api.users.dao import UserDAO
 from shared.schemas.users import SSubscription, SUserTelegramID
 
 

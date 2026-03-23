@@ -5,9 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.core.config import logger, settings_bot
 from bot.core.dao.base import BaseDAO
-from bot.subscription.models import DEVICE_LIMITS
-from bot.users.dao import UserDAO
-from bot.vpn.models import VPNConfig
+from api.subscription.models import DEVICE_LIMITS
+from api.users.dao import UserDAO
+from api.vpn.models import VPNConfig
 
 
 class VPNConfigDAO(BaseDAO[VPNConfig]):

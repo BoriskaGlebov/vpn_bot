@@ -1,9 +1,9 @@
 from aiogram import Bot
 from loguru._logger import Logger
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.users.models import Role, User
+# TODO нужно настроить обращение на api
+# from bot.users.models import Role, User
 
 
 class NewsService:
@@ -29,8 +29,9 @@ class NewsService:
             List[int]: Список Telegram ID пользователей для рассылки.
 
         """
-        query = select(User.telegram_id).join(User.role).where(Role.name != "admin")
-        result = await session.execute(query)
-        users_id = result.scalars().all()
-        self.logger.info("Получил id пользователей для рассылки.")
-        return list(users_id)
+        pass
+        # query = select(User.telegram_id).join(User.role).where(Role.name != "admin")
+        # result = await session.execute(query)
+        # users_id = result.scalars().all()
+        # self.logger.info("Получил id пользователей для рассылки.")
+        # return list(users_id)

@@ -5,9 +5,9 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 # TODO преезарегитсрировать модели и настройки
-from bot.core.database import Base, int_pk, str_null_true, str_uniq
-from bot.subscription.models import Subscription  # импорт только для type hints
-from bot.vpn.models import VPNConfig
+from api.core.database import Base, int_pk, str_null_true, str_uniq
+from api.subscription.models import Subscription  # импорт только для type hints
+from api.vpn.models import VPNConfig
 
 
 class User(Base):

@@ -53,7 +53,6 @@ class SettingsBot(SettingsApp):
     vpn_container: str
     vpn_proxy: str
     proxy_port: str = "8443"
-    max_configs_per_user: int = 10
 
     use_polling: bool = False
     use_local: bool = True

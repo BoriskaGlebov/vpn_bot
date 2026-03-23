@@ -2,13 +2,9 @@ from aiogram.types import User as TgUser
 from loguru import logger
 
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.models import User
 from shared.schemas.users import (
-    SRoleOut,
-    SSubscriptionOut,
     SUser,
     SUserOut,
-    SVPNConfigOut,
 )
 
 
@@ -29,49 +25,6 @@ class UserService:
 
         """
         self.api_adapter = adapter
-
-    # TODO Надо это убрать мне кажется оно в конце концев не будет нужно.
-    @staticmethod
-    async def get_user_schema(user: User) -> SUserOut:
-        """Преобразует модель пользователя в Pydantic-схему.
-
-        Использует `model_construct` для быстрого создания схем без валидации.
-
-        Args:
-            user: Доменная модель пользователя.
-
-        Returns
-            SUserOut: Pydantic-схема пользователя.
-
-        """
-        logger.debug("Начало преобразования User -> SUserOut (user_id={})", user.id)
-        user_schema = SUserOut.model_construct(**user.__dict__)
-        schema_role = SRoleOut.model_construct(**user.role.__dict__)
-        schema_subscription = [
-            SSubscriptionOut.model_construct(**subscr.__dict__)
-            for subscr in user.subscriptions
-        ]
-        schema_configs = [
-            SVPNConfigOut.model_construct(**config.__dict__)
-            for config in user.vpn_configs
-        ]
-
-        user_schema.role = schema_role
-        user_schema.subscriptions = schema_subscription
-        user_schema.vpn_configs = schema_configs
-        user_schema.current_subscription = (
-            SSubscriptionOut.model_construct(**user.current_subscription.__dict__)
-            if user.current_subscription
-            else None
-        )
-        logger.debug(
-            "Успешно преобразован user_id={} (subs={}, vpn_configs={})",
-            user.id,
-            len(user.subscriptions),
-            len(user.vpn_configs),
-        )
-
-        return user_schema
 
     async def register_or_get_user(
         self, telegram_user: TgUser
