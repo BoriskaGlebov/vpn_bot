@@ -9,11 +9,11 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.enums.admin_enum import FilterTypeEnum
 from bot.app_error.base_error import UserNotFoundError
 from bot.core.config import settings_bot
 from bot.core.database import connection
 from bot.redis_service import redis_admin_mess_storage as redis_service
+
 # from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
     AdminPaymentAction,
@@ -33,6 +33,7 @@ from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
+from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
 
@@ -134,8 +135,7 @@ class SubscriptionRouter(BaseRouter):
                 is_premium,
                 role,
                 is_active_sbscr,
-            ) = await self.subscription_service.check_premium(tg_id=user.id
-            )
+            ) = await self.subscription_service.check_premium(tg_id=user.id)
             if not is_premium or role == FilterTypeEnum.FOUNDER:
                 text = m_subscription.start.format(
                     device_limit=settings_bot.max_configs_per_user
@@ -210,7 +210,7 @@ class SubscriptionRouter(BaseRouter):
                 days = months  # для триала количество дней
                 try:
                     await self.subscription_service.start_trial_subscription(
-                       tg_id=query.from_user.id, days=days
+                        tg_id=query.from_user.id, days=days
                     )
                     await query.answer("Выбрал пробный период", show_alert=False)
                     await msg.delete()
@@ -401,7 +401,7 @@ class SubscriptionRouter(BaseRouter):
             premium = callback_data.premium
 
             user_schema = await self.subscription_service.activate_paid_subscription(
-                 user_id, months, premium
+                user_id, months, premium
             )
             user_logger.info(
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"

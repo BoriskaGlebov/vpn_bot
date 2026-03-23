@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-from typing import Any
 
 from bot.integrations.api_client import APIClient
-from bot.core.config import settings_bot
 from shared.schemas.users import SUserOut
 
 
@@ -40,7 +38,9 @@ class SubscriptionAdapter:
     # ------------------------
     # ACTIVATE TRIAL
     # ------------------------
-    async def activate_trial(self, tg_id: int, days: int=7) -> tuple[TrialActivateResponse,int]:
+    async def activate_trial(
+        self, tg_id: int, days: int = 7
+    ) -> tuple[TrialActivateResponse, int]:
         data, status = await self._client.post(
             "/subscriptions/trial/activate",
             json={
@@ -49,7 +49,7 @@ class SubscriptionAdapter:
             },
         )
 
-        return TrialActivateResponse(status=data["status"]),status
+        return TrialActivateResponse(status=data["status"]), status
 
     # ------------------------
     # ACTIVATE PAID

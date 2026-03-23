@@ -1,11 +1,11 @@
-from dataclasses import dataclass, astuple
+from dataclasses import astuple, dataclass
 
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.core.config import settings_bot
-from bot.integrations.api_client import APIClient
-from shared.schemas.users import SUserOut, SUserTelegramID
-from bot.subscription.adapter import SubscriptionCheck, TrialActivateResponse, SubscriptionAdapter
+from bot.subscription.adapter import (
+    SubscriptionAdapter,
+)
+from shared.schemas.users import SUserOut
 
 m_subscription_local = settings_bot.messages.modes.subscription
 
@@ -55,8 +55,7 @@ class SubscriptionService:
     def __init__(self, adapter: SubscriptionAdapter) -> None:
         self.api_adapter = adapter
 
-    async def check_premium(self, tg_id: int
-                            ) -> tuple[bool, str, bool]:
+    async def check_premium(self, tg_id: int) -> tuple[bool, str, bool]:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
 
         Args:
@@ -72,12 +71,10 @@ class SubscriptionService:
             UserNotFoundError: Если пользователь с указанным Telegram ID не найден.
 
         """
-        data=await self.api_adapter.check_premium(tg_id=tg_id)
+        data = await self.api_adapter.check_premium(tg_id=tg_id)
         return astuple(data)
 
-    async def start_trial_subscription(
-            self, tg_id: int, days: int
-    ) -> None:
+    async def start_trial_subscription(self, tg_id: int, days: int) -> None:
         """Активирует пробный период подписки для пользователя.
 
         Метод проверяет, есть ли у пользователя активная подписка и не использовал ли он
@@ -93,13 +90,12 @@ class SubscriptionService:
                 период уже использован.
 
         """
-        res, status = await self.api_adapter.activate_trial(tg_id=tg_id,days=days)
-        if status !=201:
-            raise ValueError(res.get("detail","Уже есть подписка."))
-
+        res, status = await self.api_adapter.activate_trial(tg_id=tg_id, days=days)
+        if status != 201:
+            raise ValueError(res.get("detail", "Уже есть подписка."))
 
     async def activate_paid_subscription(
-            self,tg_id: int, months: int, premium: bool
+        self, tg_id: int, months: int, premium: bool
     ) -> SUserOut | None:
         """Активирует платную подписку после подтверждения оплаты.
 
@@ -121,8 +117,12 @@ class SubscriptionService:
             UserNotFoundError: Если пользователь с указанным `user_id` не найден.
 
         """
-        res =await self.api_adapter.activate_paid(tg_id=tg_id,months=months,premium=premium)
+        res = await self.api_adapter.activate_paid(
+            tg_id=tg_id, months=months, premium=premium
+        )
         return res
+
+
 #     async def _send_user_message(self, message: str, tg_id: int) -> None:
 #         """Безопасная отправка уведомления пользователю от планировщика."""
 #         try:
