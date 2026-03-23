@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
+from starlette.responses import Response
 
 from api.core.dependencies import get_session
 from api.subscription.dependencies import (
@@ -40,9 +41,9 @@ router = APIRouter(prefix="/subscriptions", tags=["bot"])
     summary="Проверяет наличие премиум-подписки",
 )
 async def check_premium(
-    tg_id: int,
-    session: AsyncSession = Depends(get_session),
-    service: SubscriptionService = Depends(get_subscription_service),
+        tg_id: int,
+        session: AsyncSession = Depends(get_session),
+        service: SubscriptionService = Depends(get_subscription_service),
 ) -> SSubscriptionCheck:
     premium, role, is_active = await service.check_premium(
         session=session,
@@ -63,19 +64,25 @@ async def check_premium(
     summary="Активирует пробный период",
 )
 async def start_trial(
-    data: STrialActivate,
-    session: AsyncSession = Depends(get_session),
-    service: SubscriptionService = Depends(get_subscription_service),
-) -> STrialActivateResponse:
-    await service.start_trial_subscription(
-        session=session,
-        tg_id=data.tg_id,  # ← у тебя в сервисе user_id, не tg_id
-        days=data.days,
-    )
+        data: STrialActivate,
+        response: Response,
+        session: AsyncSession = Depends(get_session),
+        service: SubscriptionService = Depends(get_subscription_service),
 
-    return STrialActivateResponse(
-        status=TrialStatus.STARTED,
-    )
+) -> STrialActivateResponse:
+    try:
+        await service.start_trial_subscription(
+            session=session,
+            tg_id=data.tg_id,  # ← у тебя в сервисе user_id, не tg_id
+            days=data.days,
+        )
+        response.status_code=status.HTTP_201_CREATED
+
+        return STrialActivateResponse(
+            status=TrialStatus.STARTED,
+        )
+    except ValueError as e:
+        raise
 
 
 @router.post(
@@ -84,9 +91,9 @@ async def start_trial(
     response_model=SUserOut,
 )
 async def activate_subscription(
-    data: ActivateSubscriptionRequest,
-    session: AsyncSession = Depends(get_session),
-    service: SubscriptionService = Depends(get_subscription_service),
+        data: ActivateSubscriptionRequest,
+        session: AsyncSession = Depends(get_session),
+        service: SubscriptionService = Depends(get_subscription_service),
 ):
     user = await service.activate_paid_subscription(
         session=session,
@@ -135,8 +142,8 @@ def map_event_to_schema(event: SubscriptionEvent):
     summary="Проверяет подписки пользователей и возвращает список действий для бота",
 )
 async def check_all(
-    session: AsyncSession = Depends(get_session),
-    service: SubscriptionScheduler = Depends(get_subscription_scheduler_service),
+        session: AsyncSession = Depends(get_session),
+        service: SubscriptionScheduler = Depends(get_subscription_scheduler_service),
 ):
     stats, events = await service.check_all_subscriptions(
         session=session,

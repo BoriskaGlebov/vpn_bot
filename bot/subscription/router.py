@@ -9,12 +9,12 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.admin.enums import FilterTypeEnum
+from shared.enums.admin_enum import FilterTypeEnum
 from bot.app_error.base_error import UserNotFoundError
 from bot.core.config import settings_bot
 from bot.core.database import connection
 from bot.redis_service import redis_admin_mess_storage as redis_service
-from bot.referrals.services import ReferralService
+# from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
     AdminPaymentAction,
     SubscriptionAction,
@@ -53,11 +53,11 @@ class SubscriptionRouter(BaseRouter):
         bot: Bot,
         logger: Logger,
         subscription_service: SubscriptionService,
-        referral_service: ReferralService,
+        # referral_service: ReferralService,
     ) -> None:
         super().__init__(bot, logger)
         self.subscription_service = subscription_service
-        self.referral_service = referral_service
+        # self.referral_service = referral_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(
@@ -134,8 +134,7 @@ class SubscriptionRouter(BaseRouter):
                 is_premium,
                 role,
                 is_active_sbscr,
-            ) = await self.subscription_service.check_premium(
-                session=session, tg_id=user.id
+            ) = await self.subscription_service.check_premium(tg_id=user.id
             )
             if not is_premium or role == FilterTypeEnum.FOUNDER:
                 text = m_subscription.start.format(
@@ -211,7 +210,7 @@ class SubscriptionRouter(BaseRouter):
                 days = months  # для триала количество дней
                 try:
                     await self.subscription_service.start_trial_subscription(
-                        session=session, user_id=query.from_user.id, days=days
+                       tg_id=query.from_user.id, days=days
                     )
                     await query.answer("Выбрал пробный период", show_alert=False)
                     await msg.delete()
@@ -402,7 +401,7 @@ class SubscriptionRouter(BaseRouter):
             premium = callback_data.premium
 
             user_schema = await self.subscription_service.activate_paid_subscription(
-                session, user_id, months, premium
+                 user_id, months, premium
             )
             user_logger.info(
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"
@@ -424,20 +423,20 @@ class SubscriptionRouter(BaseRouter):
                     ),
                     reply_markup=main_kb(active_subscription=True),
                 )
-                res, inviter = await self.referral_service.grant_referral_bonus(
-                    session=session,
-                    invited_user=user_schema,
-                )
-                if res and inviter:
-                    await self.bot.send_message(
-                        chat_id=inviter,
-                        text=m_subscription.accept_paid.bonus.format(
-                            user_info=f"@{user_schema.username}"
-                            or user_schema.first_name
-                            or user_schema.last_name
-                            or user_schema.telegram_id
-                        ),
-                    )
+                # res, inviter = await self.referral_service.grant_referral_bonus(
+                #     session=session,
+                #     invited_user=user_schema,
+                # )
+                # if res and inviter:
+                #     await self.bot.send_message(
+                #         chat_id=inviter,
+                #         text=m_subscription.accept_paid.bonus.format(
+                #             user_info=f"@{user_schema.username}"
+                #             or user_schema.first_name
+                #             or user_schema.last_name
+                #             or user_schema.telegram_id
+                #         ),
+                #     )
             except TelegramBadRequest:
                 await send_to_admins(
                     bot=self.bot,

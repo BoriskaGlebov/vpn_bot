@@ -1,21 +1,71 @@
+from dataclasses import dataclass
+from typing import Any
+
 from bot.integrations.api_client import APIClient
-from shared.schemas.users import SUser, SUserOut
+from bot.core.config import settings_bot
+from shared.schemas.users import SUserOut
 
 
-class UsersAPIAdapter:
-    """Клиент для работы с users API."""
+@dataclass
+class SubscriptionCheck:
+    premium: bool
+    role: str
+    is_active: bool
 
-    def __init__(self, client: APIClient) -> None:
-        self.client = client
 
-    async def register(self, user: SUser) -> tuple[SUserOut, bool]:
-        """Регистрация или получение пользователя."""
-        data, status_code = await self.client.post(
-            "/api/users/register",
-            json=user.model_dump(),
+@dataclass
+class TrialActivateResponse:
+    status: str
+
+
+class SubscriptionAdapter:
+    def __init__(self, client: APIClient):
+        self._client = client
+
+    # ------------------------
+    # CHECK PREMIUM
+    # ------------------------
+    async def check_premium(self, tg_id: int) -> SubscriptionCheck:
+        data = await self._client.get(
+            "/subscriptions/check/premium",
+            params={"tg_id": tg_id},
         )
-        is_new = True
-        if status_code == 200:
-            is_new = False
 
-        return SUserOut.model_validate(data), is_new
+        return SubscriptionCheck(
+            premium=data["premium"],
+            role=data["role"],
+            is_active=data["is_active"],
+        )
+
+    # ------------------------
+    # ACTIVATE TRIAL
+    # ------------------------
+    async def activate_trial(self, tg_id: int, days: int=7) -> tuple[TrialActivateResponse,int]:
+        data, status = await self._client.post(
+            "/subscriptions/trial/activate",
+            json={
+                "tg_id": tg_id,
+                "days": days,
+            },
+        )
+
+        return TrialActivateResponse(status=data["status"]),status
+
+    # ------------------------
+    # ACTIVATE PAID
+    # ------------------------
+    async def activate_paid(
+        self,
+        tg_id: int,
+        months: int,
+        premium: bool,
+    ) -> SUserOut:
+        data, _ = await self._client.post(
+            "/subscriptions/activate",
+            json={
+                "tg_id": tg_id,
+                "months": months,
+                "premium": premium,
+            },
+        )
+        return SUserOut.model_validate(data)

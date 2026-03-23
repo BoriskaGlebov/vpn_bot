@@ -9,9 +9,11 @@ from bot.integrations.redis_client import RedisClient, redis_manager
 from bot.news.services import NewsService
 
 # from bot.referrals.services import ReferralService
-# from bot.subscription.services import SubscriptionService
+from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.services import UserService
+from bot.subscription.adapter import SubscriptionAdapter
+
 
 # from bot.vpn.services import VPNService
 
@@ -38,7 +40,7 @@ class Container:
     user_service: UserService
     admin_service: AdminService
     # referral_service: ReferralService
-    # subscription_service: SubscriptionService
+    subscription_service: SubscriptionService
     # vpn_service: VPNService
     news_service: NewsService
     api_client: APIClient
@@ -54,11 +56,12 @@ class Container:
         )
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
+        self.subscription_adapter=SubscriptionAdapter(client=self.api_client)
 
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
         # self.referral_service = ReferralService(bot=bot, logger=logger)  # type: ignore[arg-type]
-        # self.subscription_service = SubscriptionService(bot=bot, logger=logger)  # type: ignore[arg-type]
+        self.subscription_service = SubscriptionService(adapter=self.subscription_adapter)
         # self.vpn_service = VPNService()
         self.news_service = NewsService(bot=bot, logger=logger)  # type: ignore[arg-type]
 

@@ -21,7 +21,7 @@ from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.news.router import NewsRouter
 
-# from bot.subscription.router import SubscriptionRouter
+from bot.subscription.router import SubscriptionRouter
 # from bot.subscription.utils.scheduler_cron import scheduler
 # from bot.users.admin import RoleAdmin, UserAdmin
 # from bot.users.auth_admin import AdminAuth
@@ -95,12 +95,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         admin_service=container.admin_service,
     )
     #
-    # subscription_router = SubscriptionRouter(
-    #     bot=bot,
-    #     logger=logger,  # type: ignore[arg-type]
-    #     subscription_service=container.subscription_service,
-    #     referral_service=container.referral_service,
-    # )
+    subscription_router = SubscriptionRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        subscription_service=container.subscription_service,
+        # referral_service=container.referral_service,
+    )
     # vpn_router = VPNRouter(
     #     bot=bot,
     #     logger=logger,  # type: ignore[arg-type]
@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
     dp.include_router(admin_router.router)
-    # dp.include_router(subscription_router.router)
+    dp.include_router(subscription_router.router)
     # dp.include_router(vpn_router.router)
     # dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
@@ -173,10 +173,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Отключение от Redis и API")
     except Exception as e:
         logger.exception(f"Ошибка при отключении от Redis: {e}")
-    try:
-        scheduler.shutdown(wait=False)
-    except Exception as e:
-        logger.exception(f"Ошибка при отключении Scheduler: {e}")
+    # try:
+    #     scheduler.shutdown(wait=False)
+    # except Exception as e:
+    #     logger.exception(f"Ошибка при отключении Scheduler: {e}")
 
 
 # Метаданные для OpenAPI
