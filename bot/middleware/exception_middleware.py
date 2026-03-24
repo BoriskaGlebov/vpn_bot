@@ -107,7 +107,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                         f"⚠️ Пользователь достиг лимита конфигов ({exc.limit}/ {exc.limit}).\n"
                         f"Если  нужно больше обратитесь в поддержку @BorisisTheBlade."
                     )
-
+                elif isinstance(exc, APIClientConflictError):
+                    return (
+                        "⚠️ Конфликт данных (У пользователя уже есть активная подписка.)"
+                    )
                 return message
         return self.default_user_message
 
@@ -172,7 +175,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             if self._is_expected_error(exc):
                 self.logger.bind(user=user_id).error(
                     f"[update_id] - {update_id}\n"
-                    f"[exception_type]{exception_type}\n"
+                    f"[exception_type] - {exception_type}\n"
                     f"{str(exc)}"
                 )
             else:
