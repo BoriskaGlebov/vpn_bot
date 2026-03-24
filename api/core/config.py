@@ -8,7 +8,7 @@ from shared.config.app_config import SettingsApp
 from shared.config.db_config import SettingsDB
 from shared.config.logger_config import LoggerConfig
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class SettingsAPI(SettingsApp):
@@ -43,7 +43,7 @@ settings_api = SettingsAPI()  # type: ignore
 settings_db = SettingsDB()  # type: ignore
 
 LoggerConfig(
-    log_dir=Path(__file__).resolve().parent / "logs",
+    log_dir=BASE_DIR/"api" / "logs",
     logger_level_stdout=settings_api.logger_level_stdout,
     logger_level_file=settings_api.logger_level_file,
     logger_error_file=settings_api.logger_error_file,

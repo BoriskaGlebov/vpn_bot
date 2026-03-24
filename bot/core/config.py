@@ -19,6 +19,8 @@ from shared.config.db_config import SettingsDB
 from shared.config.logger_config import LoggerConfig
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
 # TODO убрать в дальнейшем закомментированный код
 
 
@@ -122,7 +124,7 @@ settings_bucket = SettingsBucket()  # type: ignore
 # settings_ai = SettingsAI()
 
 LoggerConfig(
-    log_dir=Path(__file__).resolve().parent / "logs",
+    log_dir=BASE_DIR / "bot" / "logs",
     logger_level_stdout=settings_bot.logger_level_stdout,
     logger_level_file=settings_bot.logger_level_file,
     logger_error_file=settings_bot.logger_error_file,
@@ -142,3 +144,6 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
+
+if __name__ == '__main__':
+    print(BASE_DIR)
