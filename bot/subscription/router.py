@@ -10,7 +10,6 @@ from loguru._logger import Logger
 
 from bot.app_error.base_error import UserNotFoundError
 from bot.core.config import settings_bot
-from bot.core.database import connection
 from bot.redis_service import redis_admin_mess_storage as redis_service
 
 # from bot.referrals.services import ReferralService
@@ -362,7 +361,6 @@ class SubscriptionRouter(BaseRouter):
             await state.clear()
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_message
     async def admin_confirm_payment(
         self,
