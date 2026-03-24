@@ -1,9 +1,9 @@
+from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.core.config import logger
-from bot.core.dao.base import BaseDAO
-from bot.referrals.models import Referral
+from api.core.dao.base import BaseDAO
+from api.referrals.models import Referral
 
 
 class ReferralDAO(BaseDAO[Referral]):

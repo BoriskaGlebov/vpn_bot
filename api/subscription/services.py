@@ -1,3 +1,4 @@
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import (
@@ -39,16 +40,25 @@ class SubscriptionService:
             AppError: если отсутствует current_subscription
 
         """
+        logger.debug("Проверка premium подписки начата: tg_id={}", tg_id)
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=SUserTelegramID(telegram_id=tg_id)
         )
         if not user_model:
+            logger.warning("Пользователь не найден: tg_id={}", tg_id)
             raise UserNotFoundError(tg_id=tg_id)
         if user_model.current_subscription is None:
+            logger.error("Отсутствует current_subscription: tg_id={}", tg_id)
             raise AppError(message="Некорректно распаковал подписку!")
         premium = user_model.current_subscription.type
         founder = user_model.role
         is_active_sbscr = bool(user_model.current_subscription.is_active)
+        logger.info(
+            "Проверка premium завершена: tg_id={}, premium={}, active={}",
+            tg_id,
+            user_model.current_subscription.type,
+            user_model.current_subscription.is_active,
+        )
         if premium and premium == ToggleSubscriptionMode.PREMIUM:
             return True, RoleEnum(founder.name), is_active_sbscr
         else:
@@ -76,6 +86,7 @@ class SubscriptionService:
             TrialAlreadyUsedError: если trial уже использован
 
         """
+        logger.debug("Старт обработки trial подписки: tg_id={}, days={}", tg_id, days)
         schema_user = SUserTelegramID(telegram_id=tg_id)
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user
@@ -87,16 +98,27 @@ class SubscriptionService:
                 and user_model.current_subscription.is_active
                 and not user_model.has_used_trial
             ):
+                logger.debug("Обнаружена активная подписка: tg_id={}", tg_id)
                 user_model.current_subscription.extend(days=days)
                 user_model.has_used_trial = True
+                logger.info(
+                    "Trial подписка продлена за счет активной: tg_id={}, days={}",
+                    tg_id,
+                    days,
+                )
                 return
             if (
                 user_model
                 and user_model.current_subscription
                 and user_model.current_subscription.is_active
             ):
+                logger.warning(
+                    "Невозможно активировать trial — уже есть активная подписка: tg_id={}",
+                    tg_id,
+                )
                 raise ActiveSubscriptionExistsError()
             if user_model and user_model.has_used_trial:
+                logger.warning("Trial уже был использован: tg_id={}", tg_id)
                 raise TrialAlreadyUsedError()
 
             await SubscriptionDAO.activate_subscription(
@@ -108,6 +130,7 @@ class SubscriptionService:
             await session.refresh(
                 user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
             )
+            logger.debug("Обновление данных подписки завершено: tg_id={}", tg_id)
         except (TrialAlreadyUsedError, AppError):
             raise
 
@@ -135,11 +158,18 @@ class SubscriptionService:
             UserNotFoundError: если пользователь не найден
 
         """
+        logger.debug(
+            "Начало активации платной подписки: user_id={}, months={}, premium={}",
+            user_id,
+            months,
+            premium,
+        )
         schema_user = SUserTelegramID(telegram_id=user_id)
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user
         )
         if not user_model:
+            logger.warning("Пользователь не найден: user_id={}", user_id)
             raise UserNotFoundError(tg_id=user_id)
         sub_type = SubscriptionType.PREMIUM if premium else SubscriptionType.STANDARD
         active_sub = next(
@@ -151,16 +181,38 @@ class SubscriptionService:
             None,
         )
         if active_sub:
+            logger.info(
+                "Продление подписки: user_id={}, months={}, type={}",
+                user_id,
+                months,
+                sub_type,
+            )
             active_sub.extend(months=months)
             return await UserMapper.to_schema(user=user_model)
         elif user_model.role.name == FilterTypeEnum.FOUNDER:
+            logger.info(
+                "Основатель: принудительная установка PREMIUM подписки: user_id={}, months={}",
+                user_id,
+                months,
+            )
             current_sub = user_model.current_subscription
             if current_sub is not None:
                 current_sub.extend(months=months)
                 current_sub.type = SubscriptionType.PREMIUM
                 return await UserMapper.to_schema(user=user_model)
+        logger.info(
+            "Создание новой подписки: user_id={}, months={}, type={}",
+            user_id,
+            months,
+            sub_type,
+        )
         await SubscriptionDAO.activate_subscription(
             session=session, stelegram_id=schema_user, month=months, sub_type=sub_type
+        )
+        logger.success(
+            "Подписка успешно активирована: user_id={}, months={}",
+            user_id,
+            months,
         )
         await session.refresh(
             user_model, attribute_names=["subscriptions", "role", "vpn_configs"]

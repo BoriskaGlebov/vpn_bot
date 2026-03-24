@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from api.core.config import settings_db
 from api.core.database import Base
+from api.referrals.models import Referral
 from api.subscription.models import Subscription
 from api.users.models import Role, User
 from api.vpn.models import VPNConfig
