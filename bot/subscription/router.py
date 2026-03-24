@@ -479,6 +479,7 @@ class SubscriptionRouter(BaseRouter):
             chat_id=msg.chat.id,
         ):
             await query.answer("Отклонено 🚫")
+            await state.clear()
             user_id = callback_data.user_id
             months = callback_data.months
 
