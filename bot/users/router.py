@@ -22,8 +22,7 @@ from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.core.config import settings_bot
 from bot.core.database import connection
 from bot.integrations.redis_client import RedisClient
-
-# from bot.referrals.services import ReferralService
+from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.services import UserService
@@ -85,12 +84,12 @@ class UserRouter(BaseRouter):
         logger: Logger,
         redis_manager: RedisClient,
         user_service: UserService,
-        # referral_service: ReferralService,
+        referral_service: ReferralService,
     ) -> None:
         super().__init__(bot, logger)
         self.redis_manager = redis_manager
         self.user_service = user_service
-        # self.referral_service = referral_service
+        self.referral_service = referral_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(self.cmd_start, CommandStart())
@@ -158,7 +157,6 @@ class UserRouter(BaseRouter):
             return
 
         await self.referral_service.register_referral(
-            session=session,
             invited_user=invited_user,
             inviter_telegram_id=inviter_telegram_id,
         )

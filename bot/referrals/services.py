@@ -1,15 +1,13 @@
-import datetime
+from loguru import logger
 
-from aiogram import Bot
-from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
+from bot.referrals.adapter import ReferralAdapter
+from shared.schemas.referral import (
+    GrantReferralBonusRequest,
+    RegisterReferralRequest,
+)
+from shared.schemas.users import SUserOut
 
-from bot.referrals.dao import ReferralDAO
-from bot.referrals.schemas import SReferralByInvite
-from bot.subscription.dao import SubscriptionDAO
-from bot.subscription.models import SubscriptionType
-from bot.users.dao import UserDAO
-from shared.schemas.users import SUserOut, SUserTelegramID
+# TODO Докумнетацию надо переделать
 
 
 class ReferralService:
@@ -18,20 +16,20 @@ class ReferralService:
     Отвечает за регистрацию приглашений и начисление бонусов за приглашенных пользователей.
     """
 
-    def __init__(self, bot: Bot, logger: Logger) -> None:
-        self.bot = bot
-        self.logger = logger
+    def __init__(
+        self,
+        adapter: ReferralAdapter,
+    ) -> None:
+        self.api_adapter = adapter
 
     async def register_referral(
         self,
-        session: AsyncSession,
         invited_user: SUserOut,
         inviter_telegram_id: int | None,
     ) -> None:
         """Регистрирует приглашение нового пользователя.
 
         Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
             invited_user (SUserOut): Данные приглашенного пользователя.
             inviter_telegram_id (Optional[int]): Telegram ID пригласителя.
                 Если None, регистрация не производится.
@@ -42,17 +40,21 @@ class ReferralService:
         """
         if not inviter_telegram_id or invited_user.has_used_trial:
             return
-        s_user = SUserTelegramID(telegram_id=inviter_telegram_id)
-        inviter_model = await UserDAO.find_one_or_none(session=session, filters=s_user)
-        if not inviter_model:
-            return
+        payload = RegisterReferralRequest(
+            invited_user_id=invited_user.telegram_id,
+            inviter_telegram_id=inviter_telegram_id,
+        )
 
-        await ReferralDAO.add_referral(
-            session=session, inviter_id=inviter_model.id, invited_id=invited_user.id
+        await self.api_adapter.register_referral(payload)
+
+        logger.info(
+            "Реферал зарегистрирован через API: invited={}, inviter={}",
+            invited_user.telegram_id,
+            inviter_telegram_id,
         )
 
     async def grant_referral_bonus(
-        self, session: AsyncSession, invited_user: SUserOut, months: int = 1
+        self, invited_user: SUserOut, months: int = 1
     ) -> tuple[bool, int | None]:
         """Начисляет бонус пригласителю за регистрацию нового пользователя.
 
@@ -64,7 +66,6 @@ class ReferralService:
             4. Отмечает факт начисления бонуса и сохраняет дату.
 
         Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
             invited_user (SUserOut): Объект данных пользователя, который был приглашен.
             months (int, optional): Количество месяцев подписки, которое будет начислено.
                 По умолчанию 1.
@@ -76,41 +77,25 @@ class ReferralService:
                 - Optional[int]: Telegram ID пригласителя, если бонус был начислен, иначе None.
 
         """
-        s_referral = SReferralByInvite(invited_id=invited_user.id)
-        referral = await ReferralDAO.find_one_or_none(
-            session=session, filters=s_referral
+        payload = GrantReferralBonusRequest(
+            invited_user_id=invited_user.telegram_id,
+            months=months,
         )
 
-        if not referral:
-            self.logger.info(
-                f"У пользователя не было приглашения {invited_user.telegram_id}"
+        response = await self.api_adapter.grant_bonus(payload)
+
+        if not response.success:
+            logger.info(
+                "Бонус не выдан (API): invited={}",
+                invited_user.telegram_id,
             )
             return False, None
 
-        if referral.bonus_given:
-            self.logger.info(
-                f"Бонус за друга уже начислен пользователю {invited_user.telegram_id}"
-            )
-            return False, None
-
-        inviter = referral.inviter
-        current_sub = inviter.current_subscription
-        if current_sub is None:
-            await SubscriptionDAO.activate_subscription(
-                session=session,
-                stelegram_id=SUserTelegramID(telegram_id=inviter.telegram_id),
-                month=months,
-                sub_type=SubscriptionType.STANDARD,
-            )
-        else:
-            current_sub.extend(months=months)
-            await session.flush()
-
-        referral.bonus_given = True
-        referral.bonus_given_at = datetime.datetime.now(datetime.UTC)
-
-        await session.flush()
-        self.logger.info(
-            f"Бонус за подписчика предоставлен: inviter={inviter.telegram_id}, invited={invited_user.telegram_id}, months={months}"
+        logger.info(
+            "Бонус выдан через API: inviter={}, invited={}, months={}",
+            response.inviter_telegram_id,
+            invited_user.telegram_id,
+            months,
         )
-        return True, inviter.telegram_id
+
+        return True, response.inviter_telegram_id

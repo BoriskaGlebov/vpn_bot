@@ -19,10 +19,81 @@ class AppError(Exception):
         return base
 
 
+class ReferralError(AppError):
+    """Базовое исключение реферальной системы.
+
+    Используется как родительский класс для всех ошибок,
+    связанных с логикой рефералов.
+
+    Позволяет централизованно обрабатывать ошибки данного домена
+    (например, через FastAPI exception handler).
+
+    Наследует:
+        AppError: Базовое приложение исключений.
+
+    """
+
+    pass
+
+
+class ReferralNotFoundError(ReferralError):
+    """Ошибка: реферальная запись не найдена.
+
+    Возникает, если для указанного приглашённого пользователя
+    отсутствует запись о реферале.
+
+    Attributes
+        invited_user_id (int): Telegram ID приглашённого пользователя,
+            для которого не найдена реферальная запись.
+
+    Args:
+        invited_user_id (int): Telegram ID приглашённого пользователя.
+
+    """
+
+    def __init__(self, invited_user_id: int) -> None:
+        """Инициализирует исключение.
+
+        Args:
+            invited_user_id (int): Telegram ID приглашённого пользователя.
+
+        """
+        super().__init__(
+            f"Реферальная запись для пользователя {invited_user_id} не найдена"
+        )
+        self.invited_user_id = invited_user_id
+
+
+class ReferralBonusAlreadyGivenError(ReferralError):
+    """Ошибка: бонус уже был начислен.
+
+    Возникает, если попытка начислить бонус выполняется повторно
+    для одного и того же приглашённого пользователя.
+
+    Attributes
+        invited_user_id (int): Telegram ID приглашённого пользователя,
+            для которого бонус уже был начислен.
+
+    Args:
+        invited_user_id (int): Telegram ID приглашённого пользователя.
+
+    """
+
+    def __init__(self, invited_user_id: int) -> None:
+        super().__init__(f"Бонус за пользователя {invited_user_id} уже был начислен")
+        self.invited_user_id = invited_user_id
+
+
 class UserNotFoundError(AppError):
     """Пользователь не найден."""
 
     def __init__(self, tg_id: int) -> None:
+        """Инициализирует исключение.
+
+        Args:
+            tg_id (int): Telegram ID приглашённого пользователя.
+
+        """
         super().__init__(message=f"Пользователь с Telegram ID {tg_id} не найден.")
         self.tg_id = tg_id
 

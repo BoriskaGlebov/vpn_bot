@@ -5,6 +5,9 @@ from starlette import status
 
 from api.app_error.base_error import (
     ActiveSubscriptionExistsError,
+    ReferralBonusAlreadyGivenError,
+    ReferralError,
+    ReferralNotFoundError,
     SubscriptionNotFoundError,
     TrialAlreadyUsedError,
     UserNotFoundError,
@@ -127,4 +130,40 @@ async def trial_already_used_handler(
         content={
             "detail": str(exc),
         },
+    )
+
+
+async def referral_exception_handler(
+    request: Request,
+    exc: ReferralError,
+) -> JSONResponse:
+    """Обрабатывает ошибки реферальной системы и преобразует их в HTTP-ответ.
+
+    Хендлер предназначен для регистрации в FastAPI и выполняет маппинг
+    доменных исключений реферальной системы в соответствующие HTTP-статусы.
+
+    Args:
+        request (Request): Объект входящего HTTP-запроса.
+        exc (ReferralError): Исключение доменного уровня рефералки.
+
+    Returns
+        JSONResponse: HTTP-ответ с кодом статуса и описанием ошибки.
+
+    """
+    if isinstance(exc, ReferralNotFoundError):
+        status_code: int = status.HTTP_404_NOT_FOUND
+    elif isinstance(exc, ReferralBonusAlreadyGivenError):
+        status_code = status.HTTP_409_CONFLICT
+    else:
+        status_code = status.HTTP_400_BAD_REQUEST
+
+    logger.warning(
+        "ReferralError: path={}, error={}",
+        request.url.path,
+        str(exc),
+    )
+
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": str(exc)},
     )

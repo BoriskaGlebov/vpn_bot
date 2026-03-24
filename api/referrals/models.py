@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from bot.core.database import Base, int_pk
+from api.core.database import Base, int_pk
 
 if TYPE_CHECKING:
-    from bot.users.models import User
+    from api.users.models import User
 
 
 class Referral(Base):

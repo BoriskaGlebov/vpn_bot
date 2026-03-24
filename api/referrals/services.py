@@ -1,14 +1,17 @@
 import datetime
 
-from aiogram import Bot
-from loguru._logger import Logger
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.referrals.dao import ReferralDAO
-from bot.referrals.schemas import SReferralByInvite
-from bot.subscription.dao import SubscriptionDAO
-from bot.subscription.models import SubscriptionType
-from bot.users.dao import UserDAO
+from api.app_error.base_error import (
+    ReferralBonusAlreadyGivenError,
+    ReferralNotFoundError,
+)
+from api.referrals.dao import ReferralDAO
+from api.subscription.dao import SubscriptionDAO
+from api.subscription.models import SubscriptionType
+from api.users.dao import UserDAO
+from shared.schemas.referral import SReferralByInvite
 from shared.schemas.users import SUserOut, SUserTelegramID
 
 
@@ -17,10 +20,6 @@ class ReferralService:
 
     Отвечает за регистрацию приглашений и начисление бонусов за приглашенных пользователей.
     """
-
-    def __init__(self, bot: Bot, logger: Logger) -> None:
-        self.bot = bot
-        self.logger = logger
 
     async def register_referral(
         self,
@@ -82,16 +81,16 @@ class ReferralService:
         )
 
         if not referral:
-            self.logger.info(
+            logger.info(
                 f"У пользователя не было приглашения {invited_user.telegram_id}"
             )
-            return False, None
+            raise ReferralNotFoundError(invited_user.telegram_id)
 
         if referral.bonus_given:
-            self.logger.info(
+            logger.info(
                 f"Бонус за друга уже начислен пользователю {invited_user.telegram_id}"
             )
-            return False, None
+            raise ReferralBonusAlreadyGivenError(invited_user.telegram_id)
 
         inviter = referral.inviter
         current_sub = inviter.current_subscription
@@ -110,7 +109,7 @@ class ReferralService:
         referral.bonus_given_at = datetime.datetime.now(datetime.UTC)
 
         await session.flush()
-        self.logger.info(
+        logger.info(
             f"Бонус за подписчика предоставлен: inviter={inviter.telegram_id}, invited={invited_user.telegram_id}, months={months}"
         )
         return True, inviter.telegram_id

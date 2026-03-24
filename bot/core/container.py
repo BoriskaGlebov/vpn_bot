@@ -7,6 +7,8 @@ from bot.core.config import bot, logger, settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient, redis_manager
 from bot.news.services import NewsService
+from bot.referrals.adapter import ReferralAdapter
+from bot.referrals.services import ReferralService
 from bot.subscription.adapter import SubscriptionAdapter
 
 # from bot.referrals.services import ReferralService
@@ -38,7 +40,7 @@ class Container:
     redis_manager: RedisClient
     user_service: UserService
     admin_service: AdminService
-    # referral_service: ReferralService
+    referral_service: ReferralService
     subscription_service: SubscriptionService
     # vpn_service: VPNService
     news_service: NewsService
@@ -56,10 +58,11 @@ class Container:
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAdapter(client=self.api_client)
+        self.referral_adapter = ReferralAdapter(client=self.api_client)
 
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
-        # self.referral_service = ReferralService(bot=bot, logger=logger)  # type: ignore[arg-type]
+        self.referral_service = ReferralService(adapter=self.referral_adapter)
         self.subscription_service = SubscriptionService(
             adapter=self.subscription_adapter
         )

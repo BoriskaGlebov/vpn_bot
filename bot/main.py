@@ -20,6 +20,7 @@ from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.news.router import NewsRouter
+from bot.referrals.router import ReferralRouter
 from bot.subscription.router import SubscriptionRouter
 
 # from bot.subscription.utils.scheduler_cron import scheduler
@@ -32,7 +33,7 @@ from bot.utils.start_stop_bot import start_bot, stop_bot
 
 # from bot.referrals.admin import ReferralAdmin
 
-# from bot.referrals.router import ReferralRouter
+
 # from bot.subscription.admin import SubscriptionAdmin
 
 
@@ -84,7 +85,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger=logger,  # type: ignore[arg-type]
         redis_manager=container.redis_manager,
         user_service=container.user_service,
-        # referral_service=container.referral_service,
+        referral_service=container.referral_service,
     )
 
     help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
@@ -99,7 +100,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
         subscription_service=container.subscription_service,
-        # referral_service=container.referral_service,
+        referral_service=container.referral_service,
     )
     # vpn_router = VPNRouter(
     #     bot=bot,
@@ -107,7 +108,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     #     vpn_service=container.vpn_service,
     #     redis=container.redis_manager,
     # )
-    # referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
+    referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
     news_router = NewsRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
@@ -119,7 +120,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(admin_router.router)
     dp.include_router(subscription_router.router)
     # dp.include_router(vpn_router.router)
-    # dp.include_router(referral_router.router)
+    dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
     # if container.chat_service is None:
     #     raise RuntimeError("ChatService ещё не инициализирован!")
