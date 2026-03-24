@@ -145,5 +145,5 @@ storage = RedisStorage.from_url(
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(BASE_DIR)

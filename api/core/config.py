@@ -43,7 +43,7 @@ settings_api = SettingsAPI()  # type: ignore
 settings_db = SettingsDB()  # type: ignore
 
 LoggerConfig(
-    log_dir=BASE_DIR/"api" / "logs",
+    log_dir=BASE_DIR / "api" / "logs",
     logger_level_stdout=settings_api.logger_level_stdout,
     logger_level_file=settings_api.logger_level_file,
     logger_error_file=settings_api.logger_error_file,
