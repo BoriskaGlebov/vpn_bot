@@ -16,6 +16,7 @@ from api.app_error.base_error import (
     SubscriptionNotFoundError,
     TrialAlreadyUsedError,
     UserNotFoundError,
+    VPNLimitError,
 )
 from api.core.config import settings_api
 from api.core.exceptions.handlers.business import (
@@ -24,6 +25,7 @@ from api.core.exceptions.handlers.business import (
     subscription_not_found_handler,
     trial_already_used_handler,
     user_not_found_handler,
+    vpn_limit_handler,
 )
 from api.core.exceptions.handlers.http import (
     database_exception_handler,
@@ -32,6 +34,7 @@ from api.core.exceptions.handlers.http import (
 from api.referrals.router import router as referrals_router
 from api.subscription.router import router as subscription_router
 from api.users.router import router as user_router
+from api.vpn.router import router as vpn_router
 from shared.schemas.health_check import SHealthResponse
 
 # API теги и их описание
@@ -113,6 +116,7 @@ app.include_router(user_router)
 app.include_router(admin_router)
 app.include_router(subscription_router)
 app.include_router(referrals_router)
+app.include_router(vpn_router)
 
 app.add_exception_handler(UserNotFoundError, user_not_found_handler)
 app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
@@ -124,6 +128,7 @@ app.add_exception_handler(
 app.add_exception_handler(TrialAlreadyUsedError, trial_already_used_handler)
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(ReferralError, referral_exception_handler)
+app.add_exception_handler(VPNLimitError, vpn_limit_handler)
 
 
 @app.get(

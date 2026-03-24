@@ -1,31 +1,27 @@
 from pathlib import Path
 
 from aiogram.types import User as TGUser
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.subscription.models import DEVICE_LIMITS
-from api.users.dao import UserDAO
-from api.users.models import User
-from api.vpn.dao import VPNConfigDAO
-from bot.app_error.base_error import UserNotFoundError, VPNLimitError
+from bot.app_error.base_error import VPNLimitError
+from bot.vpn.adapter import VPNAdapter
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
-from shared.schemas.users import SUserTelegramID
 
 
 class VPNService:
     """Сервис для работы с VPN-конфигами и подписками пользователей."""
 
+    def __init__(self, adapter: VPNAdapter) -> None:
+        self.api_adapter = adapter
+
     async def generate_user_config(
         self,
-        session: AsyncSession,
         user: TGUser,
         ssh_client: AsyncSSHClientWG | AsyncSSHClientVPN,
     ) -> tuple[Path, str]:
         """Генерирует новый VPN-конфиг и сохраняет его в базе данных.
 
         Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
             user (TGUser): Telegram-пользователь.
             ssh_client (AsyncSSHClientWG | AsyncSSHClientVPN): SSH-клиент для генерации конфига.
 
@@ -37,43 +33,32 @@ class VPNService:
             tuple[Path, str]: Путь к файлу конфига и публичный ключ.
 
         """
-        schema_user = SUserTelegramID(telegram_id=user.id)
-        user_model = await UserDAO.find_one_or_none(
-            session=session, filters=schema_user
-        )
-        if user_model is None or not user_model.current_subscription:
-            raise UserNotFoundError(tg_id=user.id)
+        limit = await self.api_adapter.check_limit(tg_id=user.id)
 
-        can_add = await VPNConfigDAO.can_add_config(
-            session=session, user_id=user_model.id
-        )
-        if not can_add:
+        if not limit.can_add:
             raise VPNLimitError(
-                user_id=user_model.telegram_id,
-                limit=DEVICE_LIMITS.get(user_model.current_subscription.type, 0),
-                username=user_model.username if user_model.username else "",
+                user_id=user.id,
+                limit=limit.limit,
+                username=user.username or "",
             )
 
         file_path, pub_key = await ssh_client.add_new_user_gen_config(
-            file_name=user_model.username
+            file_name=user.username
         )
 
-        await VPNConfigDAO.add_config(
-            session=session,
-            user_id=user_model.id,
+        await self.api_adapter.add_config(
+            tg_id=user.id,
             file_name=file_path.name,
             pub_key=pub_key,
         )
 
         return file_path, pub_key
 
-    @staticmethod
-    async def get_subscription_info(tg_id: int, session: AsyncSession) -> str:
+    async def get_subscription_info(self, tg_id: int) -> str:
         """Возвращает информацию о подписке пользователя и его VPN-конфигах.
 
         Args:
             tg_id (int): ID Telegram-пользователя.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
 
         Raises
             ValueError: Если пользователь не найден.
@@ -82,26 +67,23 @@ class VPNService:
             str: Текст с информацией о подписке и списком конфигов.
 
         """
-        user: User | None = await UserDAO.find_one_or_none(
-            session=session, filters=SUserTelegramID(telegram_id=tg_id)
-        )
-        if not user:
-            raise UserNotFoundError(tg_id=tg_id)
+        data = await self.api_adapter.get_subscription_info(tg_id=tg_id)
 
-        subscription = user.current_subscription
-        if not subscription:
+        if data.status == "no_subscription":
             return "У вас нет подписки."
 
-        status = "✅ Активна" if subscription.is_active else "🔒 Неактивна"
+        status = "✅ Активна" if data.status == "active" else "🔒 Неактивна"
         sbs_type = (
-            f"<b>{subscription.type.value.upper()}</b>"
-            if subscription.type is not None
-            else ""
+            f"<b>{data.subscription_type.upper()}</b>" if data.subscription_type else ""
         )
-        remaining_days = subscription.remaining_days()
-        if remaining_days is None:
-            remaining_text = "бессрочная"
-        else:
-            remaining_text = f"{remaining_days} дней осталось"
-        conf_list = "\n\n".join([f"📌 {conf.file_name}" for conf in user.vpn_configs])
-        return f"{status} {sbs_type} — {remaining_text} - {subscription}\n\n{conf_list}"
+        end_date = (
+            data.end_date.strftime("%Y-%m-%d")
+            if data.end_date
+            else "Бесконечность не предел"
+        )
+
+        remaining_text = f"{data.remaining} до ({end_date})"
+
+        conf_list = "\n\n".join([f"📌 {conf.file_name}" for conf in data.configs])
+
+        return f"{status} {sbs_type} — {remaining_text}\n\n{conf_list}"

@@ -14,11 +14,9 @@ from aiogram.types import (
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.core.config import settings_bot
-from bot.core.database import connection
 from bot.integrations.redis_client import RedisClient
 from bot.users.enums import MainMenuText
 from bot.utils.base_router import BaseRouter
@@ -77,10 +75,9 @@ class VPNRouter(BaseRouter):
         return True
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_user
     async def get_config_amnezia_vpn(
-        self, message: Message, user: TgUser, session: AsyncSession, state: FSMContext
+        self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
         """Пользователь получает конфиг AmneziaVPN."""
         redis_key = f"vpn:config:{user.id}:amnezia_vpn"
@@ -104,7 +101,6 @@ class VPNRouter(BaseRouter):
                             file_path,
                             pub_key,
                         ) = await self.vpn_service.generate_user_config(
-                            session=session,
                             user=user,
                             ssh_client=ssh_client,
                         )
@@ -119,10 +115,9 @@ class VPNRouter(BaseRouter):
                 await self.redis.delete(redis_key)
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_user
     async def get_config_amnezia_wg(
-        self, message: Message, user: TgUser, session: AsyncSession, state: FSMContext
+        self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
         """Пользователь получает конфиг AmneziaWG."""
         redis_key = f"vpn:config:{user.id}:amnezia_wg"
@@ -146,7 +141,6 @@ class VPNRouter(BaseRouter):
                             file_path,
                             pub_key,
                         ) = await self.vpn_service.generate_user_config(
-                            session=session,
                             user=user,
                             ssh_client=ssh_client,
                         )
@@ -162,16 +156,13 @@ class VPNRouter(BaseRouter):
                 await self.redis.delete(redis_key)
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_user
     async def check_subscription(
-        self, message: Message, user: TgUser, session: AsyncSession, state: FSMContext
+        self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
         """Проверка статуса подписки пользователя."""
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            info_text = await VPNService.get_subscription_info(
-                tg_id=user.id, session=session
-            )
+            info_text = await self.vpn_service.get_subscription_info(tg_id=user.id)
 
             await message.answer(
                 text=m_subscription.check_subscription,
@@ -181,16 +172,14 @@ class VPNRouter(BaseRouter):
             await state.clear()
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_user
     async def create_proxy_url(
-        self, message: Message, session: AsyncSession, user: TgUser, state: FSMContext
+        self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
         """Генерирует уникальный прокси для пользователя и отправляет ссылку в Telegram.
 
         Args:
             message (Message): Объект сообщения из Telegram.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy для работы с БД.
             user (TgUser): Пользователь Telegram.
             state (FSMContext): Контекст конечного автомата состояния (FSM).
 
@@ -221,7 +210,7 @@ class VPNRouter(BaseRouter):
                         container=settings_bot.vpn_proxy,
                     ) as client:
                         info = await self.vpn_service.get_subscription_info(
-                            tg_id=user.id, session=session
+                            tg_id=user.id
                         )
                         if "Активна" in info:
                             proxy = AmneziaProxy(

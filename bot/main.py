@@ -30,6 +30,7 @@ from bot.users.router import UserRouter
 
 # from bot.utils.init_default_roles import init_default_roles_admins
 from bot.utils.start_stop_bot import start_bot, stop_bot
+from bot.vpn.router import VPNRouter
 
 # from bot.referrals.admin import ReferralAdmin
 
@@ -39,7 +40,6 @@ from bot.utils.start_stop_bot import start_bot, stop_bot
 
 # from bot.vpn.admin import VPNConfigAdmin
 
-# from bot.vpn.router import VPNRouter
 
 # from api.users_api.router import router as router_user
 
@@ -102,12 +102,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         subscription_service=container.subscription_service,
         referral_service=container.referral_service,
     )
-    # vpn_router = VPNRouter(
-    #     bot=bot,
-    #     logger=logger,  # type: ignore[arg-type]
-    #     vpn_service=container.vpn_service,
-    #     redis=container.redis_manager,
-    # )
+    vpn_router = VPNRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        vpn_service=container.vpn_service,
+        redis=container.redis_manager,
+    )
     referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
     news_router = NewsRouter(
         bot=bot,
@@ -119,7 +119,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(help_router.router)
     dp.include_router(admin_router.router)
     dp.include_router(subscription_router.router)
-    # dp.include_router(vpn_router.router)
+    dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
     # if container.chat_service is None:

@@ -1,13 +1,14 @@
+from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
+from api.core.config import settings_api
+from api.core.dao.base import BaseDAO
 from api.subscription.models import DEVICE_LIMITS
 from api.users.dao import UserDAO
 from api.vpn.models import VPNConfig
-from bot.app_error.base_error import SubscriptionNotFoundError
-from bot.core.config import logger, settings_bot
-from bot.core.dao.base import BaseDAO
 
 
 class VPNConfigDAO(BaseDAO[VPNConfig]):
@@ -89,8 +90,8 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 logger.error(
                     f"[DAO] Создание конфига отклонено — пользователь {user_id} достиг лимита",
                 )
-                raise ValueError(
-                    f"Пользователь {user_id} достиг лимита {settings_bot.max_configs_per_user} конфигов"
+                raise VPNLimitError(
+                    user_id=user_id, limit=settings_api.max_configs_per_user
                 )
 
             config = VPNConfig(user_id=user_id, file_name=file_name, pub_key=pub_key)

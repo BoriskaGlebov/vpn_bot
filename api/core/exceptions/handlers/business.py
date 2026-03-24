@@ -11,6 +11,7 @@ from api.app_error.base_error import (
     SubscriptionNotFoundError,
     TrialAlreadyUsedError,
     UserNotFoundError,
+    VPNLimitError,
 )
 
 
@@ -166,4 +167,40 @@ async def referral_exception_handler(
     return JSONResponse(
         status_code=status_code,
         content={"detail": str(exc)},
+    )
+
+
+async def vpn_limit_handler(
+    request: Request,
+    exc: VPNLimitError,
+) -> JSONResponse:
+    """Обрабатывает превышение лимита VPN конфигов.
+
+    Возникает, когда пользователь пытается создать конфиг,
+    превышающий лимит устройств по подписке.
+
+    Args:
+        request: входящий HTTP запрос FastAPI.
+        exc: исключение VPNLimitError.
+
+    Returns
+        JSONResponse: HTTP 409 ответ.
+
+    """
+    logger.warning(
+        "VPNLimitError: user_id={} limit={} path={}",
+        exc.user_id,
+        exc.limit,
+        request.url.path,
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={
+            "detail": (
+                f"Достигнут лимит VPN конфигов ({exc.limit}) "
+                f"для пользователя user_id={exc.user_id}"
+            ),
+            "error": "vpn_limit_reached",  # (рекомендую для фронта/бота)
+        },
     )

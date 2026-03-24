@@ -15,8 +15,8 @@ from bot.subscription.adapter import SubscriptionAdapter
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.services import UserService
-
-# from bot.vpn.services import VPNService
+from bot.vpn.adapter import VPNAdapter
+from bot.vpn.services import VPNService
 
 
 class Container:
@@ -42,7 +42,7 @@ class Container:
     admin_service: AdminService
     referral_service: ReferralService
     subscription_service: SubscriptionService
-    # vpn_service: VPNService
+    vpn_service: VPNService
     news_service: NewsService
     api_client: APIClient
     user_adapter: UsersAPIAdapter
@@ -59,6 +59,7 @@ class Container:
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAdapter(client=self.api_client)
         self.referral_adapter = ReferralAdapter(client=self.api_client)
+        self.vpn_adapter = VPNAdapter(client=self.api_client)
 
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
@@ -66,7 +67,7 @@ class Container:
         self.subscription_service = SubscriptionService(
             adapter=self.subscription_adapter
         )
-        # self.vpn_service = VPNService()
+        self.vpn_service = VPNService(adapter=self.vpn_adapter)
         self.news_service = NewsService(bot=bot, logger=logger)  # type: ignore[arg-type]
 
         # self.chat_service: ChatService | None = None
