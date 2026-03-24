@@ -9,6 +9,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from api.app_error.base_error import AppError, TrialAlreadyUsedError
 from api.core.config import settings_api
 from api.core.database import Base, int_pk
 
@@ -34,7 +35,7 @@ class SubscriptionType(str, Enum):
 DEVICE_LIMITS = {
     SubscriptionType.TRIAL: 1,
     SubscriptionType.STANDARD: settings_api.max_configs_per_user,
-    SubscriptionType.PREMIUM: int(settings_api.max_configs_per_user * 2.5),
+    SubscriptionType.PREMIUM: int(settings_api.max_configs_per_user * 2),
 }
 
 
@@ -96,21 +97,24 @@ class Subscription(Base):
             month_num (int|None): Количество месяцев на подписку
 
         """
+        now = datetime.datetime.now(tz=datetime.UTC)
         if sub_type == SubscriptionType.TRIAL:
             if self.user.has_used_trial:
-                raise ValueError("Пользователь уже использовал триал-подписку")
+                raise TrialAlreadyUsedError(
+                    "Пользователь уже использовал триал-подписку"
+                )
             self.user.has_used_trial = True
         self.type = sub_type
         self.is_active = True
-        self.start_date = datetime.datetime.now(tz=datetime.UTC)
+        self.start_date = now
         # если указаны дни → добавляем дни
         if days is not None:
-            self.end_date = self.start_date + datetime.timedelta(days=days)
+            self.end_date = now + datetime.timedelta(days=days)
         # если указаны месяцы → добавляем месяцы
         elif month_num is not None:
             self.end_date = self.start_date + relativedelta(months=month_num)
         else:
-            raise ValueError("Нужно указать либо days, либо month_num")
+            raise AppError(message="Нужно указать либо days, либо month_num")
 
         logger.info(
             f"[DAO] Активирована подписка с {self.start_date} до {self.end_date}"

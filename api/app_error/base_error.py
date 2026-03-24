@@ -53,8 +53,10 @@ class ActiveSubscriptionExistsError(AppError):
 class TrialAlreadyUsedError(AppError):
     """Пробный период уже использован."""
 
-    def __init__(self) -> None:
-        super().__init__("Пробный период уже был использован")
+    def __init__(self, message: str | None = None) -> None:
+        super().__init__(
+            message=message if message else "Пробный период уже был использован"
+        )
 
 
 class VPNLimitError(AppError):

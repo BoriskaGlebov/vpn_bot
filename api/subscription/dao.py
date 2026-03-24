@@ -2,7 +2,7 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.app_error.base_error import UserNotFoundError
+from api.app_error.base_error import AppError, TrialAlreadyUsedError, UserNotFoundError
 from api.core.dao.base import BaseDAO
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.dao import UserDAO
@@ -66,7 +66,7 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             subscription.activate(days=days, month_num=month, sub_type=sub_type)
             logger.debug(f"[DAO] Активирую подписку на {days} дней")
             return subscription
-        except ValueError:
+        except (TrialAlreadyUsedError, AppError):
             raise
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при активации подписки: {e}")
