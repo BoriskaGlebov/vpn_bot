@@ -6,15 +6,15 @@ from api.core.dependencies import get_session
 from api.subscription.dependencies import (
     get_subscription_service,
 )
-from api.subscription.schemas import (
+from api.subscription.services import (
+    SubscriptionService,
+)
+from shared.schemas.subscription import (
     ActivateSubscriptionRequest,
     SSubscriptionCheck,
     STrialActivate,
     STrialActivateResponse,
     TrialStatus,
-)
-from api.subscription.services import (
-    SubscriptionService,
 )
 from shared.schemas.users import SUserOut
 

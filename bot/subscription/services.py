@@ -1,9 +1,11 @@
-from dataclasses import astuple, dataclass
+from dataclasses import dataclass
 
 from bot.core.config import settings_bot
 from bot.subscription.adapter import (
     SubscriptionAdapter,
 )
+from shared.enums.admin_enum import RoleEnum
+from shared.schemas.subscription import SSubscriptionCheck
 from shared.schemas.users import SUserOut
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -54,7 +56,7 @@ class SubscriptionService:
     def __init__(self, adapter: SubscriptionAdapter) -> None:
         self.api_adapter = adapter
 
-    async def check_premium(self, tg_id: int) -> tuple[bool, str, bool]:
+    async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool]:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
 
         Args:
@@ -63,7 +65,7 @@ class SubscriptionService:
         Returns
             tuple[bool, str, bool]: Кортеж из трёх значений:
                 - bool: True, если у пользователя премиум-подписка, иначе False.
-                - str: Роль пользователя (например, "founder", "user" и т.д.).
+                - RoleEnum: Роль пользователя (например, "founder", "user" и т.д.).
                 - bool: True, если подписка активна, иначе False.
 
         Raises
@@ -71,7 +73,8 @@ class SubscriptionService:
 
         """
         data = await self.api_adapter.check_premium(tg_id=tg_id)
-        return astuple(data)
+        check = SSubscriptionCheck.model_validate(data)
+        return check.premium, check.role, check.is_active
 
     async def start_trial_subscription(self, tg_id: int, days: int) -> None:
         """Активирует пробный период подписки для пользователя.
@@ -90,8 +93,8 @@ class SubscriptionService:
 
         """
         res, status = await self.api_adapter.activate_trial(tg_id=tg_id, days=days)
-        if status != 201:
-            raise ValueError(res.get("detail", "Уже есть подписка."))
+        # if status != 201:
+        #     raise ValueError(res.get("detail", "Уже есть подписка."))
 
     async def activate_paid_subscription(
         self, tg_id: int, months: int, premium: bool

@@ -7,7 +7,6 @@ from aiogram.types import CallbackQuery, InaccessibleMessage, Message
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.app_error.base_error import UserNotFoundError
 from bot.core.config import settings_bot
@@ -114,16 +113,14 @@ class SubscriptionRouter(BaseRouter):
         )
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_user
     async def start_subscription(
-        self, message: Message, user: TgUser, session: AsyncSession, state: FSMContext
+        self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
         """Обрабатывает начало оформления подписки.
 
         Args:
             user (TgUser): Пользователь Телеграм из сообщения.
-            session (AsyncSession): Асинхронная сессия.
             message (Message): Сообщение пользователя, инициировавшего подписку.
             state (FSMContext): Контекст FSM для управления состояниями.
 
@@ -162,13 +159,11 @@ class SubscriptionRouter(BaseRouter):
 
     @BaseRouter.log_method
     @BaseRouter.require_message
-    @connection()
     async def subscription_selected(
         self,
         query: CallbackQuery,
         msg: Message,
         state: FSMContext,
-        session: AsyncSession,
         callback_data: SubscriptionCB,
     ) -> None:
         """Обрабатывает выбор периода подписки пользователем.
@@ -177,7 +172,6 @@ class SubscriptionRouter(BaseRouter):
             query (CallbackQuery): Callback от Inline-кнопки с выбором подписки.
             msg (Message): Сообщение над которым надо вносить изменения.
             state (FSMContext): Контекст FSM.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
             callback_data (SubscriptionCB): Данные для работы.
 
         """
@@ -209,10 +203,10 @@ class SubscriptionRouter(BaseRouter):
             else:
                 days = months  # для триала количество дней
                 try:
+                    await query.answer("Выбрал пробный период", show_alert=False)
                     await self.subscription_service.start_trial_subscription(
                         tg_id=query.from_user.id, days=days
                     )
-                    await query.answer("Выбрал пробный период", show_alert=False)
                     await msg.delete()
                     await self.bot.send_message(
                         chat_id=query.from_user.id,
@@ -374,7 +368,6 @@ class SubscriptionRouter(BaseRouter):
         self,
         query: CallbackQuery,
         msg: Message,
-        session: AsyncSession,
         state: FSMContext,
         callback_data: AdminPaymentCB,
     ) -> None:
@@ -384,7 +377,6 @@ class SubscriptionRouter(BaseRouter):
             callback_data (AdminPaymentCB): Данные для формирования подписки.
             query (CallbackQuery): Callback от кнопки подтверждения админом.
             msg (Message): Сообщения от пользователя для редактирования.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
             state (FSMContext): Контекст FSM.
 
         """

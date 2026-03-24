@@ -76,6 +76,18 @@ async def active_subscription_exists_handler(
     request: Request,
     exc: ActiveSubscriptionExistsError,
 ) -> JSONResponse:
+    """Обрабатывает попытку создать активную подписку при уже существующей.
+
+    Возвращает HTTP 409 Conflict.
+
+    Args:
+        request: входящий HTTP запрос FastAPI.
+        exc: исключение ActiveSubscriptionExistsError.
+
+    Returns
+        JSONResponse: HTTP 409 ответ.
+
+    """
     logger.warning(
         "ActiveSubscriptionExistsError: path={}",
         request.url.path,
@@ -93,13 +105,25 @@ async def trial_already_used_handler(
     request: Request,
     exc: TrialAlreadyUsedError,
 ) -> JSONResponse:
+    """Обрабатывает повторное использование пробного периода.
+
+    Возвращает HTTP 409 Conflict, так как это состояние бизнес-конфликта.
+
+    Args:
+        request: входящий HTTP запрос FastAPI.
+        exc: исключение TrialAlreadyUsedError.
+
+    Returns
+        JSONResponse: HTTP 409 ответ с описанием ошибки.
+
+    """
     logger.warning(
         "TrialAlreadyUsedError: path={}",
         request.url.path,
     )
 
     return JSONResponse(
-        status_code=status.HTTP_403_FORBIDDEN,
+        status_code=status.HTTP_409_CONFLICT,
         content={
             "detail": str(exc),
         },

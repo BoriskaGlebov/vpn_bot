@@ -1,17 +1,4 @@
-from enum import Enum, StrEnum
-
-
-class ToggleSubscriptionMode(StrEnum):
-    """Режим переключения между типами подписки.
-
-    Attributes
-        STANDARD: Стандартный режим подписки.
-        PREMIUM: Премиум-режим подписки.
-
-    """
-
-    STANDARD = "standard"
-    PREMIUM = "premium"
+from enum import Enum
 
 
 class SubscriptionEventType(str, Enum):
@@ -32,9 +19,3 @@ class SubscriptionEventType(str, Enum):
     ADMIN_NOTIFY = "admin_notify"
     DELETE_VPN_CONFIGS = "delete_vpn_configs"
     DELETE_PROXY = "delete_proxy"
-
-
-class TrialStatus(str, Enum):
-    """Статус активации пробного периода."""
-
-    STARTED = "trial_started"

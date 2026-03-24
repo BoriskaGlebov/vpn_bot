@@ -8,10 +8,10 @@ from api.app_error.base_error import (
 )
 from api.core.mapper.user_mapper import UserMapper
 from api.subscription.dao import SubscriptionDAO
-from api.subscription.enums import ToggleSubscriptionMode
 from api.subscription.models import SubscriptionType
 from api.users.dao import UserDAO
 from shared.enums.admin_enum import FilterTypeEnum, RoleEnum
+from shared.enums.subscription_enum import ToggleSubscriptionMode
 from shared.schemas.users import SUserOut, SUserTelegramID
 
 
