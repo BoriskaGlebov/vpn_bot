@@ -1,6 +1,6 @@
 from loguru import logger
 
-from bot.referrals.adapter import ReferralAdapter
+from bot.referrals.adapter import ReferralAPIAdapter
 from shared.schemas.referral import (
     GrantReferralBonusRequest,
     RegisterReferralRequest,
@@ -18,7 +18,7 @@ class ReferralService:
 
     def __init__(
         self,
-        adapter: ReferralAdapter,
+        adapter: ReferralAPIAdapter,
     ) -> None:
         self.api_adapter = adapter
 

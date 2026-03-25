@@ -3,8 +3,8 @@ from typing import Any
 from sqladmin import ModelView
 from sqladmin.filters import ForeignKeyFilter, OperationColumnFilter
 
-from bot.users.models import User
-from bot.vpn.models import VPNConfig
+from api.users.models import User
+from api.vpn.models import VPNConfig
 
 
 def format_user(model_class: type[VPNConfig], value: Any) -> str:

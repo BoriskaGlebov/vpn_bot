@@ -2,7 +2,7 @@ from typing import Any
 
 from starlette.requests import Request
 
-from bot.subscription.models import Subscription
+from api.subscription.models import Subscription
 
 
 class ActiveSubscriptionFilter:

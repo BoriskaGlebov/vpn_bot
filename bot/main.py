@@ -41,8 +41,6 @@ from bot.vpn.router import VPNRouter
 # from bot.vpn.admin import VPNConfigAdmin
 
 
-# from api.users_api.router import router as router_user
-
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
     {
@@ -198,9 +196,6 @@ ___
 - Напоминание о действующих/старых конфигурациях
 - Управление оплатой доступа к VPN
 - Администрирование через Telegram
-
-API предоставляет доступ к функционалу бота и позволяет автоматизировать
-взаимодействие с VPN-сервисом.
     """,
     openapi_tags=tags_metadata,
     contact={

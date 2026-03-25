@@ -7,7 +7,7 @@ from api.users.dependencies import get_user_service
 from api.users.services import UserService
 from shared.schemas.users import SUser, SUserOut
 
-router = APIRouter(prefix="/users", tags=["bot"])
+router = APIRouter(prefix="/users", tags=["bot", "USERS"])
 
 
 @router.post(

@@ -1,12 +1,12 @@
-from api.vpn.schemas import (
+from bot.integrations.api_client import APIClient
+from shared.schemas.vpn import (
     SVPNCheckLimitResponse,
     SVPNCreateResponse,
     SVPNSubscriptionInfo,
 )
-from bot.integrations.api_client import APIClient
 
 
-class VPNAdapter:
+class VPNAPIAdapter:
     """Адаптер для работы с VPN API."""
 
     def __init__(self, client: APIClient) -> None:

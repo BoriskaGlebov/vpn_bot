@@ -10,7 +10,7 @@ from shared.enums.admin_enum import RoleEnum
 from shared.schemas.admin import SChangeRole, SExtendSubscription
 from shared.schemas.users import SUserOut
 
-router = APIRouter(prefix="/admin", tags=["bot"])
+router = APIRouter(prefix="/admin", tags=["bot", "ADMIN"])
 
 
 @router.get(

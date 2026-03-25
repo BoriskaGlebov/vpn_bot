@@ -15,7 +15,7 @@ from shared.schemas.referral import (
 )
 from shared.schemas.users import SUserTelegramID
 
-router = APIRouter(prefix="/referrals", tags=["bot"])
+router = APIRouter(prefix="/referrals", tags=["bot", "REFERRALS"])
 
 
 @router.post(

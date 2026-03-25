@@ -3,7 +3,7 @@ from pathlib import Path
 from aiogram.types import User as TGUser
 
 from bot.app_error.base_error import VPNLimitError
-from bot.vpn.adapter import VPNAdapter
+from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
@@ -11,7 +11,7 @@ from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 class VPNService:
     """Сервис для работы с VPN-конфигами и подписками пользователей."""
 
-    def __init__(self, adapter: VPNAdapter) -> None:
+    def __init__(self, adapter: VPNAPIAdapter) -> None:
         self.api_adapter = adapter
 
     async def generate_user_config(

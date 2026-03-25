@@ -1,8 +1,8 @@
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter
 
-from bot.subscription.models import Subscription
-from bot.users.models import User
+from api.subscription.models import Subscription
+from api.users.models import User
 
 
 def fmt_remaining_days(m: Subscription, _: str) -> str:

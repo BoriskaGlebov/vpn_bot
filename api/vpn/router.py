@@ -4,15 +4,15 @@ from starlette import status
 
 from api.core.dependencies import get_session
 from api.vpn.dependencies import get_vpn_service
-from api.vpn.schemas import (
+from api.vpn.services import VPNService
+from shared.schemas.vpn import (
     SVPNCheckLimitResponse,
     SVPNCreateRequest,
     SVPNCreateResponse,
     SVPNSubscriptionInfo,
 )
-from api.vpn.services import VPNService
 
-router = APIRouter(prefix="/vpn", tags=["bot"])
+router = APIRouter(prefix="/vpn", tags=["bot", "VPN"])
 
 
 @router.get(

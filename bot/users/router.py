@@ -16,11 +16,9 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.types import User as TGUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.core.config import settings_bot
-from bot.core.database import connection
 from bot.integrations.redis_client import RedisClient
 from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType, MainMenuText
@@ -28,6 +26,7 @@ from bot.users.keyboards.markup_kb import main_kb
 from bot.users.services import UserService
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
+from shared.enums.admin_enum import RoleEnum
 from shared.schemas.users import SUserOut
 
 m_admin = settings_bot.messages.modes.admin
@@ -122,7 +121,6 @@ class UserRouter(BaseRouter):
         self,
         command: CommandStart,
         invited_user: SUserOut,
-        session: AsyncSession,
     ) -> None:
         """Обрабатывает реферальный код из команды /start и регистрирует рефералку.
 
@@ -132,7 +130,6 @@ class UserRouter(BaseRouter):
         Args:
             command(CommandStart): Сообщение Telegram с командой /start.
             invited_user (SUserOut): Пользователь, который только что зарегистрировался.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy для операций с БД.
 
         """
         start_args = getattr(command, "args", None)
@@ -161,7 +158,6 @@ class UserRouter(BaseRouter):
             inviter_telegram_id=inviter_telegram_id,
         )
 
-    @connection()
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def cmd_start(
@@ -169,7 +165,6 @@ class UserRouter(BaseRouter):
         message: Message,
         command: CommandStart,
         user: TGUser,
-        session: AsyncSession,
         state: FSMContext,
     ) -> None:
         """Обработчик команды /start.
@@ -181,7 +176,6 @@ class UserRouter(BaseRouter):
             command: Команда Старт
             message (Message): Сообщение Telegram с командой /start.
             user (TGUser): Пользователь Telegram, инициировавший команду.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy для работы с БД.
             state (FSMContext): Контекст FSM для управления состояниями пользователя.
 
         Returns
@@ -227,9 +221,7 @@ class UserRouter(BaseRouter):
                 self.logger.bind(user=user.username or user.id).info(
                     f"Новый пользователь зарегистрирован: {user.id} ({username})"
                 )
-                await self._process_referral(
-                    command=command, invited_user=user_info, session=session
-                )
+                await self._process_referral(command=command, invited_user=user_info)
                 response_message = welcome_messages.first[0].format(username=full_name)
                 follow_up_message = welcome_messages.first[1]
                 await message.answer(
@@ -260,7 +252,7 @@ class UserRouter(BaseRouter):
                         bot=self.bot,
                         message_text=admin_message,
                         reply_markup=admin_user_control_kb(
-                            filter_type=user_info.role.name,
+                            filter_type=RoleEnum(user_info.role.name),
                             telegram_id=user.id,
                         ),
                     )

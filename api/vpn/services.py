@@ -4,13 +4,13 @@ from api.app_error.base_error import UserNotFoundError
 from api.subscription.models import DEVICE_LIMITS
 from api.users.dao import UserDAO
 from api.vpn.dao import VPNConfigDAO
-from api.vpn.schemas import (
+from shared.schemas.users import SUserTelegramID
+from shared.schemas.vpn import (
     SVPNCheckLimitResponse,
     SVPNConfig,
     SVPNCreateResponse,
     SVPNSubscriptionInfo,
 )
-from shared.schemas.users import SUserTelegramID
 
 
 class VPNService:

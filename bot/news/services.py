@@ -1,9 +1,4 @@
-from aiogram import Bot
-from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
-
-# TODO нужно настроить обращение на api
-# from bot.users.models import Role, User
+from bot.news.adapter import NewsAPIAdapter
 
 
 class NewsService:
@@ -15,23 +10,14 @@ class NewsService:
 
     """
 
-    def __init__(self, bot: Bot, logger: Logger) -> None:
-        self.bot = bot
-        self.logger = logger
+    def __init__(self, adapter: NewsAPIAdapter) -> None:
+        self.api_adapter = adapter
 
-    async def all_users_id(self, session: AsyncSession) -> list[int]:
+    async def all_users_id(self) -> list[int]:
         """Получает список Telegram ID всех пользователей, кроме администраторов.
-
-        Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
 
         Returns
             List[int]: Список Telegram ID пользователей для рассылки.
 
         """
-        pass
-        # query = select(User.telegram_id).join(User.role).where(Role.name != "admin")
-        # result = await session.execute(query)
-        # users_id = result.scalars().all()
-        # self.logger.info("Получил id пользователей для рассылки.")
-        # return list(users_id)
+        return await self.api_adapter.get_recipients()

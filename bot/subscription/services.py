@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from bot.core.config import settings_bot
 from bot.subscription.adapter import (
-    SubscriptionAdapter,
+    SubscriptionAPIAdapter,
 )
 from shared.enums.admin_enum import RoleEnum
 from shared.schemas.subscription import SSubscriptionCheck
@@ -53,7 +53,7 @@ class SubscriptionStats:
 class SubscriptionService:
     """Сервис для бизнес-логики подписки."""
 
-    def __init__(self, adapter: SubscriptionAdapter) -> None:
+    def __init__(self, adapter: SubscriptionAPIAdapter) -> None:
         self.api_adapter = adapter
 
     async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool]:

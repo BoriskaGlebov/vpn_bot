@@ -3,19 +3,20 @@ from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
-from bot.core.config import bot, logger, settings_bot
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient, redis_manager
+from bot.news.adapter import NewsAPIAdapter
 from bot.news.services import NewsService
-from bot.referrals.adapter import ReferralAdapter
+from bot.referrals.adapter import ReferralAPIAdapter
 from bot.referrals.services import ReferralService
-from bot.subscription.adapter import SubscriptionAdapter
+from bot.subscription.adapter import SubscriptionAPIAdapter
 
 # from bot.referrals.services import ReferralService
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.services import UserService
-from bot.vpn.adapter import VPNAdapter
+from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
 
 
@@ -46,7 +47,10 @@ class Container:
     news_service: NewsService
     api_client: APIClient
     user_adapter: UsersAPIAdapter
-
+    admin_adapter: AdminAPIAdapter
+    subscription_adapter: SubscriptionAPIAdapter
+    referral_adapter: ReferralAPIAdapter
+    vpn_adapter: VPNAPIAdapter
     # chat_service: ChatService | None
 
     def __init__(self) -> None:
@@ -57,9 +61,10 @@ class Container:
         )
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
-        self.subscription_adapter = SubscriptionAdapter(client=self.api_client)
-        self.referral_adapter = ReferralAdapter(client=self.api_client)
-        self.vpn_adapter = VPNAdapter(client=self.api_client)
+        self.subscription_adapter = SubscriptionAPIAdapter(client=self.api_client)
+        self.referral_adapter = ReferralAPIAdapter(client=self.api_client)
+        self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
+        self.news_adapter = NewsAPIAdapter(client=self.api_client)
 
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
@@ -68,7 +73,7 @@ class Container:
             adapter=self.subscription_adapter
         )
         self.vpn_service = VPNService(adapter=self.vpn_adapter)
-        self.news_service = NewsService(bot=bot, logger=logger)  # type: ignore[arg-type]
+        self.news_service = NewsService(adapter=self.news_adapter)
 
         # self.chat_service: ChatService | None = None
 

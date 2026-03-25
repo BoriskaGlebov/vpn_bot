@@ -7,7 +7,7 @@ from shared.schemas.referral import (
 )
 
 
-class ReferralAdapter:
+class ReferralAPIAdapter:
     """Клиент для работы с referrals API."""
 
     def __init__(self, client: APIClient) -> None:

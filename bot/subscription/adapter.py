@@ -10,7 +10,7 @@ from shared.schemas.users import SUserOut
 type HTTPStatus = int
 
 
-class SubscriptionAdapter:
+class SubscriptionAPIAdapter:
     """Адаптер для работы с Subscription API.
 
     Инкапсулирует HTTP-вызовы и преобразование DTO → Pydantic схемы.

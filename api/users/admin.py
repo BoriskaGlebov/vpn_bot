@@ -1,8 +1,8 @@
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter
 
-from bot.users.filters import ActiveSubscriptionFilter
-from bot.users.models import Role, User
+from api.users.filters import ActiveSubscriptionFilter
+from api.users.models import Role, User
 
 
 def format_role(obj: User, name: str) -> str:

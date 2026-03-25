@@ -17,11 +17,9 @@ from aiogram.types import (
 )
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.core.config import settings_bot
-from bot.core.database import connection
-from bot.news.filters import IsAdmin
+from bot.core.filters import IsAdmin
 from bot.news.keyboards.inline_kb import NewsAction, NewsCB, news_confirm_kb
 from bot.news.services import NewsService
 from bot.utils.base_router import BaseRouter
@@ -161,13 +159,11 @@ class NewsRouter(BaseRouter):
             await state.set_state(NewStates.confirm_news)
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_message
     async def confirm_news_handler(
         self,
         query: CallbackQuery,
         msg: Message,
-        session: AsyncSession,
         state: FSMContext,
     ) -> None:
         """Обработчик подтверждения рассылки новости.
@@ -178,7 +174,6 @@ class NewsRouter(BaseRouter):
         Args:
             query (CallbackQuery): Колбек подтверждения новости.
             msg (Message): Сообщение предпросмотра новости.
-            session (AsyncSession): Асинхронная сессия базы данных.
             state (FSMContext): FSMContext с сохранёнными данными новости.
 
         """
@@ -196,7 +191,7 @@ class NewsRouter(BaseRouter):
                 await state.clear()
                 await query.answer()
                 return
-            recipients = await self.news_service.all_users_id(session=session)
+            recipients = await self.news_service.all_users_id()
             sent = 0
             self.logger.bind(user=query.from_user.username or "undefined").info(
                 f"Начата рассылка новостей "

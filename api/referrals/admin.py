@@ -1,8 +1,8 @@
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter, OperationColumnFilter
 
-from bot.referrals.models import Referral
-from bot.users.models import User
+from api.referrals.models import Referral
+from api.users.models import User
 
 
 class ReferralAdmin(ModelView, model=Referral):

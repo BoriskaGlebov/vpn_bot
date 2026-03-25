@@ -18,7 +18,7 @@ from shared.schemas.subscription import (
 )
 from shared.schemas.users import SUserOut
 
-router = APIRouter(prefix="/subscriptions", tags=["bot"])
+router = APIRouter(prefix="/subscriptions", tags=["bot", "SUBSCRIPTION"])
 
 
 @router.get(
