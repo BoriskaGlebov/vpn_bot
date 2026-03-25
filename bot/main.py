@@ -70,6 +70,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await container.init()
     dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
+    # TODO Данное логирование мне кажется прям избыточным
     log_data = True if settings_bot.debug_fast_api else False
     log_time = True if settings_bot.debug_fast_api else False
     dp.message.middleware(
