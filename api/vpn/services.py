@@ -1,3 +1,4 @@
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import UserNotFoundError
@@ -38,11 +39,13 @@ class VPNService:
             SVPNCheckLimitResponse: Информация о лимите конфигов и текущем количестве.
 
         """
+        logger.debug("Проверка лимитов tg_id={}", tg_id)
         user = await UserDAO.find_one_or_none(
             session=session,
             filters=SUserTelegramID(telegram_id=tg_id),
         )
         if not user or not user.current_subscription:
+            logger.warning("Пользователь или подписка не найдены tg_id={}", tg_id)
             raise UserNotFoundError(tg_id=tg_id)
 
         can_add = await VPNConfigDAO.can_add_config(
@@ -52,7 +55,13 @@ class VPNService:
 
         limit = DEVICE_LIMITS.get(user.current_subscription.type, 0)
         current = len(user.vpn_configs)
-
+        logger.info(
+            "Проверка лимита VPN tg_id={} can_add={} current={} limit={}",
+            tg_id,
+            can_add,
+            current,
+            limit,
+        )
         return SVPNCheckLimitResponse(
             can_add=can_add,
             limit=limit,
@@ -81,11 +90,14 @@ class VPNService:
             SVPNCreateResponse: Подтверждение создания конфига с именем файла и публичным ключом.
 
         """
+        logger.debug("Добавление конфига tg_id={} file_name={}", tg_id, file_name)
+
         user = await UserDAO.find_one_or_none(
             session=session,
             filters=SUserTelegramID(telegram_id=tg_id),
         )
         if not user:
+            logger.warning("Пользователь не найден tg_id={}", tg_id)
             raise UserNotFoundError(tg_id=tg_id)
 
         await VPNConfigDAO.add_config(
@@ -94,6 +106,7 @@ class VPNService:
             file_name=file_name,
             pub_key=pub_key,
         )
+        logger.info("Создан VPN конфиг tg_id={} file_name={}", tg_id, file_name)
 
         return SVPNCreateResponse(
             file_name=file_name,
@@ -118,15 +131,18 @@ class VPNService:
             SVPNSubscriptionInfo: Статус подписки, тип, оставшиеся дни, дата окончания и список конфигов.
 
         """
+        logger.debug("Получение информации по подписке tg_id={}", tg_id)
         user = await UserDAO.find_one_or_none(
             session=session,
             filters=SUserTelegramID(telegram_id=tg_id),
         )
         if not user:
+            logger.warning("Пользователь не найден tg_id={}", tg_id)
             raise UserNotFoundError(tg_id=tg_id)
 
         subscription = user.current_subscription
         if not subscription:
+            logger.info("У пользователя нет подписки tg_id={}", tg_id)
             return SVPNSubscriptionInfo(
                 status="no_subscription",
                 subscription_type=None,
@@ -139,7 +155,12 @@ class VPNService:
 
         remaining_days = subscription.remaining_days()
         remaining = "UNLIMITED" if remaining_days is None else f"{remaining_days} дней"
-
+        logger.info(
+            "Инфо подписки VPN tg_id={} status={} type={}",
+            tg_id,
+            status,
+            subscription.type.value if subscription.type else None,
+        )
         return SVPNSubscriptionInfo(
             status=status,
             subscription_type=subscription.type.value if subscription.type else None,

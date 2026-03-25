@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Mapping
 from typing import Any
 
 import httpx
@@ -48,7 +49,9 @@ class APIClient:
         """Закрывает HTTP клиент."""
         await self._client.aclose()
 
-    def _build_headers(self, headers: dict | None = None) -> dict:
+    def _build_headers(
+        self, headers: Mapping[str, str] | None = None
+    ) -> dict[str, str]:
         result = dict(headers or {})
 
         ctx = log_context.get()

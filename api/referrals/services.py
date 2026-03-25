@@ -38,15 +38,37 @@ class ReferralService:
             None: Метод не возвращает значения.
 
         """
+        logger.debug(
+            "register_referral invited_user_id={} inviter_telegram_id={}",
+            invited_user.id,
+            inviter_telegram_id,
+        )
         if not inviter_telegram_id or invited_user.has_used_trial:
+            logger.debug(
+                "Реферал не зарегистрирован: inviter_telegram_id={} has_used_trial={}",
+                inviter_telegram_id,
+                invited_user.has_used_trial,
+            )
             return
         s_user = SUserTelegramID(telegram_id=inviter_telegram_id)
         inviter_model = await UserDAO.find_one_or_none(session=session, filters=s_user)
         if not inviter_model:
+            logger.warning(
+                "Пригласитель не найден telegram_id={}",
+                inviter_telegram_id,
+            )
             return
 
         await ReferralDAO.add_referral(
-            session=session, inviter_id=inviter_model.id, invited_id=invited_user.id
+            session=session,
+            inviter_id=inviter_model.id,
+            invited_id=invited_user.id,
+        )
+
+        logger.info(
+            "Реферал зарегистрирован inviter_id={} invited_id={}",
+            inviter_model.id,
+            invited_user.id,
         )
 
     async def grant_referral_bonus(
@@ -74,6 +96,12 @@ class ReferralService:
                 - Optional[int]: Telegram ID пригласителя, если бонус был начислен, иначе None.
 
         """
+        logger.debug(
+            "grant_referral_bonus invited_user_id={} telegram_id={} months={}",
+            invited_user.id,
+            invited_user.telegram_id,
+            months,
+        )
         s_referral = SReferralByInvite(invited_id=invited_user.id)
         referral = await ReferralDAO.find_one_or_none(
             session=session, filters=s_referral
@@ -94,6 +122,11 @@ class ReferralService:
         inviter = referral.inviter
         current_sub = inviter.current_subscription
         if current_sub is None:
+            logger.info(
+                "Создание подписки по рефералу inviter_telegram_id={} months={}",
+                inviter.telegram_id,
+                months,
+            )
             await SubscriptionDAO.activate_subscription(
                 session=session,
                 stelegram_id=SUserTelegramID(telegram_id=inviter.telegram_id),
@@ -101,6 +134,11 @@ class ReferralService:
                 sub_type=SubscriptionType.STANDARD,
             )
         else:
+            logger.info(
+                "Продление подписки по рефералу inviter_telegram_id={} months={}",
+                inviter.telegram_id,
+                months,
+            )
             current_sub.extend(months=months)
             await session.flush()
 
