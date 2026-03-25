@@ -1,3 +1,5 @@
+from typing import cast
+
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -8,7 +10,7 @@ from starlette import status
 
 async def request_validation_handler(
     request: Request,
-    exc: RequestValidationError,
+    exc: Exception,
 ) -> JSONResponse:
     """Обрабатывает ошибки валидации входящего HTTP запроса.
 
@@ -23,6 +25,7 @@ async def request_validation_handler(
         JSONResponse: HTTP 422 ответ с деталями ошибок.
 
     """
+    exc = cast(RequestValidationError, exc)
     logger.warning(
         "RequestValidationError path={} errors={}",
         request.url.path,
@@ -40,7 +43,7 @@ async def request_validation_handler(
 
 async def database_exception_handler(
     request: Request,
-    exc: SQLAlchemyError,
+    exc: Exception,
 ) -> JSONResponse:
     """Обрабатывает ошибки базы данных и возвращает HTTP-ответ.
 
@@ -59,6 +62,7 @@ async def database_exception_handler(
         500: Внутренняя ошибка сервера (ошибка БД)
 
     """
+    exc = cast(SQLAlchemyError, exc)
     logger.error(
         "DatabaseException path={} error={}",
         request.url.path,

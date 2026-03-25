@@ -9,12 +9,12 @@ from api.subscription.dependencies import (
 from api.subscription.services import (
     SubscriptionService,
 )
+from shared.enums.subscription_enum import TrialStatus
 from shared.schemas.subscription import (
     ActivateSubscriptionRequest,
     SSubscriptionCheck,
     STrialActivate,
     STrialActivateResponse,
-    TrialStatus,
 )
 from shared.schemas.users import SUserOut
 

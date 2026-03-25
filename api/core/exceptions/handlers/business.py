@@ -1,3 +1,5 @@
+from typing import cast
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from loguru import logger
@@ -15,9 +17,7 @@ from api.app_error.base_error import (
 )
 
 
-async def user_not_found_handler(
-    request: Request, exc: UserNotFoundError
-) -> JSONResponse:
+async def user_not_found_handler(request: Request, exc: Exception) -> JSONResponse:
     """Обрабатывает ошибку отсутствия пользователя.
 
     Перехватывает исключение UserNotFoundError и преобразует его
@@ -31,6 +31,7 @@ async def user_not_found_handler(
         JSONResponse: HTTP 404 ответ с описанием ошибки.
 
     """
+    exc = cast(UserNotFoundError, exc)
     logger.warning(
         "UserNotFoundError: telegram_id={} path={}",
         exc.tg_id,
@@ -47,7 +48,7 @@ async def user_not_found_handler(
 
 async def subscription_not_found_handler(
     request: Request,
-    exc: SubscriptionNotFoundError,
+    exc: Exception,
 ) -> JSONResponse:
     """Обрабатывает отсутствие подписки у пользователя.
 
@@ -62,6 +63,7 @@ async def subscription_not_found_handler(
         JSONResponse: HTTP 404 ответ.
 
     """
+    exc = cast(SubscriptionNotFoundError, exc)
     logger.warning(
         "SubscriptionNotFoundError: user_id={} path={}",
         exc.user_id,
@@ -78,7 +80,7 @@ async def subscription_not_found_handler(
 
 async def active_subscription_exists_handler(
     request: Request,
-    exc: ActiveSubscriptionExistsError,
+    exc: Exception,
 ) -> JSONResponse:
     """Обрабатывает попытку создать активную подписку при уже существующей.
 
@@ -92,6 +94,7 @@ async def active_subscription_exists_handler(
         JSONResponse: HTTP 409 ответ.
 
     """
+    exc = cast(ActiveSubscriptionExistsError, exc)
     logger.warning(
         "ActiveSubscriptionExistsError: path={}",
         request.url.path,
@@ -107,7 +110,7 @@ async def active_subscription_exists_handler(
 
 async def trial_already_used_handler(
     request: Request,
-    exc: TrialAlreadyUsedError,
+    exc: Exception,
 ) -> JSONResponse:
     """Обрабатывает повторное использование пробного периода.
 
@@ -121,6 +124,7 @@ async def trial_already_used_handler(
         JSONResponse: HTTP 409 ответ с описанием ошибки.
 
     """
+    exc = cast(TrialAlreadyUsedError, exc)
     logger.warning(
         "TrialAlreadyUsedError: path={}",
         request.url.path,
@@ -136,7 +140,7 @@ async def trial_already_used_handler(
 
 async def referral_exception_handler(
     request: Request,
-    exc: ReferralError,
+    exc: Exception,
 ) -> JSONResponse:
     """Обрабатывает ошибки реферальной системы и преобразует их в HTTP-ответ.
 
@@ -151,6 +155,7 @@ async def referral_exception_handler(
         JSONResponse: HTTP-ответ с кодом статуса и описанием ошибки.
 
     """
+    exc = cast(ReferralError, exc)
     if isinstance(exc, ReferralNotFoundError):
         status_code: int = status.HTTP_404_NOT_FOUND
     elif isinstance(exc, ReferralBonusAlreadyGivenError):
@@ -172,7 +177,7 @@ async def referral_exception_handler(
 
 async def vpn_limit_handler(
     request: Request,
-    exc: VPNLimitError,
+    exc: Exception,
 ) -> JSONResponse:
     """Обрабатывает превышение лимита VPN конфигов.
 
@@ -187,6 +192,7 @@ async def vpn_limit_handler(
         JSONResponse: HTTP 409 ответ.
 
     """
+    exc = cast(VPNLimitError, exc)
     logger.warning(
         "VPNLimitError: user_id={} limit={} path={}",
         exc.user_id,
