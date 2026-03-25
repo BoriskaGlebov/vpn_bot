@@ -3,26 +3,29 @@ from pathlib import Path
 from aiogram.types import User as TGUser
 
 from bot.app_error.base_error import VPNLimitError
+from bot.users.adapter import UsersAPIAdapter
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from shared.schemas.users import SUser
 
 
 class VPNService:
     """Сервис для работы с VPN-конфигами и подписками пользователей."""
 
-    def __init__(self, adapter: VPNAPIAdapter) -> None:
+    def __init__(self, adapter: VPNAPIAdapter, user_adapter: UsersAPIAdapter) -> None:
         self.api_adapter = adapter
+        self.user_adapter = user_adapter
 
     async def generate_user_config(
         self,
-        user: TGUser,
+        tg_user: TGUser,
         ssh_client: AsyncSSHClientWG | AsyncSSHClientVPN,
     ) -> tuple[Path, str]:
         """Генерирует новый VPN-конфиг и сохраняет его в базе данных.
 
         Args:
-            user (TGUser): Telegram-пользователь.
+            tg_user (TGUser): Telegram-пользователь.
             ssh_client (AsyncSSHClientWG | AsyncSSHClientVPN): SSH-клиент для генерации конфига.
 
         Raises
@@ -33,11 +36,12 @@ class VPNService:
             tuple[Path, str]: Путь к файлу конфига и публичный ключ.
 
         """
-        limit = await self.api_adapter.check_limit(tg_id=user.id)
+        limit = await self.api_adapter.check_limit(tg_id=tg_user.id)
+        user, _ = await self.user_adapter.register(SUser(telegram_id=tg_user.id))
 
         if not limit.can_add:
             raise VPNLimitError(
-                user_id=user.id,
+                user_id=user.telegram_id,
                 limit=limit.limit,
                 username=user.username or "",
             )
@@ -47,7 +51,7 @@ class VPNService:
         )
 
         await self.api_adapter.add_config(
-            tg_id=user.id,
+            tg_id=user.telegram_id,
             file_name=file_path.name,
             pub_key=pub_key,
         )

@@ -150,7 +150,7 @@ admin = Admin(
     app,
     engine,
     title="Админ панель Админа",
-    templates_dir="bot/templates",
+    templates_dir="api/templates",
     authentication_backend=authentication_backend,
 )
 admin.add_view(UserAdmin)

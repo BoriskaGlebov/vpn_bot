@@ -3,7 +3,12 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InaccessibleMessage, Message
+from aiogram.types import (
+    CallbackQuery,
+    InaccessibleMessage,
+    Message,
+    ReplyKeyboardRemove,
+)
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
@@ -131,6 +136,9 @@ class SubscriptionRouter(BaseRouter):
                 role,
                 is_active_sbscr,
             ) = await self.subscription_service.check_premium(tg_id=user.id)
+            await message.answer(
+                text="Начнем оформление подписки", reply_markup=ReplyKeyboardRemove()
+            )
             if not is_premium or role == FilterTypeEnum.FOUNDER:
                 text = m_subscription.start.format(
                     device_limit=settings_bot.max_configs_per_user

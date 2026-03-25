@@ -101,7 +101,7 @@ class VPNRouter(BaseRouter):
                             file_path,
                             pub_key,
                         ) = await self.vpn_service.generate_user_config(
-                            user=user,
+                            tg_user=user,
                             ssh_client=ssh_client,
                         )
                         await status_msg.answer(text=m_vpn.config_ready)
@@ -141,7 +141,7 @@ class VPNRouter(BaseRouter):
                             file_path,
                             pub_key,
                         ) = await self.vpn_service.generate_user_config(
-                            user=user,
+                            tg_user=user,
                             ssh_client=ssh_client,
                         )
                         await status_msg.answer(text=m_vpn.config_ready)

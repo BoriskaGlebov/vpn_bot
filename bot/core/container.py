@@ -72,7 +72,9 @@ class Container:
         self.subscription_service = SubscriptionService(
             adapter=self.subscription_adapter
         )
-        self.vpn_service = VPNService(adapter=self.vpn_adapter)
+        self.vpn_service = VPNService(
+            adapter=self.vpn_adapter, user_adapter=self.user_adapter
+        )
         self.news_service = NewsService(adapter=self.news_adapter)
 
         # self.chat_service: ChatService | None = None
