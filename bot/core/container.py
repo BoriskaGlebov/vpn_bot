@@ -19,38 +19,38 @@ from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
 
 
-# TODO некрректная документация
 class Container:
-    """Контейнер для управления зависимостями приложения.
+    """Контейнер зависимостей приложения.
 
-    Хранит все сервисы бота и обеспечивает их инициализацию/завершение работы.
-    Позволяет переиспользовать единые экземпляры сервисов в aiogram и FastAPI.
+    Отвечает за:
+    - создание всех сервисов
+    - связывание слоёв (API → adapters → services)
+    - управление внешними ресурсами (Redis, HTTP client)
 
-    Attributes
-        redis_manager (RedisManager): Менеджер соединений с Redis.
-        user_service (UserService): Сервис для работы с пользователями.
-        admin_service (AdminService): Сервис администрирования.
-        referral_service (ReferralService): Сервис работы с реферальной системой.
-        subscription_service (SubscriptionService): Сервис работы с подписками.
-        vpn_service (VPNService): Сервис работы с VPN.
-        news_service (NewsService): Сервис работы с новостями.
-        chat_service (Optional[ChatService]): Сервис AI чат-бота (инициализируется асинхронно).
-
+    Архитектура:
+        APIClient → HTTP слой
+        Adapters  → обёртки API
+        Services  → бизнес-логика
+        Redis     → кеш / временные данные
     """
 
     redis_manager: RedisClient
-    user_service: UserService
-    admin_service: AdminService
-    referral_service: ReferralService
-    subscription_service: SubscriptionService
-    vpn_service: VPNService
-    news_service: NewsService
     api_client: APIClient
+
     user_adapter: UsersAPIAdapter
     admin_adapter: AdminAPIAdapter
     subscription_adapter: SubscriptionAPIAdapter
     referral_adapter: ReferralAPIAdapter
     vpn_adapter: VPNAPIAdapter
+    news_adapter: NewsAPIAdapter
+
+    user_service: UserService
+    admin_service: AdminService
+    subscription_service: SubscriptionService
+    referral_service: ReferralService
+    vpn_service: VPNService
+    news_service: NewsService
+
     redis_admin_mess_storage: RedisAdminMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
 

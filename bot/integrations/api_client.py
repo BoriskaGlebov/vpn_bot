@@ -9,6 +9,7 @@ from bot.app_error.api_error import (
     APIClientError,
     map_http_error,
 )
+from shared.config.context import log_context
 
 
 class APIClient:
@@ -47,6 +48,22 @@ class APIClient:
         """Закрывает HTTP клиент."""
         await self._client.aclose()
 
+    def _build_headers(self, headers: dict | None = None) -> dict:
+        result = dict(headers or {})
+
+        ctx = log_context.get()
+
+        if ctx is None:
+            return result
+
+        if ctx.tg_id is not None:
+            result["X-Telegram-Id"] = str(ctx.tg_id)
+
+        if ctx.username:
+            result["X-Telegram-Username"] = ctx.username
+
+        return result
+
     async def _request(
         self,
         method: str,
@@ -78,7 +95,12 @@ class APIClient:
                     attempt,
                     self.max_retries,
                 )
-                response = await self._client.request(method, url, **kwargs)
+                raw_headers = kwargs.pop("headers", None)
+                headers = self._build_headers(raw_headers)
+
+                response = await self._client.request(
+                    method=method, url=url, headers=headers, **kwargs
+                )
                 logger.debug(
                     "HTTP ответ: {} {} -> {}",
                     method,

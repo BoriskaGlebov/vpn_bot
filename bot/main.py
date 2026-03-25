@@ -19,6 +19,7 @@ from bot.core.container import Container
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
+from bot.middleware.user_context import UserContextMiddleware
 from bot.news.router import NewsRouter
 from bot.referrals.router import ReferralRouter
 from bot.subscription.router import SubscriptionRouter
@@ -77,6 +78,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.callback_query.middleware(
         UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )
+    dp.update.middleware(UserContextMiddleware())
 
     user_router = UserRouter(
         bot=bot,
