@@ -99,6 +99,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger=logger,  # type: ignore[arg-type]
         subscription_service=container.subscription_service,
         referral_service=container.referral_service,
+        redis_service=container.redis_admin_mess_storage,
     )
     vpn_router = VPNRouter(
         bot=bot,

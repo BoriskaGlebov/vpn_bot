@@ -2,11 +2,9 @@ from typing import Any
 
 import orjson
 from loguru import logger
-from loguru._logger import Logger
 from redis import RedisError
 from redis.asyncio import Redis
 
-from bot.core.config import settings_db
 from shared.interfaces.redis_client import RedisClientProtocol
 
 
@@ -26,12 +24,9 @@ class RedisClient(RedisClientProtocol):
 
     DEFAULT_EXPIRE = 8400
 
-    def __init__(
-        self, redis_url: str, logger: Logger, default_expire: int | None = None
-    ) -> None:
+    def __init__(self, redis_url: str, default_expire: int | None = None) -> None:
         self.url = redis_url
         self.client: Redis | None = None
-        self.logger = logger
         self.default_expire = default_expire or self.DEFAULT_EXPIRE
 
     async def connect(self) -> Redis:
@@ -48,22 +43,22 @@ class RedisClient(RedisClientProtocol):
             self.client = Redis.from_url(self.url, decode_responses=False)
             try:
                 await self.client.ping()
-                self.logger.info("✅ Подключение к Redis установлено успешно")
+                logger.info("✅ Подключение к Redis установлено успешно")
             except RedisError as e:
-                self.logger.error(f"❌ Ошибка подключения к Redis: {e}")
+                logger.error(f"❌ Ошибка подключения к Redis: {e}")
         return self.client
 
     async def disconnect(self) -> None:
         """Закрывает соединение с Redis."""
         if self.client:
             await self.client.close()
-            self.logger.info("🔒 Соединение с Redis закрыто")
+            logger.info("🔒 Соединение с Redis закрыто")
             self.client = None
 
     async def _ensure_connection(self) -> Redis:
         """Гарантирует активное соединение с Redis."""
         if self.client is None:
-            self.logger.warning("Redis-клиент не инициализирован, переподключение...")
+            logger.warning("Redis-клиент не инициализирован, переподключение...")
             await self.connect()
         assert self.client is not None
         return self.client
@@ -110,8 +105,3 @@ class RedisClient(RedisClientProtocol):
         """
         redis = await self._ensure_connection()
         await redis.delete(key)
-
-
-redis_manager = RedisClient(
-    str(settings_db.redis_url), logger=logger, default_expire=settings_db.default_expire
-)  # type: ignore[arg-type]

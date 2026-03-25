@@ -15,7 +15,7 @@ from loguru._logger import Logger
 
 from bot.app_error.base_error import UserNotFoundError
 from bot.core.config import settings_bot
-from bot.redis_service import redis_admin_mess_storage as redis_service
+from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
     AdminPaymentAction,
@@ -57,10 +57,12 @@ class SubscriptionRouter(BaseRouter):
         logger: Logger,
         subscription_service: SubscriptionService,
         referral_service: ReferralService,
+        redis_service: RedisAdminMessageStorage,
     ) -> None:
         super().__init__(bot, logger)
         self.subscription_service = subscription_service
         self.referral_service = referral_service
+        self.redis_service = redis_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(
@@ -320,7 +322,7 @@ class SubscriptionRouter(BaseRouter):
                     months=months,
                     premium=premium if premium else False,
                 ),
-                admin_mess_storage=redis_service,
+                admin_mess_storage=self.redis_service,
                 telegram_id=user.id,
             )
 
@@ -455,7 +457,7 @@ class SubscriptionRouter(BaseRouter):
                     ),
                     username=user_schema.username,
                 ),
-                admin_mess_storage=redis_service,
+                admin_mess_storage=self.redis_service,
             )
             await state.clear()
 
@@ -502,5 +504,5 @@ class SubscriptionRouter(BaseRouter):
                 bot=self.bot,
                 user_id=user_id,
                 new_text=m_subscription.decline_paid.admin.format(user_id=user_id),
-                admin_mess_storage=redis_service,
+                admin_mess_storage=self.redis_service,
             )

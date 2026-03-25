@@ -3,7 +3,7 @@ from typing import Any
 
 from loguru import logger
 
-from bot.integrations.redis_client import RedisClient, redis_manager
+from bot.integrations.redis_client import RedisClient
 
 
 class RedisAdminMessageStorage:
@@ -128,7 +128,3 @@ class RedisEmbeddingCache:
         await self._redis.set(key=key, value=embedding, expire=86400)
 
         logger.debug("Embedding кэш сохранен для ключа {}", key)
-
-
-redis_admin_mess_storage = RedisAdminMessageStorage(redis_manager)
-redis_embedding_cache = RedisEmbeddingCache(redis_manager)

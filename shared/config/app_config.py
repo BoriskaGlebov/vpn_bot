@@ -36,7 +36,7 @@ class SettingsApp(BaseSettings):
     max_configs_per_user: int = 10
 
     api_url: str = "127.0.0.1"
-    api_port: str = 8089
+    api_port: int = 8089
 
     model_config = SettingsConfigDict(
         env_file=[

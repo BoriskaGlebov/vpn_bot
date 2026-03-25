@@ -223,7 +223,7 @@ class SubscriptionService:
 #
 # @dataclass
 # class BaseEvent:
-#     type: SubscriptionEventType
+#    #########################3w type: SubscriptionEventType
 #
 #
 # @dataclass
@@ -258,7 +258,7 @@ class SubscriptionService:
 # SubscriptionEvent = (
 #     UserNotifyEvent | AdminNotifyEvent | DeleteProxyEvent | DeleteVPNConfigsEvent
 # )
-
+#
 #
 # @dataclass
 # class SubscriptionStats:
@@ -296,8 +296,8 @@ class SubscriptionService:
 #         self.checked += other.checked
 #         self.expired += other.expired
 #         self.configs_deleted += other.configs_deleted
-
-
+#
+#
 # class SubscriptionScheduler:
 #     async def _process_user(
 #         self, session: AsyncSession, user: User

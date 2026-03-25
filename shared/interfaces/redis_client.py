@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+from redis.asyncio import Redis
+
 
 class RedisClientProtocol(ABC):
     """Абстракция клиента хранилища (Redis-like)."""
@@ -27,7 +29,7 @@ class RedisClientProtocol(ABC):
         ...
 
     @abstractmethod
-    async def connect(self) -> None:
+    async def connect(self) -> Redis:
         """Подключения в Redis."""
         ...
 

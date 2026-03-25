@@ -3,16 +3,15 @@ from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
-from bot.core.config import settings_bot
+from bot.core.config import settings_bot, settings_db
 from bot.integrations.api_client import APIClient
-from bot.integrations.redis_client import RedisClient, redis_manager
+from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.news.services import NewsService
+from bot.redis_service import RedisAdminMessageStorage, RedisEmbeddingCache
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.referrals.services import ReferralService
 from bot.subscription.adapter import SubscriptionAPIAdapter
-
-# from bot.referrals.services import ReferralService
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.services import UserService
@@ -20,6 +19,7 @@ from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
 
 
+# TODO некрректная документация
 class Container:
     """Контейнер для управления зависимостями приложения.
 
@@ -51,11 +51,16 @@ class Container:
     subscription_adapter: SubscriptionAPIAdapter
     referral_adapter: ReferralAPIAdapter
     vpn_adapter: VPNAPIAdapter
+    redis_admin_mess_storage: RedisAdminMessageStorage
+    redis_embedding_cache: RedisEmbeddingCache
+
     # chat_service: ChatService | None
 
     def __init__(self) -> None:
         """Инициализирует сервисы без асинхронных операций."""
-        self.redis_manager = redis_manager
+        self.redis_manager = RedisClient(
+            str(settings_db.redis_url), default_expire=settings_db.default_expire
+        )
         self.api_client = APIClient(
             base_url=settings_bot.api_url, port=settings_bot.api_port
         )
@@ -76,6 +81,8 @@ class Container:
             adapter=self.vpn_adapter, user_adapter=self.user_adapter
         )
         self.news_service = NewsService(adapter=self.news_adapter)
+        self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)
+        self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
 
         # self.chat_service: ChatService | None = None
 
