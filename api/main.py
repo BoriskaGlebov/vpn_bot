@@ -34,6 +34,9 @@ from api.core.exceptions.handlers.http import (
     database_exception_handler,
     request_validation_handler,
 )
+from api.middleware.auth_middleware import AuthMiddleware
+from api.middleware.logger_context import LogContextMiddleware
+from api.middleware.session_middleware import DBSessionMiddleware
 from api.news.router import router as news_router
 from api.referrals.admin import ReferralAdmin
 from api.referrals.router import router as referrals_router
@@ -139,6 +142,10 @@ app.add_exception_handler(TrialAlreadyUsedError, trial_already_used_handler)
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(ReferralError, referral_exception_handler)
 app.add_exception_handler(VPNLimitError, vpn_limit_handler)
+
+app.add_middleware(LogContextMiddleware)
+app.add_middleware(AuthMiddleware)
+app.add_middleware(DBSessionMiddleware)
 
 
 authentication_backend = AdminAuth(

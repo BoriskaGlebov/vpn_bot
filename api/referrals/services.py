@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import (
     ReferralBonusAlreadyGivenError,
-    ReferralNotFoundError,
 )
 from api.referrals.dao import ReferralDAO
 from api.subscription.dao import SubscriptionDAO
@@ -84,7 +83,7 @@ class ReferralService:
             logger.info(
                 f"У пользователя не было приглашения {invited_user.telegram_id}"
             )
-            raise ReferralNotFoundError(invited_user.telegram_id)
+            return False, invited_user.telegram_id
 
         if referral.bonus_given:
             logger.info(

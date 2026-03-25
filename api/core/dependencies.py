@@ -12,5 +12,5 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     Используется в маршрутах для автоматической работы с транзакцией.
     """
     async with async_session() as session:
-        async with session.begin():  # Начинаем транзакцию
+        async with session.begin():
             yield session

@@ -5,6 +5,8 @@ from typing import Any
 
 from loguru import logger
 
+from shared.config.context import patch_record
+
 
 class LoggerConfig:
     """Настройка логирования с использованием loguru.
@@ -100,7 +102,10 @@ class LoggerConfig:
     def _setup_logging(self) -> None:
         """Конфигурирует логирование, удаляя все текущие обработчики и добавляя новые."""
         logger.remove()
-        logger.configure(extra=self.extra_defaults)
+        logger.configure(
+            extra=self.extra_defaults,
+            patcher=patch_record,
+        )
         self._add_stdout_handler()
         self._add_file_handlers()
 
