@@ -3,12 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.core.dependencies import get_session
-from api.subscription.dependencies import (
-    get_subscription_service,
-)
-from api.subscription.services import (
-    SubscriptionService,
-)
+from api.subscription.dependencies import get_subscription_service
+from api.subscription.services import SubscriptionService
 from shared.enums.subscription_enum import TrialStatus
 from shared.schemas.subscription import (
     ActivateSubscriptionRequest,
@@ -118,60 +114,3 @@ async def activate_subscription(
         months=data.months,
         premium=data.premium,
     )
-
-
-#
-#
-# def map_event_to_schema(event: SubscriptionEvent):
-#     if isinstance(event, UserNotifyEvent):
-#         return UserNotifyEventSchema(
-#             type="user_notify",
-#             user_id=event.user_id,
-#             message=event.message,
-#         )
-#
-#     if isinstance(event, DeleteVPNConfigsEvent):
-#         return DeleteVPNConfigsEventSchema(
-#             type="delete_vpn_configs",
-#             user_id=event.user_id,
-#             configs=event.configs,
-#         )
-#
-#     if isinstance(event, DeleteProxyEvent):
-#         return DeleteProxyEventSchema(
-#             type="delete_proxy",
-#             user_id=event.user_id,
-#         )
-#
-#     if isinstance(event, AdminNotifyEvent):
-#         return AdminNotifyEventSchema(
-#             type="admin_notify",
-#             user_id=event.user_id,
-#             message=event.message,
-#         )
-#
-#     raise ValueError(f"Unknown event: {event}")
-#
-#
-# @router.post(
-#     "/check-all",
-#     response_model=CheckAllSubscriptionsResponse,
-#     summary="Проверяет подписки пользователей и возвращает список действий для бота",
-# )
-# async def check_all(
-#     session: AsyncSession = Depends(get_session),
-#     service: SubscriptionScheduler = Depends(get_subscription_scheduler_service),
-# ):
-#     stats, events = await service.check_all_subscriptions(
-#         session=session,
-#     )
-#
-#     return CheckAllSubscriptionsResponse(
-#         stats=SubscriptionStatsSchema(
-#             checked=stats.checked,
-#             expired=stats.expired,
-#             notified=0,
-#             configs_deleted=stats.configs_deleted,
-#         ),
-#         events=[map_event_to_schema(e) for e in events],
-#     )

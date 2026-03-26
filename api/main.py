@@ -40,6 +40,7 @@ from api.middleware.session_middleware import DBSessionMiddleware
 from api.news.router import router as news_router
 from api.referrals.admin import ReferralAdmin
 from api.referrals.router import router as referrals_router
+from api.scheduler.router import router as scheduler_router
 from api.subscription.admin import SubscriptionAdmin
 from api.subscription.router import router as subscription_router
 from api.users.admin import RoleAdmin, UserAdmin
@@ -130,6 +131,7 @@ app.include_router(subscription_router)
 app.include_router(referrals_router)
 app.include_router(vpn_router)
 app.include_router(news_router)
+app.include_router(scheduler_router)
 
 app.add_exception_handler(UserNotFoundError, user_not_found_handler)
 app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
