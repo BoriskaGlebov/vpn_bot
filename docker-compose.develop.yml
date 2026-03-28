@@ -24,8 +24,8 @@ services:
       - static_files1:/usr/src/app/static # Подключение статических файлов
       - static_files2:/usr/src/app/templates  # Подключение шаблонов Jinja2
     ports:
-#      - "180:80"
-      - "127.0.0.1:888:443"
+#      - "80:80"
+      - "127.0.0.1:888:80"
     networks:
       - shared_net
       - infrastructure_net
