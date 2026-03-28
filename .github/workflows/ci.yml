@@ -181,7 +181,8 @@ jobs:
             make compose-down
             make compose-up
 
-            docker service update --force --detach=false monitoring_nginx
+            docker restart nginx
+
           EOF
 
 
