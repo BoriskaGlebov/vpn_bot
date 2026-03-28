@@ -105,7 +105,7 @@ class User(Base):
            VPN конфигов для каждого пользователя.
 
         """
-        from bot.vpn.models import VPNConfig
+        from api.vpn.models import VPNConfig
 
         return (
             select(func.count(VPNConfig.id))

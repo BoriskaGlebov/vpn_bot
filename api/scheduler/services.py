@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api.scheduler.domain.event import (
+    AdminNotifyEvent,
     DeletedVPNConfig,
     DeleteProxyEvent,
     DeleteVPNConfigsEvent,
@@ -16,6 +17,7 @@ from api.scheduler.enums import SubscriptionEventType
 from api.subscription.models import DEVICE_LIMITS, Subscription
 from api.users.models import User
 from api.vpn.models import VPNConfig
+from shared.schemas.scheduler import DeletedVPNConfigSchema
 
 
 class SubscriptionScheduler:
@@ -106,7 +108,14 @@ class SubscriptionScheduler:
                 UserNotifyEvent(
                     type=SubscriptionEventType.USER_NOTIFY,
                     user_id=user.telegram_id,
+                    active_sbs=user.current_subscription.is_active,
                     message="Подписка истекла",
+                    subscription_type=(
+                        user.current_subscription.type.value.upper()
+                        if user.current_subscription
+                        else "UNKNOWN"
+                    ),
+                    remaining_days=user.current_subscription.remaining_days(),
                 )
             )
 
@@ -121,11 +130,15 @@ class SubscriptionScheduler:
                 stats.configs_deleted += len(deleted_configs)
 
                 if deleted_configs:
+                    files = [
+                        DeletedVPNConfigSchema(file_name=c.file_name, pub_key=c.pub_key)
+                        for c in deleted_configs
+                    ]
                     events.append(
                         DeleteVPNConfigsEvent(
                             type=SubscriptionEventType.DELETE_VPN_CONFIGS,
                             user_id=user.telegram_id,
-                            configs=[c.file_name for c in deleted_configs],
+                            configs=files,
                         )
                     )
 
@@ -135,6 +148,14 @@ class SubscriptionScheduler:
                             user_id=user.telegram_id,
                         )
                     )
+                    for file in files:
+                        events.append(
+                            AdminNotifyEvent(
+                                type=SubscriptionEventType.ADMIN_NOTIFY,
+                                user_id=user.telegram_id,
+                                message=f"Произошло удаление конфиг файла {file} (истекла подписка) у {user.telegram_id} (@{user.username})",
+                            )
+                        )
 
         return stats, events
 
@@ -168,6 +189,13 @@ class SubscriptionScheduler:
                     type=SubscriptionEventType.USER_NOTIFY,
                     user_id=user.telegram_id,
                     message=f"Осталось {remaining} дней подписки",
+                    subscription_type=(
+                        user.current_subscription.type.value.upper()
+                        if user.current_subscription
+                        else "UNKNOWN"
+                    ),
+                    remaining_days=user.current_subscription.remaining_days(),
+                    active_sbs=bool(user.current_subscription.is_active),
                 )
             )
 
@@ -210,14 +238,22 @@ class SubscriptionScheduler:
             deleted_configs = await self._delete_configs(session, user, extra_cfgs)
 
             stats.configs_deleted += len(deleted_configs)
-
+            files = [c.file_name for c in deleted_configs]
             events.append(
                 DeleteVPNConfigsEvent(
                     type=SubscriptionEventType.DELETE_VPN_CONFIGS,
                     user_id=user.telegram_id,
-                    configs=[c.file_name for c in deleted_configs],
+                    configs=files,
                 )
             )
+            for file in files:
+                events.append(
+                    AdminNotifyEvent(
+                        type=SubscriptionEventType.ADMIN_NOTIFY,
+                        user_id=user.telegram_id,
+                        message=f"Произошло удаление конфиг файла {file} превышающий лимиты у {user.telegram_id} (@{user.username})",
+                    )
+                )
 
         return stats, events
 
@@ -230,6 +266,7 @@ class SubscriptionScheduler:
             deleted.append(
                 DeletedVPNConfig(file_name=cfg.file_name, pub_key=cfg.pub_key)
             )
+
             await session.delete(cfg)
 
         return deleted

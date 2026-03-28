@@ -46,6 +46,7 @@ from api.subscription.router import router as subscription_router
 from api.users.admin import RoleAdmin, UserAdmin
 from api.users.auth_admin import AdminAuth
 from api.users.router import router as user_router
+from api.users.utils.init_default_roles import init_default_roles_admins
 from api.vpn.admin import VPNConfigAdmin
 from api.vpn.router import router as vpn_router
 from shared.schemas.health_check import SHealthResponse
@@ -76,7 +77,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     запуск бота, настройку вебхука и очистку при завершении работы бота.
     """
     logger.info("Запуск настройки api сервиса VPN Boriska...")
-
+    await init_default_roles_admins()  # type: ignore
     yield
 
     logger.info("Завершение работы api сервиса VPN Boriska...")

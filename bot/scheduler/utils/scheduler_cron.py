@@ -6,13 +6,13 @@ from aiogram.exceptions import TelegramForbiddenError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from bot.core.config import logger
-from bot.subscription.services import SubscriptionService
+from bot.scheduler.services import SchedulerBotService
 
 scheduler = AsyncIOScheduler()
 
 
 async def scheduled_check(
-    service: SubscriptionService,
+    service: SchedulerBotService,
 ) -> None:
     """Запускает плановую проверку подписок пользователей.
 

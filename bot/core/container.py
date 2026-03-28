@@ -1,4 +1,6 @@
 # bot/core/container.py
+from aiogram import Bot
+
 from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 
@@ -11,6 +13,8 @@ from bot.news.services import NewsService
 from bot.redis_service import RedisAdminMessageStorage, RedisEmbeddingCache
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.referrals.services import ReferralService
+from bot.scheduler.adapter import SchedulerAPIAdapter
+from bot.scheduler.services import SchedulerBotService
 from bot.subscription.adapter import SubscriptionAPIAdapter
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
@@ -43,6 +47,7 @@ class Container:
     referral_adapter: ReferralAPIAdapter
     vpn_adapter: VPNAPIAdapter
     news_adapter: NewsAPIAdapter
+    scheduler_adapter: SchedulerAPIAdapter
 
     user_service: UserService
     admin_service: AdminService
@@ -50,13 +55,14 @@ class Container:
     referral_service: ReferralService
     vpn_service: VPNService
     news_service: NewsService
+    scheduler_bot_service: SchedulerBotService
 
     redis_admin_mess_storage: RedisAdminMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
 
     # chat_service: ChatService | None
 
-    def __init__(self) -> None:
+    def __init__(self, bot: Bot) -> None:
         """Инициализирует сервисы без асинхронных операций."""
         self.redis_manager = RedisClient(
             str(settings_db.redis_url), default_expire=settings_db.default_expire
@@ -70,6 +76,7 @@ class Container:
         self.referral_adapter = ReferralAPIAdapter(client=self.api_client)
         self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
+        self.scheduler_adapter = SchedulerAPIAdapter(client=self.api_client)
 
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
@@ -81,6 +88,10 @@ class Container:
             adapter=self.vpn_adapter, user_adapter=self.user_adapter
         )
         self.news_service = NewsService(adapter=self.news_adapter)
+        self.scheduler_bot_service = SchedulerBotService(
+            bot=bot, adapter=self.scheduler_adapter
+        )
+
         self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)
         self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
 

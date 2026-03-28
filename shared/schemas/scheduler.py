@@ -20,10 +20,16 @@ class UserNotifyEventSchema(EventBase):
 
     Attributes
         message: текст уведомления
+         subscription_type: Тип подписки
+         remaining_days: Осталось дней
+         active_sbs: Активна ли подписка
 
     """
 
     message: str
+    subscription_type: str
+    remaining_days: int
+    active_sbs: bool
 
 
 class DeletedVPNConfigSchema(BaseModel):

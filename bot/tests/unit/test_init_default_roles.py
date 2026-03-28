@@ -1,10 +1,10 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from users.utils.init_default_roles import init_default_roles_admins
 
 from bot.users.dao import RoleDAO
 from bot.users.schemas import SRole
-from bot.utils.init_default_roles import init_default_roles_admins
 
 
 @pytest.mark.asyncio

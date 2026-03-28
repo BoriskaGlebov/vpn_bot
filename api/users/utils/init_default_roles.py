@@ -1,11 +1,11 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.core.config import settings_bot
-from bot.core.database import connection
-from bot.users.dao import RoleDAO
-from bot.users.models import Role, User
-from bot.users.schemas import SRole
+from api.core.config import settings_api
+from api.core.database import connection
+from api.users.dao import RoleDAO
+from api.users.models import Role, User
+from shared.schemas.users import SRole
 
 DEFAULT_ROLES = [
     {"name": "admin", "description": "Администратор"},
@@ -27,4 +27,4 @@ async def init_default_roles_admins(session: AsyncSession) -> None:
     query = select(User.telegram_id).join(User.role).where(Role.name == "admin")
     result = await session.execute(query)
     admins = result.scalars().all()
-    settings_bot.admin_ids.update(admins)  # type: ignore[union-attr]
+    settings_api.admin_ids.update(admins)  # type: ignore[union-attr]

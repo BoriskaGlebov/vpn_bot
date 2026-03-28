@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from api.scheduler.enums import SubscriptionEventType
+from shared.schemas.scheduler import DeletedVPNConfigSchema
 
 
 @dataclass
@@ -23,14 +24,19 @@ class UserNotifyEvent(BaseEvent):
     при истечении подписки или скором окончании).
 
     Attributes
-        type: Тип события (USER_NOTIFY).
         user_id: Telegram ID пользователя.
         message: Текст уведомления.
+        subscription_type: Тип подписки.
+        remaining_days: Осталось дней.
+        active_sbs:Подписка активна или нет.
 
     """
 
     user_id: int
     message: str
+    subscription_type: str
+    remaining_days: int
+    active_sbs: bool
 
 
 @dataclass
@@ -82,7 +88,7 @@ class DeleteVPNConfigsEvent(BaseEvent):
     """
 
     user_id: int
-    configs: list[str]
+    configs: list[DeletedVPNConfigSchema]
 
 
 @dataclass

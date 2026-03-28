@@ -10,10 +10,10 @@ from core.database import Base
 from integrations.redis_client import RedisClient
 from loguru import logger as real_logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from users.utils.init_default_roles import init_default_roles_admins
 
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils import commands
-from bot.utils.init_default_roles import init_default_roles_admins
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
