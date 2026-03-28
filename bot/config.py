@@ -29,6 +29,7 @@ class SettingsBot(BaseSettings):
         vpn_host (str): Хост VPN-сервера.
         vpn_username (str): Имя пользователя для подключения к VPN.
         vpn_container (str): Имя Docker-контейнера VPN (если используется).
+        proxy_prefix  (str): Префикс к proxy, для обращения по второму ip.
         vpn_proxy (str) : Имя Docker-контейнера PROXY (если используется).
         proxy_port (str) : Порт для прокси на сервере.
         max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
@@ -57,6 +58,7 @@ class SettingsBot(BaseSettings):
     vpn_host: str
     vpn_username: str
     vpn_container: str
+    proxy_prefix: str
     vpn_proxy: str
     proxy_port: str = "8443"
     max_configs_per_user: int = 10

@@ -1,5 +1,4 @@
 import asyncio
-import uuid
 from typing import TYPE_CHECKING
 
 from aiogram import Bot, F
@@ -23,9 +22,9 @@ from bot.redis_manager import SettingsRedis
 from bot.users.enums import MainMenuText
 from bot.utils.base_router import BaseRouter
 from bot.vpn.services import VPNService
-from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
 
 if TYPE_CHECKING:
     pass
@@ -215,8 +214,8 @@ class VPNRouter(BaseRouter):
             )
             try:
                 async with ssh_lock:
-                    async with AsyncDockerSSHClient(
-                        host=settings_bot.vpn_host,
+                    async with HostDockerSSHClient(
+                        host=f"{settings_bot.proxy_prefix}.{settings_bot.vpn_host}",
                         username=settings_bot.vpn_username,
                         container=settings_bot.vpn_proxy,
                     ) as client:
@@ -224,13 +223,10 @@ class VPNRouter(BaseRouter):
                             tg_id=user.id, session=session
                         )
                         if "Активна" in info:
-                            proxy = AmneziaProxy(
+                            mtproto = MTProtoProxy(
                                 client=client, port=settings_bot.proxy_port
                             )
-                            password = uuid.uuid4().hex
-                            url_proxy = await proxy.add_user(
-                                username=str(user.id), password=password
-                            )
+                            url_proxy = await mtproto.get_proxy_link()
                             keyboard = InlineKeyboardMarkup(
                                 inline_keyboard=[
                                     [
