@@ -237,11 +237,6 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
             set -e
             cd /home/vpn_user/test_zone/vpn_bot || exit 1
-            echo "Pull latest code..."
-            git checkout main
-            git fetch origin main
-            git reset --hard origin/main
-            git clean -fd
 
             echo "Recreate .env file..."
             rm -f .env
