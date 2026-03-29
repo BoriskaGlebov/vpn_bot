@@ -210,6 +210,22 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET # Проверка подключения
 
+      - name: Update telemt.toml with secret
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
+          "cd /home/vpn_user/test_zone/vpn_bot && \
+          git checkout main
+          git fetch origin main
+          git reset --hard origin/main
+          git clean -fd
+          TELEMT_SECRET_HELLO='${{ secrets.TELEMT_SECRET_HELLO }}' && \
+          TOML_FILE='./telemt-config/telemt.toml' && \
+          echo 'DEBUG: TELEMT_SECRET_HELLO=$TELEMT_SECRET_HELLO' && \
+          if grep -q '^hello\s*=' \"\$TOML_FILE\"; then \
+            sed -i \"s/^hello\s*=.*/hello = '\$TELEMT_SECRET_HELLO'/\" \"\$TOML_FILE\"; \
+          else \
+            echo \"hello = '\$TELEMT_SECRET_HELLO'\" >> \"\$TOML_FILE\"; \
+          fi"
       - name: Recreate .env and restart containers
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
@@ -221,13 +237,14 @@ jobs:
             git reset --hard origin/main
             git clean -fd
 
-            echo "Текущая директория: $(pwd)"
-
-            echo "Настройки прокси для тележки"
-
-            TOML_FILE="./telemt-config/telemt.toml"
             TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
-            echo "DEBUG: TELEMT_SECRET_HELLO='$TELEMT_SECRET_HELLO'"
+            TOML_FILE="./telemt-config/telemt.toml"
+
+            if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
+              sed -i "s/^\s*hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
+            else
+              echo "hello = \"$TELEMT_SECRET_HELLO\"" >> "$TOML_FILE"
+            fi
 
 
 
@@ -281,6 +298,7 @@ jobs:
             make compose-down STAGE=prod
             make compose-up STAGE=prod
           EOF
+
 
 
 
