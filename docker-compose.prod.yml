@@ -119,3 +119,5 @@ networks:
     name: infrastructure_net
     driver: bridge
     external: true
+
+#TODO Важно проверить открытость закрутость портов так же ufw
