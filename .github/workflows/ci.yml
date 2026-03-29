@@ -216,13 +216,11 @@ jobs:
             set -e
             cd /home/vpn_user/test_zone/vpn_bot || exit 1
 
-            # Обновляем код перед заменой
             git checkout main
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
 
-            # Подставляем секрет
             TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
             TOML_FILE="./telemt-config/telemt.toml"
 
