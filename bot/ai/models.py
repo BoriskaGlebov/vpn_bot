@@ -32,7 +32,7 @@ class KnowledgeChunk(Base):
             "knowledge_chunk_embedding_idx",
             "embedding",
             postgresql_using="ivfflat",
-            postgresql_with={"lists": 10},  # для маленькой базы
+            postgresql_with={"lists": 10},
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
     )

@@ -85,9 +85,9 @@ if __name__ == "__main__":
             container="amnezia-awg",
         ) as ssh_client:
             await ssh_client.add_new_user_gen_config("boris456.vpn")
-            # await ssh_client.full_delete_user(
-            #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-            # )
+            await ssh_client.full_delete_user(
+                "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
+            )
             await ssh_client.connect()
 
     asyncio.run(main())

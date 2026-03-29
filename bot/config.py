@@ -43,6 +43,7 @@ class SettingsBot(BaseSettings):
         logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
         messages (dict[str, Any]): Словарь с текстами сообщений бота (диалоги, подсказки и т.д.).
         price_map (dict[int, int]): Карта цен подписок по месяцам, может быть задана через .env в JSON.
+        common_timeout (uint): Дефолтное время на подключение к удаленному серверу, после Timeout.
         model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
     Properties
         webhook_url (str): URL вебхука. Формируется автоматически на основе BASE_SITE.
@@ -78,6 +79,7 @@ class SettingsBot(BaseSettings):
         default_factory=lambda: {1: 100, 3: 280, 6: 520, 12: 1000, 7: 0},
         description="Карта цен подписок по месяцам",
     )
+    common_timeout: int = 10
     model_config = SettingsConfigDict(
         env_file=[
             str(BASE_DIR / ".env"),  # базовые значения
