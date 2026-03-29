@@ -221,7 +221,7 @@ jobs:
             git clean -fd
 
             echo "Config прокси для тележки"
-            TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
+            export TELEMT_SECRET_HELLO='${{ secrets.TELEMT_SECRET_HELLO }}
             TOML_FILE="./telemt-config/telemt.toml"
 
             set -x
