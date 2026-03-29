@@ -20,7 +20,8 @@ enabled = true
 # === Anti-Censorship & Masking ===
 [censorship]
 #tls_domain = "petrovich.ru"
-tls_domain = "santander.co.uk"
+#tls_domain = "santander.co.uk"
+tls_domain = "www.wildberries.ru"
 
 [access.users]
 # format: "username" = "32_hex_chars_secret"
