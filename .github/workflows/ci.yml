@@ -227,12 +227,8 @@ jobs:
 
             TOML_FILE="./telemt-config/telemt.toml"
             TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
-            echo "$TELEMT_SECRET_HELLO"
-            if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
-              sed -i "s/^\s*hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
-            else
-              echo "hello = \"$TELEMT_SECRET_HELLO\"" >> "$TOML_FILE"
-            fi
+            echo "$(TELEMT_SECRET_HELLO)"
+
 
 
 
