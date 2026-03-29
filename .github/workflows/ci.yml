@@ -221,7 +221,20 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
+            echo "Текущая директория: $(pwd)"
 
+            if [ -d "./telemt-config" ]; then
+              echo "Папка ./telemt-config существует"
+            else
+              echo "Папка ./telemt-config НЕ найдена"
+            fi
+
+            # Проверяем, существует ли файл telemt.toml
+            if [ -f "./telemt-config/telemt.toml" ]; then
+              echo "Файл telemt.toml найден"
+            else
+              echo "Файл telemt.toml НЕ найден"
+            fi
             echo "Настройки прокси для тележки"
             TOML_FILE="./telemt-config/telemt.toml"
 
