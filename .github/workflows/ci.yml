@@ -78,14 +78,14 @@ jobs:
           ENV_FILE: .env.test
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          SESSION_SECRET: ${{secrets.SESSION_SECRET}}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           BASE_SITE: ${{ vars.BASE_SITE }}
-          DB_DATABASE: ${{vars.DB_DATABASE}}
-          DB_PASSWORD: ${{vars.DB_PASSWORD}}
-          DB_USER: ${{vars.DB_USER}}
-          REDIS_PASSWORD: ${{vars.REDIS_PASSWORD}}
-          REDIS_USER: ${{vars.REDIS_USER}}
-          VPN_CONTAINER: ${{vars.VPN_CONTAINER}}
+          DB_DATABASE: ${{ vars.DB_DATABASE }}
+          DB_PASSWORD: ${{ vars.DB_PASSWORD }}
+          DB_USER: ${{ vars.DB_USER }}
+          REDIS_PASSWORD: ${{ vars.REDIS_PASSWORD }}
+          REDIS_USER: ${{ vars.REDIS_USER }}
+          VPN_CONTAINER: ${{ vars.VPN_CONTAINER }}
           VPN_HOST: ${{vars.VPN_HOST}}
           VPN_USERNAME: ${{vars.VPN_USERNAME}}
           PROXY_PREFIX: ${{ vars.PROXY_PREFIX }}
@@ -224,6 +224,12 @@ jobs:
             TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
             TOML_FILE="./telemt-config/telemt.toml"
 
+            set -x
+            pwd
+            ls -la
+            echo "TOML_FILE=$TOML_FILE"
+            ls -la ./telemt-config
+
             if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
               sed -i "s/^\s*hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
             else
@@ -239,7 +245,7 @@ jobs:
             echo "PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}" >> .env
             echo "VPN_PROXY=${{ secrets.VPN_PROXY }}" >> .env
             echo "PROXY_PORT=${{ secrets.PROXY_PORT }}" >> .env
-            echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}" >> .env
+            echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> .env
             echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env
 
             echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env
