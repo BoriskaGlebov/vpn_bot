@@ -223,24 +223,11 @@ jobs:
 
             echo "Текущая директория: $(pwd)"
 
-            if [ -d "./telemt-config" ]; then
-              echo "Папка ./telemt-config существует"
-            else
-              echo "Папка ./telemt-config НЕ найдена"
-            fi
-
-            # Проверяем, существует ли файл telemt.toml
-            if [ -f "./telemt-config/telemt.toml" ]; then
-              echo "Файл telemt.toml найден"
-            else
-              echo "Файл telemt.toml НЕ найден"
-            fi
-
             echo "Настройки прокси для тележки"
 
             TOML_FILE="./telemt-config/telemt.toml"
             TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
-
+            echo "$TELEMT_SECRET_HELLO"
             if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
               sed -i "s/^\s*hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
             else
@@ -290,6 +277,8 @@ jobs:
             echo "SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}" >> .env
 
             echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env
+
+            echo "TELEMT_SECRET_HELLO=${{ secrets.TELEMT_SECRET_HELLO }}" >> .env
 
 
             echo "Restart Docker containers..."
