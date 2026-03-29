@@ -212,20 +212,28 @@ jobs:
 
       - name: Update telemt.toml with secret
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
-          "cd /home/vpn_user/test_zone/vpn_bot && \
-          git checkout main
-          git fetch origin main
-          git reset --hard origin/main
-          git clean -fd
-          TELEMT_SECRET_HELLO='${{ secrets.TELEMT_SECRET_HELLO }}' && \
-          TOML_FILE='./telemt-config/telemt.toml' && \
-          echo 'DEBUG: TELEMT_SECRET_HELLO=$TELEMT_SECRET_HELLO' && \
-          if grep -q '^hello\s*=' \"\$TOML_FILE\"; then \
-            sed -i \"s/^hello\s*=.*/hello = '\$TELEMT_SECRET_HELLO'/\" \"\$TOML_FILE\"; \
-          else \
-            echo \"hello = '\$TELEMT_SECRET_HELLO'\" >> \"\$TOML_FILE\"; \
-          fi"
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            set -e
+            cd /home/vpn_user/test_zone/vpn_bot || exit 1
+
+            # Обновляем код перед заменой
+            git checkout main
+            git fetch origin main
+            git reset --hard origin/main
+            git clean -fd
+
+            # Подставляем секрет
+            TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
+            TOML_FILE="./telemt-config/telemt.toml"
+
+            echo "DEBUG: TELEMT_SECRET_HELLO=$TELEMT_SECRET_HELLO"
+
+            if grep -q '^hello\s*=' "$TOML_FILE"; then
+              sed -i "s/^hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
+            else
+              echo "hello = \"$TELEMT_SECRET_HELLO\"" >> "$TOML_FILE"
+            fi
+          EOF
       - name: Recreate .env and restart containers
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
