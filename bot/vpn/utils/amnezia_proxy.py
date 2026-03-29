@@ -79,7 +79,7 @@ class AsyncDockerSSHClient:
                     known_hosts=self.known_hosts,
                     agent_forwarding=True,
                 ),
-                timeout=settings_bot.common_timeout,
+                timeout=CONNECT_TIMEOUT,
             )
             self._process = await asyncio.wait_for(
                 self._conn.create_process(f"docker exec -i {self.container} sh;\n"),
