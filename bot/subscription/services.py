@@ -306,7 +306,7 @@ class SubscriptionService:
                 tg_id=user.telegram_id,
             )
             stats.notified += 1
-            await self._delete_proxy(user=user)
+            # await self._delete_proxy(user=user) # Удаление прокси приостановлено пока так как не настроено корректно
 
         if sub.end_date:
             delta = datetime.datetime.now(datetime.UTC) - sub.end_date
