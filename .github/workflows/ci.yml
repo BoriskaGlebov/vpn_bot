@@ -193,8 +193,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     if: github.ref == 'refs/heads/main'
-    env:
-      TELEMT_SECRET_HELLO: ${{ secrets.TELEMT_SECRET_HELLO }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -221,6 +219,7 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
+
             echo "Текущая директория: $(pwd)"
 
             if [ -d "./telemt-config" ]; then
@@ -235,13 +234,16 @@ jobs:
             else
               echo "Файл telemt.toml НЕ найден"
             fi
+
             echo "Настройки прокси для тележки"
+
+            TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
             TOML_FILE="./telemt-config/telemt.toml"
 
             if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
-              awk -v val="$TELEMT_SECRET_HELLO" '/^\s*hello\s*=/ {$0="hello = \"" val "\""} {print}' "$TOML_FILE" > "$TOML_FILE.tmp" && mv "$TOML_FILE.tmp" "$TOML_FILE"
+              sed -i "s/^\s*hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
             else
-              printf 'hello = "%s"\n' "$TELEMT_SECRET_HELLO" >> "$TOML_FILE"
+              echo "hello = \"$TELEMT_SECRET_HELLO\"" >> "$TOML_FILE"
             fi
 
 
