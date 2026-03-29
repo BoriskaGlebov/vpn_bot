@@ -265,7 +265,7 @@ class AmneziaProxy:
     CONF_DIR = "/usr/local/3proxy/conf"
     USER_FILE = "users.txt"
 
-    def __init__(self, client: AsyncDockerSSHClient, port: str = "40711") -> None:
+    def __init__(self, client: AsyncDockerSSHClient, port: str = "433") -> None:
         self.client = client
         self.port = port
 
