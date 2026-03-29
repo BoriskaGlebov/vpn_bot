@@ -188,6 +188,7 @@ jobs:
 
 
 
+
   deploy_prod:
     needs: [ lint, test ]
     runs-on: ubuntu-latest
@@ -237,8 +238,8 @@ jobs:
 
             echo "Настройки прокси для тележки"
 
-            TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
             TOML_FILE="./telemt-config/telemt.toml"
+            TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
 
             if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
               sed -i "s/^\s*hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
@@ -295,6 +296,7 @@ jobs:
             make compose-down STAGE=prod
             make compose-up STAGE=prod
           EOF
+
 
 
 
