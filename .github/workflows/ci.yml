@@ -135,15 +135,6 @@ jobs:
             git reset --hard origin/develop
             git clean -fd
             echo "Config telemt proxy secret"
-            TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
-            TOML_FILE="./telemt-config/telemt.toml"
-
-            if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
-              sed -i "s/^\s*hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
-            else
-              echo "hello = \"$TELEMT_SECRET_HELLO\"" >> "$TOML_FILE"
-            fi
-
             echo "Recreate .env.local file..."
             rm -f .env.local
             echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env.local
@@ -229,6 +220,15 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
+
+            TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
+            TOML_FILE="./telemt-config/telemt.toml"
+
+            if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
+              sed -i "s/^\s*hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
+            else
+              echo "hello = \"$TELEMT_SECRET_HELLO\"" >> "$TOML_FILE"
+            fi
 
             echo "Recreate .env file..."
             rm -f .env
