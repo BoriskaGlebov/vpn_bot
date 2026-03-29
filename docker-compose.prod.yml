@@ -28,9 +28,9 @@ services:
 #    ports:
 #      - "80:80"
 #      - "443:443"
-    networks:
-#      - shared_net
-      - infrastructure_net
+#    networks:
+##      - shared_net
+#      - infrastructure_net
   telemt:
     image: whn0thacked/telemt-docker:latest
     container_name: telemt
