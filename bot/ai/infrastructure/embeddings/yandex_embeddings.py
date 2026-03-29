@@ -161,7 +161,6 @@ class YandexEmbeddings(Embeddings):
 
         return embedding
 
-    # fallback sync методы для совместимости с LangChain
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Синхронная версия генерации эмбеддингов."""
         return asyncio.run(self.aembed_documents(texts))

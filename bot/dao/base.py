@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.database import Base
 
-# Объявляем типовой параметр T с ограничением, что это наследник Base
 T = TypeVar("T", bound=Base)
 
 
@@ -37,7 +36,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
     """
 
     # noinspection PyTypeHints
-    model: type[T]  # Тип модели, которой управляет этот DAO
+    model: type[T]
 
     @staticmethod
     def _to_dict(filters: BaseModel | None) -> dict[str, Any]:

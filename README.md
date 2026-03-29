@@ -127,6 +127,8 @@ USE_LOCAL=True
 SESSION_SECRET=secret
 
 # --- VPN backend ---
+#Дефолтное время для Timeout ошибки при подключени к стороннему сревису по умолчанию 10 секунд.
+COMMON_TIMEOUT=10
 VPN_HOST=vpn.example.com
 VPN_USERNAME=vpnuser
 VPN_CONTAINER=amnezia-vpn

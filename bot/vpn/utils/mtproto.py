@@ -9,6 +9,10 @@ from bot.vpn.utils.amnezia_exceptions import AmneziaSSHError
 from bot.vpn.utils.amnezia_proxy import AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
 
+# TODO Тут важно наверно настроить раздачу конфига для бесплптного доступа тестовую версию пусть заюирают
+# может даже рекламу на него повесить и второй вариант основной взять и как то настроить доступ лимитированный
+# с возможностью удлаять тех у кого все истекло
+
 
 class HostDockerSSHClient(AsyncDockerSSHClient):
     """Асинхронный SSH-клиент для выполнения команд на Docker-хосте.

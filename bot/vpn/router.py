@@ -66,7 +66,7 @@ class VPNRouter(BaseRouter):
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
         """Проверка от повторного создания конфиг файла."""
-        acquired = await self.redis.set(redis_key, "1", 60, True)  # NX=True, TTL=60s
+        acquired = await self.redis.set(redis_key, "1", 60, True)
         if not acquired:
             # Уже обрабатывается или уже обработано
             await message.answer(
