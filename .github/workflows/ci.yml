@@ -227,7 +227,7 @@ jobs:
 
             TOML_FILE="./telemt-config/telemt.toml"
             TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
-            echo "$(TELEMT_SECRET_HELLO)"
+            echo "DEBUG: TELEMT_SECRET_HELLO='$TELEMT_SECRET_HELLO'"
 
 
 
