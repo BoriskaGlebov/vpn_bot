@@ -193,6 +193,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     if: github.ref == 'refs/heads/main'
+    env:
+      TELEMT_SECRET_HELLO: ${{ secrets.TELEMT_SECRET_HELLO }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -222,11 +224,13 @@ jobs:
 
             echo "Настройки прокси для тележки"
             TOML_FILE="./telemt-config/telemt.toml"
+
             if grep -q '^\s*hello\s*=' "$TOML_FILE"; then
-              sed -i "s/^\s*hello\s*=.*/hello = \"${{ secrets.TELEMT_SECRET_HELLO }}\"/" "$TOML_FILE"
+              awk -v val="$TELEMT_SECRET_HELLO" '/^\s*hello\s*=/ {$0="hello = \"" val "\""} {print}' "$TOML_FILE" > "$TOML_FILE.tmp" && mv "$TOML_FILE.tmp" "$TOML_FILE"
             else
-              printf 'hello = "%s"\n' "${{ secrets.TELEMT_SECRET_HELLO }}" >> "$TOML_FILE"
+              printf 'hello = "%s"\n' "$TELEMT_SECRET_HELLO" >> "$TOML_FILE"
             fi
+
 
 
             echo "Recreate .env file..."
