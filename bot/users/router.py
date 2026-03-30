@@ -19,6 +19,7 @@ from loguru._logger import Logger
 
 from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.core.config import settings_bot
+from bot.core.filters import IsAdmin
 from bot.integrations.redis_client import RedisClient
 from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType, MainMenuText
@@ -97,6 +98,7 @@ class UserRouter(BaseRouter):
             and_f(
                 or_f(Command("admin"), F.text == MainMenuText.ADMIN_PANEL.value),
                 F.chat.type == ChatType.PRIVATE,
+                IsAdmin(),
             ),
         )
 

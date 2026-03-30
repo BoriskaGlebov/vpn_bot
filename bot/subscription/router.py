@@ -40,6 +40,7 @@ from shared.enums.admin_enum import FilterTypeEnum
 m_subscription = settings_bot.messages.modes.subscription
 
 
+# TODO ИСпользуй фильтр на админа если это необходимо либо кстати пользоватлея с подпиской используй можн фильтра дополнмть
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
     """Состояния FSM для процесса оформления подписки."""
 

@@ -22,6 +22,7 @@ from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.utils.base_router import BaseRouter
 
 
+# TODO ИСпользуй фильтр на админа если это необходимо либо кстати пользоватлея с подпиской используй можн фильтра дополнмть
 class AdminStates(StatesGroup):  # type: ignore[misc]
     """Состояния администратора при управлении пользователями."""
 

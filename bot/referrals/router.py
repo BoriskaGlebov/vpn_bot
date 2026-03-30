@@ -15,6 +15,7 @@ from bot.utils.base_router import BaseRouter
 m_referrals = settings_bot.messages.modes.referrals
 
 
+# TODO ИСпользуй фильтр на админа если это необходимо либо кстати пользоватлея с подпиской используй можн фильтра дополнмть
 class ReferralRouter(BaseRouter):
     """Router, отвечающий за реферальную функциональность.
 
