@@ -48,7 +48,7 @@ repos:
       - id: pydocstyle
 #        stages: [pre-push]
         args: [ "--ignore=D100,D104,D107,D213,D203,D407" ]
-        files: '^(?!(bot/tests/|bot/migrations/|api/migrations/)).*\.py$'
+        files: '^(?!(bot/tests/|bot/migrations/|api/migrations/|api/tests/)).*\.py$'
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.17.1
@@ -79,4 +79,5 @@ repos:
             \.venv/|
             bot/migrations/|
             api/migrations/|
+            api/tests/|
           )

@@ -1,5 +1,5 @@
-from typing import Tuple
-from unittest.mock import AsyncMock, MagicMock
+import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiogram import Bot
@@ -12,135 +12,52 @@ from bot.utils import commands
 
 
 @pytest.fixture
-def fake_bot() -> AsyncMock:
-    """Создаёт мок объекта бота aiogram.
-
-    Настраивает минимально необходимое поведение:
-    - `get_me` возвращает объект с `first_name`
-    - `set_my_description` успешно выполняется
-    - `send_message` является асинхронным методом
-
-    Returns
-        AsyncMock: Замоканный экземпляр Bot.
-
-    """
+def fake_bot():
     bot = AsyncMock(spec=Bot)
-
     bot.get_me.return_value.first_name = "TestBot"
     bot.set_my_description.return_value = None
     bot.send_message = AsyncMock()
-
     return bot
 
 
 @pytest.fixture
-def fake_logger(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
-    """Создаёт мок логгера и подменяет его в конфигурации.
-
-    Используется для перехвата логирования в тестах, чтобы:
-    - не было реального вывода
-    - можно было проверять вызовы логгера
-
-    Args:
-        monkeypatch (pytest.MonkeyPatch): Инструмент pytest для подмены объектов.
-
-    Returns
-        MagicMock: Замоканный логгер.
-
-    """
+def fake_logger(monkeypatch):
     logger = MagicMock(spec=real_logger)
-
-    # loguru использует bind(), возвращаем тот же объект для цепочек вызовов
     logger.bind.return_value = logger
-
-    # Подменяем логгер в конфиге приложения
     monkeypatch.setattr("bot.core.config.logger", logger)
-
     return logger
 
 
 @pytest.fixture
-def patch_deps(
-    fake_bot: AsyncMock,
-    fake_logger: MagicMock,
-    monkeypatch: pytest.MonkeyPatch,
-) -> Tuple[AsyncMock, MagicMock]:
-    """Подменяет зависимости в модуле commands.
-
-    Заменяет:
-    - bot → на fake_bot
-    - logger → на fake_logger
-    - description → тестовое значение
-    - admin_ids → фиксированный набор
-
-    Args:
-        fake_bot (AsyncMock): Мок бота.
-        fake_logger (MagicMock): Мок логгера.
-        monkeypatch (pytest.MonkeyPatch): Инструмент подмены.
-
-    Returns:
-        Tuple[AsyncMock, MagicMock]: Используемые моки (bot, logger).
-    """
+def patch_deps(fake_bot, fake_logger, monkeypatch):
     monkeypatch.setattr(commands, "bot", fake_bot)
     monkeypatch.setattr(commands, "logger", fake_logger)
-
-    # Подменяем настройки
     monkeypatch.setattr(settings_bot.messages, "description", "Описание работы Бота")
     monkeypatch.setattr(settings_bot, "admin_ids", {123, 456})
-
     return fake_bot, fake_logger
 
 
 @pytest.fixture
-def fake_redis() -> RedisClient:
-    """Создаёт мок Redis-клиента.
-
-    Реальный клиент создаётся, но его методы заменяются на AsyncMock:
-    - `_ensure_connection` → возвращает мок соединения
-    - `set` → всегда True (например, для NX)
-    - `get` → None (значение отсутствует)
-    - `delete` → 1 (одна запись удалена)
-
-    Returns:
-        RedisClient: Замоканный Redis-клиент.
-    """
+def fake_redis():
+    # Создаём экземпляр SettingsRedis, но подменяем методы асинхронными моками
     redis = RedisClient(redis_url="redis://fake_url")
-
-    # Подменяем внутреннее соединение
-    redis._ensure_connection = AsyncMock(return_value=AsyncMock())
-
-    redis.set = AsyncMock(return_value=True)
-    redis.get = AsyncMock(return_value=None)
-    redis.delete = AsyncMock(return_value=1)
-
+    redis._ensure_connection = AsyncMock(
+        return_value=AsyncMock()
+    )  # возвращаем мок соединения
+    redis.set = AsyncMock(return_value=True)  # возвращает True для NX
+    redis.get = AsyncMock(return_value=None)  # если нужен get
+    redis.delete = AsyncMock(return_value=1)  # если нужен delete
     return redis
 
 
 @pytest.fixture
-def fake_redis_service(
-    fake_redis: RedisClient,
-) -> RedisAdminMessageStorage:
-    """Создаёт мок сервиса хранения сообщений админов.
-
-    Методы сервиса подменяются:
-    - `get` → возвращает пустой список
-    - `add` → AsyncMock без результата
-    - `clear` → AsyncMock без результата
-
-    Args:
-        fake_redis (RedisClient): Мок Redis-клиента.
-        fake_logger (MagicMock): Мок логгера (может использоваться внутри сервиса).
-
-    Returns
-        RedisAdminMessageStorage: Замоканный сервис.
-
-    """
-    redis_service = RedisAdminMessageStorage(redis=fake_redis)
-
+def fake_redis_service(fake_redis, fake_logger):
+    redis_service = RedisAdminMessageStorage(
+        redis=fake_redis,
+    )
     redis_service.get = AsyncMock(return_value=[])
     redis_service.add = AsyncMock()
     redis_service.clear = AsyncMock()
-
     return redis_service
 
 

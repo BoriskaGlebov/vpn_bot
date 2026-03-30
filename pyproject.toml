@@ -131,6 +131,7 @@ exclude = [
     "^bot/migrations/",
     "^api/migrations/",
     "^bot/vpn/utils/",
+    "^api/tests/",
 ]
 plugins = [
     "pydantic.mypy",
