@@ -224,8 +224,8 @@ class AsyncDockerSSHClient:
         """Закрывает shell-сессию и соединение."""
         if self._process is not None:
             try:
-                self._process.close()  # Закрываем процесс
-                await self._process.wait_closed()  # Ждём завершения
+                self._process.close()
+                await self._process.wait_closed()
             except (BrokenPipeError, OSError):
                 logger.debug("Shell-сессия уже закрыта")
 
@@ -265,7 +265,7 @@ class AmneziaProxy:
     CONF_DIR = "/usr/local/3proxy/conf"
     USER_FILE = "users.txt"
 
-    def __init__(self, client: AsyncDockerSSHClient, port: str = "40711") -> None:
+    def __init__(self, client: AsyncDockerSSHClient, port: str = "433") -> None:
         self.client = client
         self.port = port
 
@@ -441,7 +441,7 @@ if __name__ == "__main__":
             proxy = AmneziaProxy(client=client, port=settings_bot.proxy_port)
             await proxy._check_container()
             await proxy.add_user(username="user1", password="password")
-            # await proxy.delete_user(username="user1")
+            await proxy.delete_user(username="user1")
             await proxy.reload_3proxy()
 
     asyncio.run(main())

@@ -100,7 +100,6 @@ class LocalEmbeddings(Embeddings):
 
         return embedding[0].tolist()
 
-    # sync методы (fallback для LangChain)
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Синхронная версия генерации эмбеддингов документов."""
         return self._encode_sync(texts).tolist()

@@ -102,6 +102,5 @@ class Device:
                     if not obj["Key"].endswith("/") and obj.get("Size", 0) > 0:
                         files.append(
                             f"{settings_bucket.endpoint_url}/{settings_bucket.bucket_name}/{obj['Key']}?ts={int(time.time())}"
-                            # f"{settings_bucket.endpoint_url}/{settings_bucket.bucket_name}/{obj['Key']}"
                         )
             return files

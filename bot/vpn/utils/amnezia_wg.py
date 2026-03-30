@@ -20,7 +20,7 @@ from bot.vpn.utils.amnezia_exceptions import (
 )
 
 USE_LOCAL = settings_bot.use_local
-CONNECT_TIMEOUT = 10  # секунд, можно вынести в settings
+CONNECT_TIMEOUT = settings_bot.common_timeout
 
 
 class AsyncSSHClientWG:
@@ -92,7 +92,7 @@ class AsyncSSHClientWG:
             )
             self._process = await asyncio.wait_for(
                 self._conn.create_process(f"docker exec -i {self.container} sh;\n"),
-                timeout=CONNECT_TIMEOUT,
+                timeout=settings_bot.common_timeout,
             )
             logger.bind(user=self.username).debug(
                 f"AsyncSSH: подключение и shell-сессия установлены к {self.host}"
@@ -741,7 +741,7 @@ class AsyncSSHClientWG:
             pub_server_key = await self._get_public_server_key()
             correct_ip = await self._get_correct_ip()
             psk = await self._get_psk_key()
-            # Уверяем MyPy, что это точно str
+
             assert private_key is not None
             assert pub_key is not None
             assert pub_server_key is not None
@@ -813,7 +813,6 @@ class AsyncSSHClientWG:
 
             for i, line in enumerate(lines):
                 if line.strip() == "[Peer]":
-                    # Look ahead to see if this is the peer to delete
                     is_target_peer = False
                     for next_line in lines[i + 1 :]:
                         if "PublicKey" in next_line:
@@ -1044,8 +1043,8 @@ if __name__ == "__main__":
         ) as ssh_client:
             await ssh_client.connect()
             await ssh_client.add_new_user_gen_config("boris_blade")
-            # await ssh_client.full_delete_user(
-            #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-            # )
+            await ssh_client.full_delete_user(
+                "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
+            )
 
     asyncio.run(main())
