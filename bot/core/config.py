@@ -34,6 +34,7 @@ class SettingsBot(SettingsApp):
         vpn_host (str): Хост VPN-сервера.
         vpn_username (str): Имя пользователя для подключения к VPN.
         vpn_container (str): Имя Docker-контейнера VPN (если используется).
+        proxy_prefix  (str): Префикс к proxy, для обращения по второму ip.
         vpn_proxy (str) : Имя Docker-контейнера PROXY (если используется).
         proxy_port (str) : Порт для прокси на сервере.
         max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
@@ -42,6 +43,7 @@ class SettingsBot(SettingsApp):
         messages (dict[str, Any]): Словарь с текстами сообщений бота (диалоги, подсказки и т.д.).
         price_map (dict[int, int]): Карта цен подписок по месяцам, может быть задана через .env в JSON.
     Properties
+        common_timeout (uint): Дефолтное время на подключение к удаленному серверу, после Timeout.
         webhook_url (str): URL вебхука. Формируется автоматически на основе BASE_SITE.
 
     """
@@ -53,8 +55,9 @@ class SettingsBot(SettingsApp):
     vpn_host: str
     vpn_username: str
     vpn_container: str
+    proxy_prefix: str
     vpn_proxy: str
-    proxy_port: str = "8443"
+    proxy_port: str = "443"
 
     use_polling: bool = False
     use_local: bool = True
@@ -63,6 +66,7 @@ class SettingsBot(SettingsApp):
         default_factory=lambda: {1: 100, 3: 280, 6: 520, 12: 1000, 7: 0},
         description="Карта цен подписок по месяцам",
     )
+    common_timeout: int = 10
 
     @computed_field
     def webhook_url(self) -> str:
