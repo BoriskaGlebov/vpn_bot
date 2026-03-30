@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
+from bot.vpn.utils.amnezia_exceptions import AmneziaSSHError
 from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
 
 

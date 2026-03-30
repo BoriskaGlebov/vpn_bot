@@ -212,6 +212,7 @@ class SchedulerBotService:
                     tg_id=event.user_id, message=text, event=event
                 )
                 await send_to_admins(bot=self.bot, message_text=text)
+            # TODO Попытка удалить прокси который не существует
             elif isinstance(event, DeleteProxyEventSchema):
                 await self._trigger_proxy_deletion(event.user_id)
                 stats.configs_deleted += 1

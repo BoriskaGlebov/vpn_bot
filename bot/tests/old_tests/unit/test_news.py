@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock
 import pytest
 from aiogram.types import CallbackQuery, Message
 
-from bot.news.keyboards.inline_kb import NewsAction, NewsCB
 from bot.news.router import NewsRouter, NewStates
 from bot.news.services import NewsService
 

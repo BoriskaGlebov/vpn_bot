@@ -1,9 +1,7 @@
 import asyncio
-import importlib
 from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
-from aiogram.types import CallbackQuery
 from box import Box
 
 from bot.help.keyboards.inline_kb import device_keyboard
