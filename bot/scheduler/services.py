@@ -6,12 +6,7 @@ from loguru import logger
 
 from bot.core.config import settings_bot
 from bot.scheduler.adapter import SchedulerAPIAdapter
-from bot.utils.start_stop_bot import send_to_admins
-from bot.vpn.router import ssh_lock
-from bot.vpn.utils.amnezia_exceptions import AmneziaError
-from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
-from shared.schemas.scheduler import (
+from bot.scheduler.schemas import (
     AdminNotifyEventSchema,
     CheckAllSubscriptionsResponse,
     DeletedVPNConfigSchema,
@@ -21,6 +16,11 @@ from shared.schemas.scheduler import (
     SubscriptionEventSchema,
     UserNotifyEventSchema,
 )
+from bot.utils.start_stop_bot import send_to_admins
+from bot.vpn.router import ssh_lock
+from bot.vpn.utils.amnezia_exceptions import AmneziaError
+from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
 m_subscription_local = settings_bot.messages.modes.subscription
 

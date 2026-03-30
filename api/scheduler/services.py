@@ -14,10 +14,10 @@ from api.scheduler.domain.event import (
 )
 from api.scheduler.domain.stats import SubscriptionStats
 from api.scheduler.enums import SubscriptionEventType
+from api.scheduler.schemas import DeletedVPNConfigSchema
 from api.subscription.models import DEVICE_LIMITS, Subscription
 from api.users.models import User
 from api.vpn.models import VPNConfig
-from shared.schemas.scheduler import DeletedVPNConfigSchema
 
 
 class SubscriptionScheduler:

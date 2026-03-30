@@ -1,5 +1,5 @@
 from api.users.models import User
-from shared.schemas.users import (
+from api.users.schemas import (
     SRoleOut,
     SSubscriptionOut,
     SUserOut,

@@ -1,5 +1,5 @@
 from bot.integrations.api_client import APIClient
-from shared.schemas.users import SUser, SUserOut
+from bot.users.schemas import SUser, SUserOut
 
 
 class UsersAPIAdapter:

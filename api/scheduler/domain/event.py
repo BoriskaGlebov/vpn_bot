@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from api.scheduler.enums import SubscriptionEventType
-from shared.schemas.scheduler import DeletedVPNConfigSchema
+from api.scheduler.schemas import DeletedVPNConfigSchema
 
 
 @dataclass

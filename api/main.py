@@ -34,6 +34,7 @@ from api.core.exceptions.handlers.http import (
     database_exception_handler,
     request_validation_handler,
 )
+from api.core.schemas import SHealthResponse
 from api.middleware.auth_middleware import AuthMiddleware
 from api.middleware.logger_context import LogContextMiddleware
 from api.middleware.session_middleware import DBSessionMiddleware
@@ -49,7 +50,6 @@ from api.users.router import router as user_router
 from api.users.utils.init_default_roles import init_default_roles_admins
 from api.vpn.admin import VPNConfigAdmin
 from api.vpn.router import router as vpn_router
-from shared.schemas.health_check import SHealthResponse
 
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [

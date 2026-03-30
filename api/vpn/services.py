@@ -4,9 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.app_error.base_error import UserNotFoundError
 from api.subscription.models import DEVICE_LIMITS
 from api.users.dao import UserDAO
+from api.users.schemas import SUserTelegramID
 from api.vpn.dao import VPNConfigDAO
-from shared.schemas.users import SUserTelegramID
-from shared.schemas.vpn import (
+from api.vpn.schemas import (
     SVPNCheckLimitResponse,
     SVPNConfig,
     SVPNCreateResponse,

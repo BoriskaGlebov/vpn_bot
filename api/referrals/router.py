@@ -5,15 +5,15 @@ from api.app_error.base_error import UserNotFoundError
 from api.core.dependencies import get_session
 from api.core.mapper.user_mapper import UserMapper
 from api.referrals.dependencies import get_referral_service
-from api.referrals.services import ReferralService
-from api.users.dao import UserDAO
-from shared.schemas.referral import (
+from api.referrals.schemas import (
     GrantReferralBonusRequest,
     GrantReferralBonusResponse,
     RegisterReferralRequest,
     RegisterReferralResponse,
 )
-from shared.schemas.users import SUserTelegramID
+from api.referrals.services import ReferralService
+from api.users.dao import UserDAO
+from api.users.schemas import SUserTelegramID
 
 router = APIRouter(prefix="/referrals", tags=["bot", "REFERRALS"])
 

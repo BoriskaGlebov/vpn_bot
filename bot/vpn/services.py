@@ -4,10 +4,10 @@ from aiogram.types import User as TGUser
 
 from bot.app_error.base_error import VPNLimitError
 from bot.users.adapter import UsersAPIAdapter
+from bot.users.schemas import SUser
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
-from shared.schemas.users import SUser
 
 
 class VPNService:

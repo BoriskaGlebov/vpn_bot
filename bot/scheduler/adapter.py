@@ -1,5 +1,5 @@
 from bot.integrations.api_client import APIClient
-from shared.schemas.scheduler import CheckAllSubscriptionsResponse
+from bot.scheduler.schemas import CheckAllSubscriptionsResponse
 
 HTTPStatus = int
 

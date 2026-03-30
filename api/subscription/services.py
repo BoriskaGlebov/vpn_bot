@@ -11,9 +11,9 @@ from api.core.mapper.user_mapper import UserMapper
 from api.subscription.dao import SubscriptionDAO
 from api.subscription.models import SubscriptionType
 from api.users.dao import UserDAO
+from api.users.schemas import SUserOut, SUserTelegramID
 from shared.enums.admin_enum import FilterTypeEnum, RoleEnum
 from shared.enums.subscription_enum import ToggleSubscriptionMode
-from shared.schemas.users import SUserOut, SUserTelegramID
 
 
 class SubscriptionService:

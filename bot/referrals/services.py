@@ -1,11 +1,11 @@
 from loguru import logger
 
 from bot.referrals.adapter import ReferralAPIAdapter
-from shared.schemas.referral import (
+from bot.referrals.schemas import (
     GrantReferralBonusRequest,
     RegisterReferralRequest,
 )
-from shared.schemas.users import SUserOut
+from bot.users.schemas import SUserOut
 
 # TODO Докумнетацию надо переделать
 

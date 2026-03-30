@@ -1,11 +1,11 @@
 from bot.integrations.api_client import APIClient
-from shared.schemas.subscription import (
+from bot.subscription.schemas import (
     ActivateSubscriptionRequest,
     SSubscriptionCheck,
     STrialActivate,
     STrialActivateResponse,
 )
-from shared.schemas.users import SUserOut
+from bot.users.schemas import SUserOut
 
 type HTTPStatus = int
 

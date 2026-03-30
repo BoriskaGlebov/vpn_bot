@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.core.config import settings_api
 from api.core.mapper.user_mapper import UserMapper
 from api.users.dao import UserDAO
-from shared.schemas.users import (
+from api.users.schemas import (
     SRole,
     SUser,
     SUserOut,

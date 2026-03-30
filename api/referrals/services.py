@@ -7,11 +7,11 @@ from api.app_error.base_error import (
     ReferralBonusAlreadyGivenError,
 )
 from api.referrals.dao import ReferralDAO
+from api.referrals.schemas import SReferralByInvite
 from api.subscription.dao import SubscriptionDAO
 from api.subscription.models import SubscriptionType
 from api.users.dao import UserDAO
-from shared.schemas.referral import SReferralByInvite
-from shared.schemas.users import SUserOut, SUserTelegramID
+from api.users.schemas import SUserOut, SUserTelegramID
 
 
 class ReferralService:

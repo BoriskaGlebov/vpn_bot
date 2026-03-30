@@ -1,9 +1,9 @@
 from loguru import logger
 
+from bot.admin.schemas import SChangeRole, SExtendSubscription
 from bot.integrations.api_client import APIClient
+from bot.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
-from shared.schemas.admin import SChangeRole, SExtendSubscription
-from shared.schemas.users import SUserOut
 
 
 class AdminAPIAdapter:

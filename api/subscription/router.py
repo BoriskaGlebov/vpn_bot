@@ -4,15 +4,15 @@ from starlette import status
 
 from api.core.dependencies import get_session
 from api.subscription.dependencies import get_subscription_service
-from api.subscription.services import SubscriptionService
-from shared.enums.subscription_enum import TrialStatus
-from shared.schemas.subscription import (
+from api.subscription.schemas import (
     ActivateSubscriptionRequest,
     SSubscriptionCheck,
     STrialActivate,
     STrialActivateResponse,
 )
-from shared.schemas.users import SUserOut
+from api.subscription.services import SubscriptionService
+from api.users.schemas import SUserOut
+from shared.enums.subscription_enum import TrialStatus
 
 router = APIRouter(prefix="/subscriptions", tags=["bot", "SUBSCRIPTION"])
 

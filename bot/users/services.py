@@ -2,7 +2,7 @@ from aiogram.types import User as TgUser
 from loguru import logger
 
 from bot.users.adapter import UsersAPIAdapter
-from shared.schemas.users import (
+from bot.users.schemas import (
     SUser,
     SUserOut,
 )

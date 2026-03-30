@@ -6,8 +6,8 @@ from api.scheduler.dependencies import (
     get_subscription_scheduler_service,
 )
 from api.scheduler.mapper import map_event, map_stats
+from api.scheduler.schemas import CheckAllSubscriptionsResponse
 from api.scheduler.services import SubscriptionScheduler
-from shared.schemas.scheduler import CheckAllSubscriptionsResponse
 
 router = APIRouter(prefix="/scheduler", tags=["bot", "SCHEDULER"])
 

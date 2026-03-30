@@ -6,7 +6,7 @@ from api.scheduler.domain.event import (
     UserNotifyEvent,
 )
 from api.scheduler.domain.stats import SubscriptionStats
-from shared.schemas.scheduler import (
+from api.scheduler.schemas import (
     AdminNotifyEventSchema,
     DeleteProxyEventSchema,
     DeleteVPNConfigsEventSchema,

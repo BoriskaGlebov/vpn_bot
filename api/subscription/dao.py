@@ -6,7 +6,7 @@ from api.app_error.base_error import AppError, TrialAlreadyUsedError, UserNotFou
 from api.core.dao.base import BaseDAO
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.dao import UserDAO
-from shared.schemas.users import SSubscription, SUserTelegramID
+from api.users.schemas import SSubscription, SUserTelegramID
 
 
 class SubscriptionDAO(BaseDAO[Subscription]):

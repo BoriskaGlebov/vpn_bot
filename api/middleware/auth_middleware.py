@@ -4,7 +4,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.users.dao import UserDAO
-from shared.schemas.users import SUserTelegramID
+from api.users.schemas import SUserTelegramID
 
 
 class AuthMiddleware(BaseHTTPMiddleware):

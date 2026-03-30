@@ -1,5 +1,5 @@
 from bot.integrations.api_client import APIClient
-from shared.schemas.vpn import (
+from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
     SVPNCreateResponse,
     SVPNSubscriptionInfo,

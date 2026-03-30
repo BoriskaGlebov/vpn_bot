@@ -5,7 +5,7 @@ from api.core.config import settings_api
 from api.core.database import connection
 from api.users.dao import RoleDAO
 from api.users.models import Role, User
-from shared.schemas.users import SRole
+from api.users.schemas import SRole
 
 DEFAULT_ROLES = [
     {"name": "admin", "description": "Администратор"},

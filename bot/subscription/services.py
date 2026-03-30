@@ -4,9 +4,9 @@ from bot.core.config import settings_bot
 from bot.subscription.adapter import (
     SubscriptionAPIAdapter,
 )
+from bot.subscription.schemas import SSubscriptionCheck
+from bot.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
-from shared.schemas.subscription import SSubscriptionCheck
-from shared.schemas.users import SUserOut
 
 m_subscription_local = settings_bot.messages.modes.subscription
 

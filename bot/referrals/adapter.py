@@ -1,5 +1,5 @@
 from bot.integrations.api_client import APIClient
-from shared.schemas.referral import (
+from bot.referrals.schemas import (
     GrantReferralBonusRequest,
     GrantReferralBonusResponse,
     RegisterReferralRequest,
