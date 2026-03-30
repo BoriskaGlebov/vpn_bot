@@ -4,6 +4,7 @@ from typing import Any
 
 import uvicorn
 from aiogram.types import Update
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import BaseModel, ValidationError
 from starlette.middleware.sessions import SessionMiddleware
@@ -20,6 +21,7 @@ from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.middleware.user_context import UserContextMiddleware
 from bot.news.router import NewsRouter
 from bot.referrals.router import ReferralRouter
+from bot.scheduler.utils.scheduler_cron import scheduled_check, scheduler
 from bot.subscription.router import SubscriptionRouter
 from bot.users.router import UserRouter
 from bot.utils.start_stop_bot import start_bot, stop_bot
@@ -117,14 +119,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # dp.include_router(ai_router.router)
 
     await start_bot(bot=bot)
-    # scheduler.add_job(
-    #     scheduled_check,
-    #     trigger=IntervalTrigger(seconds=20),
-    #     # trigger=CronTrigger(hour=8, minute=0),
-    #     kwargs={"service": container.scheduler_bot_service},
-    # )
-    # scheduler.start()
-    # logger.info("🕒 Планировщик запущен — проверка каждый день в 8:00")
+    scheduler.add_job(
+        scheduled_check,
+        trigger=IntervalTrigger(seconds=20),
+        # trigger=CronTrigger(hour=8, minute=0),
+        kwargs={"service": container.scheduler_bot_service},
+    )
+    scheduler.start()
+    logger.info("🕒 Планировщик запущен — проверка каждый день в 8:00")
     if settings_bot.use_polling:
         await bot.delete_webhook(drop_pending_updates=True)
 

@@ -8,6 +8,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from bot.core.config import logger
 from bot.scheduler.services import SchedulerBotService
 
+# TODO у меня непишется корректно уведомление об удалении конфига, так же не понятно удалился ли конфиг или нет
+# TODO нет проработки ситуации когда в бд удалилось а на сервере нет
 scheduler = AsyncIOScheduler()
 
 
