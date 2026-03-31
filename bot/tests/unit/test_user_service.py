@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -8,12 +9,33 @@ from bot.users.services import UserService
 
 
 @pytest.fixture
-def users_adapter_mock():
+def users_adapter_mock() -> AsyncMock:
+    """Фикстура мока адаптера пользователей.
+
+    Возвращает:
+        AsyncMock: мок с интерфейсом UsersAPIAdapter.
+    """
     return AsyncMock(spec=UsersAPIAdapter)
 
 
 @pytest.mark.asyncio
-async def test_register_new_user(users_adapter_mock, tg_user, user_out):
+@pytest.mark.asyncio
+async def test_register_new_user(
+    users_adapter_mock: AsyncMock,
+    tg_user: Any,
+    user_out: SUserOut,
+) -> None:
+    """Проверяет регистрацию нового пользователя в сервисе.
+
+    Сценарий:
+        - адаптер возвращает (user, True);
+        - пользователь считается новым.
+
+    Проверяется:
+        - корректный возврат результата;
+        - флаг is_new == True;
+        - корректный вызов адаптера с SUser.
+    """
     users_adapter_mock.register.return_value = (user_out, True)
 
     service = UserService(users_adapter_mock)
@@ -34,7 +56,21 @@ async def test_register_new_user(users_adapter_mock, tg_user, user_out):
 
 
 @pytest.mark.asyncio
-async def test_register_existing_user(users_adapter_mock, tg_user, user_out):
+async def test_register_existing_user(
+    users_adapter_mock: AsyncMock,
+    tg_user: Any,
+    user_out: SUserOut,
+) -> None:
+    """Проверяет сценарий существующего пользователя.
+
+    Сценарий:
+        - адаптер возвращает (user, False).
+
+    Проверяется:
+        - корректный возврат пользователя;
+        - флаг is_new == False.
+    """
+
     users_adapter_mock.register.return_value = (user_out, False)
 
     service = UserService(users_adapter_mock)
@@ -46,7 +82,20 @@ async def test_register_existing_user(users_adapter_mock, tg_user, user_out):
 
 
 @pytest.mark.asyncio
-async def test_username_fallback(users_adapter_mock, user_out):
+async def test_username_fallback(
+    users_adapter_mock: AsyncMock,
+    user_out: SUserOut,
+) -> None:
+    """Проверяет fallback для username.
+
+    Сценарий:
+        - у Telegram пользователя отсутствует username;
+        - сервис должен сгенерировать значение вида "Гость_<id>".
+
+    Проверяется:
+        - корректная генерация username;
+        - передача значения в адаптер.
+    """
     tg_user = type(
         "TgUser",
         (),

@@ -6,7 +6,7 @@ import httpx
 import pytest
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Chat, Message, User
+from aiogram.types import CallbackQuery, Chat, Message, User
 from integrations.api_client import APIClient
 from loguru import logger as real_logger
 from users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
@@ -283,6 +283,35 @@ def make_fake_message():
     return _make
 
 
+@pytest.fixture
+def make_fake_query(make_fake_message):
+    def _make(
+        user_id: int = 999,
+        data: str = "",
+        username: str = "test_admin",
+        first_name: str = "Admin",
+    ):
+        query = AsyncMock(spec=CallbackQuery)
+        query.from_user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=first_name,
+            username=username,
+        )
+        query.message = make_fake_message(user_id)
+        query.id = f"query_{user_id}"
+        query.data = data
+        query.bot = AsyncMock()
+        query.bot.send_message = AsyncMock()
+        # Асинхронные методы
+        query.answer = AsyncMock()
+        query.message.edit_text = AsyncMock()  # чтобы гарантированно был async
+
+        return query
+
+    return _make
+
+
 #
 #
 # @pytest.fixture(scope="session")
@@ -342,33 +371,7 @@ def make_fake_message():
 #     return _make
 #
 #
-# @pytest.fixture
-# def make_fake_query(make_fake_message):
-#     def _make(
-#         user_id: int = 999,
-#         data: str = "",
-#         username: str = "test_admin",
-#         first_name: str = "Admin",
-#     ):
-#         query = AsyncMock(spec=CallbackQuery)
-#         query.from_user = User(
-#             id=user_id,
-#             is_bot=False,
-#             first_name=first_name,
-#             username=username,
-#         )
-#         query.message = make_fake_message(user_id)
-#         query.id = f"query_{user_id}"
-#         query.data = data
-#         query.bot = AsyncMock()
-#         query.bot.send_message = AsyncMock()
-#         # Асинхронные методы
-#         query.answer = AsyncMock()
-#         query.message.edit_text = AsyncMock()  # чтобы гарантированно был async
-#
-#         return query
-#
-#     return _make
+
 #
 #
 # @pytest.fixture
