@@ -9,9 +9,13 @@ from bot.vpn.utils.amnezia_exceptions import AmneziaSSHError
 from bot.vpn.utils.amnezia_proxy import AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
 
-# TODO Тут важно наверно настроить раздачу конфига для бесплптного доступа тестовую версию пусть заюирают
-# может даже рекламу на него повесить и второй вариант основной взять и как то настроить доступ лимитированный
-# с возможностью удлаять тех у кого все истекло
+# TODO Тут важно наверно настроить раздачу конфига для бесплатного доступа
+#  Есть тестовый сервер Финляндия - тестовую версию пусть забирают,
+#  может даже рекламу на него повесить и
+#  второй вариант -  основной сервер взять и как то настроить доступ лимитированный
+#  с возможностью удалять тех у кого подписка истекла
+#  третий вариант пересоздавать контейнер с временным прокси, что б создавали новый.
+#  Основная проблема в тех кто не может получить доступ в телегу для оплаты, как только сделаю сайт это уже будет не важно.
 
 
 class HostDockerSSHClient(AsyncDockerSSHClient):
@@ -28,6 +32,23 @@ class HostDockerSSHClient(AsyncDockerSSHClient):
         use_local (bool): Если True, команды исполняются локально через subprocess.
 
     """
+
+    def __init__(
+        self,
+        host: str,
+        username: str,
+        port: int = 22,
+        known_hosts: str | None = None,
+        use_local: bool = False,
+    ) -> None:
+        """Инициализация класса HostDockerSSHClient."""
+        super().__init__(
+            host=host,
+            username=username,
+            port=port,
+            known_hosts=known_hosts,
+            use_local=use_local,
+        )
 
     async def connect(self) -> None:
         """Устанавливает SSH-соединение с хостом.
@@ -70,7 +91,7 @@ class HostDockerSSHClient(AsyncDockerSSHClient):
             )
             raise
 
-    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int, str]:
+    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int | None, str]:
         """Выполняет команду на хосте напрямую, без захода внутрь контейнера.
 
         Args:
@@ -105,7 +126,13 @@ class HostDockerSSHClient(AsyncDockerSSHClient):
             raise AmneziaSSHError("SSH-соединение не установлено. Вызови connect()")
 
         result = await self._conn.run(cmd)
-        return result.stdout.strip(), result.stderr.strip(), result.exit_status, cmd
+        stdout = (
+            result.stdout if isinstance(result.stdout, str) else result.stdout.decode()
+        )
+        stderr = (
+            result.stderr if isinstance(result.stderr, str) else result.stderr.decode()
+        )
+        return stdout.strip(), stderr.strip(), result.exit_status, cmd
 
 
 class MTProtoProxy:

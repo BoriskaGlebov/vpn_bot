@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Tuple
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -18,6 +18,8 @@ from bot.news.adapter import NewsAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.utils import commands
+from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
 
 @pytest.fixture
@@ -404,6 +406,41 @@ def make_query_photo(make_fake_photo):
     return _make
 
 
+@pytest.fixture
+def mock_asyncssh_connect():
+    """Мок для asyncssh.connect"""
+    with patch(
+        "bot.vpn.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
+    ) as mock_connect:
+        mock_conn = AsyncMock()
+        mock_process = AsyncMock()
+        mock_connect.return_value = mock_conn
+        mock_conn.create_process.return_value = mock_process
+        yield mock_connect, mock_conn, mock_process
+
+
+@pytest.fixture
+def ssh_client():
+    """Создаёт экземпляр клиента"""
+    return AsyncSSHClientWG(
+        host="127.0.0.1",
+        username="testuser",
+        known_hosts=None,
+        container="test-container",
+    )
+
+
+@pytest.fixture
+def ssh_client_vpn():
+    """Создаёт экземпляр клиента"""
+    return AsyncSSHClientVPN(
+        host="127.0.0.1",
+        username="testuser",
+        known_hosts=None,
+        container="test-container",
+    )
+
+
 #
 #
 # @pytest.fixture(scope="session")
@@ -435,38 +472,3 @@ def make_query_photo(make_fake_photo):
 #
 
 #
-
-#
-# @pytest.fixture
-# def mock_asyncssh_connect():
-#     """Мок для asyncssh.connect"""
-#     with patch(
-#         "bot.vpn.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
-#     ) as mock_connect:
-#         mock_conn = AsyncMock()
-#         mock_process = AsyncMock()
-#         mock_connect.return_value = mock_conn
-#         mock_conn.create_process.return_value = mock_process
-#         yield mock_connect, mock_conn, mock_process
-#
-#
-# @pytest.fixture
-# def ssh_client():
-#     """Создаёт экземпляр клиента"""
-#     return AsyncSSHClientWG(
-#         host="127.0.0.1",
-#         username="testuser",
-#         known_hosts=None,
-#         container="test-container",
-#     )
-#
-#
-# @pytest.fixture
-# def ssh_client_vpn():
-#     """Создаёт экземпляр клиента"""
-#     return AsyncSSHClientVPN(
-#         host="127.0.0.1",
-#         username="testuser",
-#         known_hosts=None,
-#         container="test-container",
-#     )
