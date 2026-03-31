@@ -16,6 +16,7 @@ from bot.core.config import settings_bot
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage
+from bot.referrals.adapter import ReferralAPIAdapter
 from bot.utils import commands
 
 
@@ -325,6 +326,13 @@ def news_adapter_mock() -> AsyncMock:
 def mock_admin_adapter():
     """Фикстура для мокнутого AdminAPIAdapter"""
     adapter = AsyncMock(spec=AdminAPIAdapter)
+    return adapter
+
+
+@pytest.fixture
+def mock_referral_adapter():
+    """Фикстура с мокнутым адаптером."""
+    adapter = AsyncMock(spec=ReferralAPIAdapter)
     return adapter
 
 

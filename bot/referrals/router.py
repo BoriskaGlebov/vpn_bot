@@ -2,20 +2,18 @@ from aiogram import Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
     Message,
 )
 from aiogram.types import User as TGUser
 from loguru._logger import Logger
 
 from bot.core.config import settings_bot
+from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.utils.base_router import BaseRouter
 
 m_referrals = settings_bot.messages.modes.referrals
 
 
-# TODO ИСпользуй фильтр на админа если это необходимо либо кстати пользоватлея с подпиской используй можн фильтра дополнмть
 class ReferralRouter(BaseRouter):
     """Router, отвечающий за реферальную функциональность.
 
@@ -47,20 +45,7 @@ class ReferralRouter(BaseRouter):
         """
         await state.clear()
         bot = await self.bot.get_me()
-        ref_link = f"https://t.me/{bot.username}?start=ref_{user.id}"
-
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="📨 Долгое нажатие скопирует ссылку",
-                        url=ref_link,
-                    )
-                ]
-            ]
-        )
-
         await message.answer(
             text=m_referrals.invite,
-            reply_markup=keyboard,
+            reply_markup=referral_kb(bot.username, user.id),
         )

@@ -21,6 +21,7 @@ from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
 from bot.integrations.redis_client import RedisClient
+from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
@@ -205,8 +206,10 @@ class UserRouter(BaseRouter):
                 response_message = welcome_messages.again[0].format(username=full_name)
                 follow_up_message = welcome_messages.again[1]
 
+                bot_inf = await self.bot.get_me()
                 await message.answer(
-                    response_message, reply_markup=ReplyKeyboardRemove()
+                    response_message,
+                    reply_markup=referral_kb(bot_name=bot_inf.username, tg_id=user.id),
                 )
                 await message.answer(
                     follow_up_message,
