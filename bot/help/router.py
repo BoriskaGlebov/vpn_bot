@@ -27,8 +27,6 @@ from bot.utils.base_router import BaseRouter
 
 m_help = settings_bot.messages.modes.help
 
-# TODO ИСпользуй фильтр на админа если это необходимо либо кстати пользоватлея с подпиской используй можн фильтра дополнмть
-
 
 class HelpStates(StatesGroup):  # type: ignore[misc]
     """Состояния FSM для команды /help."""
