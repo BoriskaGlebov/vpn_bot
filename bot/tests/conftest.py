@@ -11,6 +11,7 @@ from integrations.api_client import APIClient
 from loguru import logger as real_logger
 from users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 
+from bot.admin.adapter import AdminAPIAdapter
 from bot.core.config import settings_bot
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
@@ -247,7 +248,7 @@ def user_out(role_out, subscription_out):
 
 @pytest.fixture
 def user_response(user_out):
-    return user_out.model_dump()
+    return user_out.model_dump(mode="json")
 
 
 @pytest.fixture
@@ -318,6 +319,13 @@ def news_adapter_mock() -> AsyncMock:
     mock_adapter = AsyncMock(spec=NewsAPIAdapter)
     mock_adapter.get_recipients.return_value = [1, 2, 3]
     return mock_adapter
+
+
+@pytest.fixture
+def mock_admin_adapter():
+    """Фикстура для мокнутого AdminAPIAdapter"""
+    adapter = AsyncMock(spec=AdminAPIAdapter)
+    return adapter
 
 
 @pytest.fixture

@@ -19,10 +19,10 @@ from bot.admin.keyboards.inline_kb import (
 )
 from bot.admin.services import AdminService
 from bot.app_error.base_error import SubscriptionNotFoundError
+from bot.core.filters import IsAdmin
 from bot.utils.base_router import BaseRouter
 
 
-# TODO ИСпользуй фильтр на админа если это необходимо либо кстати пользоватлея с подпиской используй можн фильтра дополнмть
 class AdminStates(StatesGroup):  # type: ignore[misc]
     """Состояния администратора при управлении пользователями."""
 
@@ -38,12 +38,14 @@ class AdminRouter(BaseRouter):
         self.admin_service = admin_service
 
     def _register_handlers(self) -> None:
+        is_admin = IsAdmin()
         self.router.callback_query.register(
             self.admin_action_callback,
             or_f(
                 UserPageCB.filter(F.action == ActionEnum.ROLE_CHANGE),
                 UserPageCB.filter(F.action == ActionEnum.SUB_MANAGE),
             ),
+            is_admin,
         )
         self.router.callback_query.register(
             self.role_select_callback,
@@ -51,6 +53,7 @@ class AdminRouter(BaseRouter):
                 StateFilter(AdminStates.select_role),
                 UserPageCB.filter(F.action == ActionEnum.ROLE_SELECT),
             ),
+            is_admin,
         )
         self.router.callback_query.register(
             self.sub_select_callback,
@@ -58,6 +61,7 @@ class AdminRouter(BaseRouter):
                 StateFilter(AdminStates.select_period),
                 UserPageCB.filter(F.action == ActionEnum.SUB_SELECT),
             ),
+            is_admin,
         )
         self.router.callback_query.register(
             self.cansel_callback,
@@ -65,14 +69,15 @@ class AdminRouter(BaseRouter):
                 UserPageCB.filter(F.action == ActionEnum.ROLE_CANCEL),
                 UserPageCB.filter(F.action == ActionEnum.SUBSCR_CANCEL),
             ),
+            is_admin,
         )
         self.router.callback_query.register(
-            self.show_filtered_users,
-            AdminCB.filter(),
+            self.show_filtered_users, AdminCB.filter(), is_admin
         )
         self.router.callback_query.register(
             self.user_page_callback,
             UserPageCB.filter(F.action == ActionEnum.NAVIGATE),
+            is_admin,
         )
 
         self.router.message.register(
@@ -84,6 +89,7 @@ class AdminRouter(BaseRouter):
                 ),
                 ~F.text.startswith("/"),
             ),
+            is_admin,
         )
 
     @BaseRouter.log_method
@@ -327,7 +333,7 @@ class AdminRouter(BaseRouter):
         )
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             filter_type = callback_data.filter_type
-            await query.answer(f"Выбрал {filter_type}")
+            await query.answer(f"Выбрал {filter_type.value}")
             users_schemas = await self.admin_service.get_users_by_filter(filter_type)
 
             if not users_schemas:

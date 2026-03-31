@@ -2,9 +2,11 @@ from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 
+from bot.admin.enums import ActionEnum
 from bot.admin.keyboards.inline_kb import AdminCB, UserPageCB
 from bot.admin.router import AdminRouter, AdminStates
 from bot.app_error.base_error import SubscriptionNotFoundError
+from shared.enums.admin_enum import RoleEnum
 
 
 @pytest.mark.asyncio
@@ -14,7 +16,6 @@ async def test_admin_action_callback_role_change(
     fake_logger,
     fake_state,
     make_fake_query,
-    session,
 ):
     # ---- Мокаем admin_service ----
     admin_service = AsyncMock()
@@ -27,10 +28,10 @@ async def test_admin_action_callback_role_change(
 
     # ---- Формируем callback_data ----
     cb = UserPageCB(
-        action="role_change",
+        action=ActionEnum.ROLE_CHANGE,
         telegram_id=123,
         index=0,
-        filter_type="all",
+        filter_type=RoleEnum.USER,
     )
 
     # ---- Создаём query ----
@@ -40,7 +41,6 @@ async def test_admin_action_callback_role_change(
     await router.admin_action_callback(
         query=query,
         state=fake_state,
-        session=session,
         callback_data=cb,
     )
 
@@ -62,9 +62,7 @@ async def test_admin_action_callback_role_change(
     # проверяем клавиатуру (просто что она передана)
     assert "reply_markup" in kwargs
 
-    admin_service.get_user_by_telegram_id.assert_awaited_with(
-        session=session, telegram_id=123
-    )
+    admin_service.get_user_by_telegram_id.assert_awaited_with(telegram_id=123)
     admin_service.format_user_text.assert_awaited()
 
     # проверяем лог
@@ -79,7 +77,6 @@ async def test_admin_action_callback_sub_manage(
     fake_logger,
     make_fake_query,
     fake_state,
-    session,
 ):
     admin_service = AsyncMock()
     admin_service.get_user_by_telegram_id = AsyncMock(
@@ -90,10 +87,10 @@ async def test_admin_action_callback_sub_manage(
     router = AdminRouter(fake_bot, fake_logger, admin_service)
 
     cb = UserPageCB(
-        action="sub_manage",
+        action=ActionEnum.SUB_MANAGE,
         telegram_id=777,
         index=1,
-        filter_type="active",
+        filter_type=RoleEnum.USER,
     )
 
     query = make_fake_query(user_id=999, data="sub_manage", username="admin")
@@ -101,7 +98,6 @@ async def test_admin_action_callback_sub_manage(
     await router.admin_action_callback(
         query=query,
         state=fake_state,
-        session=session,
         callback_data=cb,
     )
 
@@ -122,7 +118,6 @@ async def test_role_select_callback(
     fake_logger,
     make_fake_query,
     fake_state,
-    session,
 ):
     # ---- Мокаем admin_service ----
     admin_service = AsyncMock()
@@ -138,10 +133,10 @@ async def test_role_select_callback(
 
     # ---- callback_data ----
     cb = UserPageCB(
-        action="role_select",
+        action=ActionEnum.ROLE_SELECT,
         telegram_id=123,
         index=0,
-        filter_type="vip",  # это наша новая роль
+        filter_type=RoleEnum.FOUNDER,  # это наша новая роль
     )
 
     # ---- query ----
@@ -155,7 +150,6 @@ async def test_role_select_callback(
     await router.role_select_callback(
         query=query,
         callback_data=cb,
-        session=session,
         state=fake_state,
     )
 
@@ -164,9 +158,8 @@ async def test_role_select_callback(
 
     # ---- Проверяем, что сервис изменил роль ----
     admin_service.change_user_role.assert_awaited_with(
-        session=session,
         telegram_id=123,
-        role_name="vip",
+        role_name=RoleEnum.FOUNDER,
     )
 
     # ---- Проверяем форматирование текста ----
@@ -184,7 +177,7 @@ async def test_role_select_callback(
     )
 
     assert "UPDATED_TEXT" in text
-    assert "Роль пользователя изменена на vip" in text
+    assert "Роль пользователя изменена на founder" in text
 
     # Есть reply_markup
     assert "reply_markup" in kwargs
@@ -205,7 +198,6 @@ async def test_sub_select_callback_success(
     fake_logger,
     make_fake_query,
     fake_state,
-    session,
 ):
     admin_service = AsyncMock()
 
@@ -219,11 +211,11 @@ async def test_sub_select_callback_success(
     router = AdminRouter(fake_bot, fake_logger, admin_service)
 
     cb = UserPageCB(
-        action="sub_select",
+        action=ActionEnum.SUB_SELECT,
         telegram_id=555,
         month=3,
         index=1,
-        filter_type="vip",
+        filter_type=RoleEnum.FOUNDER,
     )
 
     query = make_fake_query(
@@ -234,14 +226,12 @@ async def test_sub_select_callback_success(
 
     await router.sub_select_callback(
         query=query,
-        session=session,
         callback_data=cb,
         state=fake_state,
     )
 
     # extend_user_subscription
     admin_service.extend_user_subscription.assert_awaited_with(
-        session=session,
         telegram_id=555,
         months=3,
     )
@@ -284,7 +274,6 @@ async def test_sub_select_callback_subscription_error(
     fake_logger,
     make_fake_query,
     fake_state,
-    session,
 ):
     admin_service = AsyncMock()
     admin_service.extend_user_subscription.side_effect = SubscriptionNotFoundError(100)
@@ -292,11 +281,11 @@ async def test_sub_select_callback_subscription_error(
     router = AdminRouter(fake_bot, fake_logger, admin_service)
 
     cb = UserPageCB(
-        action="sub_select",
+        action=ActionEnum.SUB_SELECT,
         telegram_id=100,
         month=1,
         index=0,
-        filter_type="vip",
+        filter_type=RoleEnum.FOUNDER,
     )
     query = make_fake_query(
         user_id=999,
@@ -306,7 +295,6 @@ async def test_sub_select_callback_subscription_error(
 
     await router.sub_select_callback(
         query=query,
-        session=session,
         callback_data=cb,
         state=fake_state,
     )
@@ -332,7 +320,6 @@ async def test_cansel_callback(
     fake_bot,
     fake_logger,
     make_fake_query,
-    session,
 ):
     # ---- Мокаем сервис ----
     admin_service = AsyncMock()
@@ -347,10 +334,10 @@ async def test_cansel_callback(
 
     # ---- CallbackData ----
     cb = UserPageCB(
-        action="cansel",
+        action=ActionEnum.ROLE_CANCEL,
         telegram_id=123,
         index=0,
-        filter_type="active",
+        filter_type=RoleEnum.USER,
     )
 
     # ---- Query ----
@@ -364,7 +351,6 @@ async def test_cansel_callback(
     # ---- Вызов ----
     await router.cansel_callback(
         query=query,
-        session=session,
         callback_data=cb,
     )
 
@@ -373,8 +359,7 @@ async def test_cansel_callback(
 
     # ---- Проверяем вызов сервиса ----
     admin_service.get_users_by_filter.assert_awaited_with(
-        session,
-        "active",
+        RoleEnum.USER,
     )
 
     # ---- Проверяем edit_text ----
@@ -401,7 +386,6 @@ async def test_show_filtered_users_empty(
     fake_logger,
     make_fake_query,
     fake_state,
-    session,
 ):
     admin_service = AsyncMock()
     admin_service.get_users_by_filter = AsyncMock(return_value=[])
@@ -409,7 +393,7 @@ async def test_show_filtered_users_empty(
 
     router = AdminRouter(fake_bot, fake_logger, admin_service)
 
-    cb = AdminCB(filter_type="admins")
+    cb = AdminCB(filter_type=RoleEnum.ADMIN)
 
     query = make_fake_query(
         user_id=111,
@@ -421,15 +405,14 @@ async def test_show_filtered_users_empty(
     await router.show_filtered_users(
         query=query,
         callback_data=cb,
-        session=session,
         state=fake_state,
     )
 
     # Ответ callback
-    query.answer.assert_awaited_with("Выбрал admins")
+    query.answer.assert_awaited_with(f"Выбрал {RoleEnum.ADMIN.value}")
 
     # Проверяем вызов сервиса
-    admin_service.get_users_by_filter.assert_awaited_with(session, "admins")
+    admin_service.get_users_by_filter.assert_awaited_with(RoleEnum.ADMIN)
 
     # Должно быть edit_text("Пользователи не найдены.")
     query.message.edit_text.assert_awaited_with("Пользователи не найдены.")
@@ -441,7 +424,7 @@ async def test_show_filtered_users_empty(
     from unittest.mock import call
 
     assert (
-        call("Фильтр admins не вернул пользователей")
+        call(f"Фильтр {RoleEnum.ADMIN} не вернул пользователей")
         in fake_logger.bind.return_value.warning.call_args_list
     )
 
@@ -453,7 +436,6 @@ async def test_show_filtered_users_ok(
     fake_logger,
     make_fake_query,
     fake_state,
-    session,
 ):
     # Данные "пользовательской схемы"
     user_obj = MagicMock()
@@ -465,7 +447,7 @@ async def test_show_filtered_users_ok(
 
     router = AdminRouter(fake_bot, fake_logger, admin_service)
 
-    cb = AdminCB(filter_type="active")
+    cb = AdminCB(filter_type=RoleEnum.USER)
 
     query = make_fake_query(
         user_id=222,
@@ -476,17 +458,15 @@ async def test_show_filtered_users_ok(
     await router.show_filtered_users(
         query=query,
         callback_data=cb,
-        session=session,
         state=fake_state,
     )
 
     # --- Проверяем answer() ---
-    query.answer.assert_awaited_with("Выбрал active")
+    query.answer.assert_awaited_with(f"Выбрал {RoleEnum.USER.value}")
 
     # --- Проверяем вызов сервиса ---
     admin_service.get_users_by_filter.assert_awaited_with(
-        session,
-        "active",
+        RoleEnum.USER,
     )
 
     # --- Проверяем edit_text ---
@@ -511,7 +491,7 @@ async def test_show_filtered_users_ok(
     from unittest.mock import call
 
     assert (
-        call("Фильтр active вернул 1 пользователей")
+        call(f"Фильтр {RoleEnum.USER} вернул 1 пользователей")
         in fake_logger.bind.return_value.info.call_args_list
     )
 
@@ -522,7 +502,6 @@ async def test_user_page_callback_success(
     fake_bot,
     fake_logger,
     make_fake_query,
-    session,
 ):
     # Мокаем сервис
     user_obj = MagicMock()
@@ -535,9 +514,9 @@ async def test_user_page_callback_success(
     router = AdminRouter(fake_bot, fake_logger, admin_service)
 
     cb = UserPageCB(
-        action="navigate",
+        action=ActionEnum.NAVIGATE,
         telegram_id=555,
-        filter_type="active",
+        filter_type=RoleEnum.USER,
         index=0,
     )
 
@@ -550,14 +529,13 @@ async def test_user_page_callback_success(
     await router.user_page_callback(
         query=query,
         callback_data=cb,
-        session=session,
     )
 
     # query.answer
     query.answer.assert_awaited_with("Следующая страница")
 
     # вызов сервиса
-    admin_service.get_users_by_filter.assert_awaited_with(session, "active")
+    admin_service.get_users_by_filter.assert_awaited_with(RoleEnum.USER)
     admin_service.format_user_text.assert_awaited_with(suser=user_obj, key="user")
 
     # edit_text
@@ -573,7 +551,7 @@ async def test_user_page_callback_success(
 
     # лог
     assert (
-        call("Навигация по пользователям фильтра active, страница 1")
+        call(f"Навигация по пользователям фильтра {RoleEnum.USER}, страница 1")
         in fake_logger.bind.return_value.info.call_args_list
     )
 
@@ -584,7 +562,6 @@ async def test_user_page_callback_no_users(
     fake_bot,
     fake_logger,
     make_fake_query,
-    session,
 ):
     admin_service = AsyncMock()
     admin_service.get_users_by_filter.return_value = []
@@ -592,9 +569,9 @@ async def test_user_page_callback_no_users(
     router = AdminRouter(fake_bot, fake_logger, admin_service)
 
     cb = UserPageCB(
-        action="navigate",
+        action=ActionEnum.NAVIGATE,
         telegram_id=555,
-        filter_type="inactive",
+        filter_type=RoleEnum.USER,
         index=0,
     )
 
@@ -607,20 +584,19 @@ async def test_user_page_callback_no_users(
     await router.user_page_callback(
         query=query,
         callback_data=cb,
-        session=session,
     )
 
     # query.answer
     query.answer.assert_awaited_with("Следующая страница")
 
     # вызов сервиса
-    admin_service.get_users_by_filter.assert_awaited_with(session, "inactive")
+    admin_service.get_users_by_filter.assert_awaited_with(RoleEnum.USER)
 
     # edit_text
     query.message.edit_text.assert_awaited_with("Пользователи не найдены.")
 
     # лог warning
     assert (
-        call("Фильтр inactive не вернул пользователей для навигации")
+        call(f"Фильтр {RoleEnum.USER} не вернул пользователей для навигации")
         in fake_logger.bind.return_value.warning.call_args_list
     )
