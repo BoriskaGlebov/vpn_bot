@@ -1,9 +1,15 @@
+from datetime import datetime, timezone
 from typing import Tuple
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 from aiogram import Bot
+from aiogram.fsm.context import FSMContext
+from aiogram.types import Chat, Message, User
+from integrations.api_client import APIClient
 from loguru import logger as real_logger
+from users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 
 from bot.core.config import settings_bot
 from bot.integrations.redis_client import RedisClient
@@ -144,6 +150,139 @@ def fake_redis_service(
     return redis_service
 
 
+@pytest.fixture
+def mock_transport():
+    """Фабрика для создания mock transport."""
+
+    def _factory(handler):
+        return httpx.MockTransport(handler)
+
+    return _factory
+
+
+@pytest.fixture
+async def api_client():
+    clients = []
+
+    async def _create(handler):
+        transport = httpx.MockTransport(handler)
+
+        client = APIClient(
+            base_url="test",
+            port=8000,
+        )
+
+        client._client = httpx.AsyncClient(
+            transport=transport,
+            base_url=client.base_url,
+        )
+
+        clients.append(client)
+        return client
+
+    yield _create
+
+    for client in clients:
+        await client.close()
+
+
+@pytest.fixture
+def user_in():
+    return SUser(
+        telegram_id=123456,
+        username="test_user",
+        first_name="John",
+        last_name="Doe",
+    )
+
+
+@pytest.fixture
+def tg_user():
+    class TgUser:
+        def __init__(self):
+            self.id = 123456
+            self.username = "test_user"
+            self.first_name = "John"
+            self.last_name = "Doe"
+
+    return TgUser()
+
+
+@pytest.fixture
+def role_out():
+    return SRoleOut(
+        id=1,
+        name="user",
+        description="Regular user",
+    )
+
+
+@pytest.fixture
+def subscription_out():
+    return SSubscriptionOut(
+        id=1,
+        type="trial",
+        is_active=True,
+        end_date=None,
+        created_at=datetime.now(tz=timezone.utc),
+    )
+
+
+@pytest.fixture
+def user_out(role_out, subscription_out):
+    return SUserOut(
+        id=1,
+        telegram_id=123456,
+        username="test_user",
+        first_name="John",
+        last_name="Doe",
+        has_used_trial=False,
+        role=role_out,
+        subscriptions=[subscription_out],
+        vpn_configs=[],
+        current_subscription=subscription_out,
+    )
+
+
+@pytest.fixture
+def user_response(user_out):
+    return user_out.model_dump()
+
+
+@pytest.fixture
+def fake_state():
+    fsm = AsyncMock(spec=FSMContext)
+    fsm.get_data = AsyncMock(return_value={})
+    fsm.clear = AsyncMock()
+    fsm.set_state = AsyncMock()
+    return fsm
+
+
+#
+@pytest.fixture
+def make_fake_message():
+    def _make(user_id: int = 123, text: str = "/start"):
+        user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=f"first_name_{user_id}",
+            username=f"username_{user_id}",
+        )
+        chat = Chat(id=user_id, type="private")
+        message = AsyncMock(spec=Message)
+        message.from_user = user
+        message.chat = chat
+        message.text = text
+        message.message_id = 1000 + user_id
+        message.answer = AsyncMock()
+        message.answer_document = AsyncMock()
+        message.edit_text = AsyncMock()
+        message.delete = AsyncMock()
+        return message
+
+    return _make
+
+
 #
 #
 # @pytest.fixture(scope="session")
@@ -173,38 +312,7 @@ def fake_redis_service(
 #         yield session
 #
 #
-# @pytest.fixture
-# def fake_state():
-#     fsm = AsyncMock(spec=FSMContext)
-#     fsm.get_data = AsyncMock(return_value={})
-#     fsm.clear = AsyncMock()
-#     fsm.set_state = AsyncMock()
-#     return fsm
-#
-#
-# @pytest.fixture
-# def make_fake_message():
-#     def _make(user_id: int = 123, text: str = "/start"):
-#         user = User(
-#             id=user_id,
-#             is_bot=False,
-#             first_name=f"first_name_{user_id}",
-#             username=f"username_{user_id}",
-#         )
-#         chat = Chat(id=user_id, type="private")
-#         message = AsyncMock(spec=Message)
-#         message.from_user = user
-#         message.chat = chat
-#         message.text = text
-#         message.message_id = 1000 + user_id
-#         message.answer = AsyncMock()
-#         message.answer_document = AsyncMock()
-#         message.edit_text = AsyncMock()
-#         message.delete = AsyncMock()
-#         return message
-#
-#     return _make
-#
+
 #
 # @pytest.fixture
 # def make_fake_photo():

@@ -51,18 +51,6 @@ class SRole(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class SSubscription(BaseModel):
-    """Схема для создания подписки.
-
-    Attributes
-        user_id (int): Идентификатор подписки, используется в момент создания.
-
-    """
-
-    user_id: int = Field(..., description="Идентификатор пользователя")
-    model_config = ConfigDict(from_attributes=True)
-
-
 class SRoleOut(BaseModel):
     """Схема для вывода роли пользователя."""
 
