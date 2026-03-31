@@ -13,6 +13,7 @@ from users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 
 from bot.core.config import settings_bot
 from bot.integrations.redis_client import RedisClient
+from bot.news.adapter import NewsAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils import commands
 
@@ -312,6 +313,81 @@ def make_fake_query(make_fake_message):
     return _make
 
 
+@pytest.fixture
+def news_adapter_mock() -> AsyncMock:
+    mock_adapter = AsyncMock(spec=NewsAPIAdapter)
+    mock_adapter.get_recipients.return_value = [1, 2, 3]
+    return mock_adapter
+
+
+@pytest.fixture
+def make_fake_photo():
+    def _make(user_id: int = 123):
+        user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=f"first_name_{user_id}",
+            username=f"username_{user_id}",
+        )
+        chat = Chat(id=user_id, type="private")
+        message = AsyncMock(spec=Message)
+        message.from_user = user
+        message.chat = chat
+        message.message_id = 1000 + user_id
+        # Для теста с фото
+        message.photo = [type("Photo", (), {"file_id": "file123"})()]
+        message.caption = "Caption text"
+        message.text = None  # текст отсутствует, чтобы сработал блок для фото
+        # Асинхронные методы
+        message.answer = AsyncMock()
+        message.answer_photo = AsyncMock()
+        message.edit_text = AsyncMock()
+        message.delete = AsyncMock()
+        return message
+
+    return _make
+
+
+@pytest.fixture
+def make_query_photo(make_fake_photo):
+    """Фикстура для создания CallbackQuery с сообщением, содержащим фото."""
+
+    def _make(
+        user_id: int = 999,
+        data: str = "",
+        username: str = "test_admin",
+        first_name: str = "Admin",
+    ):
+        query = AsyncMock(spec=CallbackQuery)
+        query.from_user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=first_name,
+            username=username,
+        )
+
+        # Используем make_fake_photo для создания сообщения с фото
+        message = make_fake_photo(user_id)
+        query.message = message
+
+        query.id = f"query_{user_id}"
+        query.data = data
+        query.bot = AsyncMock()
+        query.bot.send_message = AsyncMock()
+        query.bot.send_photo = AsyncMock()  # нужен для confirm_news_handler
+
+        # Асинхронные методы
+        query.answer = AsyncMock()
+        query.message.edit_text = AsyncMock()
+        query.message.edit_caption = (
+            AsyncMock()
+        )  # чтобы можно было редактировать caption
+
+        return query
+
+    return _make
+
+
 #
 #
 # @pytest.fixture(scope="session")
@@ -343,76 +419,7 @@ def make_fake_query(make_fake_message):
 #
 
 #
-# @pytest.fixture
-# def make_fake_photo():
-#     def _make(user_id: int = 123):
-#         user = User(
-#             id=user_id,
-#             is_bot=False,
-#             first_name=f"first_name_{user_id}",
-#             username=f"username_{user_id}",
-#         )
-#         chat = Chat(id=user_id, type="private")
-#         message = AsyncMock(spec=Message)
-#         message.from_user = user
-#         message.chat = chat
-#         message.message_id = 1000 + user_id
-#         # Для теста с фото
-#         message.photo = [type("Photo", (), {"file_id": "file123"})()]
-#         message.caption = "Caption text"
-#         message.text = None  # текст отсутствует, чтобы сработал блок для фото
-#         # Асинхронные методы
-#         message.answer = AsyncMock()
-#         message.answer_photo = AsyncMock()
-#         message.edit_text = AsyncMock()
-#         message.delete = AsyncMock()
-#         return message
-#
-#     return _make
-#
-#
 
-#
-#
-# @pytest.fixture
-# def make_query_photo(make_fake_photo):
-#     """Фикстура для создания CallbackQuery с сообщением, содержащим фото."""
-#
-#     def _make(
-#         user_id: int = 999,
-#         data: str = "",
-#         username: str = "test_admin",
-#         first_name: str = "Admin",
-#     ):
-#         query = AsyncMock(spec=CallbackQuery)
-#         query.from_user = User(
-#             id=user_id,
-#             is_bot=False,
-#             first_name=first_name,
-#             username=username,
-#         )
-#
-#         # Используем make_fake_photo для создания сообщения с фото
-#         message = make_fake_photo(user_id)
-#         query.message = message
-#
-#         query.id = f"query_{user_id}"
-#         query.data = data
-#         query.bot = AsyncMock()
-#         query.bot.send_message = AsyncMock()
-#         query.bot.send_photo = AsyncMock()  # нужен для confirm_news_handler
-#
-#         # Асинхронные методы
-#         query.answer = AsyncMock()
-#         query.message.edit_text = AsyncMock()
-#         query.message.edit_caption = (
-#             AsyncMock()
-#         )  # чтобы можно было редактировать caption
-#
-#         return query
-#
-#     return _make
-#
 #
 # @pytest.fixture
 # def mock_asyncssh_connect():

@@ -27,8 +27,6 @@ from bot.utils.start_stop_bot import send_to_admins
 
 m_news = settings_bot.messages.modes.news
 
-# TODO ИСпользуй фильтр на админа если это необходимо либо кстати пользоватлея с подпиской используй можн фильтра дополнмть
-
 
 class NewStates(StatesGroup):  # type: ignore[misc]
     """FSM состояния для создания и отправки новости.
@@ -84,7 +82,7 @@ class NewsRouter(BaseRouter):
         (
             self.router.message.register(
                 self.mistake_handler_user,
-                and_f(StateFilter(NewStates.confirm_news), F.text),
+                and_f(StateFilter(NewStates.confirm_news), F.text, is_admin),
             ),
         )
 
