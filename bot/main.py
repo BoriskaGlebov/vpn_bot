@@ -6,8 +6,7 @@ import uvicorn
 from aiogram.types import Update
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request, Response
-from pydantic import BaseModel, ValidationError
-from starlette.middleware.sessions import SessionMiddleware
+from pydantic import ValidationError
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
@@ -15,6 +14,7 @@ from bot.admin.router import AdminRouter
 # from bot.ai.router import AIRouter
 from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
+from bot.core.schemas import SHealthResponse
 from bot.help.router import HelpRouter
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
@@ -121,7 +121,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await start_bot(bot=bot)
     scheduler.add_job(
         scheduled_check,
-        trigger=IntervalTrigger(seconds=20),
+        trigger=IntervalTrigger(seconds=20, minutes=25),
         # trigger=CronTrigger(hour=8, minute=0),
         kwargs={"service": container.scheduler_bot_service},
     )
@@ -159,10 +159,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Отключение от Redis и API")
     except Exception as e:
         logger.exception(f"Ошибка при отключении от Redis: {e}")
-    # try:
-    #     scheduler.shutdown(wait=False)
-    # except Exception as e:
-    #     logger.exception(f"Ошибка при отключении Scheduler: {e}")
+    try:
+        scheduler.shutdown(wait=False)
+    except Exception as e:
+        logger.exception(f"Ошибка при отключении Scheduler: {e}")
 
 
 # Метаданные для OpenAPI
@@ -192,29 +192,6 @@ ___
     },
     lifespan=lifespan,
 )
-
-app.add_middleware(
-    SessionMiddleware, secret_key=settings_bot.session_secret.get_secret_value()
-)
-# authentication_backend = AdminAuth(
-#     secret_key=settings_bot.session_secret.get_secret_value()
-# )
-
-# templates = Jinja2Templates(directory="bot/templates")
-# admin = Admin(
-#     app,
-#     engine,
-#     title="Админ панель Админа",
-#     templates_dir="bot/templates",
-#     authentication_backend=authentication_backend,
-# )
-# admin.add_view(UserAdmin)
-# admin.add_view(RoleAdmin)
-# admin.add_view(SubscriptionAdmin)
-# admin.add_view(VPNConfigAdmin)
-# admin.add_view(ReferralAdmin)
-
-# app.include_router(router_user)
 
 
 @app.post(
@@ -265,22 +242,9 @@ async def webhook(request: Request) -> Response:
     return Response(status_code=200)
 
 
-class HealthResponse(BaseModel):
-    """Представляет состояние здоровья FastAPI-сервиса.
-
-    Attributes
-        status (str): Статус сервиса. Обычно "ok", если сервис работает корректно.
-        message (str): Читаемое человеком сообщение о состоянии сервиса.
-
-    """
-
-    status: str
-    message: str
-
-
 @app.get(
     "/health",
-    response_model=HealthResponse,
+    response_model=SHealthResponse,
     tags=[
         "webhook",
     ],

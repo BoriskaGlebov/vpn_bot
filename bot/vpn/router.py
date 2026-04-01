@@ -206,7 +206,6 @@ class VPNRouter(BaseRouter):
                     async with HostDockerSSHClient(
                         host=f"{settings_bot.proxy_prefix}.{settings_bot.vpn_host}",
                         username=settings_bot.vpn_username,
-                        container=settings_bot.vpn_proxy,
                     ) as client:
                         info = await self.vpn_service.get_subscription_info(
                             tg_id=user.id
