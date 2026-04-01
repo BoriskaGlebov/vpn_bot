@@ -15,6 +15,7 @@ from loguru._logger import Logger
 
 from bot.app_error.base_error import UserNotFoundError
 from bot.core.config import settings_bot
+from bot.core.filters import IsAdmin
 from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
@@ -40,7 +41,6 @@ from shared.enums.admin_enum import FilterTypeEnum
 m_subscription = settings_bot.messages.modes.subscription
 
 
-# TODO ИСпользуй фильтр на админа если это необходимо либо кстати пользоватлея с подпиской используй можн фильтра дополнмть
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
     """Состояния FSM для процесса оформления подписки."""
 
@@ -66,6 +66,7 @@ class SubscriptionRouter(BaseRouter):
         self.redis_service = redis_service
 
     def _register_handlers(self) -> None:
+        is_admin = IsAdmin()
         self.router.message.register(
             self.start_subscription,
             or_f(
@@ -101,10 +102,12 @@ class SubscriptionRouter(BaseRouter):
         self.router.callback_query.register(
             self.admin_confirm_payment,
             AdminPaymentCB.filter(F.action == AdminPaymentAction.CONFIRM),
+            is_admin,
         )
         self.router.callback_query.register(
             self.admin_decline_payment,
             AdminPaymentCB.filter(F.action == AdminPaymentAction.DECLINE),
+            is_admin,
         )
         self.router.message.register(
             self.mistake_handler_user,
