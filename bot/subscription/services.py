@@ -56,7 +56,7 @@ class SubscriptionService:
     def __init__(self, adapter: SubscriptionAPIAdapter) -> None:
         self.api_adapter = adapter
 
-    async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool]:
+    async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool, bool]:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
 
         Args:
@@ -67,6 +67,7 @@ class SubscriptionService:
                 - bool: True, если у пользователя премиум-подписка, иначе False.
                 - RoleEnum: Роль пользователя (например, "founder", "user" и т.д.).
                 - bool: True, если подписка активна, иначе False.
+                - boo;: Использовал ли триал.
 
         Raises
             UserNotFoundError: Если пользователь с указанным Telegram ID не найден.
@@ -74,7 +75,7 @@ class SubscriptionService:
         """
         data = await self.api_adapter.check_premium(tg_id=tg_id)
         check = SSubscriptionCheck.model_validate(data)
-        return check.premium, check.role, check.is_active
+        return check.premium, check.role, check.is_active, check.used_trial
 
     async def start_trial_subscription(self, tg_id: int, days: int) -> None:
         """Активирует пробный период подписки для пользователя.

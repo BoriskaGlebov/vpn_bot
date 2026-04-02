@@ -63,7 +63,8 @@ async def check_all(
     stats, events = await service.check_all_subscriptions(
         session=session,
     )
-
+    print(stats)
+    print(events)
     return CheckAllSubscriptionsResponse(
         stats=map_stats(stats),
         events=[map_event(e) for e in events],

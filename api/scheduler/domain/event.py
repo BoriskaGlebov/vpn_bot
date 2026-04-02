@@ -14,6 +14,9 @@ class BaseEvent:
     """
 
     type: SubscriptionEventType
+    username: str | None
+    first_name: str | None
+    last_name: str | None
 
 
 @dataclass

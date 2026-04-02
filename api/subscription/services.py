@@ -22,7 +22,7 @@ class SubscriptionService:
     @staticmethod
     async def check_premium(
         session: AsyncSession, tg_id: int
-    ) -> tuple[bool, RoleEnum, bool]:
+    ) -> tuple[bool, RoleEnum, bool, bool]:
         """Проверяет наличие активной премиум-подписки у пользователя.
 
         Args:
@@ -34,6 +34,7 @@ class SubscriptionService:
                 - bool: True, если активна премиум-подписка
                 - RoleEnum: роль пользователя
                 - bool: активна ли текущая подписка
+                - bool: использовал ли триал.
 
         Raises
             UserNotFoundError: если пользователь не найден
@@ -60,9 +61,19 @@ class SubscriptionService:
             user_model.current_subscription.is_active,
         )
         if premium and premium == ToggleSubscriptionMode.PREMIUM:
-            return True, RoleEnum(founder.name), is_active_sbscr
+            return (
+                True,
+                RoleEnum(founder.name),
+                is_active_sbscr,
+                user_model.has_used_trial,
+            )
         else:
-            return False, RoleEnum(founder.name), is_active_sbscr
+            return (
+                False,
+                RoleEnum(founder.name),
+                is_active_sbscr,
+                user_model.has_used_trial,
+            )
 
     @staticmethod
     async def start_trial_subscription(

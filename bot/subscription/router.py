@@ -121,6 +121,7 @@ class SubscriptionRouter(BaseRouter):
             ),
         )
 
+    # TODO Когда пользователь продлевает подписку, я не знаю использовал он триал или нет надо об этом подумать.
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def start_subscription(
@@ -141,6 +142,7 @@ class SubscriptionRouter(BaseRouter):
                 is_premium,
                 role,
                 is_active_sbscr,
+                used_trial,
             ) = await self.subscription_service.check_premium(tg_id=user.id)
             await message.answer(
                 text="Начнем оформление подписки", reply_markup=ReplyKeyboardRemove()
@@ -151,16 +153,14 @@ class SubscriptionRouter(BaseRouter):
                 )
                 kb = subscription_options_kb(
                     premium=False,
-                    trial=not is_active_sbscr,
+                    trial=not used_trial,
                     founder=bool(role == FilterTypeEnum.FOUNDER),
                 )
             else:
                 text = m_subscription.premium_start.format(
                     device_limit=settings_bot.max_configs_per_user * 2
                 )
-                kb = subscription_options_kb(
-                    premium=is_premium, trial=not is_active_sbscr
-                )
+                kb = subscription_options_kb(premium=is_premium, trial=not used_trial)
                 await state.update_data(premium=is_premium)
             await message.answer(
                 text=text,

@@ -10,7 +10,6 @@ from bot.scheduler.schemas import (
     AdminNotifyEventSchema,
     CheckAllSubscriptionsResponse,
     DeletedVPNConfigSchema,
-    DeleteProxyEventSchema,
     DeleteVPNConfigsEventSchema,
     EventBase,
     SubscriptionEventSchema,
@@ -84,27 +83,27 @@ class SchedulerBotService:
         return await self.api_adapter.check_all()
 
     async def _handle_delete_events(
-        self, events: list[SubscriptionEventSchema]
+        self, events: list[type[SubscriptionEventSchema],]
     ) -> None:
         """Обрабатывает события, полученные от планировщика."""
         for event in events:
             if isinstance(event, DeleteVPNConfigsEventSchema):
                 await self._trigger_config_deletion(event.user_id, event.configs)
-            elif isinstance(event, DeleteProxyEventSchema):
-                await self._trigger_proxy_deletion(event.user_id)
+            # elif isinstance(event, DeleteProxyEventSchema):
+            #     await self._trigger_proxy_deletion(event.user_id)
             else:
                 # сюда можно логировать неизвестный event
                 continue
 
     async def _handle_notify_events(
-        self, events: list[SubscriptionEventSchema]
+        self, events: list[type[SubscriptionEventSchema]]
     ) -> None:
         """Обрабатывает события, полученные от планировщика."""
         for event in events:
             if isinstance(event, UserNotifyEventSchema):
-                await self._send_user_message(event.user_id, event.message)
+                await self._send_user_message(event.user_id, event.message, event)
             elif isinstance(event, AdminNotifyEventSchema):
-                await self._send_admin_message(event.message)
+                await send_to_admins(bot=self.bot, message_text=event.message)
             else:
                 # сюда можно логировать неизвестный event
                 continue
@@ -203,7 +202,6 @@ class SchedulerBotService:
             notified=0,
             configs_deleted=result.stats.configs_deleted,
         )
-        print(result.events)
         for event in result.events:
             if isinstance(event, DeleteVPNConfigsEventSchema):
                 await self._trigger_config_deletion(event.user_id, event.configs)
@@ -211,11 +209,22 @@ class SchedulerBotService:
                 await self._send_user_message(
                     tg_id=event.user_id, message=text, event=event
                 )
-                await send_to_admins(bot=self.bot, message_text=text)
+                admin_text = (
+                    m_subscription_local.expire_subscription.admin_stats.format(
+                        tg_id=event.user_id,
+                        username=f"@{event.username}",
+                        first_name=event.first_name,
+                        last_name=event.last_name,
+                        file_name="\n".join(
+                            [configs.file_name for configs in event.configs]
+                        ),
+                    )
+                )
+                await send_to_admins(bot=self.bot, message_text=admin_text)
             # TODO Попытка удалить прокси который не существует
-            elif isinstance(event, DeleteProxyEventSchema):
-                await self._trigger_proxy_deletion(event.user_id)
-                stats.configs_deleted += 1
+            # elif isinstance(event, DeleteProxyEventSchema):
+            #     await self._trigger_proxy_deletion(event.user_id)
+            #     stats.configs_deleted += 1
 
             # Обработка уведомлений
         for event in result.events:
@@ -227,6 +236,7 @@ class SchedulerBotService:
             elif isinstance(event, AdminNotifyEventSchema):
                 await send_to_admins(bot=self.bot, message_text=event.message)
                 stats.notified += 1
+        print(stats)
         await send_to_admins(
             bot=self.bot,
             message_text=m_subscription_local.daily_check.format(

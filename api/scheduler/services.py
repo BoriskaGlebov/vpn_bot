@@ -7,7 +7,6 @@ from sqlalchemy.orm import selectinload
 from api.scheduler.domain.event import (
     AdminNotifyEvent,
     DeletedVPNConfig,
-    DeleteProxyEvent,
     DeleteVPNConfigsEvent,
     SubscriptionEvent,
     UserNotifyEvent,
@@ -35,7 +34,7 @@ class SubscriptionScheduler:
 
     async def _process_user(
         self, session: AsyncSession, user: User
-    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
+    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
         """Обрабатывает подписку конкретного пользователя и собирает статистику.
 
         Метод проверяет текущую подписку пользователя и выполняет следующие действия:
@@ -56,7 +55,7 @@ class SubscriptionScheduler:
 
         """
         stats = SubscriptionStats()
-        events: list[SubscriptionEvent] = []
+        events: list[type[SubscriptionEvent]] = []
 
         sub = user.current_subscription
         if not sub:
@@ -79,7 +78,7 @@ class SubscriptionScheduler:
 
     async def _handle_expired(
         self, session: AsyncSession, user: User, sub: Subscription
-    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
+    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
         """Обрабатывает истёкшую подписку пользователя.
 
         Если подписка активна, деактивирует её и отправляет уведомление пользователю.
@@ -98,7 +97,7 @@ class SubscriptionScheduler:
 
         """
         stats = SubscriptionStats()
-        events: list[SubscriptionEvent] = []
+        events: list[type[SubscriptionEvent]] = []
 
         if sub.is_active:
             sub.is_active = False
@@ -108,7 +107,10 @@ class SubscriptionScheduler:
                 UserNotifyEvent(
                     type=SubscriptionEventType.USER_NOTIFY,
                     user_id=user.telegram_id,
-                    active_sbs=user.current_subscription.is_active,
+                    username=user.username or "undefined",
+                    first_name=user.first_name or "undefined",
+                    last_name=user.last_name or "undefined",
+                    active_sbs=bool(user.current_subscription.is_active),
                     message="Подписка истекла",
                     subscription_type=(
                         user.current_subscription.type.value.upper()
@@ -138,22 +140,33 @@ class SubscriptionScheduler:
                         DeleteVPNConfigsEvent(
                             type=SubscriptionEventType.DELETE_VPN_CONFIGS,
                             user_id=user.telegram_id,
+                            username=user.username or "undefined",
+                            first_name=user.first_name or "undefined",
+                            last_name=user.last_name or "undefined",
                             configs=files,
                         )
                     )
 
-                    events.append(
-                        DeleteProxyEvent(
-                            type=SubscriptionEventType.DELETE_PROXY,
-                            user_id=user.telegram_id,
-                        )
-                    )
+                    # events.append(
+                    #     DeleteProxyEvent(
+                    #         type=SubscriptionEventType.DELETE_PROXY,
+                    #         user_id=user.telegram_id,
+                    #     )
+                    # )
                     for file in files:
                         events.append(
                             AdminNotifyEvent(
                                 type=SubscriptionEventType.ADMIN_NOTIFY,
                                 user_id=user.telegram_id,
-                                message=f"Произошло удаление конфиг файла {file} (истекла подписка) у {user.telegram_id} (@{user.username})",
+                                username=user.username or "undefined",
+                                first_name=user.first_name or "undefined",
+                                last_name=user.last_name or "undefined",
+                                message=(
+                                    f"⚠️ Удалён VPN-конфиг\n"
+                                    f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
+                                    f"📄 Файл: {file}\n"
+                                    f"⏳ Причина: истекла подписка"
+                                ),
                             )
                         )
 
@@ -161,7 +174,7 @@ class SubscriptionScheduler:
 
     async def _handle_expiring_soon(
         self, user: User, sub: Subscription
-    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
+    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
         """Обрабатывает подписку, которая скоро истечет, и уведомляет пользователя.
 
         Если до окончания подписки осталось 3 дня или меньше, отправляется
@@ -179,7 +192,7 @@ class SubscriptionScheduler:
 
         """
         stats = SubscriptionStats()
-        events: list[SubscriptionEvent] = []
+        events: list[type[SubscriptionEvent]] = []
 
         remaining = sub.remaining_days()
 
@@ -188,6 +201,9 @@ class SubscriptionScheduler:
                 UserNotifyEvent(
                     type=SubscriptionEventType.USER_NOTIFY,
                     user_id=user.telegram_id,
+                    username=user.username or "undefined",
+                    first_name=user.first_name or "undefined",
+                    last_name=user.last_name or "undefined",
                     message=f"Осталось {remaining} дней подписки",
                     subscription_type=(
                         user.current_subscription.type.value.upper()
@@ -203,7 +219,7 @@ class SubscriptionScheduler:
 
     async def _handle_unlimited_overuse(
         self, session: AsyncSession, user: User
-    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
+    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
         """Обрабатывает превышение лимита VPN-конфигов для пользователя.
 
         Если количество VPN-конфигов пользователя превышает допустимый лимит
@@ -222,7 +238,7 @@ class SubscriptionScheduler:
 
         """
         stats = SubscriptionStats()
-        events: list[SubscriptionEvent] = []
+        events: list[type[SubscriptionEvent]] = []
 
         sub = user.current_subscription
         if not sub or not sub.is_active:
@@ -243,6 +259,9 @@ class SubscriptionScheduler:
                 DeleteVPNConfigsEvent(
                     type=SubscriptionEventType.DELETE_VPN_CONFIGS,
                     user_id=user.telegram_id,
+                    username=user.username or "undefined",
+                    first_name=user.first_name or "undefined",
+                    last_name=user.last_name or "undefined",
                     configs=files,
                 )
             )
@@ -273,7 +292,7 @@ class SubscriptionScheduler:
 
     async def check_all_subscriptions(
         self, session: AsyncSession
-    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
+    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
         """Проверяет все подписки пользователей и собирает статистику.
 
         Метод выполняет выборку всех пользователей с подгрузкой их подписок,
@@ -303,7 +322,7 @@ class SubscriptionScheduler:
         users = result.scalars().all()
 
         stats = SubscriptionStats()
-        events: list[SubscriptionEvent] = []
+        events: list[type[SubscriptionEvent]] = []
 
         for user in users:
             stats.checked += 1

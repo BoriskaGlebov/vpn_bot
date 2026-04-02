@@ -17,6 +17,7 @@ class SSubscriptionCheck(BaseModel):
     premium: bool = Field(..., description="Активна ли премиум-подписка")
     role: RoleEnum = Field(..., description="Роль пользователя")
     is_active: bool = Field(..., description="Активность текущей подписки")
+    used_trial: bool = Field(..., description="Использован ли триал.")
 
 
 class STrialActivate(BaseModel):

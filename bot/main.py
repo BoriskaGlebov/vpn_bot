@@ -121,7 +121,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await start_bot(bot=bot)
     scheduler.add_job(
         scheduled_check,
-        trigger=IntervalTrigger(seconds=20, minutes=25),
+        trigger=IntervalTrigger(seconds=20),
         # trigger=CronTrigger(hour=8, minute=0),
         kwargs={"service": container.scheduler_bot_service},
     )

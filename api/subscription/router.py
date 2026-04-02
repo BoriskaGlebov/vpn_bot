@@ -38,15 +38,13 @@ async def check_premium(
         SSubscriptionCheck: статус подписки, роль и активность.
 
     """
-    premium, role, is_active = await service.check_premium(
+    premium, role, is_active, used_trial = await service.check_premium(
         session=session,
         tg_id=tg_id,
     )
 
     return SSubscriptionCheck(
-        premium=premium,
-        role=role,
-        is_active=is_active,
+        premium=premium, role=role, is_active=is_active, used_trial=used_trial
     )
 
 
