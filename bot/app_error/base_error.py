@@ -19,6 +19,12 @@ class AppError(Exception):
         return base
 
 
+class MessageNotFoundError(AppError):
+    """Ошибка сообщения для редактирования не найдено."""
+
+    pass
+
+
 class UserNotFoundError(AppError):
     """Пользователь не найден."""
 

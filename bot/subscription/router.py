@@ -14,7 +14,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
 from bot.app_error.api_error import APIClientConflictError
-from bot.app_error.base_error import UserNotFoundError
+from bot.app_error.base_error import MessageNotFoundError, UserNotFoundError
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
 from bot.redis_service import RedisAdminMessageStorage
@@ -126,7 +126,6 @@ class SubscriptionRouter(BaseRouter):
             F.text == MainMenuText.CHECK_STATUS.value,
         )
 
-    # TODO Когда пользователь продлевает подписку, я не знаю использовал он триал или нет надо об этом подумать.
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def start_subscription(
@@ -299,7 +298,7 @@ class SubscriptionRouter(BaseRouter):
             await state.set_state(SubscriptionStates.wait_for_paid)
             months = callback_data.months
             price_map = settings_bot.price_map
-            premium = (await state.get_data()).get("premium")
+            premium = (await state.get_data()).get("premium", False)
             price = price_map[months] * 2 if premium else price_map[months]
 
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
@@ -454,24 +453,39 @@ class SubscriptionRouter(BaseRouter):
                     user_logger.warning(str(exc))
                 else:
                     raise
-
-            await edit_admin_messages(
-                bot=self.bot,
-                user_id=user_id,
-                new_text=m_subscription.get("accept_paid", {})
-                .get("admin", "")
-                .format(
+            try:
+                await edit_admin_messages(
+                    bot=self.bot,
                     user_id=user_id,
-                    premium=(
-                        f"{ToggleSubscriptionMode.PREMIUM.upper()}"
-                        if premium
-                        else f"{ToggleSubscriptionMode.STANDARD.upper()}"
+                    new_text=m_subscription.accept_paid.admin.format(
+                        user_id=user_id,
+                        premium=(
+                            f"{ToggleSubscriptionMode.PREMIUM.upper()}"
+                            if premium
+                            else f"{ToggleSubscriptionMode.STANDARD.upper()}"
+                        ),
+                        username=user_schema.username,
                     ),
-                    username=user_schema.username,
-                ),
-                admin_mess_storage=self.redis_service,
-            )
-            await state.clear()
+                    admin_mess_storage=self.redis_service,
+                )
+                await state.clear()
+            except MessageNotFoundError as exc:
+                user_logger.warning(str(exc))
+                await self.bot.delete_message(
+                    chat_id=msg.chat.id, message_id=msg.message_id
+                )
+                await send_to_admins(
+                    bot=self.bot,
+                    message_text=m_subscription.accept_paid.admin.format(
+                        user_id=user_id,
+                        premium=(
+                            f"{ToggleSubscriptionMode.PREMIUM.upper()}"
+                            if premium
+                            else f"{ToggleSubscriptionMode.STANDARD.upper()}"
+                        ),
+                        username=user_schema.username,
+                    ),
+                )
 
     @BaseRouter.log_method
     @BaseRouter.require_message

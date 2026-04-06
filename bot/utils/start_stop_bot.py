@@ -2,6 +2,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup, Message
 
+from bot.app_error.base_error import MessageNotFoundError
 from bot.core.config import logger, settings_bot
 from bot.redis_service import RedisAdminMessageStorage
 from bot.utils.commands import set_bot_commands
@@ -69,16 +70,19 @@ async def edit_admin_messages(
 
     """
     admin_messages = await admin_mess_storage.get(user_id)
-    for msg in admin_messages:
-        try:
-            await bot.edit_message_text(
-                chat_id=msg["chat_id"], message_id=msg["message_id"], text=new_text
-            )
-        except TelegramBadRequest:
-            logger.warning(
-                f"Не удалось отредактировать сообщение {msg['chat_id']}:{msg['message_id']}"
-            )
-            continue
+    if admin_messages:
+        for msg in admin_messages:
+            try:
+                await bot.edit_message_text(
+                    chat_id=msg["chat_id"], message_id=msg["message_id"], text=new_text
+                )
+            except TelegramBadRequest:
+                logger.warning(
+                    f"Не удалось отредактировать сообщение {msg['chat_id']}:{msg['message_id']}"
+                )
+                continue
+    else:
+        raise MessageNotFoundError(message="Ненайдено сообщение для редактирования.")
 
     await admin_mess_storage.clear(user_id)
 

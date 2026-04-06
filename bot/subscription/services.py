@@ -13,9 +13,6 @@ from shared.enums.admin_enum import RoleEnum
 m_subscription_local = settings_bot.messages.modes.subscription
 
 
-# TODO Мне кажется это я еще не тестировал
-
-
 @dataclass
 class SubscriptionStats:
     """Агрегатор статистики проверки подписок.
@@ -152,22 +149,14 @@ class SubscriptionService:
             return "Пользователь не найден в системе рефералов."
         total = referrals_data.referrals_count
         paid = referrals_data.paid_referrals_count
-        conversion = referrals_data.referral_conversion * 100  # проценты
-        # TODO приглашение нормальным сделай
+        conversion = referrals_data.referral_conversion * 100
         if total == 0:
-            return (
-                "👋 Пока у вас нет приглашённых друзей.\n\n"
-                "Каждое новое приглашение — это шаг к бесплатной или продлённой подписке! "
-                "🎁 Приглашайте друзей и получайте бонусы, пока наслаждаетесь VPN."
-            )
+            return m_subscription_local.no_referrals
 
-        return (
-            f"🎉 *Ваша реферальная статистика* 🎉\n\n"
-            f"👥 Всего приглашено: ***{total}***\n"
-            f"💰 Получили бонус: *{paid}* месяцев\n"
-            f"🚀 Конверсия: *{conversion:.2f}%*\n\n"
-            f"🔥 Продолжайте приглашать друзей, чтобы увеличивать свои бонусы!\n"
-            f"🎁 Чем больше приглашений — тем больше преимуществ!"
+        return m_subscription_local.referrals_stat.format(
+            total=total,
+            paid=paid,
+            conversion=f"{conversion:.2f}",
         )
 
     async def get_subscription_info(self, tg_id: int) -> str:
