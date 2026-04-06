@@ -13,6 +13,7 @@ from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
+from bot.app_error.api_error import APIClientConflictError
 from bot.app_error.base_error import UserNotFoundError
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
@@ -418,9 +419,7 @@ class SubscriptionRouter(BaseRouter):
             try:
                 await self.bot.send_message(
                     chat_id=user_id,
-                    text=m_subscription.get("accept_paid", {})
-                    .get("user", "")
-                    .format(
+                    text=m_subscription.accept_paid.user.format(
                         months=months,
                         premium=(
                             f"{ToggleSubscriptionMode.PREMIUM.upper()}"
@@ -450,6 +449,11 @@ class SubscriptionRouter(BaseRouter):
                         user_id=user_id
                     ),
                 )
+            except APIClientConflictError as exc:
+                if exc.status_code == 409:
+                    user_logger.warning(str(exc))
+                else:
+                    raise
 
             await edit_admin_messages(
                 bot=self.bot,

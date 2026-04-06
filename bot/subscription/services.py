@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 
-from app_error.api_error import APIClientError
-
+from bot.app_error.api_error import APIClientError
 from bot.core.config import settings_bot
 from bot.subscription.adapter import (
     SubscriptionAPIAdapter,
