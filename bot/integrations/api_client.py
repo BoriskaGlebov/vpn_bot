@@ -150,7 +150,7 @@ class APIClient:
                     "Ошибка запроса",
                     cause=exc,
                 ) from exc
-        raise APIClientConnectionError("Неизвестная ошибка", cause=last_exc)
+        raise APIClientError("Неизвестная ошибка", cause=last_exc)
 
     async def _parse_json(self, response: httpx.Response) -> dict[str, Any]:
         """Парсит JSON с обработкой ошибок."""
