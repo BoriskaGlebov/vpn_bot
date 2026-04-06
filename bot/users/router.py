@@ -209,7 +209,10 @@ class UserRouter(BaseRouter):
                 bot_inf = await self.bot.get_me()
                 await message.answer(
                     response_message,
-                    reply_markup=referral_kb(bot_name=bot_inf.username, tg_id=user.id),
+                    reply_markup=referral_kb(
+                        bot_name=bot_inf.username if bot_inf else "VPB_Bot",
+                        tg_id=user.id,
+                    ),
                 )
                 await message.answer(
                     follow_up_message,

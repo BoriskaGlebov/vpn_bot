@@ -5,8 +5,6 @@ from aiogram import Bot, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     FSInputFile,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
     Message,
     ReplyKeyboardRemove,
 )
@@ -17,8 +15,10 @@ from loguru._logger import Logger
 from bot.app_error.base_error import SubscriptionNotFoundError
 from bot.core.config import settings_bot
 from bot.integrations.redis_client import RedisClient
+from bot.subscription.services import SubscriptionService
 from bot.users.enums import MainMenuText
 from bot.utils.base_router import BaseRouter
+from bot.vpn.keyboards.inline_kb import proxy_url_button
 from bot.vpn.services import VPNService
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
@@ -37,11 +37,17 @@ class VPNRouter(BaseRouter):
     """Роутер для обработки команд VPN."""
 
     def __init__(
-        self, bot: Bot, logger: Logger, vpn_service: VPNService, redis: RedisClient
+        self,
+        bot: Bot,
+        logger: Logger,
+        vpn_service: VPNService,
+        redis: RedisClient,
+        subscription_service: SubscriptionService,
     ) -> None:
         super().__init__(bot, logger)
         self.vpn_service = vpn_service
         self.redis = redis
+        self.subscription_service = subscription_service
 
     def _register_handlers(self) -> None:
         """Регистрация хендлеров."""
@@ -187,7 +193,7 @@ class VPNRouter(BaseRouter):
                         host=f"{settings_bot.proxy_prefix}.{settings_bot.vpn_host}",
                         username=settings_bot.vpn_username,
                     ) as client:
-                        info = await self.vpn_service.get_subscription_info(
+                        info = await self.subscription_service.get_subscription_info(
                             tg_id=user.id
                         )
                         if "Активна" in info:
@@ -195,21 +201,7 @@ class VPNRouter(BaseRouter):
                                 client=client, port=settings_bot.proxy_port
                             )
                             url_proxy = await mtproto.get_proxy_link()
-                            keyboard = InlineKeyboardMarkup(
-                                inline_keyboard=[
-                                    [
-                                        InlineKeyboardButton(
-                                            text="📨 Активировать прокси", url=url_proxy
-                                        )
-                                    ],
-                                    [
-                                        InlineKeyboardButton(
-                                            text="📋 Скопировать (долго жать) ссылку",
-                                            url=url_proxy,
-                                        )
-                                    ],
-                                ]
-                            )
+                            keyboard = proxy_url_button(url_proxy=url_proxy)
                             if url_proxy:
                                 for num, mess in enumerate(m_vpn.proxy_ready):
                                     if not num:
