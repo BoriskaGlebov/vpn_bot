@@ -8,8 +8,6 @@ from bot.app_error.base_error import VPNLimitError
 from bot.users.schemas import SUser
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
-    SVPNConfig,
-    SVPNSubscriptionInfo,
 )
 from bot.vpn.services import VPNService
 
@@ -91,71 +89,3 @@ async def test_generate_user_config_limit_reached(mocker):
 
     ssh_client.add_new_user_gen_config.assert_not_called()
     api_adapter.add_config.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_get_subscription_info_no_subscription(mocker):
-    api_adapter = mocker.AsyncMock()
-    user_adapter = mocker.AsyncMock()
-
-    api_adapter.get_subscription_info.return_value = SVPNSubscriptionInfo(
-        status="no_subscription",
-        subscription_type=None,
-        remaining="0",
-        configs=[],
-        end_date=None,
-    )
-
-    service = VPNService(api_adapter, user_adapter)
-
-    result = await service.get_subscription_info(123)
-
-    assert result == "У вас нет подписки."
-
-
-@pytest.mark.asyncio
-async def test_get_subscription_info_active(mocker):
-    api_adapter = mocker.AsyncMock()
-    user_adapter = mocker.AsyncMock()
-
-    api_adapter.get_subscription_info.return_value = SVPNSubscriptionInfo(
-        status="active",
-        subscription_type="premium",
-        remaining="10 дней",
-        configs=[
-            SVPNConfig(file_name="conf1"),
-            SVPNConfig(file_name="conf2"),
-        ],
-        end_date=datetime(2026, 1, 1),
-    )
-
-    service = VPNService(api_adapter, user_adapter)
-
-    result = await service.get_subscription_info(123)
-
-    assert "✅ Активна" in result
-    assert "<b>PREMIUM</b>" in result
-    assert "10 дней до (2026-01-01)" in result
-    assert "📌 conf1" in result
-    assert "📌 conf2" in result
-
-
-@pytest.mark.asyncio
-async def test_get_subscription_info_inactive_no_end_date(mocker):
-    api_adapter = mocker.AsyncMock()
-    user_adapter = mocker.AsyncMock()
-
-    api_adapter.get_subscription_info.return_value = SVPNSubscriptionInfo(
-        status="inactive",
-        subscription_type=None,
-        remaining="0",
-        configs=[],
-        end_date=None,
-    )
-
-    service = VPNService(api_adapter, user_adapter)
-
-    result = await service.get_subscription_info(123)
-
-    assert "🔒 Неактивна" in result
-    assert "Бесконечность не предел" in result

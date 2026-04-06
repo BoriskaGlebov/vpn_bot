@@ -20,7 +20,7 @@ async def test_start_subscription_premium_user(
     user = mocker.Mock(id=123, username="testuser")
 
     service_mock = mocker.AsyncMock()
-    service_mock.check_premium.return_value = (True, FilterTypeEnum.USER, True)
+    service_mock.check_premium.return_value = (True, FilterTypeEnum.USER, True, True)
 
     router = SubscriptionRouter(
         bot=bot_mock,

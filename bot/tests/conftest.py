@@ -17,6 +17,7 @@ from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.adapter import ReferralAPIAdapter
+from bot.users.adapter import UsersAPIAdapter
 from bot.utils import commands
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
@@ -335,6 +336,12 @@ def mock_admin_adapter():
 def mock_referral_adapter():
     """Фикстура с мокнутым адаптером."""
     adapter = AsyncMock(spec=ReferralAPIAdapter)
+    return adapter
+
+
+@pytest.fixture
+def mock_users_adapter():
+    adapter = AsyncMock(spec=UsersAPIAdapter)
     return adapter
 
 
