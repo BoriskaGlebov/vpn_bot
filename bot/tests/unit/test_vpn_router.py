@@ -36,9 +36,12 @@ def router(fake_bot, fake_logger, mocker, fake_redis):
     # bot = mocker.AsyncMock()
     # logger = mocker.MagicMock()
     vpn_service = mocker.AsyncMock()
+    subscription_service = mocker.AsyncMock()
     # redis = mocker.AsyncMock()
 
-    return VPNRouter(fake_bot, fake_logger, vpn_service, fake_redis)
+    return VPNRouter(
+        fake_bot, fake_logger, vpn_service, fake_redis, subscription_service
+    )
 
 
 @pytest.mark.asyncio
