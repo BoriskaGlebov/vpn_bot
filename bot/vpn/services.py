@@ -1,7 +1,9 @@
 from pathlib import Path
 
 from aiogram.types import User as TGUser
+from loguru import logger
 
+from bot.app_error.api_error import APIClientError
 from bot.app_error.base_error import VPNLimitError
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser
@@ -49,11 +51,14 @@ class VPNService:
         file_path, pub_key = await ssh_client.add_new_user_gen_config(
             file_name=user.username
         )
-
-        await self.api_adapter.add_config(
-            tg_id=user.telegram_id,
-            file_name=file_path.name,
-            pub_key=pub_key,
-        )
-
+        try:
+            await self.api_adapter.add_config(
+                tg_id=user.telegram_id,
+                file_name=file_path.name,
+                pub_key=pub_key,
+            )
+        except APIClientError as exc:
+            logger.error(str(exc))
+            await ssh_client.full_delete_user(public_key=pub_key)
+            raise
         return file_path, pub_key
