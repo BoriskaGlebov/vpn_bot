@@ -35,7 +35,9 @@ class AdminService:
         logger.debug("Получение пользователя по telegram_id={}", telegram_id)
 
         user = await UserDAO.find_one_or_none(
-            session=session, filters=SUserTelegramID(telegram_id=telegram_id)
+            session=session,
+            filters=SUserTelegramID(telegram_id=telegram_id),
+            options=UserDAO.base_options,
         )
         if not user:
             logger.warning("Пользователь не найден telegram_id={}", telegram_id)
@@ -102,7 +104,9 @@ class AdminService:
         )
 
         user = await UserDAO.find_one_or_none(
-            session=session, filters=SUserTelegramID(telegram_id=telegram_id)
+            session=session,
+            filters=SUserTelegramID(telegram_id=telegram_id),
+            options=UserDAO.base_options,
         )
         role = await RoleDAO.find_one_or_none(
             session, filters=SRole(name=role_name.value)
@@ -152,7 +156,9 @@ class AdminService:
             months,
         )
         user = await UserDAO.find_one_or_none(
-            session=session, filters=SUserTelegramID(telegram_id=telegram_id)
+            session=session,
+            filters=SUserTelegramID(telegram_id=telegram_id),
+            options=UserDAO.base_options,
         )
         if not user:
             logger.warning(

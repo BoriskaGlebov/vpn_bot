@@ -51,7 +51,9 @@ class ReferralService:
             )
             return
         s_user = SUserTelegramID(telegram_id=inviter_telegram_id)
-        inviter_model = await UserDAO.find_one_or_none(session=session, filters=s_user)
+        inviter_model = await UserDAO.find_one_or_none(
+            session=session, filters=s_user, options=UserDAO.base_options
+        )
         if not inviter_model:
             logger.warning(
                 "Пригласитель не найден telegram_id={}",

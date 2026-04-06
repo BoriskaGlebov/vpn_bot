@@ -10,6 +10,7 @@ from api.app_error.base_error import (
 from api.core.mapper.user_mapper import UserMapper
 from api.subscription.dao import SubscriptionDAO
 from api.subscription.models import SubscriptionType
+from api.subscription.schemas import SSubscriptionInfo, SVPNConfig
 from api.users.dao import UserDAO
 from api.users.schemas import SUserOut, SUserTelegramID
 from shared.enums.admin_enum import FilterTypeEnum, RoleEnum
@@ -43,7 +44,9 @@ class SubscriptionService:
         """
         logger.debug("Проверка premium подписки начата: tg_id={}", tg_id)
         user_model = await UserDAO.find_one_or_none(
-            session=session, filters=SUserTelegramID(telegram_id=tg_id)
+            session=session,
+            filters=SUserTelegramID(telegram_id=tg_id),
+            options=UserDAO.base_options,
         )
         if not user_model:
             logger.warning("Пользователь не найден: tg_id={}", tg_id)
@@ -100,7 +103,7 @@ class SubscriptionService:
         logger.debug("Старт обработки trial подписки: tg_id={}, days={}", tg_id, days)
         schema_user = SUserTelegramID(telegram_id=tg_id)
         user_model = await UserDAO.find_one_or_none(
-            session=session, filters=schema_user
+            session=session, filters=schema_user, options=UserDAO.base_options
         )
         try:
             if (
@@ -177,7 +180,7 @@ class SubscriptionService:
         )
         schema_user = SUserTelegramID(telegram_id=user_id)
         user_model = await UserDAO.find_one_or_none(
-            session=session, filters=schema_user
+            session=session, filters=schema_user, options=UserDAO.base_options
         )
         if not user_model:
             logger.warning("Пользователь не найден: user_id={}", user_id)
@@ -229,3 +232,60 @@ class SubscriptionService:
             user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
         )
         return await UserMapper.to_schema(user=user_model)
+
+    async def get_subscription_info(
+        self,
+        session: AsyncSession,
+        tg_id: int,
+    ) -> SSubscriptionInfo:
+        """Возвращает информацию о подписке пользователя и его VPN-конфигах.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            tg_id (int): Telegram ID пользователя.
+
+        Raises
+            UserNotFoundError: Если пользователь не найден.
+
+        Returns
+            SSubscriptionInfo: Статус подписки, тип, оставшиеся дни, дата окончания и список конфигов.
+
+        """
+        logger.debug("Получение информации по подписке tg_id={}", tg_id)
+        user = await UserDAO.find_one_or_none(
+            session=session,
+            filters=SUserTelegramID(telegram_id=tg_id),
+            options=UserDAO.base_options,
+        )
+        if not user:
+            logger.warning("Пользователь не найден tg_id={}", tg_id)
+            raise UserNotFoundError(tg_id=tg_id)
+
+        subscription = user.current_subscription
+        if not subscription:
+            logger.info("У пользователя нет подписки tg_id={}", tg_id)
+            return SSubscriptionInfo(
+                status="no_subscription",
+                subscription_type=None,
+                remaining="",
+                configs=[],
+                end_date=None,
+            )
+
+        status = "active" if subscription.is_active else "inactive"
+
+        remaining_days = subscription.remaining_days()
+        remaining = "UNLIMITED" if remaining_days is None else f"{remaining_days} дней"
+        logger.info(
+            "Инфо подписки VPN tg_id={} status={} type={}",
+            tg_id,
+            status,
+            subscription.type.value if subscription.type else None,
+        )
+        return SSubscriptionInfo(
+            status=status,
+            subscription_type=subscription.type.value if subscription.type else None,
+            remaining=remaining,
+            end_date=subscription.end_date if subscription.end_date else None,
+            configs=[SVPNConfig(file_name=c.file_name) for c in user.vpn_configs],
+        )

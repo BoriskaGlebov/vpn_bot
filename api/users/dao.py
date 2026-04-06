@@ -1,4 +1,5 @@
 import datetime
+from collections.abc import Sequence
 
 from loguru import logger
 from pydantic import BaseModel
@@ -27,6 +28,11 @@ class UserDAO(BaseDAO[User]):
     """
 
     model = User  # Модель для работы с данными пользователя
+    base_options = [
+        selectinload(User.role),
+        selectinload(User.subscriptions),
+        selectinload(User.vpn_configs),
+    ]
 
     @classmethod
     async def add_role_subscription(
@@ -195,11 +201,12 @@ class UserDAO(BaseDAO[User]):
 
     @classmethod
     async def find_one_or_none(
-        cls, session: AsyncSession, filters: BaseModel
+        cls, session: AsyncSession, filters: BaseModel, options: Sequence | None = None
     ) -> User | None:
         """Находит одну запись по фильтрам.
 
         Args:
+            options (Sequence | None): Опция подгрузки связанных моделей.
             session (AsyncSession): Сессия для взаимодействия с БД.
             filters (BaseModel): Фильтры для поиска.
 
@@ -216,15 +223,18 @@ class UserDAO(BaseDAO[User]):
 
         filters_clause = cls._build_filters(filter_dict)
         # noinspection PyTypeChecker
-        query = (
-            select(cls.model)
-            .where(filters_clause)
-            .options(
-                selectinload(cls.model.role),
-                selectinload(cls.model.subscriptions),
-                selectinload(cls.model.subscriptions),
-            )
-        )
+        # query = (
+        #     select(cls.model)
+        #     .where(filters_clause)
+        #     .options(
+        #         selectinload(cls.model.role),
+        #         selectinload(cls.model.subscriptions),
+        #         selectinload(cls.model.vpn_configs),
+        #     )
+        # )
+        query = select(cls.model).where(filters_clause)
+        if options:
+            query = query.options(*options)
         result = await session.execute(query)
         record = result.scalar_one_or_none()
         logger.debug(f"[DAO] Найдено: {record!r}")

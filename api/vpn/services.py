@@ -8,9 +8,7 @@ from api.users.schemas import SUserTelegramID
 from api.vpn.dao import VPNConfigDAO
 from api.vpn.schemas import (
     SVPNCheckLimitResponse,
-    SVPNConfig,
     SVPNCreateResponse,
-    SVPNSubscriptionInfo,
 )
 
 
@@ -43,6 +41,7 @@ class VPNService:
         user = await UserDAO.find_one_or_none(
             session=session,
             filters=SUserTelegramID(telegram_id=tg_id),
+            options=UserDAO.base_options,
         )
         if not user or not user.current_subscription:
             logger.warning("Пользователь или подписка не найдены tg_id={}", tg_id)
@@ -95,6 +94,7 @@ class VPNService:
         user = await UserDAO.find_one_or_none(
             session=session,
             filters=SUserTelegramID(telegram_id=tg_id),
+            options=UserDAO.base_options,
         )
         if not user:
             logger.warning("Пользователь не найден tg_id={}", tg_id)
@@ -111,60 +111,4 @@ class VPNService:
         return SVPNCreateResponse(
             file_name=file_name,
             pub_key=pub_key,
-        )
-
-    async def get_subscription_info(
-        self,
-        session: AsyncSession,
-        tg_id: int,
-    ) -> SVPNSubscriptionInfo:
-        """Возвращает информацию о подписке пользователя и его VPN-конфигах.
-
-        Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
-            tg_id (int): Telegram ID пользователя.
-
-        Raises
-            UserNotFoundError: Если пользователь не найден.
-
-        Returns
-            SVPNSubscriptionInfo: Статус подписки, тип, оставшиеся дни, дата окончания и список конфигов.
-
-        """
-        logger.debug("Получение информации по подписке tg_id={}", tg_id)
-        user = await UserDAO.find_one_or_none(
-            session=session,
-            filters=SUserTelegramID(telegram_id=tg_id),
-        )
-        if not user:
-            logger.warning("Пользователь не найден tg_id={}", tg_id)
-            raise UserNotFoundError(tg_id=tg_id)
-
-        subscription = user.current_subscription
-        if not subscription:
-            logger.info("У пользователя нет подписки tg_id={}", tg_id)
-            return SVPNSubscriptionInfo(
-                status="no_subscription",
-                subscription_type=None,
-                remaining="",
-                configs=[],
-                end_date=None,
-            )
-
-        status = "active" if subscription.is_active else "inactive"
-
-        remaining_days = subscription.remaining_days()
-        remaining = "UNLIMITED" if remaining_days is None else f"{remaining_days} дней"
-        logger.info(
-            "Инфо подписки VPN tg_id={} status={} type={}",
-            tg_id,
-            status,
-            subscription.type.value if subscription.type else None,
-        )
-        return SVPNSubscriptionInfo(
-            status=status,
-            subscription_type=subscription.type.value if subscription.type else None,
-            remaining=remaining,
-            end_date=subscription.end_date if subscription.end_date else None,
-            configs=[SVPNConfig(file_name=c.file_name) for c in user.vpn_configs],
         )

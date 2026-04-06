@@ -1,6 +1,4 @@
-from datetime import datetime
-
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel
 
 
 class SVPNCreateRequest(BaseModel):
@@ -44,48 +42,3 @@ class SVPNCheckLimitResponse(BaseModel):
     can_add: bool
     limit: int
     current: int
-
-
-class SVPNConfig(BaseModel):
-    """Схема информации о VPN-конфиге.
-
-    Attributes
-        file_name (str): Имя файла конфигурации.
-
-    """
-
-    file_name: str
-
-
-class SVPNSubscriptionInfo(BaseModel):
-    """Схема информации о подписке и VPN-конфигурациях пользователя.
-
-    Attributes
-        status (str): Статус подписки ('active', 'inactive', 'no_subscription').
-        subscription_type (Optional[str]): Тип подписки (например, 'PREMIUM').
-        remaining (str): Количество оставшихся дней подписки или 'UNLIMITED'.
-        configs (List[SVPNConfig]): Список VPN-конфигов пользователя.
-        end_date (Optional[datetime]): Дата окончания подписки.
-
-    """
-
-    status: str
-    subscription_type: str | None
-    remaining: str
-    configs: list[SVPNConfig]
-    end_date: datetime | None
-
-    @field_serializer("end_date")
-    def serialize_end_date(self, value: datetime | None) -> str | None:
-        """Сериализация даты окончания подписки в строку формата YYYY-MM-DD.
-
-        Args:
-           value (Optional[datetime]): Дата окончания подписки.
-
-        Returns
-           Optional[str]: Строка с датой в формате YYYY-MM-DD или None.
-
-        """
-        if value is None:
-            return None
-        return value.strftime("%Y-%m-%d")

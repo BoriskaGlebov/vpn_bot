@@ -57,37 +57,3 @@ class VPNService:
         )
 
         return file_path, pub_key
-
-    async def get_subscription_info(self, tg_id: int) -> str:
-        """Возвращает информацию о подписке пользователя и его VPN-конфигах.
-
-        Args:
-            tg_id (int): ID Telegram-пользователя.
-
-        Raises
-            ValueError: Если пользователь не найден.
-
-        Returns
-            str: Текст с информацией о подписке и списком конфигов.
-
-        """
-        data = await self.api_adapter.get_subscription_info(tg_id=tg_id)
-
-        if data.status == "no_subscription":
-            return "У вас нет подписки."
-
-        status = "✅ Активна" if data.status == "active" else "🔒 Неактивна"
-        sbs_type = (
-            f"<b>{data.subscription_type.upper()}</b>" if data.subscription_type else ""
-        )
-        end_date = (
-            data.end_date.strftime("%Y-%m-%d")
-            if data.end_date
-            else "Бесконечность не предел"
-        )
-
-        remaining_text = f"{data.remaining} до ({end_date})"
-
-        conf_list = "\n\n".join([f"📌 {conf.file_name}" for conf in data.configs])
-
-        return f"{status} {sbs_type} — {remaining_text}\n\n{conf_list}"

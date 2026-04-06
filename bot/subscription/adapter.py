@@ -2,6 +2,7 @@ from bot.integrations.api_client import APIClient
 from bot.subscription.schemas import (
     ActivateSubscriptionRequest,
     SSubscriptionCheck,
+    SSubscriptionInfo,
     STrialActivate,
     STrialActivateResponse,
 )
@@ -89,3 +90,15 @@ class SubscriptionAPIAdapter:
             "/subscriptions/activate", json=payload.model_dump()
         )
         return SUserOut.model_validate(data)
+
+    async def get_subscription_info(
+        self,
+        tg_id: int,
+    ) -> SSubscriptionInfo:
+        """Получает инфу о подписке."""
+        data = await self._client.get(
+            "/subscriptions/info",
+            params={"tg_id": tg_id},
+        )
+
+        return SSubscriptionInfo(**data)

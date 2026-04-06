@@ -8,7 +8,6 @@ from api.vpn.schemas import (
     SVPNCheckLimitResponse,
     SVPNCreateRequest,
     SVPNCreateResponse,
-    SVPNSubscriptionInfo,
 )
 from api.vpn.services import VPNService
 
@@ -49,21 +48,4 @@ async def add_config(
         tg_id=data.tg_id,
         file_name=data.file_name,
         pub_key=data.pub_key,
-    )
-
-
-@router.get(
-    "/subscription",
-    response_model=SVPNSubscriptionInfo,
-    summary="Информация о подписке и VPN конфигурациях",
-)
-async def get_subscription_info(
-    tg_id: int,
-    session: AsyncSession = Depends(get_session),
-    service: VPNService = Depends(get_vpn_service),
-) -> SVPNSubscriptionInfo:
-    """Возвращает информацию о подписке и конфигурациях пользователя."""
-    return await service.get_subscription_info(
-        session=session,
-        tg_id=tg_id,
     )

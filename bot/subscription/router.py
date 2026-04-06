@@ -120,6 +120,10 @@ class SubscriptionRouter(BaseRouter):
                 ~F.text.startswith("/"),
             ),
         )
+        self.router.message.register(
+            self.check_subscription,
+            F.text == MainMenuText.CHECK_STATUS.value,
+        )
 
     # TODO Когда пользователь продлевает подписку, я не знаю использовал он триал или нет надо об этом подумать.
     @BaseRouter.log_method
@@ -510,3 +514,23 @@ class SubscriptionRouter(BaseRouter):
                 new_text=m_subscription.decline_paid.admin.format(user_id=user_id),
                 admin_mess_storage=self.redis_service,
             )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def check_subscription(
+        self, message: Message, user: TgUser, state: FSMContext
+    ) -> None:
+        """Проверка статуса подписки пользователя."""
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            info_text = (
+                await self.subscription_service.get_subscription_and_referral_info(
+                    tg_id=user.id
+                )
+            )
+
+            await message.answer(
+                text=m_subscription.check_subscription,
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            await self.bot.send_message(chat_id=user.id, text=info_text)
+            await state.clear()

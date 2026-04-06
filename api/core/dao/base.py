@@ -89,11 +89,15 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     async def find_one_or_none(
-        cls, session: AsyncSession, filters: BaseModel
+        cls,
+        session: AsyncSession,
+        filters: BaseModel,
+        options: Sequence | None = None,
     ) -> T | None:
         """Находит одну запись по фильтрам.
 
         Args:
+            options: (Sequence|None): Дополнительные опции.
             session (AsyncSession): Сессия для взаимодействия с БД.
             filters (BaseModel): Фильтры для поиска.
 

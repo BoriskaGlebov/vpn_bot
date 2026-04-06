@@ -82,7 +82,7 @@ class Container:
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
         self.subscription_service = SubscriptionService(
-            adapter=self.subscription_adapter
+            adapter=self.subscription_adapter, user_adapter=self.user_adapter
         )
         self.vpn_service = VPNService(
             adapter=self.vpn_adapter, user_adapter=self.user_adapter

@@ -3,16 +3,35 @@ from api.users.schemas import (
     SRoleOut,
     SSubscriptionOut,
     SUserOut,
+    SUserWithReferralStats,
     SVPNConfigOut,
 )
 
 
 class UserMapper:
-    """Преобразование ORM моделей User в Pydantic схемы."""
+    """Mapper для преобразования ORM-модели User в Pydantic DTO-схемы.
+
+    Примечание:
+        Используется `model_construct`, так как предполагается,
+        что входные данные уже валидны (из ORM).
+        Это позволяет избежать лишней валидации и ускорить преобразование.
+    """
 
     @staticmethod
     async def to_schema(user: User) -> SUserOut:
-        """Конвертирует User ORM → SUserOut DTO."""
+        """Преобразует ORM-объект User в DTO-схему SUserOut.
+
+        Args:
+            user (User): ORM-модель пользователя с предзагруженными связями:
+                - role
+                - subscriptions
+                - vpn_configs
+                - current_subscription (optional)
+
+        Returns
+            SUserOut: DTO-представление пользователя.
+
+        """
         user_schema = SUserOut.model_construct(**user.__dict__)
         schema_role = SRoleOut.model_construct(**user.role.__dict__)
         schema_subscription = [
@@ -33,3 +52,48 @@ class UserMapper:
             else None
         )
         return user_schema
+
+    @staticmethod
+    async def to_schema_with_referrals(user: User) -> SUserWithReferralStats:
+        """Преобразует User в расширенную DTO-схему с реферальной статистикой.
+
+        Дополнительно рассчитывает: количество приглашённых пользователей,
+        количество пользователей с выданным бонусом, конверсию (paid / total)
+
+        Args:
+            user (User): ORM-модель пользователя с загруженной связью invited_users.
+
+        Returns
+            SUserWithReferralStats: DTO с дополнительной реферальной статистикой.
+
+        """
+        base_schema: SUserOut = await UserMapper.to_schema(user)
+
+        invited_users = getattr(user, "invited_users", [])
+
+        referrals_count: int = len(invited_users)
+
+        paid_referrals_count: int = sum(1 for ref in invited_users if ref.bonus_given)
+
+        referral_conversion: float = (
+            paid_referrals_count / referrals_count if referrals_count else 0.0
+        )
+
+        return SUserWithReferralStats.model_construct(
+            **base_schema.model_dump(
+                exclude_none=True,
+                exclude={
+                    "role",
+                    "subscriptions",
+                    "vpn_configs",
+                    "current_subscription",
+                },
+            ),
+            role=base_schema.role,
+            subscriptions=base_schema.subscriptions,
+            vpn_configs=base_schema.vpn_configs,
+            current_subscription=base_schema.current_subscription,
+            referrals_count=referrals_count,
+            paid_referrals_count=paid_referrals_count,
+            referral_conversion=referral_conversion,
+        )

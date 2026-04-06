@@ -50,7 +50,9 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             Subscription: Активированная подписка пользователя.
 
         """
-        user = await UserDAO.find_one_or_none(session=session, filters=stelegram_id)
+        user = await UserDAO.find_one_or_none(
+            session=session, filters=stelegram_id, options=UserDAO.base_options
+        )
         if not user:
             logger.error(
                 f"[DAO] Не удалось найти пользователя с {stelegram_id.telegram_id}"

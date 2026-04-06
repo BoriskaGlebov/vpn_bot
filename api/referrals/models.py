@@ -52,11 +52,13 @@ class Referral(Base):
         "User",
         foreign_keys=[inviter_id],
         lazy="selectin",
+        back_populates="invited_users",
     )
 
     invited: Mapped["User"] = relationship(
         "User",
         foreign_keys=[invited_id],
         lazy="selectin",
+        back_populates="invited_by",
     )
     __table_args__ = (UniqueConstraint("invited_id", name="uq_referrals_invited"),)

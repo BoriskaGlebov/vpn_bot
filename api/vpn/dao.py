@@ -31,7 +31,8 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
         logger.debug(f"[DAO] Проверка лимита VPN конфигов для пользователя {user_id}")
         try:
             user = await UserDAO.find_one_or_none_by_id(
-                session=session, data_id=user_id
+                session=session,
+                data_id=user_id,
             )
             if not user:
                 logger.warning(

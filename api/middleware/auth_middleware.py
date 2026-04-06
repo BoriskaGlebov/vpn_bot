@@ -59,6 +59,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             user = await UserDAO.find_one_or_none(
                 session=request.state.db,
                 filters=SUserTelegramID(telegram_id=tg_id_int),
+                options=UserDAO.base_options,
             )
 
         request.state.user = user

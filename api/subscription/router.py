@@ -7,6 +7,7 @@ from api.subscription.dependencies import get_subscription_service
 from api.subscription.schemas import (
     ActivateSubscriptionRequest,
     SSubscriptionCheck,
+    SSubscriptionInfo,
     STrialActivate,
     STrialActivateResponse,
 )
@@ -111,4 +112,21 @@ async def activate_subscription(
         user_id=data.tg_id,
         months=data.months,
         premium=data.premium,
+    )
+
+
+@router.get(
+    "/info",
+    response_model=SSubscriptionInfo,
+    summary="Информация о подписке и VPN конфигурациях",
+)
+async def get_subscription_info(
+    tg_id: int,
+    session: AsyncSession = Depends(get_session),
+    service: SubscriptionService = Depends(get_subscription_service),
+) -> SSubscriptionInfo:
+    """Возвращает информацию о подписке и конфигурациях пользователя."""
+    return await service.get_subscription_info(
+        session=session,
+        tg_id=tg_id,
     )

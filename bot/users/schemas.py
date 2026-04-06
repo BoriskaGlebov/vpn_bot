@@ -123,3 +123,27 @@ class SUserOut(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SUserWithReferralStats(SUserOut):
+    """Расширенная схема пользователя с реферальной статистикой."""
+
+    referrals_count: int = Field(
+        ...,
+        description="Сколько пользователей пригласил",
+        examples=[10],
+    )
+
+    paid_referrals_count: int = Field(
+        ...,
+        description="Сколько приглашённых оплатили подписку",
+        examples=[4],
+    )
+
+    referral_conversion: float = Field(
+        ...,
+        description="Конверсия рефералов (paid / total)",
+        examples=[0.4],
+    )
+
+    model_config = ConfigDict(from_attributes=True)

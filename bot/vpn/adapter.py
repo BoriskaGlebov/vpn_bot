@@ -2,7 +2,6 @@ from bot.integrations.api_client import APIClient
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
     SVPNCreateResponse,
-    SVPNSubscriptionInfo,
 )
 
 
@@ -15,7 +14,7 @@ class VPNAPIAdapter:
     async def check_limit(self, tg_id: int) -> SVPNCheckLimitResponse:
         """Проверяет лимит конфигов."""
         data = await self.client.get(
-            "/vpn/limit",
+            "/api/vpn/limit",
             params={"tg_id": tg_id},
         )
 
@@ -29,7 +28,7 @@ class VPNAPIAdapter:
     ) -> SVPNCreateResponse:
         """Сохраняет конфиг."""
         data, _ = await self.client.post(
-            "/vpn/config",
+            "/api/vpn/config",
             json={
                 "tg_id": tg_id,
                 "file_name": file_name,
@@ -38,15 +37,3 @@ class VPNAPIAdapter:
         )
 
         return SVPNCreateResponse(**data)
-
-    async def get_subscription_info(
-        self,
-        tg_id: int,
-    ) -> SVPNSubscriptionInfo:
-        """Получает инфу о подписке."""
-        data = await self.client.get(
-            "/vpn/subscription",
-            params={"tg_id": tg_id},
-        )
-
-        return SVPNSubscriptionInfo(**data)

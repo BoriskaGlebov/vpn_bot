@@ -54,10 +54,6 @@ class VPNRouter(BaseRouter):
             F.text == MainMenuText.AMNEZIA_WG.value,
         )
         self.router.message.register(
-            self.check_subscription,
-            F.text == MainMenuText.CHECK_STATUS.value,
-        )
-        self.router.message.register(
             self.create_proxy_url,
             F.text == MainMenuText.AMNEZIA_PROXY.value,
         )
@@ -153,22 +149,6 @@ class VPNRouter(BaseRouter):
             finally:
                 await state.clear()
                 await self.redis.delete(redis_key)
-
-    @BaseRouter.log_method
-    @BaseRouter.require_user
-    async def check_subscription(
-        self, message: Message, user: TgUser, state: FSMContext
-    ) -> None:
-        """Проверка статуса подписки пользователя."""
-        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            info_text = await self.vpn_service.get_subscription_info(tg_id=user.id)
-
-            await message.answer(
-                text=m_subscription.check_subscription,
-                reply_markup=ReplyKeyboardRemove(),
-            )
-            await self.bot.send_message(chat_id=user.id, text=info_text)
-            await state.clear()
 
     @BaseRouter.log_method
     @BaseRouter.require_user

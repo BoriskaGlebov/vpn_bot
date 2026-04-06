@@ -6,24 +6,27 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 # TODO преезарегитсрировать модели и настройки
 from api.core.database import Base, int_pk, str_null_true, str_uniq
-from api.subscription.models import Subscription  # импорт только для type hints
+from api.referrals.models import Referral
+from api.subscription.models import Subscription
 from api.vpn.models import VPNConfig
 
 
 class User(Base):
     """Модель пользователя.
 
-    Атрибуты
+    Attributes
         id (int): Уникальный идентификатор пользователя.
         telegram_id (int): Идентификатор пользователя в Telegram.
-        username (str | None): Имя пользователя в Telegram.
+        username (str | None): Username пользователя.
         first_name (str | None): Имя пользователя.
         last_name (str | None): Фамилия пользователя.
-        role_id (Optional[int]): Внешний ключ на роль. Может быть None.
-        role (Role): Связанная роль пользователя.
-        subscription (Subscription | None): Подписка пользователя. Может отсутствовать.
-        vpn_configs (list["VPNConfig"]): Список конфиг файлов пользователя.
-        has_used_trial (bool): Проверка использовал пользователь триал или нет
+        role_id (int | None): FK на роль.
+        role (Role): Связанная роль.
+        subscriptions (list[Subscription]): Список подписок пользователя.
+        vpn_configs (list[VPNConfig]): VPN-конфиги пользователя.
+        invited_users (list[Referral]): Рефералы, приглашённые пользователем.
+        invited_by (Referral | None): Кто пригласил пользователя.
+        has_used_trial (bool): Использовал ли пользователь триал.
 
     """
 
@@ -63,6 +66,21 @@ class User(Base):
         lazy="selectin",
         order_by="VPNConfig.id",
     )
+    invited_users: Mapped[list["Referral"]] = relationship(
+        "Referral",
+        foreign_keys=[Referral.inviter_id],
+        back_populates="inviter",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
+    invited_by: Mapped["Referral | None"] = relationship(
+        "Referral",
+        foreign_keys=[Referral.invited_id],
+        back_populates="invited",
+        uselist=False,
+        lazy="selectin",
+    )
 
     def __str__(self) -> str:
         """Строковое представление для записи."""
@@ -75,7 +93,15 @@ class User(Base):
 
     @property
     def current_subscription(self) -> "Subscription | None":
-        """Безопасно извлекает активную подписку."""
+        """Возвращает текущую (приоритетную) подписку пользователя.
+
+        Подписки отсортированы таким образом, что первая запись является
+        наиболее приоритетной (активная, затем по типу и дате окончания).
+
+        Returns
+            Subscription | None: Текущая подписка или None, если подписок нет.
+
+        """
         if not self.subscriptions:
             return None
 
@@ -95,24 +121,101 @@ class User(Base):
 
     @vpn_files_count.expression  # type: ignore[no-redef]
     def vpn_files_count(cls) -> ScalarSelect[Any]:
-        """Выражение для сортировки и фильтрации по количеству VPN конфигов.
+        """SQL-выражение для подсчёта VPN-конфигов.
 
-        Используется в запросах SQLAlchemy, чтобы можно было сортировать или фильтровать
-        пользователей по числу их VPN конфигов без загрузки всех объектов в память.
+        Используется в ORM-запросах для сортировки и фильтрации без загрузки
+        связанных объектов.
+
+        Args:
+            cls: Класс модели User (SQLAlchemy ORM context).
 
         Returns
-           sqlalchemy.sql.elements.ScalarSelect: Подзапрос, возвращающий количество
-           VPN конфигов для каждого пользователя.
+            ScalarSelect[int]: Подзапрос с COUNT(VPNConfig.id).
 
         """
-        from api.vpn.models import VPNConfig
-
         return (
             select(func.count(VPNConfig.id))
             .where(VPNConfig.user_id == cls.id)
             .correlate(cls)
             .scalar_subquery()
         )
+
+    @hybrid_property
+    def referrals_count(self) -> int:
+        """Возвращает количество приглашённых пользователей.
+
+        Returns
+            int: Число рефералов.
+
+        """
+        return len(self.invited_users) if self.invited_users else 0
+
+    @referrals_count.expression  # type: ignore[no-redef]
+    def referrals_count(cls) -> ScalarSelect[Any]:
+        """SQL-выражение для подсчёта рефералов.
+
+        Args:
+            cls: Класс модели User.
+
+        Returns
+            ScalarSelect[int]: Подзапрос с количеством рефералов.
+
+        """
+        return (
+            select(func.count(Referral.id))
+            .where(Referral.inviter_id == cls.id)
+            .correlate(cls)
+            .scalar_subquery()
+        )
+
+    @hybrid_property
+    def paid_referrals_count(self) -> int:
+        """Возвращает количество рефералов, получивших бонус.
+
+        Returns
+            int: Количество рефералов с выданным бонусом.
+
+        """
+        if not self.invited_users:
+            return 0
+
+        return sum(1 for ref in self.invited_users if ref.bonus_given)
+
+    @paid_referrals_count.expression
+    def paid_referrals_count(cls) -> ScalarSelect[int]:
+        """SQL-выражение для подсчёта рефералов с бонусом.
+
+        Args:
+            cls: Класс модели User.
+
+        Returns
+            ScalarSelect[int]: Подзапрос с фильтром bonus_given = True.
+
+        """
+        return (
+            select(func.count(Referral.id))
+            .where(
+                Referral.inviter_id == cls.id,
+                Referral.bonus_given.is_(True),
+            )
+            .correlate(cls)
+            .scalar_subquery()
+        )
+
+    @hybrid_property
+    def referral_conversion(self) -> float:
+        """Вычисляет конверсию рефералов.
+
+        Конверсия определяется как отношение количества рефералов,
+        получивших бонус, к общему количеству рефералов.
+
+        Returns
+            float: Значение конверсии в диапазоне [0.0, 1.0].
+
+        """
+        if not self.referrals_count:
+            return 0.0
+        return self.paid_referrals_count / self.referrals_count
 
 
 class Role(Base):

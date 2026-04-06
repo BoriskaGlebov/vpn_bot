@@ -64,6 +64,7 @@ async def register_referral(
     invited_user = await UserDAO.find_one_or_none(
         session=session,
         filters=SUserTelegramID(telegram_id=payload.invited_user_id),
+        options=UserDAO.base_options,
     )
 
     if not invited_user:
@@ -133,6 +134,7 @@ async def grant_bonus(
     invited_user = await UserDAO.find_one_or_none(
         session=session,
         filters=SUserTelegramID(telegram_id=payload.invited_user_id),
+        options=UserDAO.base_options,
     )
 
     if not invited_user:

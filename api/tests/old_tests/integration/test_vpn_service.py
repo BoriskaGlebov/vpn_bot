@@ -31,6 +31,7 @@ async def test_generate_user_config_success(session, user_service):
     user_db = await UserDAO.find_one_or_none(
         session=session,
         filters=SUserTelegramID(telegram_id=telegram_user.id),
+        options=UserDAO.base_options,
     )
 
     user_db.current_subscription.is_active = True

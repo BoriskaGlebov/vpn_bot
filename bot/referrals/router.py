@@ -45,7 +45,8 @@ class ReferralRouter(BaseRouter):
         """
         await state.clear()
         bot = await self.bot.get_me()
+        bot_name = bot.username if bot.username is not None else "VPN_Bot"
         await message.answer(
             text=m_referrals.invite,
-            reply_markup=referral_kb(bot.username, user.id),
+            reply_markup=referral_kb(bot_name, user.id),
         )
