@@ -1,3 +1,6 @@
+import json
+
+
 class APIClientError(Exception):
     """Базовая ошибка API клиента.
 
@@ -29,13 +32,35 @@ class APIClientHTTPError(APIClientError):
         *,
         cause: Exception | None = None,
     ) -> None:
+        parsed_detail = self._extract_detail(detail)
+
         message = f"HTTP {status_code}"
-        if detail:
-            message += f": {detail}"
+        if parsed_detail:
+            message += f": {parsed_detail}"
 
         super().__init__(message, cause=cause)
+
         self.status_code = status_code
-        self.detail = detail
+        self.detail = parsed_detail
+
+    @staticmethod
+    def _extract_detail(detail: str | None) -> str:
+        """Безопасно извлекает detail из ответа."""
+        if not detail:
+            return "Деталей нет."
+
+        try:
+            data = json.loads(detail)
+
+            # FastAPI формат: {"detail": "..."}
+            if isinstance(data, dict):
+                return data.get("detail", str(data))
+
+            return str(data)
+
+        except (json.JSONDecodeError, TypeError):
+            # если это просто строка
+            return detail
 
 
 class APIClientConnectionError(APIClientError):

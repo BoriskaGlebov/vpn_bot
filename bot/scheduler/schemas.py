@@ -112,4 +112,4 @@ class CheckAllSubscriptionsResponse(BaseModel):
     """
 
     stats: SubscriptionStatsSchema
-    events: list[SubscriptionEventSchema]
+    events: list[type[SubscriptionEventSchema]]

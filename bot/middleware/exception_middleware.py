@@ -108,9 +108,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                         f"Если  нужно больше обратитесь в поддержку @BorisisTheBlade."
                     )
                 elif isinstance(exc, APIClientConflictError):
-                    return (
-                        "⚠️ Конфликт данных (У пользователя уже есть активная подписка.)"
-                    )
+                    return f"⚠️ Конфликт данных ({exc.detail})"
                 return message
         return self.default_user_message
 

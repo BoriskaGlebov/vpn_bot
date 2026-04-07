@@ -70,7 +70,7 @@ class SubscriptionScheduler:
             stats.add(s)
             events.extend(e)
 
-        s, e = await self._handle_unlimited_overuse(session, user)
+        s, e = await self._handle_active_limit_exceeded(session, user)
         stats.add(s)
         events.extend(e)
 
@@ -217,24 +217,23 @@ class SubscriptionScheduler:
 
         return stats, events
 
-    async def _handle_unlimited_overuse(
+    async def _handle_active_limit_exceeded(
         self, session: AsyncSession, user: User
     ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
-        """Обрабатывает превышение лимита VPN-конфигов для пользователя.
+        """Контролирует превышение лимита VPN-конфигов при активной подписке.
 
-        Если количество VPN-конфигов пользователя превышает допустимый лимит
-        для текущей подписки, избыточные конфиги удаляются и администраторы
-        уведомляются об удалении.
+        Если у пользователя есть активная подписка и количество конфигов превышает
+        допустимый лимит, избыточные конфиги помечаются на удаление.
+
+        Стратегия удаления — FIFO (удаляются самые старые конфиги).
 
         Args:
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
             user (User): Экземпляр пользователя.
 
         Returns
-            SubscriptionStats: Статистика по обработке с ключами:
-                - "expired": всегда 0
-                - "notified": количество отправленных уведомлений администраторам (0 или >0)
-                - "configs_deleted": количество удалённых VPN-конфигов
+            SubscriptionStats: Статистика по удалённым конфигам.
+            list[SubscriptionEvent]: Список событий для обработки.
 
         """
         stats = SubscriptionStats()
@@ -244,35 +243,64 @@ class SubscriptionScheduler:
         if not sub or not sub.is_active:
             return stats, events
 
-        limit = DEVICE_LIMITS.get(sub.type) or 0
-        if limit <= 0:
+        limit = DEVICE_LIMITS.get(sub.type, 0)
+        configs = user.vpn_configs or []
+
+        if limit <= 0 or len(configs) <= limit:
             return stats, events
 
-        if len(user.vpn_configs) > limit:
-            extra_cfgs = user.vpn_configs[limit:]
+        # ✅ ВАЖНО: сортировка (детерминированность)
+        sorted_configs = sorted(configs, key=lambda c: c.created_at)
 
-            deleted_configs = await self._delete_configs(session, user, extra_cfgs)
+        configs_to_delete = sorted_configs[limit:]
 
-            stats.configs_deleted += len(deleted_configs)
-            files = [c.file_name for c in deleted_configs]
+        deleted_configs = await self._delete_configs(
+            session=session,
+            user=user,
+            configs=configs_to_delete,
+        )
+
+        if not deleted_configs:
+            return stats, events
+
+        stats.configs_deleted += len(deleted_configs)
+
+        files = [
+            DeletedVPNConfigSchema(
+                file_name=c.file_name,
+                pub_key=c.pub_key,
+            )
+            for c in deleted_configs
+        ]
+
+        # единый формат события (как у тебя в expired)
+        events.append(
+            DeleteVPNConfigsEvent(
+                type=SubscriptionEventType.DELETE_VPN_CONFIGS,
+                user_id=user.telegram_id,
+                username=user.username or "undefined",
+                first_name=user.first_name or "undefined",
+                last_name=user.last_name or "undefined",
+                configs=files,
+            )
+        )
+
+        for file in files:
             events.append(
-                DeleteVPNConfigsEvent(
-                    type=SubscriptionEventType.DELETE_VPN_CONFIGS,
+                AdminNotifyEvent(
+                    type=SubscriptionEventType.ADMIN_NOTIFY,
                     user_id=user.telegram_id,
                     username=user.username or "undefined",
                     first_name=user.first_name or "undefined",
                     last_name=user.last_name or "undefined",
-                    configs=files,
+                    message=(
+                        f"⚠️ Удалён VPN-конфиг (превышение лимита)\n"
+                        f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
+                        f"📄 Файл: {file.file_name}\n"
+                        f"📊 Лимит: {limit}, было: {len(configs)}"
+                    ),
                 )
             )
-            for file in files:
-                events.append(
-                    AdminNotifyEvent(
-                        type=SubscriptionEventType.ADMIN_NOTIFY,
-                        user_id=user.telegram_id,
-                        message=f"Произошло удаление конфиг файла {file} превышающий лимиты у {user.telegram_id} (@{user.username})",
-                    )
-                )
 
         return stats, events
 
@@ -286,9 +314,6 @@ class SubscriptionScheduler:
             deleted.append(
                 DeletedVPNConfig(file_name=cfg.file_name, pub_key=cfg.pub_key)
             )
-
-            # await session.delete(cfg)
-
         return deleted
 
     async def check_all_subscriptions(
