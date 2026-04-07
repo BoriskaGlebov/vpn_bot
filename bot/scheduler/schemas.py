@@ -112,4 +112,9 @@ class CheckAllSubscriptionsResponse(BaseModel):
     """
 
     stats: SubscriptionStatsSchema
-    events: list[type[SubscriptionEventSchema]]
+    events: list[
+        UserNotifyEventSchema
+        | DeleteVPNConfigsEventSchema
+        | DeleteProxyEventSchema
+        | AdminNotifyEventSchema
+    ]

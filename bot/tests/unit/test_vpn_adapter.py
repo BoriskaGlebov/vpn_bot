@@ -8,6 +8,7 @@ from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
     SVPNCreateResponse,
+    SVPNDeleteResponse,
 )
 
 
@@ -71,3 +72,32 @@ async def test_add_config(api_client):
     assert isinstance(result, SVPNCreateResponse)
     assert result.file_name == "test.conf"
     assert result.pub_key == "pubkey123"
+
+
+@pytest.mark.asyncio
+async def test_delete_config(api_client):
+    async def handler(request):
+        assert request.url.path == "/api/vpn/config"
+        assert request.method == "DELETE"
+
+        body = json.loads(request.content)
+        assert body == {
+            "file_name": "test.conf",
+            "pub_key": "pubkey123",
+        }
+
+        return httpx.Response(
+            status_code=200,
+            json={"deleted": 1},
+        )
+
+    client = await api_client(handler)
+    adapter = VPNAPIAdapter(client)
+
+    result = await adapter.delete_config(
+        file_name="test.conf",
+        pub_key="pubkey123",
+    )
+
+    assert isinstance(result, SVPNDeleteResponse)
+    assert result.deleted == 1
