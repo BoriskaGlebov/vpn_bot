@@ -182,3 +182,8 @@ class APIClient:
         """PATCH запрос."""
         response = await self._request("PATCH", url, **kwargs)
         return await self._parse_json(response), response.status_code
+
+    async def delete(self, url: str, **kwargs: Any) -> tuple[dict[str, Any], int]:
+        """DELETE запрос."""
+        response = await self._request("DELETE", url, **kwargs)
+        return await self._parse_json(response), response.status_code

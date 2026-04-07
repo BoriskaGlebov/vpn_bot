@@ -29,6 +29,18 @@ class SVPNCreateResponse(BaseModel):
     pub_key: str
 
 
+class SVPNDeleteRequest(SVPNCreateResponse):
+    """Запрос на удаление файла конфигурации."""
+
+    ...
+
+
+class SVPNDeleteResponse(BaseModel):
+    """Ответ на удаление файла конфигурации."""
+
+    deleted: int
+
+
 class SVPNCheckLimitResponse(BaseModel):
     """Схема ответа при проверке лимита VPN-конфигов пользователя.
 

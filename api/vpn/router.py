@@ -8,6 +8,8 @@ from api.vpn.schemas import (
     SVPNCheckLimitResponse,
     SVPNCreateRequest,
     SVPNCreateResponse,
+    SVPNDeleteRequest,
+    SVPNDeleteResponse,
 )
 from api.vpn.services import VPNService
 
@@ -49,3 +51,32 @@ async def add_config(
         file_name=data.file_name,
         pub_key=data.pub_key,
     )
+
+
+@router.delete(
+    "/config",
+    status_code=status.HTTP_200_OK,
+    summary="Удаление VPN конфига",
+)
+async def delete_config(
+    data: SVPNDeleteRequest,
+    session: AsyncSession = Depends(get_session),
+    service: VPNService = Depends(get_vpn_service),
+) -> SVPNDeleteResponse:
+    """Удаляет VPN конфиг по имени файла и публичному ключу.
+
+    Args:
+        data (SVPNConfig): Данные конфига (file_name и pub_key).
+        session (AsyncSession): Сессия базы данных.
+        service (VPNService): VPN сервис.
+
+    Returns
+        SVPNDeleteResponse: Количество удалённых конфигов.
+
+    """
+    deleted = await service.delete_config(
+        session=session,
+        file_name=data.file_name,
+        pub_key=data.pub_key,
+    )
+    return SVPNDeleteResponse(deleted=deleted)

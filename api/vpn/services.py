@@ -9,6 +9,7 @@ from api.vpn.dao import VPNConfigDAO
 from api.vpn.schemas import (
     SVPNCheckLimitResponse,
     SVPNCreateResponse,
+    SVPNDeleteRequest,
 )
 
 
@@ -112,3 +113,26 @@ class VPNService:
             file_name=file_name,
             pub_key=pub_key,
         )
+
+    async def delete_config(
+        self,
+        file_name: str,
+        session: AsyncSession,
+        pub_key: str,
+    ) -> int:
+        """Удаляет VPN-конфиг пользователя по имени файла и публичному ключу.
+
+        Args:
+            file_name (str): Название файла конфигурации.
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            pub_key (str): Публичный ключ пользователя.
+
+        Returns
+            int: Количество удалённых конфигураций (обычно 0 или 1).
+
+        """
+        num_cfg = await VPNConfigDAO.delete(
+            session=session,
+            filters=SVPNDeleteRequest(file_name=file_name, pub_key=pub_key),
+        )
+        return num_cfg

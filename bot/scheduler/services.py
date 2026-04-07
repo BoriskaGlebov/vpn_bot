@@ -4,6 +4,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
 from loguru import logger
 
+from bot.app_error.api_error import APIClientConnectionError, APIClientError
 from bot.core.config import settings_bot
 from bot.scheduler.adapter import SchedulerAPIAdapter
 from bot.scheduler.schemas import (
@@ -16,6 +17,7 @@ from bot.scheduler.schemas import (
     UserNotifyEventSchema,
 )
 from bot.utils.start_stop_bot import send_to_admins
+from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_proxy import AmneziaProxy, AsyncDockerSSHClient
@@ -67,20 +69,33 @@ class SubscriptionBotStats:
 class SchedulerBotService:
     """Сервис бота для обработки событий планировщика подписок."""
 
-    def __init__(self, adapter: SchedulerAPIAdapter, bot: Bot) -> None:
+    def __init__(
+        self, adapter: SchedulerAPIAdapter, bot: Bot, vpn_adapter: VPNAPIAdapter
+    ) -> None:
         """Инициализация класса планировщика.
 
         Args:
             adapter: Клиент для обращения к API планировщика.
             bot: Telegram bot instance для отправки сообщений.
+            vpn_adapter: Клиента для обращения к API VPN
 
         """
         self.api_adapter = adapter
+        self.vpn_adapter = vpn_adapter
         self.bot = bot
 
-    async def _run_check_all(self) -> CheckAllSubscriptionsResponse:
+    async def _run_check_all(self) -> CheckAllSubscriptionsResponse | None:
         """Выполняет запрос к API планировщика и возвращает ответ."""
-        return await self.api_adapter.check_all()
+        try:
+            return await self.api_adapter.check_all()
+        except APIClientConnectionError as exs:
+            logger.error("️⚠️️  ️⚠️️  Произошла ошибка при плановой проверке подписок.")
+            message_text = (
+                f"️⚠️ ️⚠️ Произошла ошибка при плановой проверке подписок Планировщиком.\n\n"
+                f"📌 {exs}"
+            )
+            await send_to_admins(bot=self.bot, message_text=message_text)
+            return None
 
     async def _handle_delete_events(
         self, events: list[type[SubscriptionEventSchema],]
@@ -154,14 +169,30 @@ class SchedulerBotService:
                             public_key=cfg.pub_key
                         )
                         if is_delete:
-                            logger.info(f"Конфиг файл удален из VPN {cfg.file_name}")
+                            logger.info(
+                                f"Конфиг файл удален из VPN {cfg.file_name} удаляю из БД"
+                            )
                         else:
                             logger.warning(
                                 f"Файл уже удален из VPN ранее {cfg.file_name}"
                             )
+                        logger.debug("Начинаю удалять файл-конфиг из БД")
+                        res = await self.vpn_adapter.delete_config(
+                            file_name=cfg.file_name, pub_key=cfg.pub_key
+                        )
+                        if res:
+                            logger.info(
+                                f"Произошло удаление конфиг файла из БД.: {cfg.file_name}"
+                            )
                     except AmneziaError as e:
                         logger.error(f"SSH deletion error: {e}")
                         raise
+                    except APIClientError as e:
+                        logger.error(
+                            f"Ошибка доступа в API для удаления файла из БД: {e}"
+                        )
+                        raise
+                return None
 
     async def _trigger_proxy_deletion(self, tg_id: int) -> None:
         """Триггер удаления прокси через внешний сервис."""
@@ -202,48 +233,57 @@ class SchedulerBotService:
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
-        result: CheckAllSubscriptionsResponse = await self._run_check_all()
-        stats = SubscriptionBotStats(
-            checked=result.stats.checked,
-            expired=result.stats.expired,
-            notified=0,
-            configs_deleted=result.stats.configs_deleted,
-        )
-        for event in result.events:
-            if isinstance(event, DeleteVPNConfigsEventSchema):
-                await self._trigger_config_deletion(event.user_id, event.configs)
-                text = m_subscription_local.expire_subscription.delete_configs_user
-                await self._send_user_message(
-                    tg_id=event.user_id, message=text, event=event
-                )
-                admin_text = (
-                    m_subscription_local.expire_subscription.admin_stats.format(
-                        tg_id=event.user_id,
-                        username=f"@{event.username}",
-                        first_name=event.first_name,
-                        last_name=event.last_name,
-                        file_name="\n".join(
-                            [configs.file_name for configs in event.configs]
-                        ),
+        result: CheckAllSubscriptionsResponse | None = await self._run_check_all()
+        if result:
+            stats = SubscriptionBotStats(
+                checked=result.stats.checked,
+                expired=result.stats.expired,
+                notified=0,
+                configs_deleted=result.stats.configs_deleted,
+            )
+            for event in result.events:
+                if isinstance(event, DeleteVPNConfigsEventSchema):
+                    await self._trigger_config_deletion(event.user_id, event.configs)
+                    text = m_subscription_local.expire_subscription.delete_configs_user
+                    await self._send_user_message(
+                        tg_id=event.user_id, message=text, event=event
                     )
-                )
-                await send_to_admins(bot=self.bot, message_text=admin_text)
-            # TODO Попытка удалить прокси который не существует
-            # elif isinstance(event, DeleteProxyEventSchema):
-            #     await self._trigger_proxy_deletion(event.user_id)
-            #     stats.configs_deleted += 1
+                    admin_text = (
+                        m_subscription_local.expire_subscription.admin_stats.format(
+                            tg_id=event.user_id,
+                            username=f"@{event.username}",
+                            first_name=event.first_name,
+                            last_name=event.last_name,
+                            file_name="\n".join(
+                                [configs.file_name for configs in event.configs]
+                            ),
+                        )
+                    )
+                    await send_to_admins(bot=self.bot, message_text=admin_text)
+                # TODO Попытка удалить прокси который не существует
+                # elif isinstance(event, DeleteProxyEventSchema):
+                #     await self._trigger_proxy_deletion(event.user_id)
+                #     stats.configs_deleted += 1
 
-            # Обработка уведомлений
-        for event in result.events:
-            if isinstance(event, UserNotifyEventSchema):
-                await self._send_user_message(
-                    tg_id=event.user_id, message=event.message, event=event
-                )
-                stats.notified += 1
-            elif isinstance(event, AdminNotifyEventSchema):
-                await send_to_admins(bot=self.bot, message_text=event.message)
-                stats.notified += 1
-        print(stats)
+                # Обработка уведомлений
+            for event in result.events:
+                if isinstance(event, UserNotifyEventSchema):
+                    await self._send_user_message(
+                        tg_id=event.user_id, message=event.message, event=event
+                    )
+                    stats.notified += 1
+                elif isinstance(event, AdminNotifyEventSchema):
+                    await send_to_admins(bot=self.bot, message_text=event.message)
+                    stats.notified += 1
+            print(stats)
+        else:
+            stats = SubscriptionBotStats(
+                checked=0,
+                expired=0,
+                notified=0,
+                configs_deleted=0,
+            )
+
         await send_to_admins(
             bot=self.bot,
             message_text=m_subscription_local.daily_check.format(

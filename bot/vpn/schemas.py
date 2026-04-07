@@ -42,3 +42,15 @@ class SVPNCheckLimitResponse(BaseModel):
     can_add: bool
     limit: int
     current: int
+
+
+class SVPNDeleteRequest(SVPNCreateResponse):
+    """Запрос на удаление файла."""
+
+    ...
+
+
+class SVPNDeleteResponse(BaseModel):
+    """Ответ на удаление файла."""
+
+    deleted: int

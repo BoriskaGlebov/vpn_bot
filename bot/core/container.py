@@ -89,7 +89,7 @@ class Container:
         )
         self.news_service = NewsService(adapter=self.news_adapter)
         self.scheduler_bot_service = SchedulerBotService(
-            bot=bot, adapter=self.scheduler_adapter
+            bot=bot, adapter=self.scheduler_adapter, vpn_adapter=self.vpn_adapter
         )
 
         self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)

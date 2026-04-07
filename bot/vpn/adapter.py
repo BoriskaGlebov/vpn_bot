@@ -1,7 +1,10 @@
 from bot.integrations.api_client import APIClient
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
+    SVPNCreateRequest,
     SVPNCreateResponse,
+    SVPNDeleteRequest,
+    SVPNDeleteResponse,
 )
 
 
@@ -18,7 +21,7 @@ class VPNAPIAdapter:
             params={"tg_id": tg_id},
         )
 
-        return SVPNCheckLimitResponse(**data)
+        return SVPNCheckLimitResponse.model_validate(data)
 
     async def add_config(
         self,
@@ -29,11 +32,26 @@ class VPNAPIAdapter:
         """Сохраняет конфиг."""
         data, _ = await self.client.post(
             "/api/vpn/config",
-            json={
-                "tg_id": tg_id,
-                "file_name": file_name,
-                "pub_key": pub_key,
-            },
+            json=SVPNCreateRequest(
+                tg_id=tg_id, file_name=file_name, pub_key=pub_key
+            ).model_dump(),
         )
 
-        return SVPNCreateResponse(**data)
+        return SVPNCreateResponse.model_validate(data)
+
+    async def delete_config(self, file_name: str, pub_key: str) -> SVPNDeleteResponse:
+        """Удаление конфиг файла из БД API.
+
+        Args:
+            file_name: Название файла
+            pub_key: Публичный ключ
+
+        Returns
+            SVPNDeleteResponse: количество удаленных файлов.
+
+        """
+        data, _ = await self.client.delete(
+            "/api/vpn/config",
+            json=SVPNDeleteRequest(file_name=file_name, pub_key=pub_key).model_dump(),
+        )
+        return SVPNDeleteResponse.model_validate(data)
