@@ -38,7 +38,7 @@ class UserNotifyEvent(BaseEvent):
     user_id: int
     message: str
     subscription_type: str
-    remaining_days: int
+    remaining_days: int | None
     active_sbs: bool
 
 

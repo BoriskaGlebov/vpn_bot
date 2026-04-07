@@ -1,6 +1,11 @@
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from loguru import Record
+else:
+    Record = dict  # fallback для runtime
 
 
 @dataclass
@@ -26,7 +31,7 @@ log_context: ContextVar[LogUserContext | None] = ContextVar(
 )
 
 
-def patch_record(record: dict[str, Any]) -> bool:
+def patch_record(record: "Record") -> None:
     """Патчит запись логгера, добавляя данные пользователя из контекста.
 
     Функция используется в настройке loguru (через ``logger.configure`` или
@@ -48,5 +53,3 @@ def patch_record(record: dict[str, Any]) -> bool:
         record["extra"]["user"] = ctx.user or "undefined_user"
         record["extra"]["tg_id"] = ctx.tg_id
         record["extra"]["username"] = ctx.username
-
-    return True

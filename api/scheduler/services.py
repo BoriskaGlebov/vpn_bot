@@ -34,7 +34,7 @@ class SubscriptionScheduler:
 
     async def _process_user(
         self, session: AsyncSession, user: User
-    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
+    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Обрабатывает подписку конкретного пользователя и собирает статистику.
 
         Метод проверяет текущую подписку пользователя и выполняет следующие действия:
@@ -55,7 +55,7 @@ class SubscriptionScheduler:
 
         """
         stats = SubscriptionStats()
-        events: list[type[SubscriptionEvent]] = []
+        events: list[SubscriptionEvent] = []
 
         sub = user.current_subscription
         if not sub:
@@ -78,7 +78,7 @@ class SubscriptionScheduler:
 
     async def _handle_expired(
         self, session: AsyncSession, user: User, sub: Subscription
-    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
+    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Обрабатывает истёкшую подписку пользователя.
 
         Если подписка активна, деактивирует её и отправляет уведомление пользователю.
@@ -97,12 +97,13 @@ class SubscriptionScheduler:
 
         """
         stats = SubscriptionStats()
-        events: list[type[SubscriptionEvent]] = []
+        events: list[SubscriptionEvent] = []
 
         if sub.is_active:
             sub.is_active = False
             stats.expired += 1
 
+            current_subscription = user.current_subscription
             events.append(
                 UserNotifyEvent(
                     type=SubscriptionEventType.USER_NOTIFY,
@@ -110,14 +111,22 @@ class SubscriptionScheduler:
                     username=user.username or "undefined",
                     first_name=user.first_name or "undefined",
                     last_name=user.last_name or "undefined",
-                    active_sbs=bool(user.current_subscription.is_active),
+                    active_sbs=bool(
+                        current_subscription.is_active
+                        if current_subscription
+                        else False
+                    ),
                     message="Подписка истекла",
                     subscription_type=(
-                        user.current_subscription.type.value.upper()
-                        if user.current_subscription
+                        current_subscription.type.value.upper()
+                        if current_subscription
                         else "UNKNOWN"
                     ),
-                    remaining_days=user.current_subscription.remaining_days(),
+                    remaining_days=(
+                        current_subscription.remaining_days()
+                        if current_subscription
+                        else 0
+                    ),
                 )
             )
 
@@ -174,7 +183,7 @@ class SubscriptionScheduler:
 
     async def _handle_expiring_soon(
         self, user: User, sub: Subscription
-    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
+    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Обрабатывает подписку, которая скоро истечет, и уведомляет пользователя.
 
         Если до окончания подписки осталось 3 дня или меньше, отправляется
@@ -192,10 +201,10 @@ class SubscriptionScheduler:
 
         """
         stats = SubscriptionStats()
-        events: list[type[SubscriptionEvent]] = []
+        events: list[SubscriptionEvent] = []
 
         remaining = sub.remaining_days()
-
+        current_subscription = user.current_subscription
         if remaining is not None and remaining <= 3:
             events.append(
                 UserNotifyEvent(
@@ -206,12 +215,20 @@ class SubscriptionScheduler:
                     last_name=user.last_name or "undefined",
                     message=f"Осталось {remaining} дней подписки",
                     subscription_type=(
-                        user.current_subscription.type.value.upper()
-                        if user.current_subscription
+                        current_subscription.type.value.upper()
+                        if current_subscription
                         else "UNKNOWN"
                     ),
-                    remaining_days=user.current_subscription.remaining_days(),
-                    active_sbs=bool(user.current_subscription.is_active),
+                    remaining_days=(
+                        current_subscription.remaining_days()
+                        if current_subscription
+                        else 0
+                    ),
+                    active_sbs=bool(
+                        current_subscription.is_active
+                        if current_subscription
+                        else False
+                    ),
                 )
             )
 
@@ -219,7 +236,7 @@ class SubscriptionScheduler:
 
     async def _handle_active_limit_exceeded(
         self, session: AsyncSession, user: User
-    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
+    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Контролирует превышение лимита VPN-конфигов при активной подписке.
 
         Если у пользователя есть активная подписка и количество конфигов превышает
@@ -237,7 +254,7 @@ class SubscriptionScheduler:
 
         """
         stats = SubscriptionStats()
-        events: list[type[SubscriptionEvent]] = []
+        events: list[SubscriptionEvent] = []
 
         sub = user.current_subscription
         if not sub or not sub.is_active:
@@ -318,7 +335,7 @@ class SubscriptionScheduler:
 
     async def check_all_subscriptions(
         self, session: AsyncSession
-    ) -> tuple[SubscriptionStats, list[type[SubscriptionEvent]]]:
+    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
         """Проверяет все подписки пользователей и собирает статистику.
 
         Метод выполняет выборку всех пользователей с подгрузкой их подписок,
@@ -348,7 +365,7 @@ class SubscriptionScheduler:
         users = result.scalars().all()
 
         stats = SubscriptionStats()
-        events: list[type[SubscriptionEvent]] = []
+        events: list[SubscriptionEvent] = []
 
         for user in users:
             stats.checked += 1

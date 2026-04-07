@@ -207,6 +207,6 @@ async def vpn_limit_handler(
                 f"Достигнут лимит VPN конфигов ({exc.limit}) "
                 f"для пользователя user_id={exc.user_id}"
             ),
-            "error": "vpn_limit_reached",  # (рекомендую для фронта/бота)
+            "error": "vpn_limit_reached",
         },
     )

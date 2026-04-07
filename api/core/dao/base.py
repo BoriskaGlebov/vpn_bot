@@ -12,6 +12,7 @@ from sqlalchemy import ColumnElement, and_, delete, func, select, true
 from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.interfaces import ORMOption
 
 from api.core.database import Base
 
@@ -92,7 +93,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         cls,
         session: AsyncSession,
         filters: BaseModel,
-        options: Sequence | None = None,
+        options: Sequence[ORMOption] | None = None,
     ) -> T | None:
         """Находит одну запись по фильтрам.
 

@@ -181,7 +181,7 @@ class User(Base):
 
         return sum(1 for ref in self.invited_users if ref.bonus_given)
 
-    @paid_referrals_count.expression
+    @paid_referrals_count.expression  # type: ignore[no-redef]
     def paid_referrals_count(cls) -> ScalarSelect[int]:
         """SQL-выражение для подсчёта рефералов с бонусом.
 

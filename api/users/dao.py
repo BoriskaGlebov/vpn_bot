@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.interfaces import ORMOption
 
 from api.app_error.base_error import SubscriptionNotFoundError
 from api.core.dao.base import BaseDAO
@@ -201,7 +202,10 @@ class UserDAO(BaseDAO[User]):
 
     @classmethod
     async def find_one_or_none(
-        cls, session: AsyncSession, filters: BaseModel, options: Sequence | None = None
+        cls,
+        session: AsyncSession,
+        filters: BaseModel,
+        options: Sequence[ORMOption] | None = None,
     ) -> User | None:
         """Находит одну запись по фильтрам.
 
