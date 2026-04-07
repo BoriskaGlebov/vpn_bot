@@ -150,8 +150,15 @@ class SchedulerBotService:
             ) as ssh_client:
                 for cfg in configs:
                     try:
-                        await ssh_client.full_delete_user(public_key=cfg.pub_key)
-
+                        is_delete = await ssh_client.full_delete_user(
+                            public_key=cfg.pub_key
+                        )
+                        if is_delete:
+                            logger.info(f"Конфиг файл удален из VPN {cfg.file_name}")
+                        else:
+                            logger.warning(
+                                f"Файл уже удален из VPN ранее {cfg.file_name}"
+                            )
                     except AmneziaError as e:
                         logger.error(f"SSH deletion error: {e}")
                         raise

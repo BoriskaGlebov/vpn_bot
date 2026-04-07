@@ -210,7 +210,7 @@ class UserRouter(BaseRouter):
                 await message.answer(
                     response_message,
                     reply_markup=referral_kb(
-                        bot_name=bot_inf.username if bot_inf else "VPB_Bot",
+                        bot_name=bot_inf.username if bot_inf.username else "VPB_Bot",
                         tg_id=user.id,
                     ),
                 )

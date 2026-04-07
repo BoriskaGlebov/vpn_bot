@@ -16,7 +16,7 @@ from api.scheduler.enums import SubscriptionEventType
 from api.scheduler.schemas import DeletedVPNConfigSchema
 from api.subscription.models import DEVICE_LIMITS, Subscription
 from api.users.models import User
-from api.vpn.models import VPNConfig
+from api.vpn.models import VPNConfig, VPNConfigStatus
 
 
 class SubscriptionScheduler:
@@ -282,11 +282,12 @@ class SubscriptionScheduler:
         deleted: list[DeletedVPNConfig] = []
 
         for cfg in configs:
+            cfg.status = VPNConfigStatus.PENDING_DELETE
             deleted.append(
                 DeletedVPNConfig(file_name=cfg.file_name, pub_key=cfg.pub_key)
             )
 
-            await session.delete(cfg)
+            # await session.delete(cfg)
 
         return deleted
 
