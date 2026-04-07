@@ -96,7 +96,9 @@ class SchedulerBotService:
             await send_to_admins(bot=self.bot, message_text=message_text)
             return None
 
-    async def _handle_delete_events(self, events: Iterable[EventBase]) -> None:
+    async def _handle_delete_events(
+        self, events: Iterable[DeleteVPNConfigsEventSchema]
+    ) -> None:
         """Обрабатывает события, полученные от планировщика."""
         for event in events:
             if isinstance(event, DeleteVPNConfigsEventSchema):
@@ -248,18 +250,15 @@ class SchedulerBotService:
             )
             return stats
 
-        delete_events: list[DeleteVPNConfigsEventSchema] = list(
-            filter(lambda e: isinstance(e, DeleteVPNConfigsEventSchema), result.events)
-        )
+        delete_events: list[DeleteVPNConfigsEventSchema] = [
+            e for e in result.events if isinstance(e, DeleteVPNConfigsEventSchema)
+        ]
 
-        notify_events: list[EventBase] = list(
-            filter(
-                lambda e: isinstance(
-                    e, (UserNotifyEventSchema | AdminNotifyEventSchema)
-                ),
-                result.events,
-            )
-        )
+        notify_events: list[EventBase] = [
+            e
+            for e in result.events
+            if isinstance(e, (UserNotifyEventSchema | AdminNotifyEventSchema))
+        ]
 
         for event in delete_events:
             await self._trigger_config_deletion(event.user_id, event.configs)
@@ -279,14 +278,14 @@ class SchedulerBotService:
             )
             await send_to_admins(bot=self.bot, message_text=admin_text)
 
-        for event in notify_events:
-            if isinstance(event, UserNotifyEventSchema):
+        for n_event in notify_events:
+            if isinstance(n_event, UserNotifyEventSchema):
                 await self._send_user_message(
-                    tg_id=event.user_id, message=event.message, event=event
+                    tg_id=n_event.user_id, message=n_event.message, event=n_event
                 )
                 stats.notified += 1
-            elif isinstance(event, AdminNotifyEventSchema):
-                await send_to_admins(bot=self.bot, message_text=event.message)
+            elif isinstance(n_event, AdminNotifyEventSchema):
+                await send_to_admins(bot=self.bot, message_text=n_event.message)
                 stats.notified += 1
 
         await send_to_admins(
