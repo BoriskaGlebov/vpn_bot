@@ -39,7 +39,7 @@ def test_map_http_error_returns_correct_type(status_code, detail, expected_cls):
 @pytest.mark.parametrize(
     ("status_code", "detail", "expected_message"),
     [
-        (404, None, "HTTP 404"),
+        (404, None, "HTTP 404: Деталей нет."),
         (404, "Not Found", "HTTP 404: Not Found"),
     ],
 )
