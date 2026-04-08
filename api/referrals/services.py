@@ -39,7 +39,7 @@ class ReferralService:
 
         """
         logger.debug(
-            "register_referral invited_user_id={} inviter_telegram_id={}",
+            "регистрация реферала invited_user_id={} inviter_telegram_id={}",
             invited_user.id,
             inviter_telegram_id,
         )
@@ -99,7 +99,7 @@ class ReferralService:
 
         """
         logger.debug(
-            "grant_referral_bonus invited_user_id={} telegram_id={} months={}",
+            "Выдача бонуса за приглашенного пользователя invited_user_id={} telegram_id={} months={}",
             invited_user.id,
             invited_user.telegram_id,
             months,

@@ -131,8 +131,10 @@ class VPNService:
             int: Количество удалённых конфигураций (обычно 0 или 1).
 
         """
+        logger.info(f"Стартует удаление конфиг файла {file_name} - {pub_key} ")
         num_cfg = await VPNConfigDAO.delete(
             session=session,
             filters=SVPNDeleteRequest(file_name=file_name, pub_key=pub_key),
         )
+        logger.success(f"Произвел удаление конфиг фалов {num_cfg} шт.")
         return num_cfg

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.admin.dependencies import check_admin_role
@@ -45,4 +46,9 @@ async def get_news_recipients(
         HTTPException: В случае ошибок при получении данных (например, проблемы с БД).
 
     """
-    return await service.get_users_for_news(session=session)
+    recipients = await service.get_users_for_news(session=session)
+    logger.info(
+        "Получено {count} пользователей для новостной рассылки",
+        count=len(recipients),
+    )
+    return recipients

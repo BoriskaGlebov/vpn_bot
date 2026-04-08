@@ -1,5 +1,6 @@
 import datetime
 
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -54,18 +55,24 @@ class SubscriptionScheduler:
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
+        logger.info(f"Обработка пользователя: {user.username} (ID: {user.telegram_id})")
         stats = SubscriptionStats()
         events: list[SubscriptionEvent] = []
 
         sub = user.current_subscription
         if not sub:
+            logger.debug(f"Пользователь {user.username} не имеет активной подписки")
             return stats, events
 
         if sub.is_expired():
+            logger.info(f"Подписка пользователя {user.username} истекла")
             s, e = await self._handle_expired(session, user, sub)
             stats.add(s)
             events.extend(e)
         else:
+            logger.debug(
+                f"Подписка пользователя {user.username} активна, проверяем сроки"
+            )
             s, e = await self._handle_expiring_soon(user, sub)
             stats.add(s)
             events.extend(e)
@@ -102,6 +109,7 @@ class SubscriptionScheduler:
         if sub.is_active:
             sub.is_active = False
             stats.expired += 1
+            logger.info(f"Деактивирована подписка пользователя {user.username}")
 
             current_subscription = user.current_subscription
             events.append(
@@ -154,6 +162,9 @@ class SubscriptionScheduler:
                             last_name=user.last_name or "undefined",
                             configs=files,
                         )
+                    )
+                    logger.warning(
+                        f"Отмечено для удаления {len(deleted_configs)} VPN-конфигов пользователя {user.username}"
                     )
 
                     # events.append(
@@ -270,7 +281,11 @@ class SubscriptionScheduler:
         sorted_configs = sorted(configs, key=lambda c: c.created_at)
 
         configs_to_delete = sorted_configs[limit:]
-
+        if configs_to_delete:
+            logger.warning(
+                f"Пользователь {user.username} превысил лимит ({len(sorted_configs)}/{limit}). "
+                f"Будет отправлено на удаление {len(configs_to_delete)} конфигов."
+            )
         deleted_configs = await self._delete_configs(
             session=session,
             user=user,
@@ -354,6 +369,7 @@ class SubscriptionScheduler:
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
+        logger.info("Начало проверки всех подписок пользователей")
         result = await session.execute(
             select(User).options(
                 selectinload(User.subscriptions),
@@ -376,5 +392,9 @@ class SubscriptionScheduler:
             events.extend(e)
 
         await session.commit()
-
+        logger.info(
+            f"Проверка завершена. Пользователей обработано: {stats.checked}, "
+            f"истекших подписок: {stats.expired}, действий: {len(events)}, "
+            f"конфигов удалено: {stats.configs_deleted}"
+        )
         return stats, events

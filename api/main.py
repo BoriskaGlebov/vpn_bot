@@ -44,6 +44,8 @@ from api.core.exceptions.handlers.http import (
 )
 from api.core.schemas import SHealthResponse
 from api.middleware.auth_middleware import AuthMiddleware
+from api.middleware.exceptions_middleware import ExceptionLoggingMiddleware
+from api.middleware.logg_router_middleware import RequestLoggingMiddleware
 from api.middleware.logger_context import LogContextMiddleware
 from api.middleware.session_middleware import DBSessionMiddleware
 from api.news.router import router as news_router
@@ -159,7 +161,10 @@ app.add_exception_handler(AdminNotFoundHeaderError, user_not_admin_handler)
 
 app.add_middleware(LogContextMiddleware)
 app.add_middleware(AuthMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(DBSessionMiddleware)
+
+app.add_middleware(ExceptionLoggingMiddleware)
 
 
 authentication_backend = AdminAuth(
