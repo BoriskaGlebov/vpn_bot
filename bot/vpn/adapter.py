@@ -1,3 +1,4 @@
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
@@ -50,8 +51,11 @@ class VPNAPIAdapter:
             SVPNDeleteResponse: количество удаленных файлов.
 
         """
+        admin_id = next(iter(settings_bot.admin_ids), None)
+
         data, _ = await self.client.delete(
             "/api/vpn/config",
             json=SVPNDeleteRequest(file_name=file_name, pub_key=pub_key).model_dump(),
+            headers={"X-Telegram-Id": str(admin_id)},
         )
         return SVPNDeleteResponse.model_validate(data)

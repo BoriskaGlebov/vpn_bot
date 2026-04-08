@@ -59,7 +59,7 @@ class BaseRouter(ABC):
                     )
                     return result
                 except Exception as e:
-                    self.logger.exception(
+                    self.logger.error(
                         f"❌ Ошибка в {self.__class__.__name__}.{func.__name__}: {e}"
                     )
                     raise
