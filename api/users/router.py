@@ -3,8 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.app_error.base_error import UserNotFoundError
-from api.core.dependencies import get_session
+from api.core.dependencies import get_current_user, get_session
 from api.users.dependencies import get_user_service
+from api.users.models import User
 from api.users.schemas import SUser, SUserOut, SUserWithReferralStats
 from api.users.services import UserService
 
@@ -58,6 +59,7 @@ async def get_user_referrals(
     telegram_id: int,
     session: AsyncSession = Depends(get_session),
     service: UserService = Depends(get_user_service),
+    user_auth: User = Depends(get_current_user),
 ) -> SUserWithReferralStats:
     """Возвращает пользователя с реферальной статистикой.
 
@@ -68,6 +70,7 @@ async def get_user_referrals(
         telegram_id (int): Telegram ID пользователя.
         session (AsyncSession): Асинхронная сессия базы данных.
         service (UserService): Сервис для работы с пользователями.
+        user_auth (User): Проверка,что пользователь зарегистрирован.
 
     Returns
         SUserWithReferralStats: DTO пользователя, включающий:

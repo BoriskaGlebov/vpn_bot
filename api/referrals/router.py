@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import UserNotFoundError
-from api.core.dependencies import get_session
+from api.core.dependencies import get_current_user, get_session
 from api.core.mapper.user_mapper import UserMapper
 from api.referrals.dependencies import get_referral_service
 from api.referrals.schemas import (
@@ -13,6 +13,7 @@ from api.referrals.schemas import (
 )
 from api.referrals.services import ReferralService
 from api.users.dao import UserDAO
+from api.users.models import User
 from api.users.schemas import SUserTelegramID
 
 router = APIRouter(prefix="/referrals", tags=["bot", "REFERRALS"])
@@ -41,6 +42,7 @@ async def register_referral(
     payload: RegisterReferralRequest,
     session: AsyncSession = Depends(get_session),
     service: ReferralService = Depends(get_referral_service),
+    user_auth: User = Depends(get_current_user),
 ) -> RegisterReferralResponse:
     """Регистрирует реферальную связь между пользователями.
 
@@ -48,6 +50,7 @@ async def register_referral(
         payload (RegisterReferralRequest): Данные для регистрации реферала.
         session (AsyncSession): Асинхронная сессия базы данных.
         service (ReferralService): Сервис реферальной системы.
+        user_auth (User): Проверка,что пользователь зарегистрирован.
 
     Returns
         RegisterReferralResponse: Результат регистрации реферала.
@@ -110,6 +113,7 @@ async def grant_bonus(
     payload: GrantReferralBonusRequest,
     session: AsyncSession = Depends(get_session),
     service: ReferralService = Depends(get_referral_service),
+    user_auth: User = Depends(get_current_user),
 ) -> GrantReferralBonusResponse:
     """Начисляет бонус за приглашённого пользователя.
 
@@ -117,6 +121,7 @@ async def grant_bonus(
         payload (GrantReferralBonusRequest): Данные для начисления бонуса.
         session (AsyncSession): Асинхронная сессия базы данных.
         service (ReferralService): Сервис реферальной системы.
+        user_auth (User): Проверка,что пользователь зарегистрирован.
 
     Returns
         GrantReferralBonusResponse: Результат операции начисления бонуса.

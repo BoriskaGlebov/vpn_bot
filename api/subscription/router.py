@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from api.core.dependencies import get_session
+from api.admin.dependencies import check_admin_role
+from api.core.dependencies import get_current_user, get_session
 from api.subscription.dependencies import get_subscription_service
 from api.subscription.schemas import (
     ActivateSubscriptionRequest,
@@ -12,6 +13,7 @@ from api.subscription.schemas import (
     STrialActivateResponse,
 )
 from api.subscription.services import SubscriptionService
+from api.users.models import User
 from api.users.schemas import SUserOut
 from shared.enums.subscription_enum import TrialStatus
 
@@ -27,6 +29,7 @@ async def check_premium(
     tg_id: int,
     session: AsyncSession = Depends(get_session),
     service: SubscriptionService = Depends(get_subscription_service),
+    user_auth: User = Depends(get_current_user),
 ) -> SSubscriptionCheck:
     """Проверяет наличие активной премиум-подписки.
 
@@ -34,6 +37,7 @@ async def check_premium(
         tg_id: Telegram ID пользователя.
         session: DB session dependency.
         service: Subscription service.
+        user_auth (User): Проверка,что пользователь зарегистрирован.
 
     Returns
         SSubscriptionCheck: статус подписки, роль и активность.
@@ -59,6 +63,7 @@ async def start_trial(
     data: STrialActivate,
     session: AsyncSession = Depends(get_session),
     service: SubscriptionService = Depends(get_subscription_service),
+    user_auth: User = Depends(get_current_user),
 ) -> STrialActivateResponse:
     """Активирует trial-подписку пользователя.
 
@@ -66,6 +71,7 @@ async def start_trial(
         data: входные данные (tg_id, days)
         session: DB session
         service: business logic service
+        user_auth (User): Проверка,что пользователь зарегистрирован.
 
     Returns
         STrialActivateResponse: статус активации trial
@@ -95,6 +101,7 @@ async def activate_subscription(
     data: ActivateSubscriptionRequest,
     session: AsyncSession = Depends(get_session),
     service: SubscriptionService = Depends(get_subscription_service),
+    admin_auth: User = Depends(check_admin_role),
 ) -> SUserOut:
     """Активирует или продлевает платную подписку пользователя.
 
@@ -102,6 +109,7 @@ async def activate_subscription(
         data: запрос (tg_id, months, premium)
         session: DB session
         service: бизнес-логика подписок
+        admin_auth: Проверка, что пользователь админ.
 
     Returns
         SUserOut: обновлённый пользователь
@@ -124,6 +132,7 @@ async def get_subscription_info(
     tg_id: int,
     session: AsyncSession = Depends(get_session),
     service: SubscriptionService = Depends(get_subscription_service),
+    user_auth: User = Depends(get_current_user),
 ) -> SSubscriptionInfo:
     """Возвращает информацию о подписке и конфигурациях пользователя."""
     return await service.get_subscription_info(

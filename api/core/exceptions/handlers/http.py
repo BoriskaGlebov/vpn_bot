@@ -7,6 +7,12 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from starlette import status
 
+from api.app_error.api_error import (
+    AdminNotFoundHeaderError,
+    MissingTelegramHeaderError,
+    UserNotFoundHeaderError,
+)
+
 
 async def request_validation_handler(
     request: Request,
@@ -73,5 +79,71 @@ async def database_exception_handler(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "detail": "Ошибка работы с базой данных",
+        },
+    )
+
+
+async def missing_telegram_header_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Обрабатывает отсутствие заголовка X-Telegram-Id."""
+    exc = cast(MissingTelegramHeaderError, exc)
+
+    logger.warning(
+        "MissingTelegramHeaderError: path={} header={}",
+        request.url.path,
+        exc.header_name,
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={
+            "detail": str(exc),
+            "error": "missing_telegram_header",
+        },
+    )
+
+
+async def unregistered_user_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Обрабатывает незарегистрированного пользователя."""
+    exc = cast(UserNotFoundHeaderError, exc)
+
+    logger.warning(
+        "MissingTelegramHeaderError: path={} header={}",
+        request.url.path,
+        exc.tg_id,
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={
+            "detail": str(exc),
+            "error": "unregistered_user_handler",
+        },
+    )
+
+
+async def user_not_admin_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Обрабатывает запрос от не админа."""
+    exc = cast(AdminNotFoundHeaderError, exc)
+
+    logger.warning(
+        "MissingTelegramHeaderError: path={} header={}",
+        request.url.path,
+        exc.tg_id,
+    )
+
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content={
+            "detail": str(exc),
+            "error": "user_not_admin_handler",
         },
     )

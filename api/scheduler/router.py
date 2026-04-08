@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_session
 from api.scheduler.dependencies import (
     get_subscription_scheduler_service,
@@ -8,6 +9,7 @@ from api.scheduler.dependencies import (
 from api.scheduler.mapper import map_event, map_stats
 from api.scheduler.schemas import CheckAllSubscriptionsResponse
 from api.scheduler.services import SubscriptionScheduler
+from api.users.models import User
 
 router = APIRouter(prefix="/scheduler", tags=["bot", "SCHEDULER"])
 
@@ -33,6 +35,7 @@ router = APIRouter(prefix="/scheduler", tags=["bot", "SCHEDULER"])
 async def check_all(
     session: AsyncSession = Depends(get_session),
     service: SubscriptionScheduler = Depends(get_subscription_scheduler_service),
+    admin_auth: User = Depends(check_admin_role),
 ) -> CheckAllSubscriptionsResponse:
     """Проверяет подписки всех пользователей и формирует события.
 
@@ -44,6 +47,7 @@ async def check_all(
     Args:
         session: Асинхронная сессия базы данных SQLAlchemy.
         service: Сервис обработки подписок, инкапсулирующий бизнес-логику.
+        admin_auth: Проверка, что пользователь админ.
 
     Returns
         CheckAllSubscriptionsResponse: Объект ответа, содержащий:

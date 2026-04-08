@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
+from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.users.dao import UserDAO
@@ -42,26 +43,63 @@ class AuthMiddleware(BaseHTTPMiddleware):
             Response: HTTP-ответ.
 
         """
-        tg_id = request.headers.get("X-Telegram-Id")
-        # username = request.headers.get("X-Telegram-Username")
+        tg_id_raw = request.headers.get("X-Telegram-Id")
+
+        logger.debug(
+            "[AuthMiddleware]: path={} tg_id_raw={}",
+            request.url.path,
+            tg_id_raw,
+        )
 
         tg_id_int: int | None = None
 
-        if tg_id is not None:
+        if tg_id_raw is not None:
             try:
-                tg_id_int = int(tg_id)
+                tg_id_int = int(tg_id_raw)
             except ValueError:
+                logger.warning(
+                    "[AuthMiddleware]: некорректный tg_id path={} tg_id_raw={}",
+                    request.url.path,
+                    tg_id_raw,
+                )
                 tg_id_int = None
 
         user = None
 
         if tg_id_int is not None:
+            logger.debug(
+                "[AuthMiddleware]: поиск пользователя path={} tg_id={}",
+                request.url.path,
+                tg_id_int,
+            )
+
             user = await UserDAO.find_one_or_none(
                 session=request.state.db,
                 filters=SUserTelegramID(telegram_id=tg_id_int),
                 options=UserDAO.base_options,
             )
 
+            if user is None:
+                logger.info(
+                    "[AuthMiddleware]: пользователь не найден path={} tg_id={}",
+                    request.url.path,
+                    tg_id_int,
+                )
+            else:
+                logger.debug(
+                    "[AuthMiddleware]: пользователь найден path={} user_id={} tg_id={}",
+                    request.url.path,
+                    getattr(user, "id", None),
+                    tg_id_int,
+                )
+        else:
+            logger.debug(
+                "[AuthMiddleware]: tg_id отсутствует или невалиден path={}",
+                request.url.path,
+            )
+
         request.state.user = user
 
-        return await call_next(request)
+        response = await call_next(request)
+
+        return response

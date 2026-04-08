@@ -5,7 +5,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
 from loguru import logger
 
-from bot.app_error.api_error import APIClientConnectionError, APIClientError
+from bot.app_error.api_error import APIClientError
 from bot.core.config import settings_bot
 from bot.scheduler.adapter import SchedulerAPIAdapter
 from bot.scheduler.schemas import (
@@ -87,7 +87,7 @@ class SchedulerBotService:
         """Выполняет запрос к API планировщика и возвращает ответ."""
         try:
             return await self.api_adapter.check_all()
-        except APIClientConnectionError as exs:
+        except APIClientError as exs:
             logger.error("️⚠️️  ️⚠️️  Произошла ошибка при плановой проверке подписок.")
             message_text = (
                 f"️⚠️ ️⚠️ Произошла ошибка при плановой проверке подписок Планировщиком.\n\n"

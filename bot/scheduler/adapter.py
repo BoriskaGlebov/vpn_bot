@@ -1,3 +1,4 @@
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.scheduler.schemas import CheckAllSubscriptionsResponse
 
@@ -34,6 +35,9 @@ class SchedulerAPIAdapter:
             APIClientConnectionError: при проблемах соединения с API.
 
         """
-        data, _ = await self._client.post("/scheduler/check-all")
+        admin_id = next(iter(settings_bot.admin_ids), None)
+        data, _ = await self._client.post(
+            url="/scheduler/check-all", headers={"X-Telegram-Id": str(admin_id)}
+        )
         response = CheckAllSubscriptionsResponse.model_validate(data)
         return response

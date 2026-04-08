@@ -3,10 +3,11 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from api.admin.dependencies import get_admin_service
+from api.admin.dependencies import check_admin_role, get_admin_service
 from api.admin.schemas import SChangeRole, SExtendSubscription
 from api.admin.services import AdminService
 from api.core.dependencies import get_session
+from api.users.models import User
 from api.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
 
@@ -38,6 +39,7 @@ async def get_user(
     telegram_id: int,
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
+    admin_auth: User = Depends(check_admin_role),
 ) -> SUserOut:
     """Получает пользователя по Telegram ID.
 
@@ -49,6 +51,7 @@ async def get_user(
     обработчиком и преобразуется в HTTP 404.
 
     Args:
+        admin_auth: Проверка, что пользователь админ.
         telegram_id (int): Уникальный идентификатор пользователя в Telegram.
         session (AsyncSession): Асинхронная сессия базы данных.
         service (AdminService): Сервис для работы с пользователями.
@@ -92,6 +95,7 @@ async def get_users(
     ),
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
+    admin_auth: User = Depends(check_admin_role),
 ) -> list[SUserOut]:
     """Получает список пользователей по фильтру ролей.
 
@@ -106,6 +110,7 @@ async def get_users(
             - FOUNDER — владельцы системы
         session (AsyncSession): Асинхронная сессия базы данных.
         service (AdminService): Сервис для работы с пользователями.
+        admin_auth: Проверка, что пользователь админ.
 
     Returns
         list[SUserOut]: Список пользователей, соответствующих фильтру.
@@ -158,6 +163,7 @@ async def change_user_role(
     data: SChangeRole,
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
+    admin_auth: User = Depends(check_admin_role),
 ) -> SUserOut:
     """Изменяет роль пользователя.
 
@@ -175,6 +181,8 @@ async def change_user_role(
             - role_name — новая роль (user, admin, founder)
         session (AsyncSession): Асинхронная сессия базы данных.
         service (AdminService): Сервис управления пользователями.
+        admin_auth: Проверка, что пользователь админ.
+
 
     Returns
         SUserOut: Обновлённые данные пользователя.
@@ -231,6 +239,7 @@ async def extend_subscription(
     data: SExtendSubscription,
     session: AsyncSession = Depends(get_session),
     service: AdminService = Depends(get_admin_service),
+    admin_auth: User = Depends(check_admin_role),
 ) -> SUserOut:
     """Продлевает подписку пользователя.
 
@@ -249,6 +258,8 @@ async def extend_subscription(
             - months: количество месяцев продления
         session (AsyncSession): Асинхронная сессия базы данных
         service (AdminService): сервис бизнес-логики
+        admin_auth: Проверка, что пользователь админ.
+
 
     Returns
         SUserOut: Обновлённая информация о пользователе

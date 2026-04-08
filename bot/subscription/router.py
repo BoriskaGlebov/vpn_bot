@@ -426,7 +426,7 @@ class SubscriptionRouter(BaseRouter):
                             else f"{ToggleSubscriptionMode.STANDARD.upper()}"
                         ),
                     ),
-                    reply_markup=main_kb(active_subscription=True),
+                    # reply_markup=main_kb(active_subscription=True),
                 )
                 res, inviter = await self.referral_service.grant_referral_bonus(
                     invited_user=user_schema,

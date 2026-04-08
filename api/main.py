@@ -12,6 +12,11 @@ from starlette.responses import JSONResponse
 from starlette.templating import Jinja2Templates
 
 from api.admin.router import router as admin_router
+from api.app_error.api_error import (
+    AdminNotFoundHeaderError,
+    MissingTelegramHeaderError,
+    UserNotFoundHeaderError,
+)
 from api.app_error.base_error import (
     ActiveSubscriptionExistsError,
     ReferralError,
@@ -32,7 +37,10 @@ from api.core.exceptions.handlers.business import (
 )
 from api.core.exceptions.handlers.http import (
     database_exception_handler,
+    missing_telegram_header_handler,
     request_validation_handler,
+    unregistered_user_handler,
+    user_not_admin_handler,
 )
 from api.core.schemas import SHealthResponse
 from api.middleware.auth_middleware import AuthMiddleware
@@ -145,6 +153,9 @@ app.add_exception_handler(TrialAlreadyUsedError, trial_already_used_handler)
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(ReferralError, referral_exception_handler)
 app.add_exception_handler(VPNLimitError, vpn_limit_handler)
+app.add_exception_handler(MissingTelegramHeaderError, missing_telegram_header_handler)
+app.add_exception_handler(UserNotFoundHeaderError, unregistered_user_handler)
+app.add_exception_handler(AdminNotFoundHeaderError, user_not_admin_handler)
 
 app.add_middleware(LogContextMiddleware)
 app.add_middleware(AuthMiddleware)
