@@ -7,17 +7,17 @@ import pytest
 from aiogram import Bot
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Chat, Message, User
-from integrations.api_client import APIClient
 from loguru import logger as real_logger
-from users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 
 from bot.admin.adapter import AdminAPIAdapter
 from bot.core.config import settings_bot
+from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.users.adapter import UsersAPIAdapter
+from bot.users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 from bot.utils import commands
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG

@@ -2,9 +2,9 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from users.schemas import SUserOut
 
 from bot.users.adapter import UsersAPIAdapter
+from bot.users.schemas import SUserOut
 from bot.users.services import UserService
 
 

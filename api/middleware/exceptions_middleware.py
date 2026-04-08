@@ -1,10 +1,12 @@
 import traceback
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
-from fastapi import FastAPI, Request
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+from starlette.types import ASGIApp
 
 
 class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
@@ -20,7 +22,7 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
 
     """
 
-    def __init__(self, app: FastAPI) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         """Инициализирует middleware.
 
         Args:
@@ -29,7 +31,11 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
         """
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next: Callable) -> JSONResponse:
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         """Обрабатывает HTTP-запрос, логируя необработанные исключения.
 
         Args:

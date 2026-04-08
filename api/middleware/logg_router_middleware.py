@@ -1,15 +1,16 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
-from fastapi import FastAPI, Request
+from fastapi import Request
 from fastapi.responses import Response
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware для логирования входящих запросов и исходящих ответов."""
 
-    def __init__(self, app: FastAPI) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         """Инициализация middleware.
 
         Args:
@@ -18,7 +19,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         """
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
         """Логирует начало запроса и ответ.
 
         Args:
