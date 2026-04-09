@@ -85,5 +85,5 @@ def override_dependencies(mock_session, mock_admin_user, mock_service):
     return {
         original_get_session: lambda: mock_session,
         original_check_admin_role: lambda: mock_admin_user,
-        original_get_admin_service: lambda: mock_service,  # <-- возвращаем мок-сервис
+        original_get_admin_service: lambda: mock_service,
     }
