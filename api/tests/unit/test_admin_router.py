@@ -1,6 +1,21 @@
 from unittest.mock import AsyncMock
 
+import pytest
+
 from api.users.schemas import SRoleOut, SUserOut
+
+
+class FakeAdminService:
+    def __init__(self):
+        self.get_user_by_telegram_id = None
+        self.get_users_by_filter = None
+        self.change_user_role = None
+        self.extend_user_subscription = None
+
+
+@pytest.fixture
+def mock_service():
+    return FakeAdminService()
 
 
 def make_user():
