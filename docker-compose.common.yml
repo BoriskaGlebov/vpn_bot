@@ -2,7 +2,7 @@ services:
   vpn_bot:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: bot/Dockerfile
     container_name: vpn_bot
     restart: always
     environment:

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from api.scheduler.enums import SubscriptionEventType
+from bot.scheduler.enums import SubscriptionEventType
 
 
 class EventBase(BaseModel):
