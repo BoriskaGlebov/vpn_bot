@@ -82,7 +82,7 @@ class SSubscriptionOut(BaseModel):
 
     id: int = Field(..., description="ID подписки")
     type: str | None = Field(
-        None, description="Тип подписки (free/premium/trial и т.д.)"
+        None, description="Тип подписки (standart/premium/trial и т.д.)"
     )
     is_active: bool = Field(..., description="Статус активности подписки")
     end_date: datetime | None = Field(

@@ -110,6 +110,6 @@ class DeletedVPNConfig:
     pub_key: str
 
 
-SubscriptionEvent = (
+type SubscriptionEvent = (
     UserNotifyEvent | AdminNotifyEvent | DeleteProxyEvent | DeleteVPNConfigsEvent
 )

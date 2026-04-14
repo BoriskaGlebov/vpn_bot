@@ -79,7 +79,7 @@ class AdminNotifyEventSchema(EventBase):
     message: str
 
 
-SubscriptionEventSchema = (
+type SubscriptionEventSchema = (
     UserNotifyEventSchema
     | DeleteVPNConfigsEventSchema
     | DeleteProxyEventSchema
