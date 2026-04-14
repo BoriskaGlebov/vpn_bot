@@ -1,10 +1,11 @@
 import pytest
-from core.dao.base import BaseDAO
-from core.database import Base
 from pydantic import BaseModel
 from sqlalchemy import String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
+
+from api.core.dao.base import BaseDAO
+from api.core.database import Base
 
 
 class TmpModel(Base):

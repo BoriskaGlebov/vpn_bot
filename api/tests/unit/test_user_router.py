@@ -1,7 +1,6 @@
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
-from enums.admin_enum import RoleEnum
 from starlette.testclient import TestClient
 
 from api.core.dependencies import get_current_user, get_session

@@ -2,9 +2,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from admin.dependencies import check_admin_role
 from starlette.testclient import TestClient
 
+from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_current_user, get_session
 from api.main import app
 from api.subscription.dependencies import get_subscription_service

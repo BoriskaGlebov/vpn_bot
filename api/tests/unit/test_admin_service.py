@@ -15,7 +15,7 @@ def session():
 @pytest.fixture
 def mock_user_dao_find():
     with patch(
-        "api.users.dao.UserDAO.find_one_or_none", new_callable=AsyncMock
+        "api.admin.services.UserDAO.find_one_or_none", new_callable=AsyncMock
     ) as mock:
         yield mock
 
@@ -23,7 +23,7 @@ def mock_user_dao_find():
 @pytest.fixture
 def mock_role_dao_find():
     with patch(
-        "api.users.dao.RoleDAO.find_one_or_none", new_callable=AsyncMock
+        "api.admin.services.RoleDAO.find_one_or_none", new_callable=AsyncMock
     ) as mock:
         yield mock
 
@@ -31,21 +31,33 @@ def mock_role_dao_find():
 @pytest.fixture
 def mock_get_users_by_roles():
     with patch(
-        "api.users.dao.UserDAO.get_users_by_roles", new_callable=AsyncMock
+        "api.admin.services.UserDAO.get_users_by_roles", new_callable=AsyncMock
     ) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_change_role():
-    with patch("api.users.dao.UserDAO.change_role", new_callable=AsyncMock) as mock:
+    with patch(
+        "api.admin.services.UserDAO.change_role", new_callable=AsyncMock
+    ) as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_user_dao_find_none():
+    with patch(
+        "api.admin.services.UserDAO.find_one_or_none",
+        new_callable=AsyncMock,
+    ) as mock:
+        mock.return_value = None
         yield mock
 
 
 @pytest.fixture
 def mock_extend_subscription():
     with patch(
-        "api.users.dao.UserDAO.extend_subscription", new_callable=AsyncMock
+        "api.admin.services.UserDAO.extend_subscription", new_callable=AsyncMock
     ) as mock:
         yield mock
 
@@ -53,7 +65,7 @@ def mock_extend_subscription():
 @pytest.fixture
 def mock_user_mapper():
     with patch(
-        "api.core.mapper.user_mapper.UserMapper.to_schema", new_callable=AsyncMock
+        "api.admin.services.UserMapper.to_schema", new_callable=AsyncMock
     ) as mock:
         yield mock
 
@@ -146,11 +158,15 @@ async def test_change_user_role_success(
 async def test_change_user_role_user_not_found(
     session,
     mock_user_dao_find,
+    mock_role_dao_find,
 ):
     mock_user_dao_find.return_value = None
+    mock_role_dao_find.return_value = object()
 
     with pytest.raises(UserNotFoundError):
         await AdminService.change_user_role(session, 1, RoleEnum.ADMIN)
+
+    mock_user_dao_find.assert_awaited_once()
 
 
 @pytest.mark.asyncio

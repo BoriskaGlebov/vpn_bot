@@ -70,7 +70,9 @@ class AdminService:
             session=session, filter_type=filter_type.value
         )
 
-        result = [await UserMapper.to_schema(user) for user in users]
+        result = []
+        for user in users:
+            result.append(await UserMapper.to_schema(user))
 
         logger.info(
             "Получен список пользователей count={} filter_type={}",

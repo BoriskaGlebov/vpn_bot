@@ -114,3 +114,4 @@ run-api: rev-up
 pytests:
 	@echo "🧪 Запускаем тесты..."
 	pytest -vs $(if $(m),-m $(m),) bot/tests
+	pytest -vs $(if $(m),-m $(m),) api/tests

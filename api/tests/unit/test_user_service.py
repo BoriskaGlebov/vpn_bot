@@ -1,14 +1,11 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from enums.admin_enum import RoleEnum
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.users.schemas import (
-    SRole,
     SUser,
     SUserOut,
-    SUserTelegramID,
     SUserWithReferralStats,
 )
 from api.users.services import UserService

@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from users.schemas import SVPNConfigOut
 
 from api.scheduler.domain.event import (
     AdminNotifyEvent,
