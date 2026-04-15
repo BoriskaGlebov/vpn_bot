@@ -17,6 +17,21 @@ services:
       start_period: 40s
     networks:
       - infrastructure_net
+  api:
+    env_file:
+      - .env
+      - .env.local
+    ports:
+      - "8089:8089"
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8089/api/health', timeout=2)" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - infrastructure_net
+
   nginx_vpn_bot:
     volumes:
       - ./nginx_test.conf:/etc/nginx/nginx.conf:ro
