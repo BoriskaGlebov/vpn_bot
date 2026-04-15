@@ -1,6 +1,8 @@
 from typing import Any
 
 import numpy as np
+from core.config import settings_ai
+from core.database import async_session
 from langchain_core.embeddings import Embeddings
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -8,8 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from bot.ai.dao import KnowledgeChunkDAO
 from bot.ai.schemas import SKnowledgeChunk, SKnowledgeChunkFilter
 from bot.app_error.base_error import AppError
-from bot.config import settings_ai
-from bot.database import async_session
 
 
 class KnowledgeBaseInitializer:

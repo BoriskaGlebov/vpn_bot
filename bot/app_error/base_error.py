@@ -19,6 +19,12 @@ class AppError(Exception):
         return base
 
 
+class MessageNotFoundError(AppError):
+    """Ошибка сообщения для редактирования не найдено."""
+
+    pass
+
+
 class UserNotFoundError(AppError):
     """Пользователь не найден."""
 
@@ -45,8 +51,9 @@ class VPNLimitError(AppError):
     """
 
     def __init__(self, user_id: int, limit: int, username: str = "") -> None:
+        suffix = f"@{username}" if username else ""
         super().__init__(
-            f"Пользователь {user_id} достиг лимита ({limit}) конфигов.\n@{username}"
+            f"Пользователь {user_id} достиг лимита ({limit}) конфигов.\n{suffix}"
         )
         self.user_id = user_id
         self.username = username

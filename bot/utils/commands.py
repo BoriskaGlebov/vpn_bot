@@ -6,7 +6,7 @@ from aiogram.types import (
     BotCommandScopeChat,
 )
 
-from bot.config import (
+from bot.core.config import (
     bot,
     logger,
     settings_bot,

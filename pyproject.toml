@@ -38,6 +38,7 @@ langchain-core = "^1.2.18"
 pgvector = "^0.3.0"
 langchain-postgres = "^0.0.17"
 tenacity = "^9.1.4"
+asyncio = "^4.0.0"
 
 
 
@@ -63,6 +64,7 @@ types-aiofiles = "^25.1.0.20251011"
 types-python-dateutil = "^2.9.0.20251115"
 asyncssh = "^2.21.1"
 sqladmin = "^0.23.0"
+pytest-mock = "^3.15.1"
 
 [tool.poetry.group.ml]
 optional = true
@@ -91,6 +93,7 @@ exclude = '''
   | build
   | dist
   | bot/migrations
+  | api/migrations
   | \.venv
 )/
 '''
@@ -127,7 +130,9 @@ exclude = [
     "^dist/",
     "^\\.venv/",
     "^bot/migrations/",
+    "^api/migrations/",
     "^bot/vpn/utils/",
+    "^api/tests/",
 ]
 plugins = [
     "pydantic.mypy",

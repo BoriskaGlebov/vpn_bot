@@ -1,11 +1,11 @@
 from collections.abc import Sequence
 
+from core.dao.base import BaseDAO
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.ai.models import KnowledgeChunk
-from bot.dao.base import BaseDAO
 
 
 class KnowledgeChunkDAO(BaseDAO[KnowledgeChunk]):

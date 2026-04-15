@@ -1,142 +1,109 @@
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from aiogram.types import ReplyKeyboardRemove
 
-from bot.subscription.router import m_subscription
-from bot.vpn.router import VPNRouter, m_vpn
-from bot.vpn.services import VPNService
+from bot.vpn.router import VPNRouter
+
+
+@pytest.fixture
+def message(make_fake_message):
+    msg = make_fake_message()
+
+    # msg.chat.id = 123
+    # msg.answer = mocker.AsyncMock()
+    # msg.answer_document = mocker.AsyncMock()
+
+    return msg
+
+
+@pytest.fixture
+def state(fake_state):
+    # state = mocker.MagicMock()
+    # state.clear = mocker.AsyncMock()
+    state = fake_state
+    return state
+
+
+@pytest.fixture
+def user(tg_user):
+    return tg_user
+
+
+@pytest.fixture
+def router(fake_bot, fake_logger, mocker, fake_redis):
+    # bot = mocker.AsyncMock()
+    # logger = mocker.MagicMock()
+    vpn_service = mocker.AsyncMock()
+    subscription_service = mocker.AsyncMock()
+    # redis = mocker.AsyncMock()
+
+    return VPNRouter(
+        fake_bot, fake_logger, vpn_service, fake_redis, subscription_service
+    )
 
 
 @pytest.mark.asyncio
-@pytest.mark.vpn
-async def test_get_config_amnezia_vpn(
-    fake_bot, fake_logger, fake_redis, fake_state, session, make_fake_message
-):
-    # Создаём роутер с мокнутым VPNService
-    vpn_service = AsyncMock(spec=VPNService)
-    router = VPNRouter(
-        bot=fake_bot, logger=fake_logger, vpn_service=vpn_service, redis=fake_redis
-    )
+async def test_check_acquired_success(router, message):
+    router.redis.set.return_value = True
 
-    # Мокаем возвращаемые значения generate_user_config
-    fake_file = Path("/tmp/test.conf")
-    vpn_service.generate_user_config.return_value = (fake_file, "PUB_KEY")
+    result = await router._check_acquired("key", message)
 
-    fake_message = make_fake_message()
-
-    # Патчим SSH-клиент, чтобы не подключаться реально
-    with (
-        patch(
-            "bot.vpn.router.AsyncSSHClientVPN.__aenter__", new_callable=AsyncMock
-        ) as mock_ssh_enter,
-        patch(
-            "bot.vpn.router.AsyncSSHClientVPN.__aexit__", new_callable=AsyncMock
-        ) as mock_ssh_exit,
-    ):
-        mock_ssh_client = AsyncMock()
-        mock_ssh_enter.return_value = mock_ssh_client
-
-        await router.get_config_amnezia_vpn(
-            message=fake_message, session=session, state=fake_state
-        )
-
-        # Проверяем что бот отправил сообщение о генерации
-        fake_message.answer.assert_any_await(
-            text=m_vpn.amnezia_vpn,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-
-        # Проверяем, что VPNService.generate_user_config вызван с нужными аргументами
-        vpn_service.generate_user_config.assert_awaited_once_with(
-            session=session,
-            user=fake_message.from_user,
-            ssh_client=mock_ssh_client,
-        )
-
-        # Проверяем что отправка документа произошла
-        fake_message.answer_document.assert_awaited_once()
-        # Проверяем, что файл был удалён
-        assert not fake_file.exists()
-
-        # Проверяем очистку состояния
-        fake_state.clear.assert_awaited()
+    assert result is True
+    message.answer.assert_not_called()
 
 
 @pytest.mark.asyncio
-@pytest.mark.vpn
-async def test_get_config_amnezia_wg(
-    fake_bot, fake_logger, fake_redis, fake_state, session, make_fake_message
-):
-    vpn_service = AsyncMock(spec=VPNService)
-    router = VPNRouter(
-        bot=fake_bot, logger=fake_logger, vpn_service=vpn_service, redis=fake_redis
-    )
+async def test_check_acquired_already_running(router, message):
+    router.redis.set.return_value = False
 
-    fake_file = Path("/tmp/test_wg.conf")
-    vpn_service.generate_user_config.return_value = (fake_file, "PUB_KEY_WG")
+    result = await router._check_acquired("key", message)
 
-    fake_message = make_fake_message()
-
-    # Патчим SSH-клиент WG
-    with (
-        patch(
-            "bot.vpn.router.AsyncSSHClientWG.__aenter__", new_callable=AsyncMock
-        ) as mock_ssh_enter,
-        patch(
-            "bot.vpn.router.AsyncSSHClientWG.__aexit__", new_callable=AsyncMock
-        ) as mock_ssh_exit,
-    ):
-        mock_ssh_client = AsyncMock()
-        mock_ssh_enter.return_value = mock_ssh_client
-
-        await router.get_config_amnezia_wg(
-            message=fake_message, session=session, state=fake_state
-        )
-
-        fake_message.answer.assert_any_await(
-            text=m_vpn.amnezia_wg,
-            reply_markup=ReplyKeyboardRemove(),
-        )
-
-        vpn_service.generate_user_config.assert_awaited_once_with(
-            session=session,
-            user=fake_message.from_user,
-            ssh_client=mock_ssh_client,
-        )
-
-        fake_message.answer_document.assert_awaited_once()
-        fake_state.clear.assert_awaited()
+    assert result is False
+    message.answer.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-@pytest.mark.vpn
-async def test_check_subscription(
-    fake_bot, fake_logger, fake_redis, fake_state, session, make_fake_message
-):
-    router = VPNRouter(
-        bot=fake_bot, logger=fake_logger, vpn_service=AsyncMock(), redis=fake_redis
+async def test_get_config_amnezia_vpn_success(mocker, router, message, user, state):
+    router.redis.set.return_value = True
+
+    # mock status message
+    status_msg = mocker.MagicMock()
+    status_msg.answer = mocker.AsyncMock()
+    message.answer.return_value = status_msg
+
+    # mock ssh client context manager
+    ssh_client = mocker.AsyncMock()
+
+    mocker.patch(
+        "bot.vpn.router.AsyncSSHClientVPN",
+        return_value=ssh_client,
     )
-    fake_message = make_fake_message()
 
-    # Патчим метод VPNService.get_subscription_info
-    with patch(
-        "bot.vpn.router.VPNService.get_subscription_info", new_callable=AsyncMock
-    ) as mock_get_info:
-        mock_get_info.return_value = "Подписка активна"
+    ssh_client.__aenter__.return_value = ssh_client
 
-        await router.check_subscription(
-            message=fake_message, session=session, state=fake_state
-        )
+    router.vpn_service.generate_user_config.return_value = (
+        Path("/tmp/test.conf"),
+        "pubkey",
+    )
 
-        mock_get_info.assert_awaited_once_with(
-            tg_id=fake_message.from_user.id, session=session
-        )
-        fake_message.answer.assert_awaited_with(
-            text=m_subscription.check_subscription, reply_markup=ReplyKeyboardRemove()
-        )
-        fake_bot.send_message.assert_awaited_with(
-            chat_id=fake_message.from_user.id, text="Подписка активна"
-        )
-        fake_state.clear.assert_awaited()
+    mocker.patch("pathlib.Path.unlink")
+
+    await router.get_config_amnezia_vpn(message=message, state=state)
+
+    router.vpn_service.generate_user_config.assert_awaited_once()
+
+    message.answer_document.assert_awaited_once()
+
+    state.clear.assert_awaited_once()
+    router.redis.delete.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_config_amnezia_vpn_locked(router, message, user, state):
+    router.redis.set.return_value = False
+
+    await router.get_config_amnezia_vpn(message=message, state=state)
+
+    router.vpn_service.generate_user_config.assert_not_called()

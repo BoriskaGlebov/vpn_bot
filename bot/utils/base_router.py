@@ -15,7 +15,7 @@ from aiogram.types import (
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 
 T = TypeVar("T")
 F = TypeVar("F", bound=Callable[..., Any])
@@ -59,7 +59,7 @@ class BaseRouter(ABC):
                     )
                     return result
                 except Exception as e:
-                    self.logger.exception(
+                    self.logger.error(
                         f"❌ Ошибка в {self.__class__.__name__}.{func.__name__}: {e}"
                     )
                     raise

@@ -1,0 +1,30 @@
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.core.config import settings_api
+from api.core.database import connection
+from api.users.dao import RoleDAO
+from api.users.models import Role, User
+from api.users.schemas import SRole
+
+DEFAULT_ROLES = [
+    {"name": "admin", "description": "Администратор"},
+    {"name": "founder", "description": "Пользователи с правами основателя"},
+    {"name": "user", "description": "Обычный пользователь"},
+]
+
+
+@connection()
+async def init_default_roles_admins(session: AsyncSession) -> None:
+    """Создаёт базовые роли, если их нет в БД и обновляет список админов."""
+    existing_roles = await RoleDAO.find_all(session=session)
+    existing_name = {role.name for role in existing_roles}
+    for role in DEFAULT_ROLES:
+        if role["name"] not in existing_name:
+            schema = SRole(**role)
+            await RoleDAO.add(session, schema)
+
+    query = select(User.telegram_id).join(User.role).where(Role.name == "admin")
+    result = await session.execute(query)
+    admins = result.scalars().all()
+    settings_api.admin_ids.update(admins)  # type: ignore[union-attr]
