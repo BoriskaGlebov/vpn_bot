@@ -12,8 +12,8 @@ if [ -d "api/migrations" ] && [ -f "alembic.ini" ]; then
     echo "📦 Alembic detected — applying migrations..."
     alembic upgrade head
 
-    echo "🧹 Cleaning up Alembic migration files..."
-    rm -rf api/migrations alembic.ini || true
+#    echo "🧹 Cleaning up Alembic migration files..."
+#    rm -rf api/migrations alembic.ini || true
     echo "✅ Migrations applied and Alembic removed."
 else
     echo "ℹ️ Alembic not found — skipping migrations."
