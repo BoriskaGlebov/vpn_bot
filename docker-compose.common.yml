@@ -22,7 +22,7 @@ services:
     build:
       context: .
       dockerfile: api/Dockerfile
-    container_name: api_bot
+    container_name: api
     restart: always
     environment:
       TZ: Europe/Moscow
