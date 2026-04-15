@@ -16,7 +16,7 @@ from api.app_error.api_error import (
 
 async def request_validation_handler(
     request: Request,
-    exc: Exception,
+    exc: RequestValidationError,
 ) -> JSONResponse:
     """Обрабатывает ошибки валидации входящего HTTP запроса.
 
@@ -31,7 +31,7 @@ async def request_validation_handler(
         JSONResponse: HTTP 422 ответ с деталями ошибок.
 
     """
-    exc = cast(RequestValidationError, exc)
+    # exc = cast(RequestValidationError, exc)
     logger.warning(
         "RequestValidationError path={} errors={}",
         request.url.path,

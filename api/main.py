@@ -147,7 +147,7 @@ app.include_router(scheduler_router)
 app.add_exception_handler(UserNotFoundError, user_not_found_handler)
 app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
 
-app.add_exception_handler(RequestValidationError, request_validation_handler)
+app.add_exception_handler(RequestValidationError, request_validation_handler)  # type: ignore[arg-type]
 app.add_exception_handler(
     ActiveSubscriptionExistsError, active_subscription_exists_handler
 )
