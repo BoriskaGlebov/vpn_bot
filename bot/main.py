@@ -33,11 +33,6 @@ tags_metadata: list[dict[str, Any]] = [
         "name": "webhook",
         "description": "Получение обновлений телеграмм.",
     },
-    {
-        "name": "AI-agent",
-        "description": "Роуты для ИИ агента, которые позволяют ему выполнять действия.",
-    },
-    {"name": "users", "description": "Методы работы с пользователями."},
 ]
 
 container = Container(bot=bot)
@@ -122,7 +117,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await start_bot(bot=bot)
     scheduler.add_job(
         scheduled_check,
-        trigger=IntervalTrigger(seconds=20, minutes=25),
+        trigger=IntervalTrigger(seconds=20, minutes=0),
         # trigger=CronTrigger(hour=8, minute=0),
         kwargs={"service": container.scheduler_bot_service},
     )
