@@ -18,6 +18,8 @@ services:
   api:
     env_file:
       - .env
+    ports:
+      - "127.0.0.1:8089:8089"
     healthcheck:
       test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8089/api/health', timeout=2)" ]
       interval: 30s
