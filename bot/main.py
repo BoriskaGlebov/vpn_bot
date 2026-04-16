@@ -4,7 +4,7 @@ from typing import Any
 
 import uvicorn
 from aiogram.types import Update
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import ValidationError
 from starlette.responses import JSONResponse
@@ -117,8 +117,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await start_bot(bot=bot)
     scheduler.add_job(
         scheduled_check,
-        trigger=IntervalTrigger(seconds=20, minutes=0),
-        # trigger=CronTrigger(hour=8, minute=0),
+        # trigger=IntervalTrigger(seconds=20, minutes=0),
+        trigger=CronTrigger(hour=8, minute=0),
         kwargs={"service": container.scheduler_bot_service},
     )
     scheduler.start()
