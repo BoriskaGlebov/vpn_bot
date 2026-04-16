@@ -46,20 +46,8 @@ class SRole(BaseModel):
     """
 
     name: str = Field(..., description="Уникальное имя роли")
-    description: str | None = Field(None, description="Описание роли")
+    description: str | None = Field(default=None, description="Описание роли")
 
-    model_config = ConfigDict(from_attributes=True)
-
-
-class SSubscription(BaseModel):
-    """Схема для создания подписки.
-
-    Attributes
-        user_id (int): Идентификатор подписки, используется в момент создания.
-
-    """
-
-    user_id: int = Field(..., description="Идентификатор пользователя")
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -117,7 +105,7 @@ class SUserOut(BaseModel):
 
     id: int = Field(..., description="ID пользователя в БД")
     telegram_id: int = Field(..., description="Telegram ID пользователя")
-    username: str | None = Field(None, description="Username в Telegram")
+    username: str = Field(..., description="Username в Telegram")
     first_name: str | None = Field(None, description="Имя пользователя")
     last_name: str | None = Field(None, description="Фамилия пользователя")
     has_used_trial: bool = Field(..., description="Использовал ли пользователь триал")
@@ -132,6 +120,30 @@ class SUserOut(BaseModel):
     )
     current_subscription: SSubscriptionOut | None = Field(
         None, description="Текущая подписка пользователя"
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SUserWithReferralStats(SUserOut):
+    """Расширенная схема пользователя с реферальной статистикой."""
+
+    referrals_count: int = Field(
+        ...,
+        description="Сколько пользователей пригласил",
+        examples=[10],
+    )
+
+    paid_referrals_count: int = Field(
+        ...,
+        description="Сколько приглашённых оплатили подписку",
+        examples=[4],
+    )
+
+    referral_conversion: float = Field(
+        ...,
+        description="Конверсия рефералов (paid / total)",
+        examples=[0.4],
     )
 
     model_config = ConfigDict(from_attributes=True)

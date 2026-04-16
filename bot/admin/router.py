@@ -7,7 +7,6 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.enums import ActionEnum, AdminModeKeys
 from bot.admin.keyboards.inline_kb import (
@@ -20,7 +19,7 @@ from bot.admin.keyboards.inline_kb import (
 )
 from bot.admin.services import AdminService
 from bot.app_error.base_error import SubscriptionNotFoundError
-from bot.database import connection
+from bot.core.filters import IsAdmin
 from bot.utils.base_router import BaseRouter
 
 
@@ -39,12 +38,14 @@ class AdminRouter(BaseRouter):
         self.admin_service = admin_service
 
     def _register_handlers(self) -> None:
+        is_admin = IsAdmin()
         self.router.callback_query.register(
             self.admin_action_callback,
             or_f(
                 UserPageCB.filter(F.action == ActionEnum.ROLE_CHANGE),
                 UserPageCB.filter(F.action == ActionEnum.SUB_MANAGE),
             ),
+            is_admin,
         )
         self.router.callback_query.register(
             self.role_select_callback,
@@ -52,6 +53,7 @@ class AdminRouter(BaseRouter):
                 StateFilter(AdminStates.select_role),
                 UserPageCB.filter(F.action == ActionEnum.ROLE_SELECT),
             ),
+            is_admin,
         )
         self.router.callback_query.register(
             self.sub_select_callback,
@@ -59,6 +61,7 @@ class AdminRouter(BaseRouter):
                 StateFilter(AdminStates.select_period),
                 UserPageCB.filter(F.action == ActionEnum.SUB_SELECT),
             ),
+            is_admin,
         )
         self.router.callback_query.register(
             self.cansel_callback,
@@ -66,14 +69,15 @@ class AdminRouter(BaseRouter):
                 UserPageCB.filter(F.action == ActionEnum.ROLE_CANCEL),
                 UserPageCB.filter(F.action == ActionEnum.SUBSCR_CANCEL),
             ),
+            is_admin,
         )
         self.router.callback_query.register(
-            self.show_filtered_users,
-            AdminCB.filter(),
+            self.show_filtered_users, AdminCB.filter(), is_admin
         )
         self.router.callback_query.register(
             self.user_page_callback,
             UserPageCB.filter(F.action == ActionEnum.NAVIGATE),
+            is_admin,
         )
 
         self.router.message.register(
@@ -85,9 +89,9 @@ class AdminRouter(BaseRouter):
                 ),
                 ~F.text.startswith("/"),
             ),
+            is_admin,
         )
 
-    @connection()
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def admin_action_callback(
@@ -95,7 +99,6 @@ class AdminRouter(BaseRouter):
         query: CallbackQuery,
         msg: Message,
         state: FSMContext,
-        session: AsyncSession,
         callback_data: UserPageCB,
     ) -> None:
         """Обрабатывает действия администратора при редактировании пользователя.
@@ -108,7 +111,6 @@ class AdminRouter(BaseRouter):
             query (CallbackQuery): Объект колбэка.
             msg (Message): Сообщение над которым надо вносить изменения.
             state (FSMContext): Контекст состояний FSM.
-            session (AsyncSession): Сессия базы данных.
             callback_data (UserPageCB | None): Данные из callback кнопки.
 
         """
@@ -123,7 +125,7 @@ class AdminRouter(BaseRouter):
                 )
                 raise ValueError("Необходимо передать в запрос telegram_id")
             user_schema = await self.admin_service.get_user_by_telegram_id(
-                session=session, telegram_id=user_id
+                telegram_id=user_id
             )
             old_text = await self.admin_service.format_user_text(
                 suser=user_schema, key=AdminModeKeys.EDIT_USER
@@ -153,7 +155,6 @@ class AdminRouter(BaseRouter):
                 )
                 user_logger.info(f"Начал управление подпиской пользователя {user_id}")
 
-    @connection()
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def role_select_callback(
@@ -161,7 +162,6 @@ class AdminRouter(BaseRouter):
         query: CallbackQuery,
         msg: Message,
         callback_data: UserPageCB,
-        session: AsyncSession,
         state: FSMContext,
     ) -> None:
         """Изменяет роль пользователя.
@@ -170,7 +170,6 @@ class AdminRouter(BaseRouter):
             query (CallbackQuery): Объект колбэка.
             msg (Message): Сообщение над которым надо вносить изменения.
             callback_data (UserPageCB): Данные из callback кнопки.
-            session (AsyncSession): Сессия базы данных.
             state (FSMContext): Контекст состояний FSM.
 
         Raises
@@ -191,7 +190,6 @@ class AdminRouter(BaseRouter):
                 raise ValueError("Необходимо передать в запрос telegram_id")
 
             user_schema = await self.admin_service.change_user_role(
-                session=session,
                 telegram_id=user_id,
                 role_name=role_name,
             )
@@ -200,7 +198,7 @@ class AdminRouter(BaseRouter):
                 suser=user_schema, key=AdminModeKeys.EDIT_USER
             )
             await msg.edit_text(
-                f"{old_text}\nРоль пользователя изменена на {role_name} ✅",
+                f"{old_text}\nРоль пользователя изменена на {role_name.value} ✅",
                 reply_markup=user_navigation_kb(
                     filter_type=role_name,
                     index=callback_data.index,
@@ -211,14 +209,12 @@ class AdminRouter(BaseRouter):
             user_logger.info(f"Смена роли пользователя {user_id} на {role_name} ✅")
             await state.clear()
 
-    @connection()
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def sub_select_callback(
         self,
         query: CallbackQuery,
         msg: Message,
-        session: AsyncSession,
         callback_data: UserPageCB,
         state: FSMContext,
     ) -> None:
@@ -227,7 +223,6 @@ class AdminRouter(BaseRouter):
         Args:
             query (CallbackQuery): Объект колбэка.
             msg (Message): Сообщение над которым надо вносить изменения.
-            session (AsyncSession): Сессия базы данных.
             callback_data (UserPageCB): Данные из callback кнопки.
             state (FSMContext): Контекст состояний FSM.
 
@@ -249,7 +244,6 @@ class AdminRouter(BaseRouter):
             months = int(months)
             try:
                 user_schema = await self.admin_service.extend_user_subscription(
-                    session=session,
                     telegram_id=user_id,
                     months=months,
                 )
@@ -274,14 +268,12 @@ class AdminRouter(BaseRouter):
                 self.logger.error("Нельзя продлить подписку она не активирована")
                 await query.answer(str(e))
 
-    @connection()
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def cansel_callback(
         self,
         query: CallbackQuery,
         msg: Message,
-        session: AsyncSession,
         callback_data: UserPageCB,
     ) -> None:
         """Отменяет выбор роли или подписки и возвращает навигацию по пользователям.
@@ -289,7 +281,6 @@ class AdminRouter(BaseRouter):
         Args:
             query (CallbackQuery): Объект колбэка.
             msg (Message): Сообщение над которым надо вносить изменения.
-            session (AsyncSession): Сессия базы данных.
             callback_data (UserPageCB): Данные из callback кнопки.
 
         """
@@ -301,7 +292,7 @@ class AdminRouter(BaseRouter):
             user_id = callback_data.telegram_id
             old_text = msg.text or ""
             users_schemas = await self.admin_service.get_users_by_filter(
-                session, callback_data.filter_type
+                callback_data.filter_type
             )
             await msg.edit_text(
                 text=old_text,
@@ -316,7 +307,6 @@ class AdminRouter(BaseRouter):
                 f"Админ отменил действие для пользователя {callback_data.telegram_id}"
             )
 
-    @connection()
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def show_filtered_users(
@@ -324,7 +314,6 @@ class AdminRouter(BaseRouter):
         query: CallbackQuery,
         msg: Message,
         callback_data: AdminCB,
-        session: AsyncSession,
         state: FSMContext,
     ) -> None:
         """Обрабатывает выбор фильтра пользователей (админы, founder и т.д.).
@@ -336,7 +325,6 @@ class AdminRouter(BaseRouter):
             query (CallbackQuery): Объект колбэка.
             msg (Message): Сообщение над которым надо вносить изменения.
             callback_data (AdminCB): Данные callback-кнопки.
-            session (AsyncSession): Асинхронная сессия базы данных.
             state (FSMContext): Контекст состояний FSM.
 
         """
@@ -345,10 +333,8 @@ class AdminRouter(BaseRouter):
         )
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             filter_type = callback_data.filter_type
-            await query.answer(f"Выбрал {filter_type}")
-            users_schemas = await self.admin_service.get_users_by_filter(
-                session, filter_type
-            )
+            await query.answer(f"Выбрал {filter_type.value}")
+            users_schemas = await self.admin_service.get_users_by_filter(filter_type)
 
             if not users_schemas:
                 await msg.edit_text("Пользователи не найдены.")
@@ -375,7 +361,6 @@ class AdminRouter(BaseRouter):
             )
             await msg.edit_text(text, reply_markup=kb)
 
-    @connection()
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def user_page_callback(
@@ -383,7 +368,6 @@ class AdminRouter(BaseRouter):
         query: CallbackQuery,
         msg: Message,
         callback_data: UserPageCB,
-        session: AsyncSession,
     ) -> None:
         """Навигация между пользователями по фильтру.
 
@@ -403,7 +387,7 @@ class AdminRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Следующая страница")
             users_schemas = await self.admin_service.get_users_by_filter(
-                session, callback_data.filter_type
+                callback_data.filter_type
             )
 
             if not users_schemas:

@@ -3,17 +3,21 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InaccessibleMessage, Message
+from aiogram.types import (
+    CallbackQuery,
+    InaccessibleMessage,
+    Message,
+    ReplyKeyboardRemove,
+)
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot.admin.enums import FilterTypeEnum
-from bot.app_error.base_error import UserNotFoundError
-from bot.config import settings_bot
-from bot.database import connection
-from bot.redis_service import redis_admin_mess_storage as redis_service
+from bot.app_error.api_error import APIClientConflictError
+from bot.app_error.base_error import MessageNotFoundError, UserNotFoundError
+from bot.core.config import settings_bot
+from bot.core.filters import IsAdmin
+from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
     AdminPaymentAction,
@@ -33,6 +37,7 @@ from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
+from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
 
@@ -54,12 +59,15 @@ class SubscriptionRouter(BaseRouter):
         logger: Logger,
         subscription_service: SubscriptionService,
         referral_service: ReferralService,
+        redis_service: RedisAdminMessageStorage,
     ) -> None:
         super().__init__(bot, logger)
         self.subscription_service = subscription_service
         self.referral_service = referral_service
+        self.redis_service = redis_service
 
     def _register_handlers(self) -> None:
+        is_admin = IsAdmin()
         self.router.message.register(
             self.start_subscription,
             or_f(
@@ -95,10 +103,12 @@ class SubscriptionRouter(BaseRouter):
         self.router.callback_query.register(
             self.admin_confirm_payment,
             AdminPaymentCB.filter(F.action == AdminPaymentAction.CONFIRM),
+            is_admin,
         )
         self.router.callback_query.register(
             self.admin_decline_payment,
             AdminPaymentCB.filter(F.action == AdminPaymentAction.DECLINE),
+            is_admin,
         )
         self.router.message.register(
             self.mistake_handler_user,
@@ -111,18 +121,20 @@ class SubscriptionRouter(BaseRouter):
                 ~F.text.startswith("/"),
             ),
         )
+        self.router.message.register(
+            self.check_subscription,
+            F.text == MainMenuText.CHECK_STATUS.value,
+        )
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_user
     async def start_subscription(
-        self, message: Message, user: TgUser, session: AsyncSession, state: FSMContext
+        self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
         """Обрабатывает начало оформления подписки.
 
         Args:
             user (TgUser): Пользователь Телеграм из сообщения.
-            session (AsyncSession): Асинхронная сессия.
             message (Message): Сообщение пользователя, инициировавшего подписку.
             state (FSMContext): Контекст FSM для управления состояниями.
 
@@ -134,8 +146,10 @@ class SubscriptionRouter(BaseRouter):
                 is_premium,
                 role,
                 is_active_sbscr,
-            ) = await self.subscription_service.check_premium(
-                session=session, tg_id=user.id
+                used_trial,
+            ) = await self.subscription_service.check_premium(tg_id=user.id)
+            await message.answer(
+                text="Начнем оформление подписки", reply_markup=ReplyKeyboardRemove()
             )
             if not is_premium or role == FilterTypeEnum.FOUNDER:
                 text = m_subscription.start.format(
@@ -143,16 +157,14 @@ class SubscriptionRouter(BaseRouter):
                 )
                 kb = subscription_options_kb(
                     premium=False,
-                    trial=not is_active_sbscr,
+                    trial=not used_trial,
                     founder=bool(role == FilterTypeEnum.FOUNDER),
                 )
             else:
                 text = m_subscription.premium_start.format(
                     device_limit=settings_bot.max_configs_per_user * 2
                 )
-                kb = subscription_options_kb(
-                    premium=is_premium, trial=not is_active_sbscr
-                )
+                kb = subscription_options_kb(premium=is_premium, trial=not used_trial)
                 await state.update_data(premium=is_premium)
             await message.answer(
                 text=text,
@@ -163,13 +175,11 @@ class SubscriptionRouter(BaseRouter):
 
     @BaseRouter.log_method
     @BaseRouter.require_message
-    @connection()
     async def subscription_selected(
         self,
         query: CallbackQuery,
         msg: Message,
         state: FSMContext,
-        session: AsyncSession,
         callback_data: SubscriptionCB,
     ) -> None:
         """Обрабатывает выбор периода подписки пользователем.
@@ -178,7 +188,6 @@ class SubscriptionRouter(BaseRouter):
             query (CallbackQuery): Callback от Inline-кнопки с выбором подписки.
             msg (Message): Сообщение над которым надо вносить изменения.
             state (FSMContext): Контекст FSM.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
             callback_data (SubscriptionCB): Данные для работы.
 
         """
@@ -210,10 +219,10 @@ class SubscriptionRouter(BaseRouter):
             else:
                 days = months  # для триала количество дней
                 try:
-                    await self.subscription_service.start_trial_subscription(
-                        session=session, user_id=query.from_user.id, days=days
-                    )
                     await query.answer("Выбрал пробный период", show_alert=False)
+                    await self.subscription_service.start_trial_subscription(
+                        tg_id=query.from_user.id, days=days
+                    )
                     await msg.delete()
                     await self.bot.send_message(
                         chat_id=query.from_user.id,
@@ -289,7 +298,7 @@ class SubscriptionRouter(BaseRouter):
             await state.set_state(SubscriptionStates.wait_for_paid)
             months = callback_data.months
             price_map = settings_bot.price_map
-            premium = (await state.get_data()).get("premium")
+            premium = (await state.get_data()).get("premium", False)
             price = price_map[months] * 2 if premium else price_map[months]
 
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
@@ -321,7 +330,7 @@ class SubscriptionRouter(BaseRouter):
                     months=months,
                     premium=premium if premium else False,
                 ),
-                admin_mess_storage=redis_service,
+                admin_mess_storage=self.redis_service,
                 telegram_id=user.id,
             )
 
@@ -369,13 +378,11 @@ class SubscriptionRouter(BaseRouter):
             await state.clear()
 
     @BaseRouter.log_method
-    @connection()
     @BaseRouter.require_message
     async def admin_confirm_payment(
         self,
         query: CallbackQuery,
         msg: Message,
-        session: AsyncSession,
         state: FSMContext,
         callback_data: AdminPaymentCB,
     ) -> None:
@@ -385,7 +392,6 @@ class SubscriptionRouter(BaseRouter):
             callback_data (AdminPaymentCB): Данные для формирования подписки.
             query (CallbackQuery): Callback от кнопки подтверждения админом.
             msg (Message): Сообщения от пользователя для редактирования.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
             state (FSMContext): Контекст FSM.
 
         """
@@ -402,7 +408,7 @@ class SubscriptionRouter(BaseRouter):
             premium = callback_data.premium
 
             user_schema = await self.subscription_service.activate_paid_subscription(
-                session, user_id, months, premium
+                user_id, months, premium
             )
             user_logger.info(
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"
@@ -412,9 +418,7 @@ class SubscriptionRouter(BaseRouter):
             try:
                 await self.bot.send_message(
                     chat_id=user_id,
-                    text=m_subscription.get("accept_paid", {})
-                    .get("user", "")
-                    .format(
+                    text=m_subscription.accept_paid.user.format(
                         months=months,
                         premium=(
                             f"{ToggleSubscriptionMode.PREMIUM.upper()}"
@@ -422,10 +426,9 @@ class SubscriptionRouter(BaseRouter):
                             else f"{ToggleSubscriptionMode.STANDARD.upper()}"
                         ),
                     ),
-                    reply_markup=main_kb(active_subscription=True),
+                    # reply_markup=main_kb(active_subscription=True),
                 )
                 res, inviter = await self.referral_service.grant_referral_bonus(
-                    session=session,
                     invited_user=user_schema,
                 )
                 if res and inviter:
@@ -445,24 +448,44 @@ class SubscriptionRouter(BaseRouter):
                         user_id=user_id
                     ),
                 )
-
-            await edit_admin_messages(
-                bot=self.bot,
-                user_id=user_id,
-                new_text=m_subscription.get("accept_paid", {})
-                .get("admin", "")
-                .format(
+            except APIClientConflictError as exc:
+                if exc.status_code == 409:
+                    user_logger.warning(str(exc))
+                else:
+                    raise
+            try:
+                await edit_admin_messages(
+                    bot=self.bot,
                     user_id=user_id,
-                    premium=(
-                        f"{ToggleSubscriptionMode.PREMIUM.upper()}"
-                        if premium
-                        else f"{ToggleSubscriptionMode.STANDARD.upper()}"
+                    new_text=m_subscription.accept_paid.admin.format(
+                        user_id=user_id,
+                        premium=(
+                            f"{ToggleSubscriptionMode.PREMIUM.upper()}"
+                            if premium
+                            else f"{ToggleSubscriptionMode.STANDARD.upper()}"
+                        ),
+                        username=user_schema.username,
                     ),
-                    username=user_schema.username,
-                ),
-                admin_mess_storage=redis_service,
-            )
-            await state.clear()
+                    admin_mess_storage=self.redis_service,
+                )
+                await state.clear()
+            except MessageNotFoundError as exc:
+                user_logger.warning(str(exc))
+                await self.bot.delete_message(
+                    chat_id=msg.chat.id, message_id=msg.message_id
+                )
+                await send_to_admins(
+                    bot=self.bot,
+                    message_text=m_subscription.accept_paid.admin.format(
+                        user_id=user_id,
+                        premium=(
+                            f"{ToggleSubscriptionMode.PREMIUM.upper()}"
+                            if premium
+                            else f"{ToggleSubscriptionMode.STANDARD.upper()}"
+                        ),
+                        username=user_schema.username,
+                    ),
+                )
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -490,6 +513,7 @@ class SubscriptionRouter(BaseRouter):
             chat_id=msg.chat.id,
         ):
             await query.answer("Отклонено 🚫")
+            await state.clear()
             user_id = callback_data.user_id
             months = callback_data.months
 
@@ -506,5 +530,25 @@ class SubscriptionRouter(BaseRouter):
                 bot=self.bot,
                 user_id=user_id,
                 new_text=m_subscription.decline_paid.admin.format(user_id=user_id),
-                admin_mess_storage=redis_service,
+                admin_mess_storage=self.redis_service,
             )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def check_subscription(
+        self, message: Message, user: TgUser, state: FSMContext
+    ) -> None:
+        """Проверка статуса подписки пользователя."""
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            info_text = (
+                await self.subscription_service.get_subscription_and_referral_info(
+                    tg_id=user.id
+                )
+            )
+
+            await message.answer(
+                text=m_subscription.check_subscription,
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            await self.bot.send_message(chat_id=user.id, text=info_text)
+            await state.clear()

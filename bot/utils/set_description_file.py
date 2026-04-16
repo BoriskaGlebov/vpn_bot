@@ -1,6 +1,6 @@
 from aiogram import Bot
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 
 
 async def set_description(bot: Bot) -> None:

@@ -1,11 +1,11 @@
 from typing import Any
 
+from core.config import settings_db
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from bot.config import settings_db
-from bot.database import Base, int_pk
+from shared.db.base import Base, int_pk
 
 
 class KnowledgeChunk(Base):

@@ -1,4 +1,4 @@
-from bot.config import settings_bot, settings_bucket
+from bot.core.config import settings_bot, settings_bucket
 from bot.help.utils.common_device import Device
 
 

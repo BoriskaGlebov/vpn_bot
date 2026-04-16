@@ -16,12 +16,12 @@ from aiogram.types import Message, ReplyKeyboardRemove
 from aiogram.types import User as TGUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.admin.keyboards.inline_kb import admin_main_kb, admin_user_control_kb
-from bot.config import settings_bot
-from bot.database import connection
-from bot.redis_manager import SettingsRedis
+from bot.core.config import settings_bot
+from bot.core.filters import IsAdmin
+from bot.integrations.redis_client import RedisClient
+from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
 from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
@@ -29,6 +29,7 @@ from bot.users.schemas import SUserOut
 from bot.users.services import UserService
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
+from shared.enums.admin_enum import RoleEnum
 
 m_admin = settings_bot.messages.modes.admin
 m_start = settings_bot.messages.modes.start
@@ -82,7 +83,7 @@ class UserRouter(BaseRouter):
         self,
         bot: Bot,
         logger: Logger,
-        redis_manager: SettingsRedis,
+        redis_manager: RedisClient,
         user_service: UserService,
         referral_service: ReferralService,
     ) -> None:
@@ -98,6 +99,7 @@ class UserRouter(BaseRouter):
             and_f(
                 or_f(Command("admin"), F.text == MainMenuText.ADMIN_PANEL.value),
                 F.chat.type == ChatType.PRIVATE,
+                IsAdmin(),
             ),
         )
 
@@ -122,7 +124,6 @@ class UserRouter(BaseRouter):
         self,
         command: CommandStart,
         invited_user: SUserOut,
-        session: AsyncSession,
     ) -> None:
         """Обрабатывает реферальный код из команды /start и регистрирует рефералку.
 
@@ -132,7 +133,6 @@ class UserRouter(BaseRouter):
         Args:
             command(CommandStart): Сообщение Telegram с командой /start.
             invited_user (SUserOut): Пользователь, который только что зарегистрировался.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy для операций с БД.
 
         """
         start_args = getattr(command, "args", None)
@@ -157,12 +157,10 @@ class UserRouter(BaseRouter):
             return
 
         await self.referral_service.register_referral(
-            session=session,
             invited_user=invited_user,
             inviter_telegram_id=inviter_telegram_id,
         )
 
-    @connection()
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def cmd_start(
@@ -170,7 +168,6 @@ class UserRouter(BaseRouter):
         message: Message,
         command: CommandStart,
         user: TGUser,
-        session: AsyncSession,
         state: FSMContext,
     ) -> None:
         """Обработчик команды /start.
@@ -182,7 +179,6 @@ class UserRouter(BaseRouter):
             command: Команда Старт
             message (Message): Сообщение Telegram с командой /start.
             user (TGUser): Пользователь Telegram, инициировавший команду.
-            session (AsyncSession): Асинхронная сессия SQLAlchemy для работы с БД.
             state (FSMContext): Контекст FSM для управления состояниями пользователя.
 
         Returns
@@ -199,7 +195,7 @@ class UserRouter(BaseRouter):
                 )
                 return
             user_info, is_new = await self.user_service.register_or_get_user(
-                session=session, telegram_user=user
+                telegram_user=user
             )
             welcome_messages = m_start.welcome
 
@@ -210,8 +206,13 @@ class UserRouter(BaseRouter):
                 response_message = welcome_messages.again[0].format(username=full_name)
                 follow_up_message = welcome_messages.again[1]
 
+                bot_inf = await self.bot.get_me()
                 await message.answer(
-                    response_message, reply_markup=ReplyKeyboardRemove()
+                    response_message,
+                    reply_markup=referral_kb(
+                        bot_name=bot_inf.username if bot_inf.username else "VPB_Bot",
+                        tg_id=user.id,
+                    ),
                 )
                 await message.answer(
                     follow_up_message,
@@ -228,9 +229,7 @@ class UserRouter(BaseRouter):
                 self.logger.bind(user=user.username or user.id).info(
                     f"Новый пользователь зарегистрирован: {user.id} ({username})"
                 )
-                await self._process_referral(
-                    command=command, invited_user=user_info, session=session
-                )
+                await self._process_referral(command=command, invited_user=user_info)
                 response_message = welcome_messages.first[0].format(username=full_name)
                 follow_up_message = welcome_messages.first[1]
                 await message.answer(
@@ -261,7 +260,7 @@ class UserRouter(BaseRouter):
                         bot=self.bot,
                         message_text=admin_message,
                         reply_markup=admin_user_control_kb(
-                            filter_type=user_info.role.name,
+                            filter_type=RoleEnum(user_info.role.name),
                             telegram_id=user.id,
                         ),
                     )

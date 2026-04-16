@@ -1,6 +1,7 @@
 import time
 from typing import Any
 
+from core.config import settings_ai
 from langchain_core.callbacks import (
     AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
@@ -10,8 +11,6 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from loguru import logger
 from yandex_ai_studio_sdk import AsyncAIStudio
-
-from bot.config import settings_ai
 
 
 class YandexChatModel(BaseChatModel):

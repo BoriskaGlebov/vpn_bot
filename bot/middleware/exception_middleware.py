@@ -21,8 +21,17 @@ from aiogram.exceptions import (
 from aiogram.types import CallbackQuery, Message, TelegramObject
 from loguru._logger import Logger
 
+from bot.app_error.api_error import (
+    APIClientConflictError,
+    APIClientConnectionError,
+    APIClientForbiddenError,
+    APIClientHTTPError,
+    APIClientNotFoundError,
+    APIClientUnauthorizedError,
+    APIClientValidationError,
+)
 from bot.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
@@ -59,6 +68,14 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         self.error_messages: dict[type[Exception], str] = {
             VPNLimitError: "⚠️ Слишком много запросов. Превышен лимит на количество устройств",
             SubscriptionNotFoundError: "⚠️ Ошибка отсутствует подписка",
+            # --- API ---
+            APIClientConnectionError: "⚠️ Нет соединения с сервером. Попробуйте позже",
+            APIClientUnauthorizedError: "⚠️ Ошибка авторизации",
+            APIClientForbiddenError: "⚠️ Доступ запрещён",
+            APIClientNotFoundError: "⚠️ Объект не найден",
+            APIClientValidationError: "⚠️ Ошибка данных",
+            APIClientConflictError: "⚠️ Конфликт данных",
+            APIClientHTTPError: "⚠️ Ошибка сервера",
             TelegramRetryAfter: "⚠️ Слишком много запросов.",
             TelegramForbiddenError: "⚠️ Доступ запрещён.",
             TelegramUnauthorizedError: "⚠️ Ошибка авторизации.",
@@ -90,7 +107,8 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                         f"⚠️ Пользователь достиг лимита конфигов ({exc.limit}/ {exc.limit}).\n"
                         f"Если  нужно больше обратитесь в поддержку @BorisisTheBlade."
                     )
-
+                elif isinstance(exc, APIClientConflictError):
+                    return f"⚠️ Конфликт данных ({exc.detail})"
                 return message
         return self.default_user_message
 
@@ -126,6 +144,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         except Exception:
             self.logger.warning("Не удалось отправить сообщение админам")
 
+    def _is_expected_error(self, exc: Exception) -> bool:
+        """Проверяю, что тип ошибки ожидаемый и не надо весь trace выводить."""
+        return any(isinstance(exc, exc_type) for exc_type in self.error_messages)
+
     async def __call__(
         self,
         handler: Handler,
@@ -148,12 +170,17 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             await self._notify_admins(event, exc)
             update_id = getattr(event, "update_id", None)
             exception_type = type(exc).__name__
-            self.logger.bind(
-                user=user_id,
-            ).exception(
-                f"[update_id] - {update_id}\n"
-                f"[exception_type]{exception_type}\n"
-                f"Ошибка при обработке обновления"
-            )
+            if self._is_expected_error(exc):
+                self.logger.bind(user=user_id).error(
+                    f"[update_id] - {update_id}\n"
+                    f"[exception_type] - {exception_type}\n"
+                    f"{str(exc)}"
+                )
+            else:
+                self.logger.bind(user=user_id).exception(
+                    f"[update_id] - {update_id}\n"
+                    f"[exception_type]{exception_type}\n"
+                    f"Неожиданная ошибка"
+                )
 
             return None

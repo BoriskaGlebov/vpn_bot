@@ -1,63 +1,53 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.enums import AdminModeKeys
-from bot.app_error.base_error import UserNotFoundError
-from bot.users.dao import RoleDAO, UserDAO
+from bot.admin.schemas import SChangeRole, SExtendSubscription
 from bot.users.router import m_admin
 from bot.users.schemas import (
-    SRole,
     SUserOut,
-    SUserTelegramID,
 )
-from bot.users.services import UserService
+from shared.enums.admin_enum import RoleEnum
 
 
 class AdminService:
-    """Сервис для бизнес-логики управления пользователями и их ролями."""
+    """Сервис бизнес-логики управления пользователями.
 
-    @classmethod
-    async def get_user_by_telegram_id(
-        cls, session: AsyncSession, telegram_id: int
-    ) -> SUserOut:
-        """Возвращает пользователя по Telegram ID.
+    Обеспечивает взаимодействие между Telegram-ботом и Admin API.
+    Выполняет orchestration (сборку payload, форматирование данных),
+    не содержит работы с БД.
+    """
 
-        Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
-            telegram_id (int): ID пользователя в Telegram.
-
-        Returns
-            SUserOut: Схема пользователя.
-
-        Raises
-            UserNotFoundError: Если пользователь не найден.
-
-        """
-        user = await UserDAO.find_one_or_none(
-            session=session, filters=SUserTelegramID(telegram_id=telegram_id)
-        )
-        if not user:
-            raise UserNotFoundError(tg_id=telegram_id)
-        user_schema = await UserService.get_user_schema(user)
-        return user_schema
-
-    @classmethod
-    async def get_users_by_filter(
-        cls, session: AsyncSession, filter_type: str
-    ) -> list[SUserOut]:
-        """Получает список пользователей по фильтру роли.
+    def __init__(self, adapter: AdminAPIAdapter) -> None:
+        """Инициализирует сервис.
 
         Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
-            filter_type (str): Имя роли или 'all' для всех пользователей.
-
-        Returns
-            List[SUserOut]: Список пользователей схемы.
+            adapter (AdminAPIAdapter): API адаптер для работы с backend.
 
         """
-        users = await UserDAO.get_users_by_roles(
-            session=session, filter_type=filter_type
-        )
-        return [await UserService.get_user_schema(user) for user in users]
+        self.api_adapter = adapter
+
+    async def get_user_by_telegram_id(self, telegram_id: int) -> SUserOut:
+        """Получает пользователя по Telegram ID.
+
+        Args:
+            telegram_id (int): Уникальный идентификатор пользователя.
+
+        Returns
+            SUserOut: Данные пользователя.
+
+        """
+        return await self.api_adapter.get_user_by_telegram_id(telegram_id)
+
+    async def get_users_by_filter(self, filter_type: RoleEnum) -> list[SUserOut]:
+        """Получает список пользователей по роли.
+
+        Args:
+            filter_type (RoleEnum): Фильтр пользователей.
+
+        Returns
+            list[SUserOut]: Список пользователей.
+
+        """
+        return await self.api_adapter.get_users(filter_type)
 
     @classmethod
     async def format_user_text(
@@ -91,61 +81,36 @@ class AdminService:
             ),
         )
 
-    @classmethod
-    async def change_user_role(
-        cls, session: AsyncSession, telegram_id: int, role_name: str
-    ) -> SUserOut:
-        """Меняет роль пользователя и при необходимости активирует подписку.
+    async def change_user_role(self, telegram_id: int, role_name: RoleEnum) -> SUserOut:
+        """Изменяет роль пользователя.
 
         Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
-            telegram_id (int): ID пользователя в Telegram.
-            role_name (str): Имя новой роли.
+            telegram_id (int): Telegram ID пользователя.
+            role_name (RoleEnum): Новая роль.
 
         Returns
-            SUserOut: Схема пользователь.
-
-        Raises
-            UserNotFoundError: Если пользователь или роль не найдены.
+            SUserOut: Обновлённые данные пользователя.
 
         """
-        user = await UserDAO.find_one_or_none(
-            session=session, filters=SUserTelegramID(telegram_id=telegram_id)
+        payload = SChangeRole(
+            telegram_id=telegram_id,
+            role_name=role_name,
         )
-        role = await RoleDAO.find_one_or_none(session, filters=SRole(name=role_name))
+        return await self.api_adapter.change_user_role(payload)
 
-        if not user or not role:
-            raise UserNotFoundError(tg_id=telegram_id)
-        changed_user = await UserDAO.change_role(session=session, user=user, role=role)
-        user_schema = await UserService.get_user_schema(changed_user)
-        return user_schema
-
-    @classmethod
-    async def extend_user_subscription(
-        cls, session: AsyncSession, telegram_id: int, months: int
-    ) -> SUserOut:
-        """Продлевает активную подписку пользователя.
+    async def extend_user_subscription(self, telegram_id: int, months: int) -> SUserOut:
+        """Продлевает подписку пользователя.
 
         Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
-            telegram_id (int): ID пользователя в Telegram.
+            telegram_id (int): Telegram ID пользователя.
             months (int): Количество месяцев продления.
 
         Returns
-            SUserOut: Схема пользователь.
-
-        Raises
-            UserNotFoundError: Если пользователь не найден.
-            SubscriptionNotFoundError: Подписка не активна.
+            SUserOut: Обновлённый пользователь.
 
         """
-        user = await UserDAO.find_one_or_none(
-            session=session, filters=SUserTelegramID(telegram_id=telegram_id)
+        payload = SExtendSubscription(
+            telegram_id=telegram_id,
+            months=months,
         )
-        if not user:
-            raise UserNotFoundError(tg_id=telegram_id)
-        changed_user = await UserDAO.extend_subscription(
-            session=session, user=user, months=months
-        )
-        user_schema = await UserService.get_user_schema(changed_user)
-        return user_schema
+        return await self.api_adapter.extend_subscription(payload)

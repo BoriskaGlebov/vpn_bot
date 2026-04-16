@@ -8,7 +8,7 @@ import docker
 from docker.errors import DockerException
 from loguru import logger
 
-from bot.config import settings_bot
+from bot.core.config import settings_bot
 from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
 
@@ -43,7 +43,7 @@ class AsyncDockerSSHClient:
         use_local: bool = USE_LOCAL,
     ) -> None:
         self.container = container
-        self.use_local = USE_LOCAL
+        self.use_local = use_local
         if not use_local:
             if username is None:
                 raise AmneziaError(message="Username обязательное поле")
@@ -102,7 +102,7 @@ class AsyncDockerSSHClient:
             )
             raise
 
-    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int, str]:
+    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int | None, str]:
         """Выполняет одну команду внутри контейнера.
 
         Args:
@@ -164,7 +164,7 @@ class AsyncDockerSSHClient:
 
     async def run_commands_in_container(
         self, commands: list[str]
-    ) -> AsyncGenerator[tuple[str, str, int, str], None]:
+    ) -> AsyncGenerator[tuple[str, str, int | None, str], None]:
         """Выполняет список команд внутри контейнера.
 
         Args:
@@ -216,8 +216,8 @@ class AsyncDockerSSHClient:
         raise AmneziaSSHError(
             message="Ошибка при перезапуске контейнера",
             cmd=cmd,
-            stdout=stdout,
-            stderr=stderr,
+            stdout=str(stdout),
+            stderr=str(stderr),
         )
 
     async def close(self) -> None:

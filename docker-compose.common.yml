@@ -2,15 +2,34 @@ services:
   vpn_bot:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: bot/Dockerfile
     container_name: vpn_bot
     restart: always
     environment:
       TZ: Europe/Moscow
     volumes:
       - vpn_bot_logs:/vpn_bot/bot/logs
+#      - static_files1:/vpn_bot/.venv/lib/python3.12/site-packages/sqladmin
+#      - static_files2:/vpn_bot/bot/templates
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          memory: 128M
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: api
+    restart: always
+    environment:
+      TZ: Europe/Moscow
+    volumes:
+      - api_bot_logs:/vpn_bot/api/logs
       - static_files1:/vpn_bot/.venv/lib/python3.12/site-packages/sqladmin
-      - static_files2:/vpn_bot/bot/templates
+      - static_files2:/vpn_bot/api/templates
     deploy:
       resources:
         limits:
@@ -33,6 +52,8 @@ services:
 volumes:
   vpn_bot_logs:
     name: vpn_bot_logs
+  api_bot_logs:
+    name: api_bot_logs
   static_files1:
     name: static_files1
   static_files2:

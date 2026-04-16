@@ -4,33 +4,34 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.admin.enums import ActionEnum, FilterTypeEnum
-from bot.config import settings_bot
+from bot.admin.enums import ActionEnum
+from bot.core.config import settings_bot
+from shared.enums.admin_enum import RoleEnum
 
 
 class UserPageCB(CallbackData, prefix="pagination_user"):  # type: ignore[misc,call-arg]
     """Callback-данные для управления пользователями на странице администратора.
 
     Attributes
-        filter_type (str): Тип фильтра (например, 'admin', 'user', 'founder').
+        filter_type (RoleEnum): Тип фильтра (например, 'admin', 'user', 'founder').
         index (int): Индекс пользователя в текущем списке.
-        action (str): Действие, связанное с пользователем
+        action (ActionEnum): Действие, связанное с пользователем
             ('next', 'prev', 'role_change', 'sub_manage' и т.д.).
         telegram_id (int | None): Telegram ID пользователя (опционально).
         month (int): Количество месяцев для подписки (опционально).
 
     """
 
-    filter_type: str
+    filter_type: RoleEnum
     index: int
-    action: str
+    action: ActionEnum
     telegram_id: int | None = None
     month: int = 0
 
 
 def common_user_buttons(
     builder: InlineKeyboardBuilder,
-    filter_type: str,
+    filter_type: RoleEnum,
     index: int = 0,
     telegram_id: int | None = None,
 ) -> None:
@@ -56,14 +57,14 @@ def common_user_buttons(
 
 
 def admin_user_control_kb(
-    filter_type: str,
+    filter_type: RoleEnum,
     index: int = 0,
     telegram_id: int | None = None,
 ) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру для управления пользователем.
 
     Args:
-        filter_type (str): Тип фильтра, определяющий категорию пользователей.
+        filter_type (RoleEnum): Тип фильтра, определяющий категорию пользователей.
         index (int, optional): Индекс текущего пользователя. По умолчанию 0.
         telegram_id (int | None, optional): Telegram ID пользователя.
 
@@ -80,14 +81,14 @@ def admin_user_control_kb(
 
 
 def role_selection_kb(
-    filter_type: str,
+    filter_type: RoleEnum,
     index: int = 0,
     telegram_id: int | None = None,
 ) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру для выбора роли пользователя.
 
     Args:
-        filter_type (str): Текущий фильтр пользователей.
+        filter_type (RoleEnum): Текущий фильтр пользователей.
         index (int, optional): Индекс текущего пользователя. По умолчанию 0.
         telegram_id (int | None, optional): Telegram ID пользователя.
 
@@ -100,7 +101,7 @@ def role_selection_kb(
     builder.button(
         text="User",
         callback_data=UserPageCB(
-            filter_type="user",
+            filter_type=RoleEnum.USER,
             index=index,
             action=ActionEnum.ROLE_SELECT,
             telegram_id=telegram_id,
@@ -109,7 +110,7 @@ def role_selection_kb(
     builder.button(
         text="Founder",
         callback_data=UserPageCB(
-            filter_type="founder",
+            filter_type=RoleEnum.FOUNDER,
             index=index,
             action=ActionEnum.ROLE_SELECT,
             telegram_id=telegram_id,
@@ -130,14 +131,14 @@ def role_selection_kb(
 
 
 def subscription_selection_kb(
-    filter_type: str,
+    filter_type: RoleEnum,
     index: int = 0,
     telegram_id: int | None = None,
 ) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру для выбора срока подписки.
 
     Args:
-        filter_type (str): Текущий фильтр пользователей.
+        filter_type (RoleEnum): Текущий фильтр пользователей.
         index (int, optional): Индекс текущего пользователя. По умолчанию 0.
         telegram_id (int | None, optional): Telegram ID пользователя.
 
@@ -153,7 +154,7 @@ def subscription_selection_kb(
             callback_data=UserPageCB(
                 filter_type=filter_type,
                 index=index,
-                action="sub_select",
+                action=ActionEnum.SUB_SELECT,
                 telegram_id=telegram_id,
                 month=months,
             ),
@@ -177,11 +178,11 @@ class AdminCB(CallbackData, prefix="admin"):  # type: ignore[misc,call-arg]
     """Callback-данные для фильтрации пользователей в админ-панели.
 
     Attributes
-        filter_type (str): Тип фильтра (например, 'admin', 'founder', 'user').
+        filter_type (RoleEnum): Тип фильтра (например, 'admin', 'founder', 'user').
 
     """
 
-    filter_type: str
+    filter_type: RoleEnum
 
 
 def admin_main_kb() -> InlineKeyboardMarkup:
@@ -193,15 +194,13 @@ def admin_main_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
 
+    builder.button(text="👑 Админы", callback_data=AdminCB(filter_type=RoleEnum.ADMIN))
     builder.button(
-        text="👑 Админы", callback_data=AdminCB(filter_type=FilterTypeEnum.ADMIN)
-    )
-    builder.button(
-        text="🏗 Основатели", callback_data=AdminCB(filter_type=FilterTypeEnum.FOUNDER)
+        text="🏗 Основатели", callback_data=AdminCB(filter_type=RoleEnum.FOUNDER)
     )
     builder.button(
         text="🙂 Обычные пользователи",
-        callback_data=AdminCB(filter_type=FilterTypeEnum.USER),
+        callback_data=AdminCB(filter_type=RoleEnum.USER),
     )
 
     builder.adjust(1)
@@ -209,7 +208,7 @@ def admin_main_kb() -> InlineKeyboardMarkup:
 
 
 def user_navigation_kb(
-    filter_type: str,
+    filter_type: RoleEnum,
     index: int,
     total: int,
     telegram_id: int | None = None,
@@ -217,7 +216,7 @@ def user_navigation_kb(
     """Создаёт inline-клавиатуру для навигации между пользователями.
 
     Args:
-        filter_type (str): Текущий фильтр пользователей.
+        filter_type (RoleEnum): Текущий фильтр пользователей.
         index (int): Индекс текущего пользователя.
         total (int): Общее количество пользователей.
         telegram_id (int | None, optional): Telegram ID пользователя.
