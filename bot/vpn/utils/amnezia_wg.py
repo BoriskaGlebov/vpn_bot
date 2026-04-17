@@ -28,7 +28,7 @@ class AsyncSSHClientWG:
 
     Args:
         host (str): Адрес сервера (IP или DNS).
-        username (str): Имя пользователя.
+        username (str|None): Имя пользователя приподключении на удаленный хост.
         port (int, optional): SSH-порт. По умолчанию 22.
             Если None, будут использоваться ключи из ``~/.ssh``.
         known_hosts (Optional[str], optional): Путь к файлу ``known_hosts``.
@@ -111,7 +111,7 @@ class AsyncSSHClientWG:
             )
             raise
 
-    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int, str]:
+    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int | None, str]:
         """Выполняет одну команду внутри контейнера.
 
         Args:
@@ -173,7 +173,7 @@ class AsyncSSHClientWG:
 
     async def run_commands_in_container(
         self, commands: list[str]
-    ) -> AsyncGenerator[tuple[str, str, int, str], None]:
+    ) -> AsyncGenerator[tuple[str, str, int | None, str], None]:
         """Выполняет список команд внутри контейнера.
 
         Args:
@@ -870,7 +870,7 @@ class AsyncSSHClientWG:
                 )
                 raise AmneziaSSHError(
                     message=f"Ошибка записи wg0.conf: {stderr_str}",
-                    cmd=cmd,
+                    cmd=cmd if isinstance(cmd, str) else ",".join(cmd),
                     stdout=stdout_str,
                     stderr=stderr_str,
                 )
@@ -954,7 +954,7 @@ class AsyncSSHClientWG:
         else:
             raise AmneziaSSHError(
                 message=f"Ошибка при удалении ключа из {clients_table}",
-                cmd=cmd,
+                cmd=cmd if isinstance(cmd, str) else ",".join(cmd),
                 stdout=(
                     stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
                 ),
@@ -1029,22 +1029,165 @@ class AsyncSSHClientWG:
         await self.close()
 
 
+class AsyncSSHClientWG2(AsyncSSHClientWG):
+    """Асинхронный SSH-клиент с поддержкой работы через Docker-контейнер.
+
+    Args:
+        host (str): Адрес сервера (IP или DNS).
+        username (str|None): Имя пользователя приподключении на удаленный хост.
+        port (int, optional): SSH-порт. По умолчанию 22.
+            Если None, будут использоваться ключи из ``~/.ssh``.
+        known_hosts (Optional[str], optional): Путь к файлу ``known_hosts``.
+            Если None, проверка отключается.
+        container (str, optional): Имя контейнера Docker, в котором
+            будут выполняться команды. По умолчанию "amnezia-awg".
+
+    """
+
+    WG_DIR = "/opt/amnezia/awg"
+    WG_CONF = f"{WG_DIR}/awg0.conf"
+
+    def __init__(
+        self,
+        host: str = "localhost",
+        username: str | None = None,
+        port: int = 22,
+        known_hosts: str | None = None,
+        container: str = "amnezia-awg2",
+        use_local: bool = USE_LOCAL,
+    ) -> None:
+        super().__init__(host, username, port, known_hosts, container, use_local)
+
+    async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
+        """Получает индивидуальные данные для подключения VPN и порт контейнера.
+
+        Считывает файл конфигурации WireGuard (`wg0.conf`) внутри контейнера
+        и возвращает словарь с параметрами интерфейса `[Interface]` и порт `ListenPort`.
+
+        Returns
+            Optional[Tuple[Dict[str, Any], int]]:
+                Кортеж из:
+                - params (dict[str, Any]): Параметры интерфейса WireGuard (например, Jc, Jmin, H1 и т.д.).
+                - listen_port (int): Порт прослушивания интерфейса.
+                Возвращает None, если не удалось получить данные.
+
+        Raises
+            AmneziaConfigError: Если не удалось прочитать конфигурацию или получен stderr.
+
+        """
+        cmd = f"cat {self.WG_CONF}"
+        stdout, stderr, *_ = await self.write_single_cmd(cmd)
+        if stdout:
+            in_interface = False
+            params = {}
+            listen_port = 1
+
+            for line in stdout.splitlines():
+                line = line.strip()
+                if line == "[Interface]":
+                    in_interface = True
+                    continue
+                elif line.startswith("[Peer]"):
+                    break
+                if in_interface and "=" in line:
+                    key, value = map(str.strip, line.split("=", 1))
+                    if key in {
+                        "Jc",
+                        "Jmin",
+                        "Jmax",
+                        "S1",
+                        "S2",
+                        "S3",
+                        "S4",
+                        "H1",
+                        "H2",
+                        "H3",
+                        "H4",
+                    }:
+                        params[key] = value
+                    elif key in {
+                        "# I1",
+                        "# I2",
+                        "# I3",
+                        "# I4",
+                        "# I5",
+                    }:
+                        correct_key = key.split("# ")[1]
+                        params[correct_key] = value
+                    elif key in {"ListenPort"}:
+                        try:
+                            listen_port = int(value)
+                        except ValueError:
+                            listen_port = 1
+            return params, listen_port
+        elif stderr:
+            raise AmneziaConfigError(
+                message=f"Ошибка получении конфига параметров VPN: {stderr}",
+                file=self.WG_CONF,
+                stderr=stderr,
+            )
+
+        return None
+
+    async def _generate_wg_config(
+        self, new_ip: str, private_key: str, pub_server_key: str, preshared_key: str
+    ) -> str:
+        """Создает содержимое пользовательского файла конфигурации WireGuard.
+
+        Args:
+            new_ip (str): корректный IP-адрес для пользователя
+            private_key (str): приватный ключ пользователя
+            pub_server_key (str): публичный ключ сервера
+            preshared_key (str): PSK ключ сервера
+
+        Returns
+            str: Текст конфигурации WireGuard.
+
+        """
+        vpn_config = await self._get_vpn_params_config()
+        assert vpn_config is not None, "Не удалось получить параметры VPN"
+        vpn_params, listen_port = vpn_config
+        interface_data = {
+            "Address": new_ip,
+            "DNS": "172.29.172.254, 1.0.0.1",
+            "PrivateKey": private_key,
+        }
+        interface_data.update(vpn_params)
+        peer_data = {
+            "PublicKey": pub_server_key,
+            "PresharedKey": preshared_key,
+            "AllowedIPs": "0.0.0.0/0, ::/0",
+            "Endpoint": f"{self.host}:{listen_port}",
+            "PersistentKeepalive": "25",
+        }
+        lines = ["[Interface]"]
+        for key, value in interface_data.items():
+            lines.append(f"{key} = {value}")
+        lines.append("")
+        lines.append("[Peer]")
+        for key, value in peer_data.items():
+            lines.append(f"{key} = {value}")
+        return "\n".join(lines)
+
+
 if __name__ == "__main__":
     """Пример использования AsyncSSHClient."""
     key_path = Path().home() / ".ssh" / "test_vpn"
 
     async def main() -> None:
         """Пример использования AsyncSSHClient."""
-        async with AsyncSSHClientWG(
-            host="help-blocks.ru",
-            username="vpn_user",
+        async with AsyncSSHClientWG2(
+            host="vpn-boriska.ru",
+            username="prod_server",
             known_hosts=None,  # Отключить проверку known_hosts
-            container="amnezia-awg",
+            container="amnezia-awg2",
         ) as ssh_client:
             await ssh_client.connect()
-            await ssh_client.add_new_user_gen_config("boris_blade")
-            await ssh_client.full_delete_user(
-                "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-            )
+            res = await ssh_client.write_single_cmd(cmd="whoami")
+            print(res)
+            # await ssh_client.add_new_user_gen_config("boris_blade")
+            # await ssh_client.full_delete_user(
+            #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
+            # )
 
     asyncio.run(main())

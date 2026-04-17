@@ -104,7 +104,7 @@ ci-checks: pre-commit
 
 
 # ===================== Инициализация и запуск =====================
-run-bot: rev-up
+run-bot:
 	@echo "🤖 Запускаем бота..."
 	$(PYTHON) -m bot.main
 run-api: rev-up

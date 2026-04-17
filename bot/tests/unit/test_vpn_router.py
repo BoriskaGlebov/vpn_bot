@@ -77,7 +77,7 @@ async def test_get_config_amnezia_vpn_success(mocker, router, message, user, sta
     ssh_client = mocker.AsyncMock()
 
     mocker.patch(
-        "bot.vpn.router.AsyncSSHClientVPN",
+        "bot.vpn.router.AsyncSSHClientVPN2",
         return_value=ssh_client,
     )
 
