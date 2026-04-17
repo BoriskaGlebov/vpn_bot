@@ -20,8 +20,8 @@ from bot.users.enums import MainMenuText
 from bot.utils.base_router import BaseRouter
 from bot.vpn.keyboards.inline_kb import proxy_url_button
 from bot.vpn.services import VPNService
-from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN2
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG2
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
 
 if TYPE_CHECKING:
@@ -92,7 +92,7 @@ class VPNRouter(BaseRouter):
             )
             try:
                 async with ssh_lock:
-                    async with AsyncSSHClientVPN(
+                    async with AsyncSSHClientVPN2(
                         host=settings_bot.vpn_host,
                         username=settings_bot.vpn_username,
                         known_hosts=None,
@@ -132,7 +132,7 @@ class VPNRouter(BaseRouter):
             )
             try:
                 async with ssh_lock:
-                    async with AsyncSSHClientWG(
+                    async with AsyncSSHClientWG2(
                         host=settings_bot.vpn_host,
                         username=settings_bot.vpn_username,
                         known_hosts=None,
