@@ -4,7 +4,7 @@ from pathlib import Path
 
 import aiofiles
 
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
 
 
 class AsyncSSHClientVPN(AsyncSSHClientWG):
@@ -72,22 +72,52 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         return file_cfg
 
 
+class AsyncSSHClientVPN2(AsyncSSHClientVPN, AsyncSSHClientWG2):
+    """Асинхронный SSH-клиент с поддержкой работы через Docker-контейнер.
+
+    Производит генерацию нового конфиг файла в формате для добавления в
+    приложение amneziaVPN
+
+    Args:
+        host (str): Адрес сервера (IP или DNS).
+        username (str): Имя пользователя.
+        port (int, optional): SSH-порт. По умолчанию 22.
+        known_hosts (Optional[str], optional): Путь к файлу ``known_hosts``.
+            Если None, проверка отключается.
+        container (str, optional): Имя контейнера Docker, в котором
+            будут выполняться команды. По умолчанию "amnezia-awg".
+
+    """
+
+    def __init__(
+        self,
+        host: str,
+        username: str,
+        port: int = 22,
+        known_hosts: str | None = None,
+        container: str = "amnezia-awg2",
+    ) -> None:
+        super().__init__(host, username, port, known_hosts, container)
+
+
 if __name__ == "__main__":
     """Пример использования AsyncSSHClient."""
-    key_path = Path().home() / ".ssh" / "test_vpn"
+
+    # key_path = Path().home() / ".ssh" / "test_vpn"
 
     async def main() -> None:
         """Пример использования AsyncSSHClient."""
         async with AsyncSSHClientVPN(
-            host="help-blocks.ru",
-            username="vpn_user",
+            host="vpn-boriska.ru",
+            username="prod_server",
             known_hosts=None,  # Отключить проверку known_hosts
-            container="amnezia-awg",
+            container="amnezia-awg2",
         ) as ssh_client:
-            await ssh_client.add_new_user_gen_config("boris456.vpn")
-            await ssh_client.full_delete_user(
-                "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-            )
             await ssh_client.connect()
+            # await ssh_client.add_new_user_gen_config("boris456.vpn")
+            # await ssh_client.full_delete_user(
+            #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
+            # )
+            # await ssh_client.connect()
 
     asyncio.run(main())

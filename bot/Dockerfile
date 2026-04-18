@@ -49,7 +49,6 @@ COPY --chown=botuser:bot bot/ bot/
 COPY --chown=botuser:bot pyproject.toml poetry.lock  ./
 COPY --chown=botuser:bot shared/ shared/
 
-
 # Делаем entrypoint исполняемым
 RUN chmod +x ./bot/entrypoint.sh
 
