@@ -963,7 +963,7 @@ class AsyncSSHClientWG:
                 ),
             )
 
-    async def full_delete_user(self, public_key: str) -> bool | None:
+    async def full_delete_user(self, public_key: str) -> bool:
         """Полностью удаляет пользователя из конфигурации WireGuard и clientsTable.
 
         Метод пытается удалить пользователя с заданным публичным ключом
@@ -989,12 +989,17 @@ class AsyncSSHClientWG:
                 logger.success(
                     "Пользователь полностью удален из конфигурации и таблицы клиентов."
                 )
-                return await self._reboot_interface()
+                return await self._reboot_interface() or False
             else:
                 return False
         except AmneziaError as e:
             logger.error(e)
             raise
+        except BrokenPipeError as e:
+            raise AmneziaSSHError(
+                "SSH соединение разорвано",
+                cause=e,
+            ) from e
 
     async def close(self) -> None:
         """Закрывает shell-сессию и соединение."""
