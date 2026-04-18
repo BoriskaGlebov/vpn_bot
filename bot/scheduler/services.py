@@ -20,7 +20,7 @@ from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
 
 m_subscription_local = settings_bot.messages.modes.subscription
 
@@ -102,7 +102,9 @@ class SchedulerBotService:
         """Обрабатывает события, полученные от планировщика."""
         for event in events:
             if isinstance(event, DeleteVPNConfigsEventSchema):
-                await self._trigger_config_deletion(event.user_id, event.configs)
+                await self._trigger_config_deletion(
+                    event.user_id, event.configs, [AsyncSSHClientWG, AsyncSSHClientWG2]
+                )
             # elif isinstance(event, DeleteProxyEventSchema):
             #     await self._trigger_proxy_deletion(event.user_id)
             else:
@@ -148,47 +150,72 @@ class SchedulerBotService:
             )
 
     async def _trigger_config_deletion(
-        self, tg_id: int, configs: list[DeletedVPNConfigSchema]
+        self,
+        tg_id: int,
+        configs: list[DeletedVPNConfigSchema],
+        ssh_clients: list[type[AsyncSSHClientWG]],
     ) -> None:
-        """Триггер удаления VPN-конфигов через внешний сервис."""
+        """Триггер удаления VPN-конфигов из старого контейнера через внешний сервис."""
         if not configs:
             return None
 
         async with ssh_lock:
-            async with AsyncSSHClientWG(
-                host=settings_bot.vpn_host,
-                username=settings_bot.vpn_username,
-            ) as ssh_client:
-                for cfg in configs:
+            for cfg in configs:
+                for client_cls in ssh_clients:
                     try:
-                        is_delete = await ssh_client.full_delete_user(
-                            public_key=cfg.pub_key
-                        )
-                        if is_delete:
-                            logger.info(
-                                f"Конфиг файл удален из VPN {cfg.file_name} удаляю из БД"
+                        async with client_cls(
+                            host=settings_bot.vpn_host,
+                            username=settings_bot.vpn_username,
+                        ) as ssh_client:
+                            is_delete = await ssh_client.full_delete_user(
+                                public_key=cfg.pub_key
                             )
-                        else:
-                            logger.warning(
-                                f"Файл уже удален из VPN ранее {cfg.file_name}"
-                            )
-                        logger.debug("Начинаю удалять файл-конфиг из БД")
-                        res = await self.vpn_adapter.delete_config(
-                            file_name=cfg.file_name, pub_key=cfg.pub_key
-                        )
-                        if res:
-                            logger.info(
-                                f"Произошло удаление конфиг файла из БД.: {cfg.file_name}"
-                            )
+
+                            if is_delete:
+                                logger.info(
+                                    f"Конфиг удален из VPN {cfg.file_name} через {client_cls.__name__}"
+                                )
+                                break
+                            else:
+                                logger.warning(
+                                    f"Не найден в {client_cls.__name__}: {cfg.file_name}"
+                                )
+                                approve_text = (
+                                    f"🔔 Требуется проверка на случай ошибки.\n"
+                                    f"Не найден в {client_cls.__name__}: {cfg.file_name}"
+                                )
+                                await send_to_admins(
+                                    bot=self.bot, message_text=approve_text
+                                )
+
                     except AmneziaError as e:
-                        logger.error(f"SSH deletion error: {e}")
-                        raise
-                    except APIClientError as e:
-                        logger.error(
-                            f"Ошибка доступа в API для удаления файла из БД: {e}"
-                        )
+                        logger.error(f"SSH deletion error ({client_cls.__name__}): {e}")
                         continue
-                return None
+                    except BrokenPipeError as e:
+                        logger.error(
+                            f"SSH соединение разорвано ({client_cls.__name__}): {e}"
+                        )
+                        error_text = (
+                            f"⚠️ ⚠️ ⚠️  В ходе проверки не смог подключиться к контейнеру"
+                            f"SSH соединение разорвано ({client_cls.__name__}): {e}"
+                        )
+                        await send_to_admins(bot=self.bot, message_text=error_text)
+                        continue
+
+                logger.debug("Начинаю удалять файл-конфиг из БД")
+
+                try:
+                    res = await self.vpn_adapter.delete_config(
+                        file_name=cfg.file_name,
+                        pub_key=cfg.pub_key,
+                    )
+                    if res:
+                        logger.info(f"Удаление конфига из БД: {cfg.file_name}")
+                except APIClientError as e:
+                    logger.error(f"Ошибка удаления из БД: {e}")
+                    continue
+
+        return None
 
     async def _trigger_proxy_deletion(self, tg_id: int) -> None:
         """Триггер удаления прокси через внешний сервис."""
@@ -261,7 +288,9 @@ class SchedulerBotService:
         ]
 
         for event in delete_events:
-            await self._trigger_config_deletion(event.user_id, event.configs)
+            await self._trigger_config_deletion(
+                event.user_id, event.configs, [AsyncSSHClientWG, AsyncSSHClientWG2]
+            )
             stats.configs_deleted += len(event.configs)
 
             user_text = m_subscription_local.expire_subscription.delete_configs_user
