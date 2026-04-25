@@ -23,6 +23,7 @@ from bot.core.filters import IsAdmin
 from bot.integrations.redis_client import RedisClient
 from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
+from bot.subscription.enums import ToggleSubscriptionMode
 from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SUserOut
@@ -43,6 +44,7 @@ INVALID_FOR_USER = [
     MainMenuText.CHECK_STATUS.value,
     MainMenuText.HELP.value,
     MainMenuText.RENEW_SUBSCRIPTION.value,
+    MainMenuText.PREMIUM.value,
 ]
 INVALID_FOR_ADMIN = [
     MainMenuText.ADMIN_PANEL.value,
@@ -214,15 +216,20 @@ class UserRouter(BaseRouter):
                         tg_id=user.id,
                     ),
                 )
+                subscription = user_info.current_subscription
+
+                is_active = subscription.is_active if subscription else False
+                subscription_type = subscription.type if subscription else None
                 await message.answer(
                     follow_up_message,
                     reply_markup=main_kb(
-                        active_subscription=(
-                            user_info.current_subscription.is_active
-                            if user_info.current_subscription
+                        active_subscription=is_active,
+                        user_telegram_id=user.id,
+                        premium_subscription=(
+                            True
+                            if subscription_type == ToggleSubscriptionMode.PREMIUM
                             else False
                         ),
-                        user_telegram_id=user.id,
                     ),
                 )
             else:
