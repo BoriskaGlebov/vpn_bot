@@ -97,6 +97,12 @@ class NewsRouter(BaseRouter):
                 photo=news_data["photo_file_id"],
                 caption=news_data["caption"],
             )
+        elif news_data["content_type"] == "video":
+            await self.bot.send_video(
+                user_id,
+                video=news_data["video_file_id"],
+                caption=news_data["caption"],
+            )
 
     @BaseRouter.log_method
     async def start_handler(self, message: Message, state: FSMContext) -> None:
@@ -144,7 +150,21 @@ class NewsRouter(BaseRouter):
                 await message.answer_photo(
                     photo=data["photo_file_id"],
                     caption=(
-                        "📰 Вот как будет выглядеть новость:\n\n"
+                        "📰 Вот как будет выглядеть новость с картинкой:\n\n"
+                        f"{data['caption']}\n\n"
+                        "Отправляем?"
+                    ),
+                    reply_markup=news_confirm_kb(),
+                )
+            elif message.video:
+                data["content_type"] = "video"
+                data["video_file_id"] = message.video.file_id
+                data["caption"] = message.caption or ""
+
+                await message.answer_video(
+                    video=data["video_file_id"],
+                    caption=(
+                        "📰 Вот как будет выглядеть новость с видео:\n\n"
                         f"{data['caption']}\n\n"
                         "Отправляем?"
                     ),
@@ -244,6 +264,12 @@ class NewsRouter(BaseRouter):
             self.logger.info(f"Рассылка завершена. Отправлено сообщений: {sent}")
             await state.clear()
             if msg.photo:
+                await self.bot.edit_message_caption(
+                    chat_id=msg.chat.id,
+                    message_id=msg.message_id,
+                    caption=f"✅ Новость отправлена.\nПолучателей: {sent}",
+                )
+            elif msg.video:
                 await self.bot.edit_message_caption(
                     chat_id=msg.chat.id,
                     message_id=msg.message_id,
