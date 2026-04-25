@@ -29,9 +29,12 @@ class SettingsBot(SettingsApp):
         admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
         base_site (str): Базовый URL сайта, используемый для формирования вебхука.
         vpn_host (str): Хост VPN-сервера.
+        vpn_test_host (str): Хост тестовый для прокси
         vpn_username (str): Имя пользователя для подключения к VPN.
+        vpn_test_username (str): Имя пользователя для подключения к тестовому VPN.
         vpn_container (str): Имя Docker-контейнера VPN (если используется).
         proxy_prefix  (str): Префикс к proxy, для обращения по второму ip.
+        proxy_test_prefix (str): Префикс к тестовому proxy, для обращения по второму ip.
         vpn_proxy (str) : Имя Docker-контейнера PROXY (если используется).
         proxy_port (str) : Порт для прокси на сервере.
         max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
@@ -50,9 +53,12 @@ class SettingsBot(SettingsApp):
     base_site: str
 
     vpn_host: str
+    vpn_test_host: str
     vpn_username: str
+    vpn_test_username: str
     vpn_container: str
     proxy_prefix: str
+    proxy_test_prefix: str
     vpn_proxy: str
     proxy_port: str = "443"
 

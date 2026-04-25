@@ -41,6 +41,7 @@ INVALID_FOR_USER = [
     MainMenuText.AMNEZIA_VPN.value,
     MainMenuText.AMNEZIA_WG.value,
     MainMenuText.AMNEZIA_PROXY.value,
+    MainMenuText.FREE_AMNEZIA_PROXY.value,
     MainMenuText.CHECK_STATUS.value,
     MainMenuText.HELP.value,
     MainMenuText.RENEW_SUBSCRIPTION.value,

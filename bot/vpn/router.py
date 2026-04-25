@@ -59,9 +59,15 @@ class VPNRouter(BaseRouter):
             self.get_config_amnezia_wg,
             F.text == MainMenuText.AMNEZIA_WG.value,
         )
+        (
+            self.router.message.register(
+                self.create_proxy_url,
+                F.text == MainMenuText.AMNEZIA_PROXY.value,
+            ),
+        )
         self.router.message.register(
-            self.create_proxy_url,
-            F.text == MainMenuText.AMNEZIA_PROXY.value,
+            self.create_free_proxy_url,
+            F.text == MainMenuText.FREE_AMNEZIA_PROXY.value,
         )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
@@ -215,6 +221,68 @@ class VPNRouter(BaseRouter):
                                     await message.answer(text=mess)
                         else:
                             raise SubscriptionNotFoundError(user_id=user.id)
+            finally:
+                await state.clear()
+                await self.redis.delete(redis_key)
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def create_free_proxy_url(
+        self, message: Message, user: TgUser, state: FSMContext
+    ) -> None:
+        """Генерирует уникальный тестовый  прокси для пользователя и отправляет ссылку в Telegram.
+
+        Args:
+            message (Message): Объект сообщения из Telegram.
+            user (TgUser): Пользователь Telegram.
+            state (FSMContext): Контекст конечного автомата состояния (FSM).
+
+        Raises
+            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
+            AmneziaSSHError: При ошибках подключения к контейнеру или выполнении команд.
+            ValueError: Если данные пользователя некорректны.
+
+        """
+        redis_key = f"vpn:config:{user.id}:amnezia_proxy"
+        acquired_check = await self._check_acquired(redis_key, message)
+        if not acquired_check:
+            return
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await message.answer(
+                text=m_vpn.proxy_intro,
+            )
+            await asyncio.sleep(0.5)
+            await message.answer(
+                text=m_vpn.amnezia_proxy,
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            try:
+                async with ssh_lock:
+                    async with HostDockerSSHClient(
+                        host=f"{settings_bot.proxy_test_prefix}.{settings_bot.vpn_test_host}",
+                        username=settings_bot.vpn_test_username,
+                        use_local=(
+                            settings_bot.use_local
+                            if settings_bot.vpn_test_host == settings_bot.vpn_host
+                            else False
+                        ),
+                    ) as client:
+                        mtproto = MTProtoProxy(
+                            client=client, port=settings_bot.proxy_port
+                        )
+                        url_proxy = await mtproto.get_proxy_link()
+                        keyboard = proxy_url_button(url_proxy=url_proxy)
+                        if url_proxy:
+                            for num, mess in enumerate(m_vpn.proxy_ready):
+                                if not num:
+                                    await message.answer(
+                                        text=mess,
+                                        reply_markup=keyboard,
+                                    )
+                                    continue
+
+                                await message.answer(text=mess)
+
             finally:
                 await state.clear()
                 await self.redis.delete(redis_key)

@@ -38,6 +38,7 @@ def main_kb(
         builder.row(KeyboardButton(text=MainMenuText.RENEW_SUBSCRIPTION.value))
     else:
         builder.row(KeyboardButton(text=MainMenuText.CHOOSE_SUBSCRIPTION.value))
+        builder.row(KeyboardButton(text=MainMenuText.FREE_AMNEZIA_PROXY.value))
     builder.row(
         KeyboardButton(text=MainMenuText.CHECK_STATUS.value),
         KeyboardButton(text=MainMenuText.HELP.value),
