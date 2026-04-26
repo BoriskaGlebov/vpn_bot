@@ -33,7 +33,7 @@ class APIClient:
         retry_delay: float = 0.5,
     ) -> None:
         """Инициализация класса Клиента."""
-        self.base_url = f"http://{base_url.rstrip('/')}:{port}"
+        self.base_url = f"https://{base_url.rstrip('/')}:{port}"
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
@@ -158,9 +158,10 @@ class APIClient:
             data = response.json()
         except ValueError as exc:
             logger.error(
-                "Невалидный JSON ответ: {} {}",
+                "Невалидный JSON ответ: {} {} {}",
                 response.request.method,
                 response.request.url,
+                response.status_code,
             )
             raise APIClientError(
                 "Ответ API не является корректным JSON",

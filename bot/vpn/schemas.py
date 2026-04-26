@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SVPNCreateRequest(BaseModel):
@@ -54,3 +54,38 @@ class SVPNDeleteResponse(BaseModel):
     """Ответ на удаление файла."""
 
     deleted: int
+
+
+class S3XuiCredentials(BaseModel):
+    """DTO с учётными данными администратора 3x-ui панели.
+
+    Используется для авторизации в API панели.
+    """
+
+    username: str
+    password: str
+
+
+class S3XuiUSerSettings(BaseModel):
+    """DTO настроек пользователя для создания клиента в 3x-ui.
+
+    Описывает параметры VPN-пользователя, включая ограничения,
+    срок действия и идентификаторы подписки.
+    """
+
+    id: str
+    email: str
+    tgId: int
+    subId: str
+
+    flow: str = ""
+
+    limitIp: int = 0
+    totalGB: int = 0
+    expiryTime: int = 0
+    reset: int = 0
+
+    enable: bool = True
+
+    comment: str = ""
+    model_config = ConfigDict(from_attributes=True)

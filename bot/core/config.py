@@ -25,26 +25,97 @@ class SettingsBot(SettingsApp):
     """Конфигурация бота и логирования.
 
     Attributes
-        bot_token (SecretStr): Токен бота для подключения к Telegram Bot API.
-        admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
-        base_site (str): Базовый URL сайта, используемый для формирования вебхука.
-        vpn_host (str): Хост VPN-сервера.
-        vpn_test_host (str): Хост тестовый для прокси
-        vpn_username (str): Имя пользователя для подключения к VPN.
-        vpn_test_username (str): Имя пользователя для подключения к тестовому VPN.
-        vpn_container (str): Имя Docker-контейнера VPN (если используется).
-        proxy_prefix  (str): Префикс к proxy, для обращения по второму ip.
-        proxy_test_prefix (str): Префикс к тестовому proxy, для обращения по второму ip.
-        vpn_proxy (str) : Имя Docker-контейнера PROXY (если используется).
-        proxy_port (str) : Порт для прокси на сервере.
-        max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
-        use_polling (bool): Использовать polling вместо webhook (по умолчанию False, удобно для тестов).
-        use_local (bool): Учитывать место развертывание бота, локальная машина или целевой хост.
-        messages (dict[str, Any]): Словарь с текстами сообщений бота (диалоги, подсказки и т.д.).
-        price_map (dict[int, int]): Карта цен подписок по месяцам, может быть задана через .env в JSON.
+        bot_token (SecretStr):
+            Токен Telegram Bot API.
+
+        admin_ids (set[int] | str):
+            Список Telegram ID администраторов (может приходить строкой или коллекцией).
+
+        base_site (str):
+            Базовый URL сайта, используемый для формирования webhook URL.
+
+        vpn_host (str):
+            Основной VPN-хост.
+
+        vpn_test_host (str):
+            Тестовый VPN-хост.
+
+        vpn_username (str):
+            Пользователь для VPN подключения.
+
+        vpn_test_username (str):
+            Пользователь для тестового VPN.
+
+        vpn_container (str):
+            Имя Docker-контейнера VPN (если используется).
+
+        vpn_proxy (str):
+            Docker-контейнер или адрес прокси VPN.
+
+        proxy_prefix (str):
+            Префикс для основного proxy (доступ через альтернативный IP).
+
+        proxy_test_prefix (str):
+            Префикс для тестового proxy.
+
+        proxy_port (str):
+            Порт прокси-сервера (по умолчанию "443").
+
+        x_ray_host (str):
+            Домен или хост XRay сервера.
+
+        x_ray_panel_prefix (str):
+            Префикс панели XRay (например subdomain для панели).
+
+        x_ray_subscription_prefix (str):
+            Префикс для subscription endpoint.
+
+        x_ray_panel_port (int):
+            Порт панели управления XRay.
+
+        x_ray_subscription_port (int):
+            Порт для подписок XRay.
+
+        x_ray_username (SecretStr):
+            Логин администратора XRay панели.
+
+        x_ray_password (SecretStr):
+            Пароль администратора XRay панели.
+
+        inbound_port (int):
+            Порт inbound подключения (по умолчанию 443).
+
+        inbound_name (str):
+            Название inbound-конфига (отображаемое имя сервера).
+
+        max_configs_per_user (int):
+            Максимальное количество конфигов на одного пользователя.
+
+        use_polling (bool):
+            Использовать polling вместо webhook (для локальной разработки).
+
+        use_local (bool):
+            Флаг локального окружения (локальная машина или прод).
+
+        price_map (dict[int, int]):
+            Карта стоимости подписок (ключ — месяцы, значение — цена).
+
+        common_timeout (int):
+            Базовый timeout для сетевых операций.
+
     Properties
-        common_timeout (uint): Дефолтное время на подключение к удаленному серверу, после Timeout.
-        webhook_url (str): URL вебхука. Формируется автоматически на основе BASE_SITE.
+        webhook_url (str):
+            Сформированный URL webhook на основе base_site.
+
+        x_ray_base_url_panel (str):
+            Полный домен панели XRay (panel.{x_ray_host}).
+
+    Methods
+        parse_admin_ids(v):
+            Валидирует и преобразует admin_ids в set[int].
+
+        messages (cached_property):
+            Возвращает словарь текстов диалогов (dialogs) из bot.dialogs.dialogs_text.
 
     """
 
@@ -53,14 +124,25 @@ class SettingsBot(SettingsApp):
     base_site: str
 
     vpn_host: str
-    vpn_test_host: str
     vpn_username: str
-    vpn_test_username: str
     vpn_container: str
     proxy_prefix: str
-    proxy_test_prefix: str
     vpn_proxy: str
     proxy_port: str = "443"
+
+    vpn_test_host: str
+    vpn_test_username: str
+    proxy_test_prefix: str
+
+    x_ray_host: str
+    x_ray_panel_prefix: str
+    x_ray_subscription_prefix: str
+    x_ray_panel_port: int
+    x_ray_subscription_port: int
+    x_ray_username: SecretStr
+    x_ray_password: SecretStr
+    inbound_port: int = 443
+    inbound_name: str = "🇧🇬 x-ray-boriska.pro"
 
     use_polling: bool = False
     use_local: bool = True
@@ -76,10 +158,25 @@ class SettingsBot(SettingsApp):
         """Возвращает URL вебхука."""
         return f"{self.base_site}/webhook"
 
+    @computed_field
+    def x_ray_base_url_panel(self) -> str:
+        """Возвращает url панели 3xui."""
+        return f"panel.{self.x_ray_host}"
+
     @field_validator("admin_ids", mode="before")
     @classmethod
     def parse_admin_ids(cls, v: Any) -> set[int]:
-        """Парсит строку с ID администраторов в множество целых чисел."""
+        """Преобразует admin_ids в множество int.
+
+        Accepts:
+            - строку формата "1,2,3"
+            - iterable (list, set, tuple)
+
+        Raises
+            ValueError: если значения не являются числами
+            TypeError: если формат входных данных некорректен
+
+        """
         if isinstance(v, str):
             return set(int(i) for i in v.split(",") if i.strip().isdigit())
         if isinstance(v, Iterable):
@@ -92,6 +189,7 @@ class SettingsBot(SettingsApp):
 
     @cached_property
     def messages(self) -> Box:
+        """Кэшируемые тексты диалогов бота."""
         from bot.dialogs.dialogs_text import dialogs
 
         return dialogs
