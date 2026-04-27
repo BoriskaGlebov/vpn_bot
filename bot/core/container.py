@@ -21,6 +21,7 @@ from bot.users.adapter import UsersAPIAdapter
 from bot.users.services import UserService
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
+from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
 
 
 class Container:
@@ -40,6 +41,7 @@ class Container:
 
     redis_manager: RedisClient
     api_client: APIClient
+    xray_client: APIClient
 
     user_adapter: UsersAPIAdapter
     admin_adapter: AdminAPIAdapter
@@ -48,6 +50,7 @@ class Container:
     vpn_adapter: VPNAPIAdapter
     news_adapter: NewsAPIAdapter
     scheduler_adapter: SchedulerAPIAdapter
+    xray_adapter: ThreeXUIAdapter
 
     user_service: UserService
     admin_service: AdminService
@@ -70,6 +73,11 @@ class Container:
         self.api_client = APIClient(
             base_url=settings_bot.api_url, port=settings_bot.api_port
         )
+        self.xray_client = APIClient(
+            base_url=settings_bot.x_ray_base_url_panel,
+            port=settings_bot.x_ray_panel_port,
+            scheme="https",
+        )
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAPIAdapter(client=self.api_client)
@@ -77,6 +85,9 @@ class Container:
         self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
         self.scheduler_adapter = SchedulerAPIAdapter(client=self.api_client)
+        self.xray_adapter = ThreeXUIAdapter(
+            api_client=self.xray_client, prefix=settings_bot.x_ray_panel_prefix
+        )
 
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
@@ -85,11 +96,16 @@ class Container:
             adapter=self.subscription_adapter, user_adapter=self.user_adapter
         )
         self.vpn_service = VPNService(
-            adapter=self.vpn_adapter, user_adapter=self.user_adapter
+            adapter=self.vpn_adapter,
+            user_adapter=self.user_adapter,
+            xray_adapter=self.xray_adapter,
         )
         self.news_service = NewsService(adapter=self.news_adapter)
         self.scheduler_bot_service = SchedulerBotService(
-            bot=bot, adapter=self.scheduler_adapter, vpn_adapter=self.vpn_adapter
+            bot=bot,
+            adapter=self.scheduler_adapter,
+            vpn_adapter=self.vpn_adapter,
+            xray_adapter=self.xray_adapter,
         )
 
         self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)

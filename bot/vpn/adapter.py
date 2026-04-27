@@ -9,6 +9,7 @@ from bot.vpn.schemas import (
 )
 
 
+# TODO ТЕстирование нужно
 class VPNAPIAdapter:
     """Адаптер для работы с VPN API."""
 

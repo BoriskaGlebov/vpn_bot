@@ -3,11 +3,11 @@ import time
 import uuid
 from typing import Any
 
-from app_error.base_error import AppError
 from loguru import logger
 
 from bot.app_error.api_error import APIClientConnectionError, APIClientError
-from bot.core.config import settings_bot
+from bot.app_error.base_error import AppError
+from bot.core.config import SInbound, settings_bot
 from bot.integrations.api_client import APIClient
 from bot.vpn.DTO import Inbound
 from bot.vpn.schemas import S3XuiCredentials, S3XuiUSerSettings
@@ -79,7 +79,7 @@ class ThreeXUIAdapter:
         except APIClientError:
             logger.warning("Разлогинил пользователя.")
 
-    async def _get_inbounds(self) -> list[Inbound]:
+    async def _get_all_inbounds(self) -> list[Inbound]:
         """Получает список inbound-конфигураций из 3x-ui панели.
 
         Returns
@@ -146,7 +146,7 @@ class ThreeXUIAdapter:
         """Перезапускает XRay сервис.
 
         Returns
-            Optional[tuple[dict, int]]:
+            Optional[tuple[dict[str, Any], int]]:
                 Ответ API или None при ошибке соединения.
 
         """
@@ -161,13 +161,33 @@ class ThreeXUIAdapter:
             logger.warning("Ошибка перезапуска XRay (возможно активные соединения VPN)")
             return None
 
+    async def _get_inbound(self, inbounds_cfg: list[SInbound]) -> list[Inbound]:
+        """Фильтрует inbound-конфигурации по списку разрешённых.
+
+        Args:
+            inbounds_cfg (list[SInbound]): ожидаемые inbound (порт + имя).
+
+        Returns
+            list[Inbound]: найденные inbound-конфигурации.
+
+        Raises
+            AppError: если найдены не все inbound.
+
+        """
+        all_inbounds = await self._get_all_inbounds()
+        allow_inb = {(cfg.port, cfg.name) for cfg in inbounds_cfg}
+        find_inb = [inb for inb in all_inbounds if (inb.port, inb.remark) in allow_inb]
+        if len(find_inb) < len(inbounds_cfg):
+            logger.error(f"Не все Inbound найдены.{find_inb}")
+            raise AppError(message=f"Не все  inbound найдены {find_inb}")
+        return find_inb
+
     async def add_new_config(
         self,
+        inbounds: list[SInbound],
         tg_id: int,
-        days: int,
-        port: int = 443,
-        inb_name: str = "🇧🇬 test.x-ray-boriska.pro",
-    ) -> type[str, str, str]:
+        days: int = 0,
+    ) -> tuple[dict[str, list[str]], str]:
         """Создание новой VPN-конфигурации для пользователя.
 
         Выполняет полный цикл:
@@ -180,12 +200,15 @@ class ThreeXUIAdapter:
 
         Args:
             tg_id (int): Telegram ID пользователя.
-            days (int): срок действия конфигурации в днях.
-            port (int, optional): порт inbound. Defaults to 443.
-            inb_name (str, optional): имя inbound. Defaults to "🇧🇬 test.x-ray-boriska.pro".
+            days (int): срок действия конфигурации в днях или ноль строкой для бесконечности.
+            inbounds (list[SInbound]): Список доступных инбаундов
 
         Returns
-            tuple: (user_id, sub_id, subscription_url)
+            tuple:
+                - dict[str, list[str]]: словарь с идентификаторами:
+                    - config_ids: список UUID конфигов
+                    - sub_ids: список subscription ID
+                - str: subscription URL
 
         Raises
             AppError: если inbound не найден.
@@ -197,31 +220,32 @@ class ThreeXUIAdapter:
             password=settings_bot.x_ray_password.get_secret_value(),
         )
         await self._login(user_credentials=credentials)
-        list_inbounds = await self._get_inbounds()
-        inbound: Inbound | None = next(
-            (i for i in list_inbounds if i.port == port and i.remark == inb_name), None
-        )
-
-        if inbound is None:
-            logger.error("Inbound не найден: name={} port={}", inb_name, port)
-            raise AppError(message=f"Не найден inbound {inb_name} на порту {port}")
-        uid = str(uuid.uuid4())
-        logger.debug("Сгенерирован UUID пользователя: {}", uid)
-        user_add = S3XuiUSerSettings(
-            id=uid,
-            email=f"user_{tg_id}_{uid[:4]}",
-            tgId=tg_id,
-            subId=f"user_{tg_id}",
-            flow="xtls-rprx-vision",
-            limitIp=0,
-            totalGB=0,
-            expiryTime=(int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000,
-            reset=0,
-            enable=True,
-            comment="Пользователь добавил конфиг через бота",
-        )
-
-        await self._add_user(inbound_id=inbound.id, user_add=user_add)
+        inbounds_correct = await self._get_inbound(inbounds_cfg=inbounds)
+        user_add_info = {"config_ids": set(), "sub_ids": set()}
+        for inb in inbounds_correct:
+            uid = str(uuid.uuid4())
+            logger.debug("Сгенерирован UUID пользователя: {}", uid)
+            remaining_days = (
+                (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
+                if days > 0
+                else 0
+            )
+            user_add = S3XuiUSerSettings(
+                id=uid,
+                email=f"user_{tg_id}_{uid[:4]}",
+                tgId=tg_id,
+                subId=f"user_{tg_id}",
+                flow="xtls-rprx-vision",
+                limitIp=0,
+                totalGB=0,
+                expiryTime=remaining_days,
+                reset=0,
+                enable=True,
+                comment="Пользователь добавил конфиг через бота",
+            )
+            user_add_info["config_ids"].add(user_add.id)
+            user_add_info["sub_ids"].add(user_add.subId)
+            await self._add_user(inbound_id=inb.id, user_add=user_add)
 
         await self._restart_x_ray()
         await self._logout()
@@ -230,9 +254,37 @@ class ThreeXUIAdapter:
             f"{settings_bot.x_ray_subscription_prefix}/user_{tg_id}"
         )
         logger.info("Конфигурация успешно создана для tg_id={}", tg_id)
-        return user_add.id, user_add.subId, url
+        return {
+            "config_ids": list(user_add_info["config_ids"]),
+            "sub_ids": list(user_add_info["sub_ids"]),
+        }, url
+
+    async def delete_config(self, config_id: str, inbounds: list[SInbound]) -> bool:
+        """Удаляет конфигурацию пользователя из указанных inbound.
+
+        Args:
+            config_id (str): UUID конфигурации пользователя.
+            inbounds (list[SInbound]): список inbound, из которых нужно удалить.
+
+        Returns
+            bool: True при успешном выполнении.
+
+        """
+        cred = S3XuiCredentials(
+            username=settings_bot.x_ray_username.get_secret_value(),
+            password=settings_bot.x_ray_password.get_secret_value(),
+        )
+        await self._login(user_credentials=cred)
+        correct_inbounds = await self._get_inbound(inbounds_cfg=inbounds)
+        for inb in correct_inbounds:
+            await self.api.post(
+                url=f"{self.prefix}/panel/api/inbounds/{inb.id}/delClient/{config_id}",
+            )
+        await self._logout()
+        return True
 
 
+#
 # if __name__ == '__main__':
 #     async def main():
 #         user_cred = S3XuiCredentials(username=settings_bot.x_ray_username.get_secret_value(),
@@ -240,14 +292,29 @@ class ThreeXUIAdapter:
 #         client = APIClient(
 #             base_url=settings_bot.x_ray_base_url_panel,
 #             port=settings_bot.x_ray_panel_port,
+#             scheme="https"
 #
 #         )
 #         adapter = ThreeXUIAdapter(api_client=client, prefix=f"/{settings_bot.x_ray_panel_prefix}")
-#         res = await adapter.add_new_config(tg_id=456789,
-#                                            days=33,
-#                                            port=settings_bot.inbound_port,
-#                                            inb_name=settings_bot.inbound_name, )
-#         print(res)
+#         # await adapter._login(user_credentials=user_cred)
+#         # res = await adapter._get_all_inbounds()
+#         # print(res)
+#         # res2=await adapter._get_inbound(inbounds_cfg=settings_bot.inbounds)
+#         # print(res2)
+#         res, url = await adapter.add_new_config(tg_id=456789,
+#                                                 days=33,
+#                                                 inbounds=settings_bot.inbounds)
+#         # print(res)
+#         # print(res['config_ids'])
+#         # print(res['sub_ids'])
+#         # print(type(json.dumps(res['config_ids'])))
+#         await asyncio.sleep(10)
+#         for i in res['config_ids']:
+#             res= await adapter.delete_config(config_id=i, inbounds=settings_bot.inbounds)
+#             # print(res)
+#             # await asyncio.sleep(3)
 #
 #
+#     #
+#     #
 #     asyncio.run(main())

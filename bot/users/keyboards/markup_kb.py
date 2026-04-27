@@ -23,7 +23,7 @@ def main_kb(
 
     """
     builder = ReplyKeyboardBuilder()
-    if premium_subscription:
+    if premium_subscription and active_subscription:
         builder.row(
             KeyboardButton(text=MainMenuText.PREMIUM.value),
         )

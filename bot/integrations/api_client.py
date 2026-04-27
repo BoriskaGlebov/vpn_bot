@@ -31,9 +31,15 @@ class APIClient:
         timeout: float = 5.0,
         max_retries: int = 3,
         retry_delay: float = 0.5,
+        scheme: str = "http",
     ) -> None:
         """Инициализация класса Клиента."""
-        self.base_url = f"http://{base_url.rstrip('/')}:{port}"
+        base_url = base_url.rstrip("/")
+
+        # если вдруг передали уже с http/https — убираем
+        base_url = base_url.replace("http://", "").replace("https://", "")
+
+        self.base_url = f"{scheme}://{base_url}:{port}"
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay

@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterable
 from functools import cached_property
 from pathlib import Path
@@ -9,7 +10,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from box import Box
 from loguru import logger
-from pydantic import Field, SecretStr, computed_field, field_validator
+from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = ["logger", "settings_bot", "settings_db", "bot", "dp"]
@@ -19,6 +20,13 @@ from shared.config.db_config import SettingsDB
 from shared.config.logger_config import LoggerConfig
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+class SInbound(BaseModel):
+    """Схема для inbounds."""
+
+    port: int
+    name: str
 
 
 class SettingsBot(SettingsApp):
@@ -82,11 +90,17 @@ class SettingsBot(SettingsApp):
         x_ray_password (SecretStr):
             Пароль администратора XRay панели.
 
-        inbound_port (int):
-            Порт inbound подключения (по умолчанию 443).
+        inbounds (list[Inbound]):
+            Список inbound-конфигураций XRay.
 
-        inbound_name (str):
-            Название inbound-конфига (отображаемое имя сервера).
+            Каждый элемент описывает отдельную точку входа (порт и отображаемое имя).
+            Ожидается список объектов вида:
+
+                [{"port": 443, "name": "🇧🇬 | XHTTP"},
+                 {"port": 8443, "name": "🇧🇬 | TCP Reality"}]
+
+            Может передаваться как Python-структура или JSON-строка
+            (например, через переменные окружения)
 
         max_configs_per_user (int):
             Максимальное количество конфигов на одного пользователя.
@@ -113,6 +127,9 @@ class SettingsBot(SettingsApp):
     Methods
         parse_admin_ids(v):
             Валидирует и преобразует admin_ids в set[int].
+        parse_inbounds(v):
+            Преобразует входное значение в список объектов Inbound.
+            Поддерживает JSON-строку и список словарей.
 
         messages (cached_property):
             Возвращает словарь текстов диалогов (dialogs) из bot.dialogs.dialogs_text.
@@ -141,8 +158,7 @@ class SettingsBot(SettingsApp):
     x_ray_subscription_port: int
     x_ray_username: SecretStr
     x_ray_password: SecretStr
-    inbound_port: int = 443
-    inbound_name: str = "🇧🇬 x-ray-boriska.pro"
+    inbounds: list[SInbound] = Field(default_factory=list)
 
     use_polling: bool = False
     use_local: bool = True
@@ -193,6 +209,18 @@ class SettingsBot(SettingsApp):
         from bot.dialogs.dialogs_text import dialogs
 
         return dialogs
+
+    @field_validator("inbounds", mode="before")
+    @classmethod
+    def parse_inbounds(cls, v: Any) -> list[SInbound]:
+        if isinstance(v, str):
+            try:
+                data = json.loads(v)
+            except json.JSONDecodeError as e:
+                raise ValueError("INBOUNDS должен быть валидным JSON") from e
+            return [SInbound(**item) for item in data]
+
+        return v
 
 
 class SettingsBucket(BaseSettings):
@@ -249,6 +277,3 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
-
-if __name__ == "__main__":
-    print(BASE_DIR)
