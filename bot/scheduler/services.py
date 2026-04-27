@@ -159,7 +159,7 @@ class SchedulerBotService:
             )
 
     async def _handle_broken_pipe(
-        self, client_cls: AsyncSSHClientWG, error: Exception
+        self, client_cls: type[AsyncSSHClientWG], error: Exception
     ) -> None:
         logger.error("SSH соединение разорвано ({}): {}", client_cls.__name__, error)
 
@@ -172,7 +172,7 @@ class SchedulerBotService:
         )
 
     async def _handle_not_found(
-        self, cfg: DeletedVPNConfigSchema, client_cls: AsyncSSHClientWG
+        self, cfg: DeletedVPNConfigSchema, client_cls: type[AsyncSSHClientWG]
     ) -> None:
         logger.warning("Не найден в {}: {}", client_cls.__name__, cfg.file_name)
 

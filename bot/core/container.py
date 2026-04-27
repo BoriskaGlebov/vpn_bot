@@ -74,7 +74,7 @@ class Container:
             base_url=settings_bot.api_url, port=settings_bot.api_port
         )
         self.xray_client = APIClient(
-            base_url=settings_bot.x_ray_base_url_panel,
+            base_url=settings_bot.x_ray_base_url_panel,  # type: ignore[arg-type]
             port=settings_bot.x_ray_panel_port,
             scheme="https",
         )
