@@ -13,6 +13,7 @@ from bot.vpn.DTO import Inbound
 from bot.vpn.schemas import S3XuiCredentials, S3XuiUSerSettings
 
 
+# TODO тесты
 class ThreeXUIAdapter:
     """Адаптер для взаимодействия с панелью 3x-ui.
 

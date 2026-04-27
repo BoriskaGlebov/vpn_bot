@@ -42,6 +42,7 @@ x_ray_messages = settings_bot.messages.modes.vpn.x_ray
 premium_locations = [location.value for location in PremiumLocations]
 
 
+# TODO тестирование
 class VPNStates(StatesGroup):  # type: ignore[misc]
     """Состояния роутера генерации конфиг файлов."""
 
