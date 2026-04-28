@@ -67,7 +67,6 @@ class SubscriptionBotStats:
         self.configs_deleted += other.configs_deleted
 
 
-# TODO Нужно корректировать тесты
 class SchedulerBotService:
     """Сервис бота для обработки событий планировщика подписок."""
 
