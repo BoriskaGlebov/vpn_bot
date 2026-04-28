@@ -171,8 +171,8 @@ class SettingsBot(SettingsApp):
     x_ray_subscription_prefix: str = "undefined"
     x_ray_panel_port: int = 0
     x_ray_subscription_port: int = 0
-    x_ray_username: SecretStr = "undefined"
-    x_ray_password: SecretStr = "undefined"
+    x_ray_username: SecretStr
+    x_ray_password: SecretStr
     inbounds: list[SInbound] = Field(default_factory=list)
 
     @computed_field

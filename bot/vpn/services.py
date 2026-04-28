@@ -130,9 +130,11 @@ class VPNService:
         """
         logger.info("Генерация XRay подписки tg_id={}", tg_user.id)
 
-        user = await self._limit_and_user_inf(tg_user)
+        user: SUserOut = await self._limit_and_user_inf(tg_user)
         cur_sub = user.current_subscription
         dt = cur_sub.end_date if cur_sub else None
+        if dt and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
         now = datetime.now(UTC)
         delta_days: int = max((dt - now).days, 0) if dt else 0
 

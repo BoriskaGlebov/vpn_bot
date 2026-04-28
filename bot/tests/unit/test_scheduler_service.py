@@ -4,11 +4,11 @@ import httpx
 import pytest
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
-from scheduler.enums import SubscriptionEventType
 
 from bot.app_error.api_error import APIClientError
 from bot.integrations.api_client import APIClient
 from bot.scheduler.adapter import SchedulerAPIAdapter
+from bot.scheduler.enums import SubscriptionEventType
 from bot.scheduler.schemas import (
     AdminNotifyEventSchema,
     CheckAllSubscriptionsResponse,

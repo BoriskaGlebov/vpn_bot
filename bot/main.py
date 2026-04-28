@@ -36,6 +36,8 @@ tags_metadata: list[dict[str, Any]] = [
 ]
 
 container = Container(bot=bot)
+# TODO Нужно настроить на Болгарском сервере автообновление сертификатов
+# так же мне не хватает панелей 3xui на каждом сервер + amneziWG сделаем по максимум 3 локации
 
 
 @asynccontextmanager
