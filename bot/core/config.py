@@ -136,29 +136,10 @@ class SettingsBot(SettingsApp):
 
     """
 
+    # == CORE ==
     bot_token: SecretStr
     admin_ids: set[int] | str = ""
     base_site: str
-
-    vpn_host: str
-    vpn_username: str
-    vpn_container: str
-    proxy_prefix: str
-    vpn_proxy: str
-    proxy_port: str = "443"
-
-    vpn_test_host: str
-    vpn_test_username: str
-    proxy_test_prefix: str
-
-    x_ray_host: str
-    x_ray_panel_prefix: str
-    x_ray_subscription_prefix: str
-    x_ray_panel_port: int
-    x_ray_subscription_port: int
-    x_ray_username: SecretStr
-    x_ray_password: SecretStr
-    inbounds: list[SInbound] = Field(default_factory=list)
 
     use_polling: bool = False
     use_local: bool = True
@@ -168,6 +149,31 @@ class SettingsBot(SettingsApp):
         description="Карта цен подписок по месяцам",
     )
     common_timeout: int = 10
+
+    # == VPN1 ==
+    vpn_host: str
+    vpn_username: str
+    vpn_container: str
+
+    # == PROXY1 ==
+    proxy_prefix: str
+    vpn_proxy: str
+    proxy_port: str = "443"
+
+    # == PROXY2 ==
+    vpn_test_host: str = "undefined"
+    vpn_test_username: str = "undefined"
+    proxy_test_prefix: str = "undefined"
+
+    # ==X-RAY ==
+    x_ray_host: str = "undefined"
+    x_ray_panel_prefix: str = "undefined"
+    x_ray_subscription_prefix: str = "undefined"
+    x_ray_panel_port: int = 0
+    x_ray_subscription_port: int = 0
+    x_ray_username: SecretStr = "undefined"
+    x_ray_password: SecretStr = "undefined"
+    inbounds: list[SInbound] = Field(default_factory=list)
 
     @computed_field
     def webhook_url(self) -> str:
