@@ -7,11 +7,15 @@ class ToggleSubscriptionMode(StrEnum):
     Attributes
         STANDARD: Стандартный режим подписки.
         PREMIUM: Премиум-режим подписки.
+        FOUNDER: Подписка для основателей.
+        ULTIMATE: Подписка без ограничений на количество устройств.
 
     """
 
     STANDARD = "standard"
     PREMIUM = "premium"
+    FOUNDER = "founder"
+    ULTIMATE = "ultimate"
 
 
 class TrialStatus(str, Enum):

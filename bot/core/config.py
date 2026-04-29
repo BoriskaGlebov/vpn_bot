@@ -113,6 +113,10 @@ class SettingsBot(SettingsApp):
 
         price_map (dict[int, int]):
             Карта стоимости подписок (ключ — месяцы, значение — цена).
+        price_map_premium (dict[int, int]):
+                    Карта стоимости подписок премиум (ключ — месяцы, значение — цена).
+        price_map_founder (dict[int, int]):
+                    Карта стоимости подписок founder (ключ — месяцы, значение — цена).
 
         common_timeout (int):
             Базовый timeout для сетевых операций.
@@ -146,6 +150,14 @@ class SettingsBot(SettingsApp):
 
     price_map: dict[int, int] = Field(
         default_factory=lambda: {1: 100, 3: 280, 6: 520, 12: 1000, 7: 0},
+        description="Карта цен подписок по месяцам",
+    )
+    price_map_premium: dict[int, int] = Field(
+        default_factory=lambda: {1: 249, 3: 699, 6: 1290, 12: 2490, 7: 0},
+        description="Карта цен подписок по месяцам",
+    )
+    price_map_founder: dict[int, int] = Field(
+        default_factory=lambda: {1: 249, 3: 699, 6: 1290, 12: 2490, 7: 0},
         description="Карта цен подписок по месяцам",
     )
     common_timeout: int = 10

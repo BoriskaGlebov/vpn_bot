@@ -20,11 +20,15 @@ class ToggleSubscriptionMode(StrEnum):
     Attributes
         STANDARD: Стандартный режим подписки.
         PREMIUM: Премиум-режим подписки.
+        FOUNDER: Подписки основателей.
+        ULTIMATE: Премиум-режим подписки без ограничений.
 
     """
 
     STANDARD = "standard"
     PREMIUM = "premium"
+    FOUNDER = "founder"
+    ULTIMATE = "ultimate"
 
 
 class AdminPaymentAction(StrEnum):

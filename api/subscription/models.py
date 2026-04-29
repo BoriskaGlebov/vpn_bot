@@ -24,17 +24,23 @@ class SubscriptionType(str, Enum):
         TRIAL (str): Пробная подписка с ограниченным сроком действия.
         STANDARD (str): Стандартная подписка с базовыми возможностями.
         PREMIUM (str): Премиум-подписка с расширенным функционалом.
+        FOUNDER (str): Подписка для основателей с расширенным функционалом.
+        ULTIMATE (str): Премиум-подписка с отключением ограничений на количество устройств.
+
 
     """
 
     TRIAL = "trial"
     STANDARD = "standard"
     PREMIUM = "premium"
+    FOUNDER = "founder"
+    ULTIMATE = "ultimate"
 
 
 DEVICE_LIMITS = {
     SubscriptionType.TRIAL: 1,
     SubscriptionType.STANDARD: settings_api.max_configs_per_user,
+    SubscriptionType.FOUNDER: int(settings_api.max_configs_per_user * 2),
     SubscriptionType.PREMIUM: int(settings_api.max_configs_per_user * 2),
 }
 

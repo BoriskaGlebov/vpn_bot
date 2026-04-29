@@ -12,6 +12,7 @@ from api.subscription.dao import SubscriptionDAO
 from api.subscription.models import SubscriptionType
 from api.users.dao import UserDAO
 from api.users.schemas import SUserOut, SUserTelegramID
+from shared.enums.admin_enum import RoleEnum
 
 
 class ReferralService:
@@ -123,18 +124,22 @@ class ReferralService:
 
         inviter = referral.inviter
         current_sub = inviter.current_subscription
-        if current_sub is None:
+        if current_sub is None or (current_sub.type is None):
             logger.info(
                 "Создание подписки по рефералу inviter_telegram_id={} months={}",
                 inviter.telegram_id,
                 months,
             )
-            await SubscriptionDAO.activate_subscription(
-                session=session,
-                stelegram_id=SUserTelegramID(telegram_id=inviter.telegram_id),
-                month=months,
-                sub_type=SubscriptionType.STANDARD,
-            )
+            if inviter.role.name == RoleEnum.USER:
+                sub_type = SubscriptionType.STANDARD
+            elif inviter.role.name == RoleEnum.FOUNDER:
+                sub_type = SubscriptionType.FOUNDER
+                await SubscriptionDAO.activate_subscription(
+                    session=session,
+                    stelegram_id=SUserTelegramID(telegram_id=inviter.telegram_id),
+                    month=months,
+                    sub_type=sub_type,
+                )
         else:
             logger.info(
                 "Продление подписки по рефералу inviter_telegram_id={} months={}",

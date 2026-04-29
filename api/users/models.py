@@ -103,7 +103,6 @@ class User(Base):
         """
         if not self.subscriptions:
             return None
-
         return self.subscriptions[0]
 
     @hybrid_property

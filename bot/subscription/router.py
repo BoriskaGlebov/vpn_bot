@@ -11,6 +11,7 @@ from aiogram.types import (
 )
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
+from app_error.base_error import AppError
 from loguru._logger import Logger
 
 from bot.app_error.api_error import APIClientConflictError
@@ -33,6 +34,7 @@ from bot.subscription.keyboards.inline_kb import (
     subscription_options_kb,
 )
 from bot.subscription.services import SubscriptionService
+from bot.subscription.utils.sub_utils import get_correct_price_map, get_correct_sub_type
 from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
@@ -154,9 +156,9 @@ class SubscriptionRouter(BaseRouter):
             await message.answer(
                 text="Начнем оформление подписки", reply_markup=ReplyKeyboardRemove()
             )
-            if not is_premium or role == FilterTypeEnum.FOUNDER:
-                text = m_subscription.start.format(
-                    device_limit=settings_bot.max_configs_per_user,
+            if role == FilterTypeEnum.FOUNDER:
+                text = m_subscription.founder_start.format(
+                    device_limit=settings_bot.max_configs_per_user * 2,
                     month=settings_bot.price_map.get(1, 0),
                     quarter=settings_bot.price_map.get(3, 0),
                     half_year=settings_bot.price_map.get(6, 0),
@@ -167,9 +169,25 @@ class SubscriptionRouter(BaseRouter):
                     trial=not used_trial,
                     founder=bool(role == FilterTypeEnum.FOUNDER),
                 )
+            elif not is_premium:
+                text = m_subscription.start.format(
+                    device_limit=settings_bot.max_configs_per_user,
+                    month=settings_bot.price_map.get(1, 0),
+                    quarter=settings_bot.price_map.get(3, 0),
+                    half_year=settings_bot.price_map.get(6, 0),
+                    year=settings_bot.price_map.get(12, 0),
+                )
+                kb = subscription_options_kb(
+                    premium=False,
+                    trial=not used_trial,
+                )
             else:
                 text = m_subscription.premium_start.format(
-                    device_limit=settings_bot.max_configs_per_user * 2
+                    device_limit=settings_bot.max_configs_per_user * 2,
+                    month=settings_bot.price_map_premium.get(1, 0),
+                    quarter=settings_bot.price_map_premium.get(3, 0),
+                    half_year=settings_bot.price_map_premium.get(6, 0),
+                    year=settings_bot.price_map_premium.get(12, 0),
                 )
                 kb = subscription_options_kb(premium=is_premium, trial=not used_trial)
                 await state.update_data(premium=is_premium)
@@ -202,25 +220,25 @@ class SubscriptionRouter(BaseRouter):
         user_logger = self.logger.bind(user=user.username or user.id)
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             months = callback_data.months
+            founder = callback_data.founder
             user_logger.info(f"Выбор периода подписки: {months} мес")
-            price_map = settings_bot.price_map
-            price = price_map[months]
             premium = await state.get_data()
-            if price != 0:
-                if premium.get("premium"):
-                    price *= 2
+            if months != 7:  # Проверка на триал.
+                price_map = get_correct_price_map(
+                    premium=premium.get("premium", False), founder=founder
+                )
+                sub_type = get_correct_sub_type(
+                    premium=premium.get("premium", False), founder=founder
+                )
+                price = price_map[months]
                 await query.answer(f"Выбрал {months} месяцев", show_alert=False)
                 await msg.edit_text(
                     text=m_subscription.select_period.format(
-                        premium=(
-                            f"{ToggleSubscriptionMode.PREMIUM.upper()} "
-                            if premium.get("premium")
-                            else f"{ToggleSubscriptionMode.STANDARD.upper()} "
-                        ),
+                        sub_type=sub_type,
                         months=months,
                         price=price,
                     ),
-                    reply_markup=payment_confirm_kb(months),
+                    reply_markup=payment_confirm_kb(months, founder),
                 )
                 await state.set_state(SubscriptionStates.select_period)
             else:
@@ -263,7 +281,11 @@ class SubscriptionRouter(BaseRouter):
 
         text = (
             m_subscription.premium_start.format(
-                device_limit=settings_bot.max_configs_per_user * 2
+                device_limit=settings_bot.max_configs_per_user * 2,
+                month=settings_bot.price_map_premium.get(1, 0),
+                quarter=settings_bot.price_map_premium.get(3, 0),
+                half_year=settings_bot.price_map_premium.get(6, 0),
+                year=settings_bot.price_map_premium.get(12, 0),
             )
             if premium
             else m_subscription.start.format(
@@ -308,10 +330,11 @@ class SubscriptionRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             await state.set_state(SubscriptionStates.wait_for_paid)
             months = callback_data.months
-            price_map = settings_bot.price_map
+            founder = callback_data.founder
             premium = (await state.get_data()).get("premium", False)
-            price = price_map[months] * 2 if premium else price_map[months]
-
+            price_map = get_correct_price_map(premium=premium, founder=founder)
+            price = price_map[months]
+            sub_type = get_correct_sub_type(premium=premium, founder=founder)
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             user = query.from_user
@@ -327,11 +350,7 @@ class SubscriptionRouter(BaseRouter):
                 user_id=user.id or "-",
                 months=months,
                 price=price,
-                premium=(
-                    f"{ToggleSubscriptionMode.PREMIUM.upper()}"
-                    if premium
-                    else f"{ToggleSubscriptionMode.STANDARD.upper()}"
-                ),
+                sub_type=sub_type,
             )
             await send_to_admins(
                 bot=self.bot,
@@ -421,6 +440,15 @@ class SubscriptionRouter(BaseRouter):
             user_schema = await self.subscription_service.activate_paid_subscription(
                 user_id, months, premium
             )
+            if user_schema is None or user_schema.current_subscription:
+                raise AppError(
+                    message=f"У пользователя id= {user_schema} отсутствуют подписки!!!!"
+                )
+            if user_schema.current_subscription.type is None:
+                raise AppError(
+                    message=f"У пользователя id= {user_schema} отсутствует Тип Подписки!!!!"
+                )
+            sub_type = user_schema.current_subscription.type.upper()
             user_logger.info(
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"
             )
@@ -431,11 +459,7 @@ class SubscriptionRouter(BaseRouter):
                     chat_id=user_id,
                     text=m_subscription.accept_paid.user.format(
                         months=months,
-                        premium=(
-                            f"{ToggleSubscriptionMode.PREMIUM.upper()}"
-                            if premium
-                            else f"{ToggleSubscriptionMode.STANDARD.upper()}"
-                        ),
+                        sub_type=sub_type,
                     ),
                     # reply_markup=main_kb(active_subscription=True),
                 )
@@ -470,11 +494,7 @@ class SubscriptionRouter(BaseRouter):
                     user_id=user_id,
                     new_text=m_subscription.accept_paid.admin.format(
                         user_id=user_id,
-                        premium=(
-                            f"{ToggleSubscriptionMode.PREMIUM.upper()}"
-                            if premium
-                            else f"{ToggleSubscriptionMode.STANDARD.upper()}"
-                        ),
+                        sub_type=sub_type,
                         username=user_schema.username,
                     ),
                     admin_mess_storage=self.redis_service,
