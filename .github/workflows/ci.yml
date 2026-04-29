@@ -127,7 +127,7 @@ jobs:
 
       - name: Recreate .env and restart containers
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
             cd /home/prod_server/production/vpn_bot || exit 1
             echo "Pull latest code..."
@@ -139,7 +139,10 @@ jobs:
             echo "Recreate .env.local file..."
             rm -f .env.local
 
-            cat <<EOF > .env.local
+
+            echo "Recreate .env.local file..."
+
+            cat <<ENV_EOF > .env.local
             # == STAGE ==
             STAGE=develop
 
@@ -185,15 +188,15 @@ jobs:
             MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}
             NORMALIZE=${{ vars.NORMALIZE }}
             SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+            ENV_EOF
 
-            EOF
 
             echo "Restart Docker containers..."
             make compose-down
             make compose-up
 
             docker restart nginx
-          EOF
+          'SSH_EOF'
 
 
   deploy_prod:
