@@ -139,37 +139,54 @@ jobs:
             echo "Recreate .env.local file..."
             rm -f .env.local
 
+            cat <<EOF > .env.local
+            # == STAGE ==
+            STAGE=develop
 
-            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env.local
-            echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env.local
-            echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env.local
-            echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env.local
-            echo "PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}" >> .env.local
-            echo "VPN_PROXY=${{ secrets.VPN_PROXY }}" >> .env.local
-            echo "PROXY_PORT=${{ secrets.PROXY_PORT }}" >> .env.local
-            echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}">> .env.local
-            echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env.local
-            echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env.local
-            echo "PRICE_MAP=${{ vars.PRICE_MAP }}" >> .env.local
-            echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env.local
-            echo "DB_USER=${{ secrets.DB_USER }}" >> .env.local
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env.local
-            echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env.local
-            echo "REDIS_USER=${{ secrets.REDIS_USER }}" >> .env.local
-            echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env.local
-            echo "USE_POLLING=${{ vars.USE_POLLING }}" >> .env.local
-            echo "BUCKET_NAME=${{ vars.BUCKET_NAME }}" >> .env.local
-            echo "PREFIX=${{ vars.PREFIX }}" >> .env.local
-            echo "ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}" >> .env.local
-            echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env.local
-            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.local
-            echo "ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}" >> .env.local
-            echo "SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}" >> .env.local
-            echo "YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}" >> .env.local
-            echo "MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}" >> .env.local
-            echo "NORMALIZE=${{ vars.NORMALIZE }}" >> .env.local
-            echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
-            echo "SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}" >> .env.local
+            # == CORE ==
+            BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+            MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}
+            BASE_SITE=${{ vars.BASE_SITE }}
+            USE_POLLING=${{ vars.USE_POLLING }}
+            USE_LOCAL=${{ vars.USE_LOCAL }}
+
+            # == VPN ==
+            VPN_HOST=${{ secrets.VPN_HOST }}
+            VPN_USERNAME=${{ secrets.VPN_USERNAME }}
+            VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}
+            VPN_PROXY=${{ secrets.VPN_PROXY }}
+            PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}
+            PROXY_PORT=${{ secrets.PROXY_PORT }}
+
+            # == SECURITY ==
+            SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+            ADMIN_IDS=${{ secrets.ADMIN_IDS }}
+
+            # == DATABASE ==
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            DB_DATABASE=${{ secrets.DB_DATABASE }}
+
+            # == REDIS ==
+            REDIS_USER=${{ secrets.REDIS_USER }}
+            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+            # == STORAGE ==
+            BUCKET_NAME=${{ vars.BUCKET_NAME }}
+            PREFIX=${{ vars.PREFIX }}
+            ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}
+            ACCESS_KEY=${{ secrets.ACCESS_KEY }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+
+            # == AI ==
+            ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
+            SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
+            YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}
+            MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}
+            NORMALIZE=${{ vars.NORMALIZE }}
+            SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+
+            EOF
 
             echo "Restart Docker containers..."
             make compose-down
