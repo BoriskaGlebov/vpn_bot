@@ -41,6 +41,7 @@ from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
 
+
 # TODO дать возможность уалять свои конфиг файлы
 
 
@@ -155,7 +156,11 @@ class SubscriptionRouter(BaseRouter):
             )
             if not is_premium or role == FilterTypeEnum.FOUNDER:
                 text = m_subscription.start.format(
-                    device_limit=settings_bot.max_configs_per_user
+                    device_limit=settings_bot.max_configs_per_user,
+                    month=settings_bot.price_map.get(1, 0),
+                    quarter=settings_bot.price_map.get(3, 0),
+                    half_year=settings_bot.price_map.get(6, 0),
+                    year=settings_bot.price_map.get(12, 0),
                 )
                 kb = subscription_options_kb(
                     premium=False,
@@ -262,7 +267,11 @@ class SubscriptionRouter(BaseRouter):
             )
             if premium
             else m_subscription.start.format(
-                device_limit=settings_bot.max_configs_per_user
+                device_limit=settings_bot.max_configs_per_user,
+                month=settings_bot.price_map.get(1, 0),
+                quarter=settings_bot.price_map.get(3, 0),
+                half_year=settings_bot.price_map.get(6, 0),
+                year=settings_bot.price_map.get(12, 0),
             )
         )
 
