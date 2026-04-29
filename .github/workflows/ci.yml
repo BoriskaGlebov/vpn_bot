@@ -143,52 +143,52 @@ jobs:
             echo "Recreate .env.local file..."
 
             cat <<ENV_EOF > .env.local
-              # == STAGE ==
-              STAGE=develop
+          # == STAGE ==
+          STAGE=develop
 
-              # == CORE ==
-              BOT_TOKEN=${{ secrets.BOT_TOKEN }}
-              MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}
-              BASE_SITE=${{ vars.BASE_SITE }}
-              USE_POLLING=${{ vars.USE_POLLING }}
-              USE_LOCAL=${{ vars.USE_LOCAL }}
+          # == CORE ==
+          BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+          MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}
+          BASE_SITE=${{ vars.BASE_SITE }}
+          USE_POLLING=${{ vars.USE_POLLING }}
+          USE_LOCAL=${{ vars.USE_LOCAL }}
 
-              # == VPN ==
-              VPN_HOST=${{ secrets.VPN_HOST }}
-              VPN_USERNAME=${{ secrets.VPN_USERNAME }}
-              VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}
-              VPN_PROXY=${{ secrets.VPN_PROXY }}
-              PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}
-              PROXY_PORT=${{ secrets.PROXY_PORT }}
+          # == VPN ==
+          VPN_HOST=${{ secrets.VPN_HOST }}
+          VPN_USERNAME=${{ secrets.VPN_USERNAME }}
+          VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}
+          VPN_PROXY=${{ secrets.VPN_PROXY }}
+          PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}
+          PROXY_PORT=${{ secrets.PROXY_PORT }}
 
-              # == SECURITY ==
-              SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-              ADMIN_IDS=${{ secrets.ADMIN_IDS }}
+          # == SECURITY ==
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+          ADMIN_IDS=${{ secrets.ADMIN_IDS }}
 
-              # == DATABASE ==
-              DB_USER=${{ secrets.DB_USER }}
-              DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-              DB_DATABASE=${{ secrets.DB_DATABASE }}
+          # == DATABASE ==
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_DATABASE=${{ secrets.DB_DATABASE }}
 
-              # == REDIS ==
-              REDIS_USER=${{ secrets.REDIS_USER }}
-              REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+          # == REDIS ==
+          REDIS_USER=${{ secrets.REDIS_USER }}
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
 
-              # == STORAGE ==
-              BUCKET_NAME=${{ vars.BUCKET_NAME }}
-              PREFIX=${{ vars.PREFIX }}
-              ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}
-              ACCESS_KEY=${{ secrets.ACCESS_KEY }}
-              SECRET_KEY=${{ secrets.SECRET_KEY }}
+          # == STORAGE ==
+          BUCKET_NAME=${{ vars.BUCKET_NAME }}
+          PREFIX=${{ vars.PREFIX }}
+          ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}
+          ACCESS_KEY=${{ secrets.ACCESS_KEY }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
 
-              # == AI ==
-              ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
-              SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
-              YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}
-              MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}
-              NORMALIZE=${{ vars.NORMALIZE }}
-              SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
-            ENV_EOF
+          # == AI ==
+          ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
+          SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
+          YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}
+          MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}
+          NORMALIZE=${{ vars.NORMALIZE }}
+          SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+          ENV_EOF
 
 
             echo "Restart Docker containers..."
@@ -196,7 +196,7 @@ jobs:
             make compose-up
 
             docker restart nginx
-          'SSH_EOF'
+          SSH_EOF
 
 
   deploy_prod:
