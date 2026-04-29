@@ -143,27 +143,50 @@ jobs:
             echo "Recreate .env.local file..."
 
             cat <<ENV_EOF > .env.local
+
           # == STAGE ==
+
           STAGE=develop
 
           # == CORE ==
+
           BOT_TOKEN=${{ secrets.BOT_TOKEN }}
           MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}
           BASE_SITE=${{ vars.BASE_SITE }}
           USE_POLLING=${{ vars.USE_POLLING }}
           USE_LOCAL=${{ vars.USE_LOCAL }}
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+          ADMIN_IDS=${{ secrets.ADMIN_IDS }}
 
-          # == VPN ==
+          # == VPN1 ==
+
           VPN_HOST=${{ secrets.VPN_HOST }}
           VPN_USERNAME=${{ secrets.VPN_USERNAME }}
           VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}
+
+          # == PROXY1 ==
+
           VPN_PROXY=${{ secrets.VPN_PROXY }}
           PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}
           PROXY_PORT=${{ secrets.PROXY_PORT }}
 
-          # == SECURITY ==
-          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-          ADMIN_IDS=${{ secrets.ADMIN_IDS }}
+          # == PROXY2 ==
+
+          VPN_TEST_HOST=${{ secrets.VPN_TEST_HOST }}
+          VPN_TEST_USERNAME=${{ secrets.VPN_TEST_USERNAME }}
+          PROXY_TEST_PREFIX=${{ secrets.PROXY_TEST_PREFIX }}
+
+          # ==X-RAY ==
+
+          X_RAY_HOST=${{ secrets.X_RAY_HOST }}
+          X_RAY_PANEL_PREFIX=${{ secrets.X_RAY_PANEL_PREFIX }}
+          X_RAY_SUBSCRIPTION_PREFIX=${{ secrets.X_RAY_SUBSCRIPTION_PREFIX }}
+          X_RAY_PANEL_PORT=${{ secrets.X_RAY_PANEL_PORT }}
+          X_RAY_SUBSCRIPTION_PORT=${{ secrets.X_RAY_SUBSCRIPTION_PORT }}
+          X_RAY_USERNAME=${{ secrets.X_RAY_USERNAME }}
+          X_RAY_PASSWORD=${{ secrets.X_RAY_PASSWORD }}
+          INBOUNDS=${{ secrets.INBOUNDS }}
+
 
           # == DATABASE ==
           DB_USER=${{ secrets.DB_USER }}
