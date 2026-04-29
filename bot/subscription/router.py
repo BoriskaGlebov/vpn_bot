@@ -41,6 +41,8 @@ from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
 
+# TODO дать возможность уалять свои конфиг файлы
+
 
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
     """Состояния FSM для процесса оформления подписки."""
