@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -21,6 +22,7 @@ from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.router import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
+from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
 
 m_subscription_local = settings_bot.messages.modes.subscription
 
@@ -69,7 +71,11 @@ class SchedulerBotService:
     """Сервис бота для обработки событий планировщика подписок."""
 
     def __init__(
-        self, adapter: SchedulerAPIAdapter, bot: Bot, vpn_adapter: VPNAPIAdapter
+        self,
+        adapter: SchedulerAPIAdapter,
+        bot: Bot,
+        vpn_adapter: VPNAPIAdapter,
+        xray_adapter: ThreeXUIAdapter,
     ) -> None:
         """Инициализация класса планировщика.
 
@@ -77,10 +83,12 @@ class SchedulerBotService:
             adapter: Клиент для обращения к API планировщика.
             bot: Telegram bot instance для отправки сообщений.
             vpn_adapter: Клиента для обращения к API VPN
+            xray_adapter: Адаптре для работы с 3xui панелью.
 
         """
         self.api_adapter = adapter
         self.vpn_adapter = vpn_adapter
+        self.xray_adapter = xray_adapter
         self.bot = bot
 
     async def _run_check_all(self) -> CheckAllSubscriptionsResponse | None:
@@ -149,73 +157,117 @@ class SchedulerBotService:
                 message_text=f"Невозможно отправить уведомление пользователю {tg_id} который заблокировал бота",
             )
 
+    async def _handle_broken_pipe(
+        self, client_cls: type[AsyncSSHClientWG], error: Exception
+    ) -> None:
+        logger.error("SSH соединение разорвано ({}): {}", client_cls.__name__, error)
+
+        await send_to_admins(
+            bot=self.bot,
+            message_text=(
+                "⚠️ Не удалось подключиться к контейнеру\n"
+                f"{client_cls.__name__}: {error}"
+            ),
+        )
+
+    async def _handle_not_found(
+        self, cfg: DeletedVPNConfigSchema, client_cls: type[AsyncSSHClientWG]
+    ) -> None:
+        logger.warning("Не найден в {}: {}", client_cls.__name__, cfg.file_name)
+
+        await send_to_admins(
+            bot=self.bot,
+            message_text=(
+                "🔔 Требуется проверка.\n"
+                f"Не найден в {client_cls.__name__}: {cfg.file_name}"
+            ),
+        )
+
+    async def _delete_from_db(self, cfg: DeletedVPNConfigSchema) -> None:
+        """Удаляет конфиг из БД."""
+        logger.debug("Удаление из БД {}", cfg.file_name)
+
+        try:
+            res = await self.vpn_adapter.delete_config(
+                file_name=cfg.file_name,
+                pub_key=cfg.pub_key,
+            )
+
+            if res:
+                logger.info("Удален из БД {}", cfg.file_name)
+
+        except APIClientError as e:
+            logger.error("Ошибка удаления из БД: {}", e)
+
+    async def _fallback_delete_3xui(
+        self,
+        cfg: DeletedVPNConfigSchema,
+    ) -> None:
+        """Удаляет конфиг через 3x-ui если не найден в SSH."""
+        logger.info("Fallback: проверка 3x-ui")
+
+        try:
+            all_configs = json.loads(cfg.pub_key)
+
+            for config_id in all_configs:
+                await self.xray_adapter.delete_config(
+                    config_id=config_id,
+                    inbounds=settings_bot.inbounds,
+                )
+
+        except json.JSONDecodeError:
+            logger.error("Ошибка десериализации pub_key: {}", cfg.pub_key)
+            raise
+
+    async def _delete_from_ssh(
+        self,
+        cfg: DeletedVPNConfigSchema,
+        ssh_clients: list[type[AsyncSSHClientWG]],
+    ) -> bool:
+        """Пытается удалить конфиг через SSH на всех клиентах."""
+        for client_cls in ssh_clients:
+            try:
+                async with client_cls(
+                    host=settings_bot.vpn_host,
+                    username=settings_bot.vpn_username,
+                ) as ssh_client:
+                    if await ssh_client.full_delete_user(public_key=cfg.pub_key):
+                        logger.info(
+                            "Конфиг удален {} через {}",
+                            cfg.file_name,
+                            client_cls.__name__,
+                        )
+                        return True
+
+                    await self._handle_not_found(cfg, client_cls)
+
+            except AmneziaError as e:
+                logger.error("SSH deletion error ({}): {}", client_cls.__name__, e)
+
+            except BrokenPipeError as e:
+                await self._handle_broken_pipe(client_cls, e)
+
+        logger.info("Конфиг не найден ни на одном SSH сервере")
+        return False
+
     async def _trigger_config_deletion(
         self,
         tg_id: int,
         configs: list[DeletedVPNConfigSchema],
         ssh_clients: list[type[AsyncSSHClientWG]],
     ) -> None:
-        """Триггер удаления VPN-конфигов из старого контейнера через внешний сервис."""
+        """Оркестрирует удаление VPN-конфигов."""
         if not configs:
-            return None
+            return
 
         async with ssh_lock:
             for cfg in configs:
-                for client_cls in ssh_clients:
-                    try:
-                        async with client_cls(
-                            host=settings_bot.vpn_host,
-                            username=settings_bot.vpn_username,
-                        ) as ssh_client:
-                            is_delete = await ssh_client.full_delete_user(
-                                public_key=cfg.pub_key
-                            )
+                deleted = await self._delete_from_ssh(cfg, ssh_clients)
 
-                            if is_delete:
-                                logger.info(
-                                    f"Конфиг удален из VPN {cfg.file_name} через {client_cls.__name__}"
-                                )
-                                break
-                            else:
-                                logger.warning(
-                                    f"Не найден в {client_cls.__name__}: {cfg.file_name}"
-                                )
-                                approve_text = (
-                                    f"🔔 Требуется проверка на случай ошибки.\n"
-                                    f"Не найден в {client_cls.__name__}: {cfg.file_name}"
-                                )
-                                await send_to_admins(
-                                    bot=self.bot, message_text=approve_text
-                                )
-
-                    except AmneziaError as e:
-                        logger.error(f"SSH deletion error ({client_cls.__name__}): {e}")
-                        continue
-                    except BrokenPipeError as e:
-                        logger.error(
-                            f"SSH соединение разорвано ({client_cls.__name__}): {e}"
-                        )
-                        error_text = (
-                            f"⚠️ ⚠️ ⚠️  В ходе проверки не смог подключиться к контейнеру"
-                            f"SSH соединение разорвано ({client_cls.__name__}): {e}"
-                        )
-                        await send_to_admins(bot=self.bot, message_text=error_text)
-                        continue
-
-                logger.debug("Начинаю удалять файл-конфиг из БД")
-
-                try:
-                    res = await self.vpn_adapter.delete_config(
-                        file_name=cfg.file_name,
-                        pub_key=cfg.pub_key,
-                    )
-                    if res:
-                        logger.info(f"Удаление конфига из БД: {cfg.file_name}")
-                except APIClientError as e:
-                    logger.error(f"Ошибка удаления из БД: {e}")
-                    continue
-
-        return None
+                if not deleted:
+                    await self._fallback_delete_3xui(cfg)
+                logger.info("Все возможные места проверил теперь удаляю.")
+                await self._delete_from_db(cfg)
 
     async def _trigger_proxy_deletion(self, tg_id: int) -> None:
         """Триггер удаления прокси через внешний сервис."""

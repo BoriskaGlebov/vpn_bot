@@ -22,19 +22,23 @@ class MainMenuText(str, Enum):
         AMNEZIA_VPN: Кнопка получения конфигурации AmneziaVPN.
         AMNEZIA_WG: Кнопка получения конфигурации AmneziaWG.
         AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм.
+        FREE_AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм бесплатно.
         RENEW_SUBSCRIPTION: Кнопка продления активной подписки.
         CHOOSE_SUBSCRIPTION: Кнопка выбора и оформления подписки.
         CHECK_STATUS: Кнопка проверки статуса текущей подписки.
         HELP: Кнопка вызова справки и помощи по настройке VPN.
         ADMIN_PANEL: Кнопка перехода в административную панель (доступна администраторам).
+        PREMIUM: Возможности премиум пользователей.
 
     """
 
     AMNEZIA_VPN = "🔑 AmneziaVPN"
     AMNEZIA_WG = "🌐 AmneziaWG"
     AMNEZIA_PROXY = "📦 AmneziaProxy"
+    FREE_AMNEZIA_PROXY = "📦 Free AmneziaProxy TG"
     RENEW_SUBSCRIPTION = "💎 Продлить VPN-Boriska"
     CHOOSE_SUBSCRIPTION = "💰 Выбрать подписку VPN-Boriska"
     CHECK_STATUS = "📈 Проверить статус подписки"
     HELP = "❓ Помощь в настройке VPN"
     ADMIN_PANEL = "⚙️ Панель администратора"
+    PREMIUM = "💎 Мой Премиум"

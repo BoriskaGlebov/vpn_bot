@@ -100,6 +100,8 @@ jobs:
           YANDEX_FOLDER_ID: ${{ vars.YANDEX_FOLDER_ID }}
           MODEL_LLM_NAME: ${{ vars.MODEL_LLM_NAME }}
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
+          X_RAY_USERNAME: ${{ vars.X_RAY_USERNAME }}
+          X_RAY_PASSWORD: ${{ vars.X_RAY_PASSWORD }}
         run: poetry run pytest -vs .
 
   deploy_develop:

@@ -4,7 +4,7 @@ from typing import Any
 
 import uvicorn
 from aiogram.types import Update
-from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import ValidationError
 from starlette.responses import JSONResponse
@@ -36,6 +36,8 @@ tags_metadata: list[dict[str, Any]] = [
 ]
 
 container = Container(bot=bot)
+# TODO Нужно настроить на Болгарском сервере автообновление сертификатов
+# так же мне не хватает панелей 3xui на каждом сервер + amneziWG сделаем по максимум 3 локации
 
 
 @asynccontextmanager
@@ -89,6 +91,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         vpn_service=container.vpn_service,
         redis=container.redis_manager,
         subscription_service=container.subscription_service,
+        user_adapter=container.user_adapter,
     )
     referral_router = ReferralRouter(bot=bot, logger=logger)  # type: ignore[arg-type]
     news_router = NewsRouter(
@@ -117,8 +120,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await start_bot(bot=bot)
     scheduler.add_job(
         scheduled_check,
-        # trigger=IntervalTrigger(seconds=20, minutes=0),
-        trigger=CronTrigger(hour=8, minute=0),
+        trigger=IntervalTrigger(seconds=45, minutes=0),
+        # trigger=CronTrigger(hour=8, minute=0),
         kwargs={"service": container.scheduler_bot_service},
     )
     scheduler.start()

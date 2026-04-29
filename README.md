@@ -1,16 +1,19 @@
 # vpn_bot
 
-Телеграм-бот для выдачи VPN-конфигураций Amnezia VPN с администрированием через Telegram и HTTP API (FastAPI). Поддерживает подписки, реферальную систему, напоминания, планировщик задач и хранение медиа (локально или S3-совместимые хранилища).
+Telegram-бот и набор сервисов для выдачи VPN-доступов и управления подписками.
 
-## Возможности
-- Выдача новых VPN-конфигураций и управление существующими
-- Управление подписками, продлениями, напоминаниями
-- Реферальная программа
-- Админ-функции через Telegram (клавиатуры, панели) и HTTP API
-- Получение обновлений: webhook или polling
-- Планировщик задач (APScheduler)
-- Хранилище кэша/очередей на Redis
-- Миграции БД через Alembic
+## Проект состоит из двух FastAPI-приложений:
+- **Bot service** (`bot/`) — Telegram-бот на **aiogram 3**, принимает webhook/polling и управляет пользовательскими сценариями.
+- **API service** (`api/`) — внутренний HTTP API + админка (**SQLAdmin**) для управления пользователями/подписками/VPN-конфигами.
+
+## Поддерживаются:
+- выдача конфигураций (Amnezia/WireGuard) и лимиты на пользователя
+- подписки/тарифы, триал, напоминания и планировщик задач
+- реферальная система
+- прокси (MTProto через **telemt**) и отдельные настройки для тестового прокси
+- интеграция с **XRay / 3x-ui** (панель + подписки)
+- хранение медиа локально или в S3-совместимом Object Storage
+- (опционально) AI/LLM-интеграция (Yandex AI Studio + LangChain + pgvector)
 
 ## Технологии
 - Python 3.11+
@@ -22,26 +25,41 @@
 - Docker/Compose (развёртывание)
 - ruff, mypy, pytest (качество кода и тесты)
 
-## Структура проекта
+
+## Сервисы и порты
+
+По умолчанию:
+- Bot service: `http://localhost:8088/bot`
+  - Swagger: `http://localhost:8088/bot/docs`
+  - Health: `http://localhost:8088/bot/health`
+  - Webhook endpoint: `POST /bot/webhook`
+- API service: `http://localhost:8089/api`
+  - Swagger: `http://localhost:8089/api/docs`
+  - Health: `http://localhost:8089/api/health`
+  - Admin UI: поднимается внутри API (SQLAdmin), путь зависит от роутера `api/admin/router.py`
+
+---
+
+## Структура репозитория
+
 Высокоуровнево:
-- bot/
-  - admin/, users/, subscription/, vpn/, help/ — доменные модули (enums, dao, models, services, keyboards)
-  - middleware/ — промежуточные обработчики (исключения, логирование/аудит действий пользователя)
-  - utils/ — вспомогательные утилиты (команды, старт/стоп бота, инициализация ролей, описание)
-  - app_error/ — базовые ошибки приложения
-  - database.py — инициализация БД
-  - config.py — конфигурация приложения/бота
-  - main.py — точка входа (FastAPI + жизненный цикл бота)
-  - migrations/ — миграции Alembic
-- tests/ — unit и integration тесты (pytest)
-- docker-compose.*.yml — сценарии для dev/prod
-- Dockerfile, entrypoint.sh, nginx*.conf — инфраструктура контейнеров
+- `bot/` — Telegram bot + FastAPI (webhook endpoint)
+- `api/` — внутренний API + SQLAdmin
+- `shared/` — общие компоненты (если используются)
+- `ai_service/` — AI/LLM компоненты (если используются)
+- `telemt-config/` — конфигурация MTProto-прокси (telemt)
+- `docker-compose.*.yml` — сценарии запуска (develop/local/prod/common)
+- `nginx.conf`, `nginx_test.conf` — примеры конфигураций nginx
+
+---
 
 ## Требования
 - Python 3.11+
 - PostgreSQL 14+
 - Redis 6+
 - (опционально) S3-совместимое хранилище для медиа (например, Yandex Object Storage)
+
+
 
 ## Установка (локально)
 1) Клонировать репозиторий
@@ -60,117 +78,83 @@ poetry install --without dev --no-cache
 3) Настроить переменные окружения (.env)
 Создайте файл .env в корне проекта. Переменные читаются из bot/.env и bot/.env.local (второй перекрывает первый).
 В репозитории обновлён файл .env.example: в нём добавлены новые имена переменных и порты, необходимые для корректной работы сервиса. Обязательно откройте .env.example и скорректируйте свой .env в соответствии с ним — особенно блоки, связанные с прокси/MTProto, портами и префиксами поддоменов.
+## Переменные окружения
 
-Обязательные переменные
-- BOT_TOKEN — токен Telegram-бота. Выдаётся @BotFather.
-- ADMIN_IDS — список Telegram ID администраторов через запятую. Пример: 123,456. Можно оставить пустым, но для админ-функций нужны id. Формат парсится в множество чисел.
-- BASE_SITE — базовый публичный URL, используется для формирования webhook: ${BASE_SITE}/webhook. Требуется даже при USE_POLLING=False/True, чтобы корректно строить ссылки API.
-- VPN_HOST — хост сервера Amnezia VPN (домен или IP), куда подключается бот.
-- VPN_USERNAME — системный пользователь на VPN-сервере, от имени которого выполняются команды.
-- VPN_CONTAINER — имя Docker-контейнера с Amnezia VPN на сервере (используется для exec).
-- VPN_PROXY — имя Docker-контейнера c proxy (используется в функционале прокси/подписок). Обязателен, если используется прокси.
-- DB_USER, DB_PASSWORD, DB_DATABASE — доступ к PostgreSQL.
-- REDIS_USER, REDIS_PASSWORD — доступ к Redis.
+Актуальный список и комментарии — в файле **`.env.example `** (обратите внимание: имя файла в репозитории содержит пробел в конце).
 
-Изменения и важные замечания по прокси/MTProto
-- Обновлённый .env.example содержит новые переменные, связанные с прокси/mtproto. Проверьте и скопируйте их в свой .env.
-- Прокси теперь рекомендуется запускать и пробрасывать на порт 443 (HTTPS/TCP) для корректной работы и обхода блокировок. В .env укажите PROXY_PORT=443 (или используемое в вашем окружении имя переменной согласно .env.example).
-- Для правильной работы прокси требуется указать префикс поддомена (например PROXY_SUBDOMAIN_PREFIX). Этот префикс используется при генерации адресов и маршрутизации запросов — убедитесь, что он заполнен в .env.
-- В продакшн окружении сервер арендуется с двумя публичными IP-адресами. Для корректной работы и возможности обслуживать оба IP в контейнерах/на уровне хоста, в production рекомендуется запускать nginx в режиме host (network_mode: host в docker-compose) — это позволяет nginx видеть оба IP и разруливать входящие запросы/SSL на нужный адрес.
+Ниже — ключевые группы переменных.
 
-Опциональные переменные и значения по умолчанию
-- PROXY_PORT — порт прокси на сервере. По умолчанию 40711 (в старых сборках), рекомендуем для современных развёртываний использовать 443.
-- PROXY_SUBDOMAIN_PREFIX — префикс поддомена для прокси (например sub01). Обязателен для корректной работы прокси/маршрутизации.
-- MAX_CONFIGS_PER_USER — лимит конфигураций на пользователя. По умолчанию 10.
-- USE_POLLING — режим получения обновлений. False — webhook, True — long-polling. По умолчанию False.
-- DEBUG_FAST_API — режим отладки FastAPI. По умолчанию False.
-- RELOAD_FAST_API — авто-перезапуск FastAPI при изменениях. По умолчанию False.
-- USE_LOCAL — учитывать локальный запуск (влияет на сетевое подключение к VPN). По умолчанию True.
-- LOGGER_LEVEL_STDOUT — уровень логирования для stdout. По умолчанию INFO.
-- LOGGER_LEVEL_FILE — уровень логирования для файла. По умолчанию INFO.
-- LOGGER_ERROR_FILE — уровень логирования для файла ошибок. По умолчанию WARNING.
-- DB_HOST — хост PostgreSQL. По умолчанию postgres (для Docker). Для локального запуска без контейнеров выставьте localhost.
-- DB_PORT — порт PostgreSQL. По умолчанию 5432.
-- REDIS_HOST — хост Redis. По умолчанию redis (для Docker). Для локального запуска без контейнеров выставьте localhost.
-- REDIS_PORT — порт Redis. По умолчанию 6379.
-- NUM_DB — номер базы Redis. По умолчанию 0.
-- DEFAULT_EXPIRE — TTL ключей Redis (сек). По умолчанию 3600.
-- SESSION_SECRET — секрет подписи сессии. По умолчанию secret.
-- PRICE_MAP — словарь цен подписок в JSON-формате. По умолчанию {1:70,3:160,6:300,12:600,7:0}. Пример значения: {"1":70,"3":160}.
+### Core / Bot
+- `STAGE` — окружение (`develop`/`local`/`prod`)
+- `BOT_TOKEN` — токен Telegram-бота
+- `ADMIN_IDS` — список Telegram ID админов через запятую
+- `BASE_SITE` — публичный базовый URL (нужен для webhook)
+- `USE_POLLING` — `True` для polling, `False` для webhook
+- `USE_LOCAL` — если бот и VPN на одном сервере
+- `COMMON_TIMEOUT` — таймаут внешних запросов
+- `MAX_CONFIGS_PER_USER` — лимит конфигов на пользователя
 
-S3/Object Storage (используйте, если включена загрузка медиа в бакет)
-Все переменные обязательны для работы раздела справки с медиа из бакета:
-- BUCKET_NAME — имя бакета.
-- PREFIX — префикс путей внутри бакета. Например media/ или media/amnezia_pc/.
-- ENDPOINT_URL — конечная точка S3-совместимого хранилища, например https://storage.yandexcloud.net.
-- ACCESS_KEY — access key.
-- SECRET_KEY — secret key.
+### Тарифы
+- `PRICE_MAP`, `PRICE_MAP_PREMIUM`, `PRICE_MAP_FOUNDER` — JSON-словари цен (ключи: `1,3,6,12,7` месяцев)
 
-AI Сервисы
-- ACCESS_KEY_AI= access key.
-- SECRET_KEY_AI= secret key.
-- YANDEX_FOLDER_ID= ключ папки на сервисе Яндекс cloud
-- MODEL_LLM_NAME=intfloat/multilingual-e5-base (сейчас под нее настроена БД)
-- NORMALIZE=True (Нормализация эмбеддингов)
-- SKIP_AI_INIT=True (Пропускать инициализацию ИИ сервисов для тестов)
+### Bot/API debug & logging
+- `DEBUG_FAST_API`, `RELOAD_FAST_API`
+- `LOGGER_LEVEL_STDOUT`, `LOGGER_LEVEL_FILE`, `LOGGER_ERROR_FILE`
 
-Пример .env (с комментариями)
-```
-# --- Telegram / Bot ---
-BOT_TOKEN=your_bot_token_here
-ADMIN_IDS=123456789,987654321
-BASE_SITE=https://your-domain.com
-USE_POLLING=False
-DEBUG_FAST_API=False
-RELOAD_FAST_API=False
-USE_LOCAL=True
-SESSION_SECRET=secret
+### VPN (Amnezia/WireGuard)
+- `VPN_HOST`, `VPN_USERNAME`, `VPN_CONTAINER`
 
-# --- VPN backend ---
-#Дефолтное время для Timeout ошибки при подключени к стороннему сревису по умолчанию 10 секунд.
-COMMON_TIMEOUT=10
-VPN_HOST=vpn.example.com
-VPN_USERNAME=vpnuser
-VPN_CONTAINER=amnezia-vpn
-VPN_PROXY=amnezia-proxy
-# Рекомендуется устанавливать порт прокси на 443
-PROXY_PORT=443
-# Префикс поддомена, обязателен для корректной работы прокси/маршрутизации
-PROXY_SUBDOMAIN_PREFIX=sub01
-MAX_CONFIGS_PER_USER=10
+### Proxy (telemt)
+- `VPN_PROXY` — имя контейнера прокси (в compose по умолчанию `telemt`)
+- `PROXY_PREFIX` — префикс поддомена/маршрутизации для прокси
+- `PROXY_PORT` — порт прокси (часто 443/8443)
+- `TELEMT_SECRET_HELLO` — секрет для telemt
 
-# --- Logging ---
-LOGGER_LEVEL_STDOUT=INFO
-LOGGER_LEVEL_FILE=INFO
-LOGGER_ERROR_FILE=WARNING
+### Test proxy
+- `VPN_TEST_HOST`, `VPN_TEST_USERNAME`, `PROXY_TEST_PREFIX`
 
-# --- Database (PostgreSQL) ---
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=user
-DB_PASSWORD=your_password
-DB_DATABASE=your_database
+### XRay / 3x-ui
+- `X_RAY_HOST`
+- `X_RAY_PANEL_PREFIX`, `X_RAY_SUBSCRIPTION_PREFIX`
+- `X_RAY_PANEL_PORT`, `X_RAY_SUBSCRIPTION_PORT`
+- `X_RAY_USERNAME`, `X_RAY_PASSWORD`
+- `INBOUNDS` — JSON со списком inbound’ов (порт + имя)
 
-# --- Redis ---
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_USER=default
-REDIS_PASSWORD=your_redis_password
-NUM_DB=0
-DEFAULT_EXPIRE=3600
+### Database (PostgreSQL)
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_DATABASE`
 
-# --- S3 / Object Storage (если используете хранение медиа в бакете) ---
-BUCKET_NAME=vpn-bot-images
-PREFIX=media/
-ENDPOINT_URL=https://storage.yandexcloud.net
-ACCESS_KEY=your_key
-SECRET_KEY=your_key
+### Redis
+- `REDIS_HOST`, `REDIS_PORT`, `REDIS_USER`, `REDIS_PASSWORD`
+- `NUM_DB`, `DEFAULT_EXPIRE`
 
-# --- Подписки/цены (опционально, JSON) ---
-PRICE_MAP={"1":70,"3":160,"6":300,"12":600,"7":0}
+### Object Storage (S3)
+- `BUCKET_NAME`, `PREFIX`, `ENDPOINT_URL`, `ACCESS_KEY`, `SECRET_KEY`
 
-#TELMENT ключ генерируется командой из инструкции
-TELEMT_SECRET_HELLO=f328acdb32d2768f7836de0b74b3c573
+### AI (опционально)
+- `SECRET_KEY_AI`, `YANDEX_FOLDER_ID`
+- `MODEL_LLM_NAME`, `EMBEDDING_DIM`, `NORMALIZE`
+- `SKIP_AI_INIT` — пропуск тяжёлой инициализации (полезно в prod/CI)
+
+### API service
+- `SESSION_SECRET` — ключ для сессий/авторизации админки
+- `API_URL`, `API_PORT` — адрес API сервиса для внутренних вызовов
+
+---
+
+## MTProto-прокс�� (telemt)
+
+В `docker-compose.prod.yml` присутствует сервис `telemt` (образ `whn0thacked/telemt-docker`).
+Конфигурация монтируется из каталога `./telemt-config`.
+
+Подготовка:
+```bash
+mkdir -p ./telemt-config
+touch ./telemt-config/telemt.toml
+chmod 777 ./telemt-config
+chmod 666 ./telemt-config/telemt.toml
+
+# секрет (16 байт / 32 hex символа)
+openssl rand -hex 16
 ```
 
 Примечания
@@ -268,7 +252,7 @@ pytest -q
 ```
 
 
-
+## Важнаые настройки AmneziaWG, которые позволяют генерировать больше конфиг файлов, по умолчанию только 256.
 ```bash
   Address = 10.8.0.1/16
   # перезапуск wg
