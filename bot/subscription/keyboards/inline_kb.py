@@ -2,12 +2,12 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.core.config import settings_bot
 from bot.subscription.enums import (
     AdminPaymentAction,
     SubscriptionAction,
     ToggleSubscriptionMode,
 )
+from bot.subscription.utils.sub_utils import get_correct_price_map
 
 
 class SubscriptionCB(CallbackData, prefix="sub"):  # type: ignore[misc,call-arg]
@@ -22,11 +22,13 @@ class SubscriptionCB(CallbackData, prefix="sub"):  # type: ignore[misc,call-arg]
         months (int): Количество месяцев или дней для подписки.
             Для пробного периода (trial) указывается количество дней.
             По умолчанию None.
+        founder (bool): Указать основателя если спец цена.
 
     """
 
     action: str
     months: int = 0
+    founder: bool = False
 
 
 class ToggleSubscriptionCB(CallbackData, prefix="toggle_sub"):  # type: ignore[misc,call-arg]
@@ -86,25 +88,25 @@ def subscription_options_kb(
         InlineKeyboardMarkup: Клавиатура с вариантами подписки.
 
     """
-    price_map = settings_bot.price_map
+    price_map = get_correct_price_map(premium=premium, founder=founder)
+
     builder = InlineKeyboardBuilder()
 
-    multiplier = 2 if premium else 1
     label_prefix = "⭐" if premium else "📆"
 
     options: list[tuple[str, int]] = []
     for m in (1, 3, 6, 12):
         price = price_map.get(m)
         if m == 12 and isinstance(price, int) and price >= 0:
-            options.append((f"{m}мес. — 🔥 {price * multiplier}₽", m))
+            options.append((f"{m}мес. — 🔥 {price}₽", m))
         elif isinstance(price, int) and price >= 0:
-            options.append((f"{m} мес. — {price * multiplier}₽", m))
+            options.append((f"{m} мес. — {price}₽", m))
 
     for label, months in options:
         builder.button(
             text=f"{label_prefix} {label}",
             callback_data=SubscriptionCB(
-                action=SubscriptionAction.SELECT, months=months
+                action=SubscriptionAction.SELECT, months=months, founder=founder
             ),
         )
 
@@ -132,11 +134,12 @@ def subscription_options_kb(
     return builder.as_markup()
 
 
-def payment_confirm_kb(months: int) -> InlineKeyboardMarkup:
+def payment_confirm_kb(months: int, founder: bool) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру для подтверждения оплаты пользователем.
 
     Args
         months (int): Количество месяцев подписки, за которые пользователь произвёл оплату.
+        founder (bool): Проверка на основателя.
 
     Returns
         InlineKeyboardMarkup: Inline-клавиатура с кнопками "Я оплатил" и "Отмена".
@@ -145,7 +148,9 @@ def payment_confirm_kb(months: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(
         text="✅ Я оплатил",
-        callback_data=SubscriptionCB(action=SubscriptionAction.PAID, months=months),
+        callback_data=SubscriptionCB(
+            action=SubscriptionAction.PAID, months=months, founder=founder
+        ),
     )
     builder.button(text="❌ Отмена", callback_data="sub_cancel")
     return builder.as_markup()
