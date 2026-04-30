@@ -439,7 +439,7 @@ class SubscriptionRouter(BaseRouter):
             user_schema = await self.subscription_service.activate_paid_subscription(
                 user_id, months, premium
             )
-            if user_schema is None or user_schema.current_subscription:
+            if (user_schema is None) or (user_schema.current_subscription is None):
                 raise AppError(
                     message=f"У пользователя id= {user_schema} отсутствуют подписки!!!!"
                 )
