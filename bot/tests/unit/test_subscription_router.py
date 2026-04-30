@@ -46,7 +46,7 @@ async def test_subscription_selected_paid(mocker):
     query_mock.message = msg_mock  # ключевой момент
     state_mock = AsyncMock()
     state_mock.get_data.return_value = {"premium": True}
-    callback_data = Mock(months=3)
+    callback_data = Mock(months=3, founder=False)
 
     router = SubscriptionRouter(
         bot=mocker.AsyncMock(),
@@ -77,7 +77,7 @@ async def test_user_paid_calls_admins(
     query_mock = mocker.AsyncMock()
     query_mock.message = msg_mock
     query_mock.from_user = mocker.Mock(id=123, username="user")
-    callback_data = mocker.Mock(months=2)
+    callback_data = mocker.Mock(months=3, founder=False)
 
     # Мок price_map
     mocker.patch.object(settings_bot, "price_map", {2: 100, 3: 150})
