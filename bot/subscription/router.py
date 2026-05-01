@@ -158,10 +158,10 @@ class SubscriptionRouter(BaseRouter):
             if role == FilterTypeEnum.FOUNDER:
                 text = m_subscription.founder_start.format(
                     device_limit=settings_bot.max_configs_per_user * 2,
-                    month=settings_bot.price_map.get(1, 0),
-                    quarter=settings_bot.price_map.get(3, 0),
-                    half_year=settings_bot.price_map.get(6, 0),
-                    year=settings_bot.price_map.get(12, 0),
+                    month=settings_bot.price_map_founder.get(1, 0),
+                    quarter=settings_bot.price_map_founder.get(3, 0),
+                    half_year=settings_bot.price_map_founder.get(6, 0),
+                    year=settings_bot.price_map_founder.get(12, 0),
                 )
                 kb = subscription_options_kb(
                     premium=False,

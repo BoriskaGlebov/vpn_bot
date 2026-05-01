@@ -104,8 +104,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                     return f"⚠️ Неверный запрос: {exc.message}"
                 elif isinstance(exc, VPNLimitError):
                     return (
-                        f"⚠️ Пользователь достиг лимита конфигов ({exc.limit}/ {exc.limit}).\n"
-                        f"Если  нужно больше обратитесь в поддержку @BorisisTheBlade."
+                        f"⚠️ Достигнут лимит конфигов ({exc.limit}/{exc.limit}).\n\n"
+                        f"🚀 В премиум-подписке доступно больше конфигов и расширенные возможности.\n\n"
+                        f"Подключить премиум или задать вопрос:\n"
+                        f"💬 @BorisisTheBlade"
                     )
                 elif isinstance(exc, APIClientConflictError):
                     return f"⚠️ Конфликт данных ({exc.detail})"
