@@ -212,3 +212,4 @@ __marimo__/
 /bot/vpn/utils/user_cfg/
 /api/logs/
 /backup/
+/.env.dev
