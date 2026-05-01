@@ -39,9 +39,9 @@ class SubscriptionType(str, Enum):
 
 DEVICE_LIMITS = {
     SubscriptionType.TRIAL: 1,
-    SubscriptionType.STANDARD: settings_api.max_configs_per_user,
-    SubscriptionType.FOUNDER: int(settings_api.max_configs_per_user * 2),
-    SubscriptionType.PREMIUM: int(settings_api.max_configs_per_user * 2),
+    SubscriptionType.STANDARD: settings_api.core.max_configs_per_user,
+    SubscriptionType.FOUNDER: int(settings_api.core.max_configs_per_user * 2),
+    SubscriptionType.PREMIUM: int(settings_api.core.max_configs_per_user * 2),
 }
 
 

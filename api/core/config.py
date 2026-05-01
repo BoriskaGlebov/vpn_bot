@@ -2,27 +2,32 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import Field, SecretStr, field_validator
 
-from shared.config.app_config import SettingsApp
-from shared.config.db_config import SettingsDB
+from shared.config.app_config import SettingsApp, SettingsCommon
+from shared.config.db_config import PostgresSettings
 from shared.config.logger_config import LoggerConfig
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
-class SettingsAPI(SettingsApp):
+class SettingsAPI(SettingsCommon):
     """Конфигурация API-сервиса.
 
-    Расширяет базовые настройки приложения (`SettingsApp`) параметрами,
+    Расширяет базовые настройки приложения (`SettingsCommon`) параметрами,
     специфичными для FastAPI-сервиса.
 
     Attributes
         admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
+        session_secret (SecretStr): Подпись сессии.
 
     """
 
+    core: SettingsApp = Field(default_factory=SettingsApp)
+    db: PostgresSettings = Field(default_factory=PostgresSettings)
+
     admin_ids: set[int] | str = ""
+    session_secret: SecretStr = SecretStr("secret")
 
     @field_validator("admin_ids", mode="before")
     @classmethod
@@ -40,11 +45,11 @@ class SettingsAPI(SettingsApp):
 
 
 settings_api = SettingsAPI()  # type: ignore
-settings_db = SettingsDB()  # type: ignore
+
 
 LoggerConfig(
     log_dir=BASE_DIR / "api" / "logs",
-    logger_level_stdout=settings_api.logger_level_stdout,
-    logger_level_file=settings_api.logger_level_file,
-    logger_error_file=settings_api.logger_error_file,
+    logger_level_stdout=settings_api.core.logger_level_stdout,
+    logger_level_file=settings_api.core.logger_level_file,
+    logger_error_file=settings_api.core.logger_error_file,
 )

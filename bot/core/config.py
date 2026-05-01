@@ -42,6 +42,9 @@ class SettingsBot(SettingsApp):
         base_site (str):
             Базовый URL сайта, используемый для формирования webhook URL.
 
+        api_url (str): Адрес api интеграции.
+        api_port (int): Порт для api.
+
         vpn_host (str):
             Основной VPN-хост.
 
@@ -161,7 +164,9 @@ class SettingsBot(SettingsApp):
         description="Карта цен подписок по месяцам",
     )
     common_timeout: int = 10
-
+    # == API==
+    api_url: str = "api"
+    api_port: int = 8089
     # == VPN1 ==
     vpn_host: str
     vpn_username: str

@@ -4,7 +4,7 @@ from typing import Any
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 
-from api.core.config import settings_db
+from api.core.config import settings_api
 
 
 class AdminAuth(AuthenticationBackend):
@@ -37,8 +37,8 @@ class AdminAuth(AuthenticationBackend):
             return False
 
         if (
-            username == settings_db.db_user
-            and password == settings_db.db_password.get_secret_value()
+            username == settings_api.db.user
+            and password == settings_api.db.password.get_secret_value()
         ):
             request.session.update({"admin": True})
             return True
