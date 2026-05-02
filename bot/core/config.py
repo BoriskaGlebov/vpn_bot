@@ -2,6 +2,7 @@ import json
 from collections.abc import Iterable
 from functools import cached_property
 from pathlib import Path
+from pprint import pprint
 from typing import Any
 
 from aiogram import Bot, Dispatcher
@@ -15,9 +16,9 @@ from pydantic_settings import SettingsConfigDict
 
 from shared.config.db_config import RedisSettings
 
-__all__ = ["logger", "settings_bot", "bot", "dp"]
+# __all__ = ["logger", "settings_bot", "bot", "dp"]
 
-from shared.config.app_config import SettingsApp, SettingsCommon
+from shared.config.app_config import SettingsApp, SettingsCommon, load_toml_config
 from shared.config.logger_config import LoggerConfig
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -75,37 +76,10 @@ class ApiSettings(SettingsCommon):
     model_config = SettingsConfigDict(env_prefix="API_")
 
 
-class VPNSettingsMain(SettingsCommon):
-    host: str
-    username: str
-    container: str = "amnezia-awg2"
-    container_old: str = "amnezia-awg"
-    use_local: bool = True
-
-    model_config = SettingsConfigDict(env_prefix="MAIN_VPN_")
-
-
-class ProxySettingsMain(SettingsCommon):
+class ProxySettings(SettingsCommon):
     prefix: str
     container: str = "telemt"
-    port: str = "443"
-    model_config = SettingsConfigDict(env_prefix="MAIN_PROXY_")
-
-
-class VPNSettingsFI(SettingsCommon):
-    host: str | None = None
-    username: str | None = None
-    container: str = "amnezia-awg2"
-    use_local: bool = False
-
-    model_config = SettingsConfigDict(env_prefix="FI_VPN_")
-
-
-class ProxySettingsFI(SettingsCommon):
-    prefix: str | None = None
-    container: str = "telemt"
-    port: str = "443"
-    model_config = SettingsConfigDict(env_prefix="FI_PROXY_")
+    port: int = 443
 
 
 class XRaySettingsSOF(SettingsCommon):
@@ -139,6 +113,45 @@ class XRaySettingsSOF(SettingsCommon):
         return v
 
     model_config = SettingsConfigDict(env_prefix="SOF_X_RAY_")
+
+class VPNNode(SettingsCommon):
+    host: str
+    username: str
+    container: str
+    use_local: bool = False
+    proxy: ProxySettings | None = None
+    xray: XRaySettingsSOF | None = None
+
+
+class VPNRegistry(SettingsCommon):
+    nodes: dict[str, VPNNode]
+
+
+class VPNSettingsMain(SettingsCommon):
+    host: str
+    username: str
+    container: str = "amnezia-awg2"
+    container_old: str = "amnezia-awg"
+    use_local: bool = True
+
+    model_config = SettingsConfigDict(env_prefix="MAIN_VPN_")
+
+
+class VPNSettingsFI(SettingsCommon):
+    host: str | None = None
+    username: str | None = None
+    container: str = "amnezia-awg2"
+    use_local: bool = False
+
+    model_config = SettingsConfigDict(env_prefix="FI_VPN_")
+
+
+class ProxySettingsFI(SettingsCommon):
+    prefix: str | None = None
+    container: str = "telemt"
+    port: str = "443"
+    model_config = SettingsConfigDict(env_prefix="FI_PROXY_")
+
 
 
 class PricingSettings(SettingsCommon):
@@ -303,13 +316,7 @@ class Settings(SettingsCommon):
     bot: BotSettings = Field(default_factory=BotSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
 
-    vpn_main: VPNSettingsMain = Field(default_factory=VPNSettingsMain)
-    proxy_main: ProxySettingsMain = Field(default_factory=ProxySettingsMain)
-
-    vpn_fi: VPNSettingsFI = Field(default_factory=VPNSettingsFI)
-    proxy_fi: ProxySettingsFI = Field(default_factory=ProxySettingsFI)
-
-    xray_sof: XRaySettingsSOF = Field(default_factory=XRaySettingsSOF)
+    vpn: dict[str, VPNNode]
 
     pricing: PricingSettings = Field(default_factory=PricingSettings)
 
@@ -325,7 +332,8 @@ class Settings(SettingsCommon):
         return dialogs
 
 
-settings_bot = Settings()  # type: ignore
+toml_loader = load_toml_config()
+settings_bot = Settings(**toml_loader)  # type: ignore
 
 # settings_ai = SettingsAI()
 
@@ -340,7 +348,7 @@ bot: Bot = Bot(
     token=settings_bot.bot.token.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
 )
-# Хранилище FSM
+# # Хранилище FSM
 storage = RedisStorage.from_url(
     str(settings_bot.redis.url),
     state_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни состояния (в секундах)
@@ -352,7 +360,9 @@ storage = RedisStorage.from_url(
 dp = Dispatcher(storage=storage)
 
 if __name__ == "__main__":
-    print(settings_bot)
-    print("*" * 15)
-    print(settings_bot.redis)
-    print("*" * 15)
+    # pprint(toml_loader)
+    # pprint(settings_bot.vpn.model_dump())
+    print(settings_bot.vpn["sof"])
+    # print("*" * 15)
+    # print(settings_bot.redis)
+    # print("*" * 15)

@@ -75,8 +75,8 @@ class Container:
             base_url=settings_bot.api.url, port=settings_bot.api.port
         )
         self.xray_client = APIClient(
-            base_url=settings_bot.xray_sof.url_panel,  # type: ignore[arg-type]
-            port=settings_bot.xray_sof.panel_port,
+            base_url=settings_bot.vpn["sof"].xray.url_panel,  # type: ignore[arg-type]
+            port=settings_bot.vpn["sof"].xray.panel_port,
             scheme="https",
         )
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
