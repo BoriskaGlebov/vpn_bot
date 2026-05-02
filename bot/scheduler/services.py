@@ -70,6 +70,10 @@ class SubscriptionBotStats:
 class SchedulerBotService:
     """Сервис бота для обработки событий планировщика подписок."""
 
+    vpn_main = settings_bot.vpn.main
+    vpn_fi = settings_bot.vpn.fi
+    vpn_sof = settings_bot.vpn.sof
+
     def __init__(
         self,
         adapter: SchedulerAPIAdapter,
@@ -212,7 +216,6 @@ class SchedulerBotService:
             for config_id in all_configs:
                 await self.xray_adapter.delete_config(
                     config_id=config_id,
-                    inbounds=settings_bot.inbounds,
                 )
 
         except json.JSONDecodeError:
@@ -228,8 +231,9 @@ class SchedulerBotService:
         for client_cls in ssh_clients:
             try:
                 async with client_cls(
-                    host=settings_bot.vpn_host,
-                    username=settings_bot.vpn_username,
+                    host=self.vpn_main.host,
+                    username=self.vpn_main.username,
+                    use_local=self.vpn_main.use_local,
                 ) as ssh_client:
                     if await ssh_client.full_delete_user(public_key=cfg.pub_key):
                         logger.info(

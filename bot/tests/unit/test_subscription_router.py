@@ -80,7 +80,7 @@ async def test_user_paid_calls_admins(
     callback_data = mocker.Mock(months=3, founder=False)
 
     # Мок price_map
-    mocker.patch.object(settings_bot, "price_map", {2: 100, 3: 150})
+    mocker.patch.object(settings_bot.pricing, "price_map", {2: 100, 3: 150})
 
     router = SubscriptionRouter(
         bot=bot_mock,

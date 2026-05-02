@@ -51,7 +51,7 @@ class VPNAPIAdapter:
             SVPNDeleteResponse: количество удаленных файлов.
 
         """
-        admin_id = next(iter(settings_bot.admin_ids), None)
+        admin_id = next(iter(settings_bot.core.admin_ids), None)
 
         data, _ = await self.client.delete(
             "/api/vpn/config",

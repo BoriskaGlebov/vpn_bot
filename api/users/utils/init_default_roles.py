@@ -27,4 +27,6 @@ async def init_default_roles_admins(session: AsyncSession) -> None:
     query = select(User.telegram_id).join(User.role).where(Role.name == "admin")
     result = await session.execute(query)
     admins = result.scalars().all()
-    settings_api.admin_ids.update(admins)  # type: ignore[union-attr]
+    admins_set = set(settings_api.core.admin_ids)
+    admins_set.update(admins)
+    settings_api.core.admin_ids = list(admins_set)  # type: ignore[union-attr]

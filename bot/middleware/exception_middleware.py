@@ -141,7 +141,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                 f"type: {exc_type}\n"
                 f"message: {exc_text}"
             )
-            for admin_id in settings_bot.admin_ids:
+            for admin_id in settings_bot.core.admin_ids:
                 await self.bot.send_message(chat_id=admin_id, text=msg)
         except Exception:
             self.logger.warning("Не удалось отправить сообщение админам")

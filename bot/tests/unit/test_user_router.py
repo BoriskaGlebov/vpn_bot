@@ -99,7 +99,7 @@ async def test_admin_start_with_admin_monkeypatch(
 
     fake_message = make_fake_message(user_id=123)
 
-    monkeypatch.setattr(settings_bot, "admin_ids", {123})
+    monkeypatch.setattr(settings_bot.core, "admin_ids", {123})
 
     referral_service = AsyncMock(spec=ReferralService)
 
@@ -140,7 +140,7 @@ async def test_admin_start_non_admin_monkeypatch(
 
     fake_message = make_fake_message(user_id=999)
 
-    monkeypatch.setattr(settings_bot, "admin_ids", {123})
+    monkeypatch.setattr(settings_bot.core, "admin_ids", {123})
 
     referral_service = AsyncMock(spec=ReferralService)
 

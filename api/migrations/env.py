@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from api.core.config import settings_db
+from api.core.config import settings_api
 from api.core.database import Base
 from api.referrals.models import Referral
 from api.subscription.models import Subscription
@@ -30,7 +30,7 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 # Используем синхронный драйвер psycopg2 для Alembic
-sync_url = settings_db.database_url.replace("asyncpg", "psycopg2")
+sync_url = settings_api.db.url.replace("asyncpg", "psycopg2")
 config.set_main_option("sqlalchemy.url", sync_url)
 
 

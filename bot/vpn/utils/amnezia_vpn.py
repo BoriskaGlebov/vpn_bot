@@ -31,8 +31,9 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         port: int = 22,
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
+        use_local: bool = True,
     ) -> None:
-        super().__init__(host, username, port, known_hosts, container)
+        super().__init__(host, username, port, known_hosts, container, use_local)
 
     async def _save_wg_config(
         self,
@@ -96,8 +97,9 @@ class AsyncSSHClientVPN2(AsyncSSHClientVPN, AsyncSSHClientWG2):
         port: int = 22,
         known_hosts: str | None = None,
         container: str = "amnezia-awg2",
+        use_local: bool = True,
     ) -> None:
-        super().__init__(host, username, port, known_hosts, container)
+        super().__init__(host, username, port, known_hosts, container, use_local)
 
 
 if __name__ == "__main__":

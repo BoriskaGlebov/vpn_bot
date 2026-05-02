@@ -76,32 +76,12 @@ jobs:
         env:
           ENV_FILE: .env.test
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          BASE_SITE: ${{ vars.BASE_SITE }}
-          DB_DATABASE: ${{ vars.DB_DATABASE }}
           DB_PASSWORD: ${{ vars.DB_PASSWORD }}
-          DB_USER: ${{ vars.DB_USER }}
           REDIS_PASSWORD: ${{ vars.REDIS_PASSWORD }}
-          REDIS_USER: ${{ vars.REDIS_USER }}
-          VPN_CONTAINER: ${{ vars.VPN_CONTAINER }}
-          VPN_HOST: ${{ vars.VPN_HOST }}
-          VPN_USERNAME: ${{ vars.VPN_USERNAME }}
-          PROXY_PREFIX: ${{ vars.PROXY_PREFIX }}
-          VPN_PROXY: ${{ vars.VPN_PROXY }}
-          BUCKET_NAME: ${{ vars.BUCKET_NAME }}
-          PREFIX: ${{ vars.PREFIX }}
-          ENDPOINT_URL: ${{ vars.ENDPOINT_URL }}
           ACCESS_KEY: ${{ secrets.ACCESS_KEY }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          USE_LOCAL: ${{ vars.USE_LOCAL }}
-          ACCESS_KEY_AI: ${{ vars.ACCESS_KEY_AI }}
-          SECRET_KEY_AI: ${{ vars.SECRET_KEY_AI }}
-          YANDEX_FOLDER_ID: ${{ vars.YANDEX_FOLDER_ID }}
-          MODEL_LLM_NAME: ${{ vars.MODEL_LLM_NAME }}
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
-          X_RAY_USERNAME: ${{ vars.X_RAY_USERNAME }}
-          X_RAY_PASSWORD: ${{ vars.X_RAY_PASSWORD }}
+          SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
         run: poetry run pytest -vs .
 
   deploy_develop:

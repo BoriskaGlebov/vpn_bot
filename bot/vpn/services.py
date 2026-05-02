@@ -7,7 +7,6 @@ from loguru import logger
 
 from bot.app_error.api_error import APIClientError
 from bot.app_error.base_error import VPNLimitError
-from bot.core.config import settings_bot
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut
 from bot.vpn.adapter import VPNAPIAdapter
@@ -143,7 +142,6 @@ class VPNService:
         sub_inf, sub_url = await self.xray_adapter.add_new_config(
             tg_id=tg_user.id,
             days=delta_days,
-            inbounds=settings_bot.inbounds,
         )
 
         sub_ids: list[str] = sub_inf.get("sub_ids", [])
@@ -175,7 +173,6 @@ class VPNService:
             for config_id in config_ids:
                 await self.xray_adapter.delete_config(
                     config_id=config_id,
-                    inbounds=settings_bot.inbounds,
                 )
 
             raise

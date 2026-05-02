@@ -5,7 +5,7 @@ from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
-from bot.core.config import settings_bot, settings_db
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
@@ -62,20 +62,23 @@ class Container:
 
     redis_admin_mess_storage: RedisAdminMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
+    node_sof = settings_bot.vpn.sof
+    xray_sof = node_sof.require_xray()
 
     # chat_service: ChatService | None
 
     def __init__(self, bot: Bot) -> None:
         """Инициализирует сервисы без асинхронных операций."""
         self.redis_manager = RedisClient(
-            str(settings_db.redis_url), default_expire=settings_db.default_expire
+            str(settings_bot.redis.url),
+            default_expire=settings_bot.redis.default_expire,
         )
         self.api_client = APIClient(
-            base_url=settings_bot.api_url, port=settings_bot.api_port
+            base_url=settings_bot.api.url, port=settings_bot.api.port
         )
         self.xray_client = APIClient(
-            base_url=settings_bot.x_ray_base_url_panel,  # type: ignore[arg-type]
-            port=settings_bot.x_ray_panel_port,
+            base_url=self.xray_sof.url_panel,  # type: ignore[arg-type]
+            port=self.xray_sof.panel_port,
             scheme="https",
         )
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
@@ -86,7 +89,14 @@ class Container:
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
         self.scheduler_adapter = SchedulerAPIAdapter(client=self.api_client)
         self.xray_adapter = ThreeXUIAdapter(
-            api_client=self.xray_client, prefix=settings_bot.x_ray_panel_prefix
+            api_client=self.xray_client,
+            prefix=self.xray_sof.panel_prefix,
+            correct_inbounds=self.xray_sof.inbounds,
+            username=self.xray_sof.username.get_secret_value(),
+            password=self.xray_sof.password.get_secret_value(),
+            host=self.xray_sof.host,
+            sub_port=self.xray_sof.subscription_port,
+            sub_prefix=self.xray_sof.subscription_prefix,
         )
 
         self.user_service = UserService(adapter=self.user_adapter)

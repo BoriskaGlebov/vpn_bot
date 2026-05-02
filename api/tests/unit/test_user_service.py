@@ -73,7 +73,7 @@ async def test_register_or_get_user_create_admin(
 ):
     """Создание администратора."""
     mock_find_user.return_value = None
-    mock_settings.admin_ids = [999]
+    mock_settings.core.admin_ids = [999]
 
     fake_user = MagicMock()
     mock_add_user.return_value = fake_user
