@@ -1,9 +1,16 @@
+import os
 from pathlib import Path
 from pprint import pprint
 
+from dotenv import load_dotenv
 from pydantic import Field, SecretStr
 
-from shared.config.app_config import SettingsApp, SettingsCommon, load_toml_config
+from shared.config.app_config import (
+    SettingsApp,
+    SettingsCommon,
+    deep_merge,
+    load_toml_config,
+)
 from shared.config.db_config import PostgresSettings
 from shared.config.logger_config import LoggerConfig
 
@@ -35,14 +42,22 @@ class SettingsAPI(SettingsCommon):
     """
 
     core: SettingsApp = Field(default_factory=SettingsApp)
+    # core: SettingsApp
     db: PostgresSettings = Field(default_factory=PostgresSettings)
+    # db: PostgresSettings
 
     session_secret: SecretStr = SecretStr("secret")
 
 
+load_dotenv(BASE_DIR / ".env.local")
+env_conf = {
+    "db": {
+        "user": os.getenv("DB_USER"),
+    }
+}
 toml_loader = load_toml_config()
-settings_api = SettingsAPI(**toml_loader)  # type: ignore
-
+merged = deep_merge(toml_loader, env_conf)
+settings_api = SettingsAPI(**merged)  # type: ignore
 
 LoggerConfig(
     log_dir=BASE_DIR / "api" / "logs",
@@ -51,5 +66,7 @@ LoggerConfig(
     logger_error_file=settings_api.core.logger_error_file,
 )
 if __name__ == "__main__":
-    print(load_toml_config())
-    pprint(settings_api.core.model_dump())
+    # pprint(load_toml_config())
+    # pprint(settings_api.core.model_dump())
+    pprint(settings_api.db.model_dump())
+    # pprint(os.getenv("DB_USER"))

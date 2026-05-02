@@ -72,8 +72,9 @@ def load_toml_config() -> dict[str, Any]:
         base = tomllib.load(open(base_path, "rb"))
     if local_path.exists():
         local = tomllib.load(open(local_path, "rb"))
-    res_merge = deep_merge(base, local)
-    return res_merge
+    # res_merge = deep_merge(base, local)
+    # return res_merge
+    return {**base, **local}
 
 
 class SettingsCommon(BaseSettings):
