@@ -148,7 +148,7 @@ class MTProtoProxy:
         self,
         client: Union[AsyncDockerSSHClient, "HostDockerSSHClient"],
         container: str = "telemt",
-        port: str = "443",
+        port: int = 443,
     ) -> None:
         self.client = client
         self.container = container

@@ -95,7 +95,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 # Метаданные для OpenAPI
 app: FastAPI = FastAPI(
-    debug=settings_api.debug_fast_api,
+    debug=settings_api.core.debug_fast_api,
     title="VPN Boriska API",
     version="1.0.0",
     root_path="/api",
@@ -224,7 +224,7 @@ if __name__ == "__main__":
         app="api.main:app",
         host="0.0.0.0",
         port=8089,
-        reload=settings_api.reload_fast_api,
+        reload=settings_api.core.reload_fast_api,
         proxy_headers=True,
         forwarded_allow_ips="*",
     )

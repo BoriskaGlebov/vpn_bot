@@ -35,7 +35,7 @@ class SchedulerAPIAdapter:
             APIClientConnectionError: при проблемах соединения с API.
 
         """
-        admin_id = next(iter(settings_bot.admin_ids), None)
+        admin_id = next(iter(settings_bot.core.admin_ids), None)
         data, _ = await self._client.post(
             url="/scheduler/check-all", headers={"X-Telegram-Id": str(admin_id)}
         )

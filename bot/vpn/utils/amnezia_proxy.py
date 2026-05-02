@@ -10,7 +10,7 @@ from loguru import logger
 
 from bot.core.config import settings_bot
 from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
-from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT, USE_LOCAL
+from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
 
 
 class AsyncDockerSSHClient:
@@ -40,7 +40,7 @@ class AsyncDockerSSHClient:
         port: int = 22,
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
-        use_local: bool = USE_LOCAL,
+        use_local: bool = True,
     ) -> None:
         self.container = container
         self.use_local = use_local

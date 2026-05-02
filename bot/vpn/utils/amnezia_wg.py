@@ -19,8 +19,7 @@ from bot.vpn.utils.amnezia_exceptions import (
     AmneziaSSHError,
 )
 
-USE_LOCAL = settings_bot.use_local
-CONNECT_TIMEOUT = settings_bot.common_timeout
+CONNECT_TIMEOUT = settings_bot.core.common_timeout
 
 
 class AsyncSSHClientWG:
@@ -35,6 +34,8 @@ class AsyncSSHClientWG:
             Если None, проверка отключается.
         container (str, optional): Имя контейнера Docker, в котором
             будут выполняться команды. По умолчанию "amnezia-awg".
+        use_local (bool): Переменная определяет, если код запущен на одном сервере с ВПН,
+            то подключение через локальный демон Docker, если False то ппо ssh
 
     """
 
@@ -49,7 +50,7 @@ class AsyncSSHClientWG:
         port: int = 22,
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
-        use_local: bool = USE_LOCAL,
+        use_local: bool = True,
     ) -> None:
         self.container = container
         self.use_local = use_local
@@ -92,7 +93,7 @@ class AsyncSSHClientWG:
             )
             self._process = await asyncio.wait_for(
                 self._conn.create_process(f"docker exec -i {self.container} sh;\n"),
-                timeout=settings_bot.common_timeout,
+                timeout=CONNECT_TIMEOUT,
             )
             logger.bind(user=self.username).debug(
                 f"AsyncSSH: подключение и shell-сессия установлены к {self.host}"
@@ -1046,6 +1047,8 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
             Если None, проверка отключается.
         container (str, optional): Имя контейнера Docker, в котором
             будут выполняться команды. По умолчанию "amnezia-awg".
+        use_local (bool): Переменная определяет, если код запущен на одном сервере с ВПН,
+            то подлючение через локальный демон Docker, если False то ппо ssh
 
     """
 
@@ -1059,7 +1062,7 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
         port: int = 22,
         known_hosts: str | None = None,
         container: str = "amnezia-awg2",
-        use_local: bool = USE_LOCAL,
+        use_local: bool = True,
     ) -> None:
         super().__init__(host, username, port, known_hosts, container, use_local)
 

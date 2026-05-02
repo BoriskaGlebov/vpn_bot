@@ -238,11 +238,9 @@ async def test_generate_xray_subscription_db_error_rollback(mocker):
     # проверяем rollback
     xray_adapter.delete_config.assert_any_await(
         config_id="cfg1",
-        inbounds=mocker.ANY,
     )
     xray_adapter.delete_config.assert_any_await(
         config_id="cfg2",
-        inbounds=mocker.ANY,
     )
 
     assert xray_adapter.delete_config.await_count == 2

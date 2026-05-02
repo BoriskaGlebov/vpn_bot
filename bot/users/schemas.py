@@ -118,8 +118,8 @@ class SUserOut(BaseModel):
         default_factory=list,
         description="Список VPN конфигураций пользователя",
     )
-    current_subscription: SSubscriptionOut | None = Field(
-        None, description="Текущая подписка пользователя"
+    current_subscription: SSubscriptionOut = Field(
+        ..., description="Текущая подписка пользователя"
     )
 
     model_config = ConfigDict(from_attributes=True)

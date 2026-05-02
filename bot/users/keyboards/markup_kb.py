@@ -8,12 +8,12 @@ from bot.users.enums import MainMenuText
 def main_kb(
     active_subscription: bool = False,
     user_telegram_id: int | None = None,
-    premium_subscription: bool = False,
+    premium_access: bool = False,
 ) -> ReplyKeyboardMarkup:
     """Формирует клавиатуру главного меню бота.
 
     Args:
-        premium_subscription: проверка, премиум пользователя
+        premium_access: проверка, премиум пользователя
         active_subscription (bool): Подписка активна или нет
         user_telegram_id (Optional[int]): Telegram ID пользователя, который вызывает клавиатуру.
             Если None, отображаются только обычные пользовательские кнопки.
@@ -23,7 +23,7 @@ def main_kb(
 
     """
     builder = ReplyKeyboardBuilder()
-    if premium_subscription and active_subscription:
+    if premium_access and active_subscription:
         builder.row(
             KeyboardButton(text=MainMenuText.PREMIUM.value),
         )
@@ -43,7 +43,7 @@ def main_kb(
         KeyboardButton(text=MainMenuText.CHECK_STATUS.value),
         KeyboardButton(text=MainMenuText.HELP.value),
     )
-    if user_telegram_id in settings_bot.admin_ids:
+    if user_telegram_id in settings_bot.core.admin_ids:
         builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL.value))
     return builder.as_markup(
         resize_keyboard=True,
