@@ -141,7 +141,6 @@ name = "🇧🇬 | TCP Reality"
 [db]
 # * Настройки базы данных PostgreSQL по умолчанию postgres
 host = "postgres"
-#DB_HOST=postgres
 # по умолчани порт 5432
 port = 5432
 user = "user_vpn_prod"
@@ -152,15 +151,14 @@ embedding_dim = 256
 # === REDIS ===
 [redis]
 # *Контекнер Redis по умолчанию redis
-host = "localhost"
-#REDIS_HOST=redis
+host = "redis"
 # по умолчанию порт 6379
 port = 6379
 # по умолачанию пишит все в 0 базу
 db = 0
 # по умолчанию 3600 секунд время жизни кэша редис
 default_expire = 3600
-user = "your_user"
+user = "vpn_user_prod"
 
 # === STORAGE ===
 [bucket]

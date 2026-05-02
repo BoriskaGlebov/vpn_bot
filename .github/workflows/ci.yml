@@ -142,9 +142,11 @@ jobs:
 
 
           # == DATABASE ==
+          DB_USER=${{secrets.DB_USER}}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
 
           # == REDIS ==
+          REDIS_USER=${{secrets.REDIS_USER}}
           REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
 
           # == STORAGE ==
