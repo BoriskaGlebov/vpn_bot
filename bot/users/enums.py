@@ -32,8 +32,8 @@ class MainMenuText(str, Enum):
 
     """
 
-    AMNEZIA_VPN = "🔑 AmneziaVPN"
-    AMNEZIA_WG = "🌐 AmneziaWG"
+    AMNEZIA_VPN = "🇫🇷 AmneziaVPN"
+    AMNEZIA_WG = "🇫🇷 AmneziaWG"
     AMNEZIA_PROXY = "📦 AmneziaProxy"
     FREE_AMNEZIA_PROXY = "📦 Free AmneziaProxy TG"
     RENEW_SUBSCRIPTION = "💎 Продлить VPN-Boriska"

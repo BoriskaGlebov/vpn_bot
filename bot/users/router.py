@@ -221,16 +221,15 @@ class UserRouter(BaseRouter):
 
                 is_active = subscription.is_active if subscription else False
                 subscription_type = subscription.type if subscription else None
+                check_premium = subscription_type == ToggleSubscriptionMode.PREMIUM
+                founder_role = user_info.role.name == RoleEnum.FOUNDER
+
                 await message.answer(
                     follow_up_message,
                     reply_markup=main_kb(
                         active_subscription=is_active,
                         user_telegram_id=user.id,
-                        premium_subscription=(
-                            True
-                            if subscription_type == ToggleSubscriptionMode.PREMIUM
-                            else False
-                        ),
+                        premium_access=True if check_premium or founder_role else False,
                     ),
                 )
             else:

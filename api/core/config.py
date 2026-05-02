@@ -1,9 +1,7 @@
-from collections.abc import Iterable
 from pathlib import Path
 from pprint import pprint
-from typing import Any
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr
 
 from shared.config.app_config import SettingsApp, SettingsCommon, load_toml_config
 from shared.config.db_config import PostgresSettings
@@ -39,12 +37,10 @@ class SettingsAPI(SettingsCommon):
     core: SettingsApp = Field(default_factory=SettingsApp)
     db: PostgresSettings = Field(default_factory=PostgresSettings)
 
-
     session_secret: SecretStr = SecretStr("secret")
 
 
-
-toml_loader=load_toml_config()
+toml_loader = load_toml_config()
 settings_api = SettingsAPI(**toml_loader)  # type: ignore
 
 
@@ -54,7 +50,6 @@ LoggerConfig(
     logger_level_file=settings_api.core.logger_level_file,
     logger_error_file=settings_api.core.logger_error_file,
 )
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(load_toml_config())
     pprint(settings_api.core.model_dump())
-

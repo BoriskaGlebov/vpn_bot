@@ -1,39 +1,80 @@
 import tomllib
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+
 def deep_merge(a: dict, b: dict) -> dict:
+    """Рекурсивно объединяет два словаря.
+
+    Значения из `b` имеют приоритет и переопределяют значения из `a`.
+    Если значение по одному и тому же ключу в обоих словарях является словарём,
+    выполняется рекурсивное объединение.
+
+    Args:
+        a (dict[str, Any]): Базовый словарь.
+        b (dict[str, Any]): Словарь-переопределение.
+
+    Returns
+        dict[str, Any]: Новый словарь с результатом объединения.
+
+    Notes
+        - Функция не модифицирует входные словари (используется поверхностная копия `a`).
+        - Если типы значений по одному ключу различаются (например, dict и list),
+          значение из `b` полностью заменяет значение из `a`.
+        - Объединение выполняется только для вложенных словарей.
+
+    """
     result = a.copy()
 
     for k, v in b.items():
-        if (
-            k in result
-            and isinstance(result[k], dict)
-            and isinstance(v, dict)
-        ):
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
             result[k] = deep_merge(result[k], v)
         else:
             result[k] = v
 
     return result
+
+
 def load_toml_config() -> dict[str, Any]:
+    """Загружает и объединяет конфигурацию из TOML-файлов.
+
+    Читает два файла:
+        - app_config.toml — базовая конфигурация
+        - app_config.local.toml — локальные переопределения
+
+    Если оба файла существуют, выполняется глубокое объединение через `deep_merge`,
+    где значения из локального файла имеют приоритет.
+
+    Returns
+        dict[str, Any]: Итоговый конфиг в виде словаря.
+
+    Notes
+        - Оба файла опциональны.
+        - Если существует только один файл — возвращается его содержимое.
+        - Если ни один файл не найден — возвращается пустой словарь.
+        - Файлы читаются в бинарном режиме (`rb`) для совместимости с `tomllib`.
+
+    Raises
+        tomllib.TOMLDecodeError: Если один из файлов содержит невалидный TOML.
+
+    """
     base = {}
     local = {}
 
-    base_path = BASE_DIR /"app_config.toml"
+    base_path = BASE_DIR / "app_config.toml"
     local_path = BASE_DIR / "app_config.local.toml"
 
     if base_path.exists():
         base = tomllib.load(open(base_path, "rb"))
     if local_path.exists():
         local = tomllib.load(open(local_path, "rb"))
-    res_merge=deep_merge(base, local)
+    res_merge = deep_merge(base, local)
     return res_merge
+
 
 class SettingsCommon(BaseSettings):
     """Базовый класс с настройками, показывает, где брать переменные."""
@@ -68,7 +109,7 @@ class SettingsApp(SettingsCommon):
             Может задаваться строкой вида "1,2,3" или коллекцией чисел.
      model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
 
-     Methods
+    Methods
         parse_admin_ids(v):
             Валидирует и преобразует входное значение admin_ids в set[int].
             Поддерживает строку и iterable.
@@ -84,23 +125,9 @@ class SettingsApp(SettingsCommon):
     logger_error_file: str = "WARNING"
     max_configs_per_user: int = 10
     common_timeout: int = 10
-    admin_ids: list[int]=[]
-
-    # @field_validator("admin_ids", mode="before")
-    # @classmethod
-    # def parse_admin_ids(cls, v: Any) -> set[int]:
-    #     """Парсит строку с ID администраторов в множество целых чисел."""
-    #     if isinstance(v, str):
-    #         return set(int(i) for i in v.split(",") if i.strip().isdigit())
-    #     if isinstance(v, Iterable):
-    #         try:
-    #             return {int(i) for i in v}
-    #         except (ValueError, TypeError):
-    #             raise ValueError("admin_ids должна содержать только целые числа")
-    #
-    #     raise TypeError("admin_ids должно быть строкой или коллекцией")
+    admin_ids: list[int] = []
 
 
-if __name__ == '__main__':
-    res=load_toml_config()
-    print(res )
+if __name__ == "__main__":
+    res = load_toml_config()
+    print(res)

@@ -69,6 +69,9 @@ class IsPremium(BaseFilter):
         if user_db.current_subscription is None:
             return False
         is_premium = user_db.current_subscription.type == ToggleSubscriptionMode.PREMIUM
+        is_founder = user_db.current_subscription.type == ToggleSubscriptionMode.FOUNDER
         is_active = user_db.current_subscription.is_active
-
-        return is_premium and is_active
+        if (is_premium or is_founder) and is_active:
+            return True
+        else:
+            return False
