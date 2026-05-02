@@ -146,7 +146,7 @@ async def test_set_bot_commands_other_telegram_error_raises(
     fake_bot.set_my_commands.side_effect = side_effect
 
     # Подменяем список админов
-    monkeypatch.setattr(commands.settings_bot, "admin_ids", admin_ids)
+    monkeypatch.setattr(commands.settings_bot.core, "admin_ids", admin_ids)
 
     # act / assert
     with pytest.raises(TelegramBadRequest):
