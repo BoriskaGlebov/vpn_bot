@@ -314,15 +314,6 @@ class BucketSettings(SettingsCommon):
     access_key: SecretStr
     secret_key: SecretStr
 
-    model_config = SettingsConfigDict(
-        env_file=[
-            str(BASE_DIR / ".env"),
-            str(BASE_DIR / ".env.local"),
-        ],
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
 
 class Settings(SettingsCommon):
     """Агрегированная конфигурация приложения.
@@ -417,11 +408,3 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
-
-if __name__ == "__main__":
-    # pprint(toml_loader)
-    # pprint(settings_bot.vpn.model_dump())
-    print(settings_bot.vpn.main)
-    # print("*" * 15)
-    # print(settings_bot.redis)
-    # print("*" * 15)

@@ -84,6 +84,7 @@ class SettingsCommon(BaseSettings):
             str(BASE_DIR / ".env"),  # базовые значения
             str(BASE_DIR / ".env.dev"),  # локальные переопределяют .env
             str(BASE_DIR / ".env.local"),  # локальные переопределяют .env
+            str(BASE_DIR / ".env.test"),  # локальные переопределяют .env
         ],
         env_file_encoding="utf-8",
         extra="ignore",
@@ -126,8 +127,3 @@ class SettingsApp(SettingsCommon):
     max_configs_per_user: int = 10
     common_timeout: int = 10
     admin_ids: list[int] = []
-
-
-if __name__ == "__main__":
-    res = load_toml_config()
-    print(res)
