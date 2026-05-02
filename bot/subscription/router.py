@@ -56,7 +56,9 @@ class SubscriptionStates(StatesGroup):  # type: ignore[misc]
 
 class SubscriptionRouter(BaseRouter):
     """Роутер для управления процессом подписки пользователей."""
-    price_map=settings_bot.pricing
+
+    price_map = settings_bot.pricing
+
     def __init__(
         self,
         bot: Bot,

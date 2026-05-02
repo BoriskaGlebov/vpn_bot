@@ -25,24 +25,23 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
     """
 
     def __init__(
-            self,
-            host: str,
-            username: str,
-            port: int = 22,
-            known_hosts: str | None = None,
-            container: str = "amnezia-awg",
-            use_local: bool = True,
-
+        self,
+        host: str,
+        username: str,
+        port: int = 22,
+        known_hosts: str | None = None,
+        container: str = "amnezia-awg",
+        use_local: bool = True,
     ) -> None:
-        super().__init__(host, username, port, known_hosts, container,use_local)
+        super().__init__(host, username, port, known_hosts, container, use_local)
 
     async def _save_wg_config(
-            self,
-            filename: str,
-            new_ip: str,
-            private_key: str,
-            pub_server_key: str,
-            preshared_key: str,
+        self,
+        filename: str,
+        new_ip: str,
+        private_key: str,
+        pub_server_key: str,
+        preshared_key: str,
     ) -> Path:
         """Создает и сохраняет пользовательский конфиг для AmneziaVPN.
 
@@ -92,30 +91,29 @@ class AsyncSSHClientVPN2(AsyncSSHClientVPN, AsyncSSHClientWG2):
     """
 
     def __init__(
-            self,
-            host: str,
-            username: str,
-            port: int = 22,
-            known_hosts: str | None = None,
-            container: str = "amnezia-awg2",
-            use_local: bool = True,
+        self,
+        host: str,
+        username: str,
+        port: int = 22,
+        known_hosts: str | None = None,
+        container: str = "amnezia-awg2",
+        use_local: bool = True,
     ) -> None:
-        super().__init__(host, username, port, known_hosts, container,use_local)
+        super().__init__(host, username, port, known_hosts, container, use_local)
 
 
 if __name__ == "__main__":
     """Пример использования AsyncSSHClient."""
-
 
     # key_path = Path().home() / ".ssh" / "test_vpn"
 
     async def main() -> None:
         """Пример использования AsyncSSHClient."""
         async with AsyncSSHClientVPN(
-                host="vpn-boriska.ru",
-                username="prod_server",
-                known_hosts=None,  # Отключить проверку known_hosts
-                container="amnezia-awg2",
+            host="vpn-boriska.ru",
+            username="prod_server",
+            known_hosts=None,  # Отключить проверку known_hosts
+            container="amnezia-awg2",
         ) as ssh_client:
             await ssh_client.connect()
             # await ssh_client.add_new_user_gen_config("boris456.vpn")
@@ -123,6 +121,5 @@ if __name__ == "__main__":
             #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
             # )
             # await ssh_client.connect()
-
 
     asyncio.run(main())

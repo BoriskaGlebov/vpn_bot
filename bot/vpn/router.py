@@ -43,7 +43,7 @@ premium_locations = [location.value for location in PremiumLocations]
 
 
 # TODO тестирование
-#TODO убрать из роута работу с сервисом ВПН.
+# TODO убрать из роута работу с сервисом ВПН.
 class VPNStates(StatesGroup):  # type: ignore[misc]
     """Состояния роутера генерации конфиг файлов."""
 
@@ -52,8 +52,10 @@ class VPNStates(StatesGroup):  # type: ignore[misc]
 
 class VPNRouter(BaseRouter):
     """Роутер для обработки команд VPN."""
-    main_vpn=settings_bot.vpn.main
-    fi_vpn=settings_bot.vpn.fi
+
+    main_vpn = settings_bot.vpn.main
+    fi_vpn = settings_bot.vpn.fi
+
     def __init__(
         self,
         bot: Bot,
@@ -132,8 +134,7 @@ class VPNRouter(BaseRouter):
                         username=self.main_vpn.username,
                         known_hosts=None,
                         container=self.main_vpn.container,
-                        use_local=self.main_vpn.use_local
-
+                        use_local=self.main_vpn.use_local,
                     ) as ssh_client:
                         (
                             file_path,
@@ -174,7 +175,7 @@ class VPNRouter(BaseRouter):
                         username=self.main_vpn.username,
                         known_hosts=None,
                         container=self.main_vpn.container,
-                        use_local=self.main_vpn.use_local
+                        use_local=self.main_vpn.use_local,
                     ) as ssh_client:
                         (
                             file_path,

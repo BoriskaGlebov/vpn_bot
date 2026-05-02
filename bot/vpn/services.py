@@ -7,7 +7,6 @@ from loguru import logger
 
 from bot.app_error.api_error import APIClientError
 from bot.app_error.base_error import VPNLimitError
-from bot.core.config import settings_bot
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut
 from bot.vpn.adapter import VPNAPIAdapter

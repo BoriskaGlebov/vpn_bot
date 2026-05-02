@@ -97,7 +97,6 @@ class Container:
             host=self.xray_sof.host,
             sub_port=self.xray_sof.subscription_port,
             sub_prefix=self.xray_sof.subscription_prefix,
-
         )
 
         self.user_service = UserService(adapter=self.user_adapter)
