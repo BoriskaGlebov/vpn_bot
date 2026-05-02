@@ -39,7 +39,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
 # Копируем декларации зависимостей
-COPY --chown=botuser:bot pyproject.toml poetry.lock ./
+COPY --chown=botuser:bot pyproject.toml poetry.lock app_config.toml ./
 
 # Устанавливаем зависимости (без dev)
 RUN poetry install --without dev --no-cache
