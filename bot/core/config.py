@@ -13,10 +13,11 @@ from loguru import logger
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-__all__ = ["logger", "settings_bot", "settings_db", "bot", "dp"]
+from shared.config.db_config import RedisSettings
 
-from shared.config.app_config import SettingsApp
-from shared.config.db_config import SettingsDB
+__all__ = ["logger", "settings_bot", "bot", "dp"]
+
+from shared.config.app_config import SettingsApp, SettingsCommon
 from shared.config.logger_config import LoggerConfig
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -29,7 +30,162 @@ class SInbound(BaseModel):
     name: str
 
 
-class SettingsBot(SettingsApp):
+class BotSettings(SettingsCommon):
+    token: SecretStr
+    admin_ids: set[int] | str = ""
+    base_site: str
+    use_polling: bool = False
+
+    @field_validator("admin_ids", mode="before")
+    @classmethod
+    def parse_admin_ids(cls, v: Any) -> set[int]:
+        """Преобразует admin_ids в множество int.
+
+        Accepts:
+            - строку формата "1,2,3"
+            - iterable (list, set, tuple)
+
+        Raises
+            ValueError: если значения не являются числами
+            TypeError: если формат входных данных некорректен
+
+        """
+        if isinstance(v, str):
+            return set(int(i) for i in v.split(",") if i.strip().isdigit())
+        if isinstance(v, Iterable):
+            try:
+                return {int(i) for i in v}
+            except (ValueError, TypeError):
+                raise ValueError("admin_ids должна содержать только целые числа")
+
+        raise TypeError("admin_ids должно быть строкой или коллекцией")
+
+    @computed_field
+    def webhook_url(self) -> str:
+        """Возвращает URL вебхука."""
+        return f"{self.base_site}/webhook"
+
+    model_config = SettingsConfigDict(env_prefix="BOT_")
+
+
+class ApiSettings(SettingsCommon):
+    url: str = "api"
+    port: int = 8089
+
+
+    model_config = SettingsConfigDict(env_prefix="API_")
+
+
+class VPNSettingsMain(SettingsCommon):
+    host: str
+    username: str
+    container: str = "amnezia-awg2"
+    container_old: str = "amnezia-awg"
+    use_local: bool = True
+
+    model_config = SettingsConfigDict(env_prefix="MAIN_VPN_")
+
+
+class ProxySettingsMain(SettingsCommon):
+    prefix: str
+    container: str = "telemt"
+    port: str = "443"
+    model_config = SettingsConfigDict(env_prefix="MAIN_PROXY_")
+
+
+class VPNSettingsFI(SettingsCommon):
+    host: str | None = None
+    username: str | None = None
+    container: str = "amnezia-awg2"
+    use_local: bool = False
+
+    model_config = SettingsConfigDict(env_prefix="FI_VPN_")
+
+
+class ProxySettingsFI(SettingsCommon):
+    prefix: str | None = None
+    container: str = "telemt"
+    port: str = "443"
+    model_config = SettingsConfigDict(env_prefix="FI_PROXY_")
+
+
+class XRaySettingsSOF(SettingsCommon):
+    host: str = "undefined"
+    panel_prefix: str = "undefined"
+    subscription_prefix: str = "undefined"
+
+    panel_port: int = 0
+    subscription_port: int = 0
+
+    username: SecretStr
+    password: SecretStr
+
+    inbounds: list[SInbound] = Field(default_factory=list)
+
+    @computed_field
+    def url_panel(self) -> str:
+        """Возвращает url панели 3xui."""
+        return f"panel.{self.host}"
+
+    @field_validator("inbounds", mode="before")
+    @classmethod
+    def parse_inbounds(cls, v: Any) -> list[SInbound]:
+        if isinstance(v, str):
+            try:
+                data = json.loads(v)
+            except json.JSONDecodeError as e:
+                raise ValueError("INBOUNDS должен быть валидным JSON") from e
+            return [SInbound(**item) for item in data]
+
+        return v
+
+    model_config = SettingsConfigDict(env_prefix="SOF_X_RAY_")
+
+
+class PricingSettings(SettingsCommon):
+    price_map: dict[int, int] = Field(
+        default_factory=lambda: {1: 100, 3: 280, 6: 520, 12: 1000, 7: 0},
+        description="Карта цен подписок по месяцам",
+    )
+    price_map_premium: dict[int, int] = Field(
+        default_factory=lambda: {1: 249, 3: 699, 6: 1290, 12: 2490, 7: 0},
+        description="Карта цен подписок по месяцам",
+    )
+    price_map_founder: dict[int, int] = Field(
+        default_factory=lambda: {1: 249, 3: 699, 6: 1290, 12: 2490, 7: 0},
+        description="Карта цен подписок по месяцам",
+    )
+
+
+class BucketSettings(SettingsCommon):
+    """Настройки подключения к S3-совместимому хранилищу (например, Яндекс Object Storage).
+
+    Attributes
+        bucket_name (str): Имя бакета в S3, из которого будут читаться файлы.
+        prefix (str): Префикс (путь внутри бакета), например 'media/amnezia_pc/'.
+        endpoint_url (str): URL S3-совместимого сервиса, например 'https://storage.yandexcloud.net'.
+        access_key (SecretStr): Секретный ключ доступа к сервису S3 (Access Key).
+        secret_key (SecretStr): Секретный ключ доступа к сервису S3 (Secret Key).
+
+    """
+
+    bucket_name: str
+    prefix: str
+    endpoint_url: str
+    access_key: SecretStr
+    secret_key: SecretStr
+
+    model_config = SettingsConfigDict(
+        env_file=[
+            str(BASE_DIR / ".env"),
+            str(BASE_DIR / ".env.local"),
+        ],
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+class Settings(SettingsCommon):
     """Конфигурация бота и логирования.
 
     Attributes
@@ -143,88 +299,24 @@ class SettingsBot(SettingsApp):
 
     """
 
-    # == CORE ==
-    bot_token: SecretStr
-    admin_ids: set[int] | str = ""
-    base_site: str
+    core: SettingsApp = Field(default_factory=SettingsApp)
 
-    use_polling: bool = False
-    use_local: bool = True
+    bot: BotSettings = Field(default_factory=BotSettings)
+    api: ApiSettings = Field(default_factory=ApiSettings)
 
-    price_map: dict[int, int] = Field(
-        default_factory=lambda: {1: 100, 3: 280, 6: 520, 12: 1000, 7: 0},
-        description="Карта цен подписок по месяцам",
-    )
-    price_map_premium: dict[int, int] = Field(
-        default_factory=lambda: {1: 249, 3: 699, 6: 1290, 12: 2490, 7: 0},
-        description="Карта цен подписок по месяцам",
-    )
-    price_map_founder: dict[int, int] = Field(
-        default_factory=lambda: {1: 249, 3: 699, 6: 1290, 12: 2490, 7: 0},
-        description="Карта цен подписок по месяцам",
-    )
-    common_timeout: int = 10
-    # == API==
-    api_url: str = "api"
-    api_port: int = 8089
-    # == VPN1 ==
-    vpn_host: str
-    vpn_username: str
-    vpn_container: str
+    vpn_main: VPNSettingsMain = Field(default_factory=VPNSettingsMain)
+    proxy_main: ProxySettingsMain = Field(default_factory=ProxySettingsMain)
 
-    # == PROXY1 ==
-    proxy_prefix: str
-    vpn_proxy: str
-    proxy_port: str = "443"
+    vpn_fi: VPNSettingsFI = Field(default_factory=VPNSettingsFI)
+    proxy_fi: ProxySettingsFI = Field(default_factory=ProxySettingsFI)
 
-    # == PROXY2 ==
-    vpn_test_host: str = "undefined"
-    vpn_test_username: str = "undefined"
-    proxy_test_prefix: str = "undefined"
+    xray_sof: XRaySettingsSOF = Field(default_factory=XRaySettingsSOF)
 
-    # ==X-RAY ==
-    x_ray_host: str = "undefined"
-    x_ray_panel_prefix: str = "undefined"
-    x_ray_subscription_prefix: str = "undefined"
-    x_ray_panel_port: int = 0
-    x_ray_subscription_port: int = 0
-    x_ray_username: SecretStr
-    x_ray_password: SecretStr
-    inbounds: list[SInbound] = Field(default_factory=list)
+    pricing: PricingSettings = Field(default_factory=PricingSettings)
 
-    @computed_field
-    def webhook_url(self) -> str:
-        """Возвращает URL вебхука."""
-        return f"{self.base_site}/webhook"
+    bucket: BucketSettings = Field(default_factory=BucketSettings)
 
-    @computed_field
-    def x_ray_base_url_panel(self) -> str:
-        """Возвращает url панели 3xui."""
-        return f"panel.{self.x_ray_host}"
-
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def parse_admin_ids(cls, v: Any) -> set[int]:
-        """Преобразует admin_ids в множество int.
-
-        Accepts:
-            - строку формата "1,2,3"
-            - iterable (list, set, tuple)
-
-        Raises
-            ValueError: если значения не являются числами
-            TypeError: если формат входных данных некорректен
-
-        """
-        if isinstance(v, str):
-            return set(int(i) for i in v.split(",") if i.strip().isdigit())
-        if isinstance(v, Iterable):
-            try:
-                return {int(i) for i in v}
-            except (ValueError, TypeError):
-                raise ValueError("admin_ids должна содержать только целые числа")
-
-        raise TypeError("admin_ids должно быть строкой или коллекцией")
+    redis: RedisSettings = Field(default_factory=RedisSettings)
 
     @cached_property
     def messages(self) -> Box:
@@ -233,68 +325,27 @@ class SettingsBot(SettingsApp):
 
         return dialogs
 
-    @field_validator("inbounds", mode="before")
-    @classmethod
-    def parse_inbounds(cls, v: Any) -> list[SInbound]:
-        if isinstance(v, str):
-            try:
-                data = json.loads(v)
-            except json.JSONDecodeError as e:
-                raise ValueError("INBOUNDS должен быть валидным JSON") from e
-            return [SInbound(**item) for item in data]
 
-        return v
+settings_bot = Settings()  # type: ignore
 
-
-class SettingsBucket(BaseSettings):
-    """Настройки подключения к S3-совместимому хранилищу (например, Яндекс Object Storage).
-
-    Attributes
-        bucket_name (str): Имя бакета в S3, из которого будут читаться файлы.
-        prefix (str): Префикс (путь внутри бакета), например 'media/amnezia_pc/'.
-        endpoint_url (str): URL S3-совместимого сервиса, например 'https://storage.yandexcloud.net'.
-        access_key (SecretStr): Секретный ключ доступа к сервису S3 (Access Key).
-        secret_key (SecretStr): Секретный ключ доступа к сервису S3 (Secret Key).
-
-    """
-
-    bucket_name: str
-    prefix: str
-    endpoint_url: str
-    access_key: SecretStr
-    secret_key: SecretStr
-
-    model_config = SettingsConfigDict(
-        env_file=[
-            str(BASE_DIR / ".env"),
-            str(BASE_DIR / ".env.local"),
-        ],
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-
-
-settings_bot = SettingsBot()  # type: ignore
-settings_db = SettingsDB()  # type: ignore
-settings_bucket = SettingsBucket()  # type: ignore
 # settings_ai = SettingsAI()
 
 LoggerConfig(
     log_dir=BASE_DIR / "bot" / "logs",
-    logger_level_stdout=settings_bot.logger_level_stdout,
-    logger_level_file=settings_bot.logger_level_file,
-    logger_error_file=settings_bot.logger_error_file,
+    logger_level_stdout=settings_bot.core.logger_level_stdout,
+    logger_level_file=settings_bot.core.logger_level_file,
+    logger_error_file=settings_bot.core.logger_error_file,
 )
 # Инициализируем бота и диспетчер
 bot: Bot = Bot(
-    token=settings_bot.bot_token.get_secret_value(),
+    token=settings_bot.bot.token.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
 )
 # Хранилище FSM
 storage = RedisStorage.from_url(
-    str(settings_db.redis_url),
-    state_ttl=3600,  # ⏰ время жизни состояния (в секундах)
-    data_ttl=3600,  # ⏰ время жизни данных FSM
+    str(settings_bot.redis.url),
+    state_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни состояния (в секундах)
+    data_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни данных FSM
 )
 # Это если работать без Redis
 # dp = Dispatcher(storage=MemoryStorage())
@@ -302,5 +353,7 @@ storage = RedisStorage.from_url(
 dp = Dispatcher(storage=storage)
 
 if __name__ == "__main__":
-    print(settings_bot.price_map)
-    print(settings_bot.price_map[1])
+    print(settings_bot)
+    print("*" * 15)
+    print(settings_bot.redis)
+    print("*" * 15)

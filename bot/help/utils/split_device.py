@@ -2,14 +2,14 @@ import asyncio
 
 from aiogram import Bot
 
-from bot.core.config import settings_bot, settings_bucket
+from bot.core.config import settings_bot
 from bot.help.utils.common_device import Device
 
 
 class SplitDevice(Device):
     """Отправляет пользователю инструкции по настройке раздельного туннелирования."""
 
-    PREFIX = f"{settings_bucket.prefix}amnezia_split/"
+    PREFIX = f"{settings_bot.bucket.prefix}amnezia_split/"
     MESSAGES_PATH = settings_bot.messages.modes.help.instructions.split
     LINK_PATH = None
 

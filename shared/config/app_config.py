@@ -32,6 +32,7 @@ class SettingsApp(SettingsCommon):
      logger_level_file (str): Уровень логирования для файла логов.
      logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
      max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
+     common_timeout (int): Настройка таймаута при подключении к API, серверам, контейнерам.
      model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
 
     """
@@ -44,3 +45,4 @@ class SettingsApp(SettingsCommon):
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
     max_configs_per_user: int = 10
+    common_timeout: int = 10

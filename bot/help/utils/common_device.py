@@ -4,8 +4,8 @@ import time
 import aioboto3
 from aiogram import Bot
 
-from bot.core.config import settings_bucket
 from bot.help.keyboards.inline_kb import send_link_button
+from bot.core.config import settings_bot
 
 
 class Device:
@@ -24,8 +24,8 @@ class Device:
     (Android, iOS, Windows и т.д.).
     """
 
-    PREFIX = settings_bucket.prefix
-    BUCKET_NAME = settings_bucket.bucket_name
+    PREFIX = settings_bot.bucket.prefix
+    BUCKET_NAME = settings_bot.bucket.bucket_name
     MESSAGES_PATH: list[str]
     LINK_PATH: str | None
 
@@ -89,9 +89,9 @@ class Device:
         session = aioboto3.Session()
         async with session.client(
             "s3",
-            endpoint_url=settings_bucket.endpoint_url,
-            aws_access_key_id=settings_bucket.access_key.get_secret_value(),
-            aws_secret_access_key=settings_bucket.secret_key.get_secret_value(),
+            endpoint_url=settings_bot.bucket.endpoint_url,
+            aws_access_key_id=settings_bot.bucket.access_key.get_secret_value(),
+            aws_secret_access_key=settings_bot.bucket.secret_key.get_secret_value(),
         ) as s3:
             paginator = s3.get_paginator("list_objects_v2")
             files = []
@@ -101,6 +101,6 @@ class Device:
                 for obj in page.get("Contents", []):
                     if not obj["Key"].endswith("/") and obj.get("Size", 0) > 0:
                         files.append(
-                            f"{settings_bucket.endpoint_url}/{settings_bucket.bucket_name}/{obj['Key']}?ts={int(time.time())}"
+                            f"{settings_bot.bucket.endpoint_url}/{settings_bot.bucket.bucket_name}/{obj['Key']}?ts={int(time.time())}"
                         )
             return files

@@ -14,14 +14,31 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 class SettingsAPI(SettingsCommon):
     """Конфигурация API-сервиса.
 
-    Расширяет базовые настройки приложения (`SettingsCommon`) параметрами,
-    специфичными для FastAPI-сервиса.
+        Расширяет базовые настройки приложения (`SettingsCommon`) параметрами,
+        специфичными для FastAPI-сервиса, и агрегирует конфигурации
+        других подсистем (ядро приложения и база данных).
 
-    Attributes
-        admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
-        session_secret (SecretStr): Подпись сессии.
+        Attributes
+            core (SettingsApp):
+                Основные настройки приложения (бизнес-логика, бот, XRay, прокси и т.д.).
 
-    """
+            db (PostgresSettings):
+                Конфигурация подключения к PostgreSQL базе данных.
+                Включает параметры подключения и формирование URL.
+
+            admin_ids (set[int] | str):
+                Список Telegram ID администраторов с расширенными правами.
+                Может задаваться строкой вида "1,2,3" или коллекцией чисел.
+
+            session_secret (SecretStr):
+                Секретный ключ для подписи сессий (например, cookies или JWT).
+
+        Methods
+            parse_admin_ids(v):
+                Валидирует и преобразует входное значение admin_ids в set[int].
+                Поддерживает строку и iterable.
+
+        """
 
     core: SettingsApp = Field(default_factory=SettingsApp)
     db: PostgresSettings = Field(default_factory=PostgresSettings)

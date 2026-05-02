@@ -45,7 +45,7 @@ class PostgresSettings(SettingsCommon):
     model_config = SettingsConfigDict(env_prefix="DB_")
 
 
-class RedisSettings(BaseSettings):
+class RedisSettings(SettingsCommon):
     """Конфигурация базы данных REDIS.
 
     Attributes

@@ -33,7 +33,7 @@ class IsAdmin(BaseFilter):
         if user is None:
             return False
 
-        return user.id in settings_bot.admin_ids
+        return user.id in settings_bot.bot.admin_ids
 
 
 class IsPremium(BaseFilter):
