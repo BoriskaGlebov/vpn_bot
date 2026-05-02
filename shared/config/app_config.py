@@ -81,10 +81,10 @@ class SettingsCommon(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=[
+            str(BASE_DIR / ".env.test"),  # локальные переопределяют .env
             str(BASE_DIR / ".env"),  # базовые значения
             str(BASE_DIR / ".env.dev"),  # локальные переопределяют .env
             str(BASE_DIR / ".env.local"),  # локальные переопределяют .env
-            str(BASE_DIR / ".env.test"),  # локальные переопределяют .env
         ],
         env_file_encoding="utf-8",
         extra="ignore",
