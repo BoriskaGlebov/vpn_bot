@@ -40,7 +40,7 @@ async def set_bot_commands() -> None:
     await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
 
-    for admin_id in settings_bot.bot.admin_ids:
+    for admin_id in settings_bot.core.admin_ids:
         try:
             await bot.set_my_commands(
                 admin_commands, scope=BotCommandScopeChat(chat_id=admin_id)

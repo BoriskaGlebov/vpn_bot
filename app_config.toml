@@ -43,7 +43,7 @@ url = "api"
 port = 8089
 
 # === VPN SERVERS ===
-[vpn.main]
+[vpn.nodes.main]
 #Сервер на котором крутится бот потому для него он локально может подключиться
 host = "help-blocks.ru"
 username = "vpn_user"
@@ -51,14 +51,14 @@ container_old="amnezia-awg"
 container = "amnezia-awg2"
 use_local = true
 
-[vpn.fi]
+[vpn.nodes.fi]
 host = "vpn-boriska.ru"
 username = "prod_server"
 container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 
-[vpn.sof]
+[vpn.nodes.sof]
 host = "x-ray-boriska.pro"
 username = "xray"
 container = "amnezia-awg2"
@@ -66,34 +66,27 @@ container = "amnezia-awg2"
 use_local = false
 
 
-#[vpn.sof]
-#host = "vpn-boriska.ru"
-#username = "prod_server"
-#container = "amnezia-awg2"
-##Сервер с допольнительным ВПН только подключение через ssh
-#use_local = false
-
-
 # === PROXY ===
-[vpn.main.proxy]
+[vpn.nodes.main.proxy]
 prefix = "proxy-help"
 container = "telemt"
 # по умолчанию порт 443 налр испльзовать его
 port = 443
 
-[vpn.fi.proxy]
+[vpn.nodes.fi.proxy]
 prefix = "proxy-boriska"
 container = "telemt"
 # по умолчанию порт 443 налр испльзовать его
 port = 443
 
-#[vpn.sof.proxy]
-#prefix = "prefix-help"
+#[vpn.nodes.sof.proxy]
+#prefix = "proxy-boriska"
 #container = "telemt"
 ## по умолчанию порт 443 налр испльзовать его
 #port = 443
 
 # === X-RAY ===
+
 #[xray.main]
 #host = "x-boriska"
 #panel_prefix = "panel-12345"
@@ -126,19 +119,19 @@ port = 443
 #port = 8443
 #name = "🇧🇬 | TCP Reality"
 #
-[vpn.sof.xray]
+[vpn.nodes.sof.xray]
 host = "x-ray-boriska.pro"
 panel_prefix = "panel-df06dg"
 subscription_prefix = "sub-dk-34gs"
 panel_port = 5443
 subscription_port = 2096
-username = "username"
+username = "admin"
 
-[[vpn.sof.xray.inbounds]]
+[[vpn.nodes.sof.xray.inbounds]]
 port = 443
 name = "🇧🇬 | XHTTP"
 
-[[vpn.sof.xray.inbounds]]
+[[vpn.nodes.sof.xray.inbounds]]
 port = 8443
 name = "🇧🇬 | TCP Reality"
 

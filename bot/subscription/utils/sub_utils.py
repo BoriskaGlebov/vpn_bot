@@ -29,11 +29,11 @@ def get_correct_price_map(premium: bool, founder: bool) -> dict[int, int]:
 
     """
     if premium:
-        return settings_bot.price_map_premium
+        return settings_bot.pricing.price_map_premium
     elif founder:
-        return settings_bot.price_map_founder
+        return settings_bot.pricing.price_map_founder
     else:
-        return settings_bot.price_map
+        return settings_bot.pricing.price_map
 
 
 def get_correct_sub_type(premium: bool, founder: bool) -> str:

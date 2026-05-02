@@ -143,7 +143,6 @@ class VPNService:
         sub_inf, sub_url = await self.xray_adapter.add_new_config(
             tg_id=tg_user.id,
             days=delta_days,
-            inbounds=settings_bot.inbounds,
         )
 
         sub_ids: list[str] = sub_inf.get("sub_ids", [])
@@ -175,7 +174,6 @@ class VPNService:
             for config_id in config_ids:
                 await self.xray_adapter.delete_config(
                     config_id=config_id,
-                    inbounds=settings_bot.inbounds,
                 )
 
             raise

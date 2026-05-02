@@ -254,7 +254,7 @@ class UserRouter(BaseRouter):
                         user_telegram_id=user.id,
                     ),
                 )
-                if user_info.telegram_id not in settings_bot.admin_ids:
+                if user_info.telegram_id not in settings_bot.core.admin_ids:
                     admin_message = m_admin.new_registration.format(
                         first_name=user_info.first_name or "undefined",
                         last_name=user_info.last_name or "undefined",
@@ -299,7 +299,7 @@ class UserRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
 
-            if user.id not in settings_bot.admin_ids:
+            if user.id not in settings_bot.core.admin_ids:
                 self.logger.bind(user=user.username or user.id).warning(
                     f"Попытка доступа к админ-панели не админом: {user.id}"
                 )

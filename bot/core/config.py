@@ -14,6 +14,7 @@ from loguru import logger
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 from pydantic_settings import SettingsConfigDict
 
+from bot.app_error.base_error import AppError
 from shared.config.db_config import RedisSettings
 
 # __all__ = ["logger", "settings_bot", "bot", "dp"]
@@ -114,17 +115,42 @@ class XRaySettingsSOF(SettingsCommon):
 
     model_config = SettingsConfigDict(env_prefix="SOF_X_RAY_")
 
+
 class VPNNode(SettingsCommon):
     host: str
     username: str
     container: str
+    container_old: str | None =None
     use_local: bool = False
     proxy: ProxySettings | None = None
     xray: XRaySettingsSOF | None = None
 
+    def require_xray(self) -> XRaySettingsSOF:
+        if not self.xray:
+            raise AppError(f"XRay не настроен для {self.host}")
+        return self.xray
+
 
 class VPNRegistry(SettingsCommon):
     nodes: dict[str, VPNNode]
+
+    def get(self, name: str) -> VPNNode:
+        try:
+            return self.nodes[name]
+        except KeyError:
+            raise ValueError(f"VPN node '{name}' not found")
+
+    @property
+    def main(self) -> VPNNode:
+        return self.get("main")
+
+    @property
+    def sof(self) -> VPNNode:
+        return self.get("sof")
+
+    @property
+    def fi(self) -> VPNNode:
+        return self.get("fi")
 
 
 class VPNSettingsMain(SettingsCommon):
@@ -151,7 +177,6 @@ class ProxySettingsFI(SettingsCommon):
     container: str = "telemt"
     port: str = "443"
     model_config = SettingsConfigDict(env_prefix="FI_PROXY_")
-
 
 
 class PricingSettings(SettingsCommon):
@@ -316,7 +341,7 @@ class Settings(SettingsCommon):
     bot: BotSettings = Field(default_factory=BotSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
 
-    vpn: dict[str, VPNNode]
+    vpn: VPNRegistry = Field(default_factory=VPNRegistry)
 
     pricing: PricingSettings = Field(default_factory=PricingSettings)
 
@@ -362,7 +387,7 @@ dp = Dispatcher(storage=storage)
 if __name__ == "__main__":
     # pprint(toml_loader)
     # pprint(settings_bot.vpn.model_dump())
-    print(settings_bot.vpn["sof"])
+    print(settings_bot.vpn.main)
     # print("*" * 15)
     # print(settings_bot.redis)
     # print("*" * 15)

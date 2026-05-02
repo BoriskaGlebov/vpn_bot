@@ -23,8 +23,16 @@ class ThreeXUIAdapter:
     - добавление пользователей
     - перезапуск XRay сервиса
     """
-
-    def __init__(self, api_client: APIClient, prefix: str) -> None:
+    #TODO докумнетация
+    def __init__(self, api_client: APIClient,
+                 prefix: str,
+                 correct_inbounds:list[SInbound],
+                 username:str,
+                 password:str,
+                 host:str,
+                 sub_port:int,
+                 sub_prefix:str
+                 ) -> None:
         """Инициализация адаптера.
 
         Args:
@@ -34,6 +42,12 @@ class ThreeXUIAdapter:
         """
         self.api = api_client
         self.prefix = prefix
+        self.inbounds_name=correct_inbounds
+        self.username=username
+        self.password=password
+        self.host=host
+        self.sub_port=sub_port
+        self.sub_prefix=sub_prefix
 
     async def _login(
         self, user_credentials: S3XuiCredentials
@@ -185,7 +199,6 @@ class ThreeXUIAdapter:
 
     async def add_new_config(
         self,
-        inbounds: list[SInbound],
         tg_id: int,
         days: int = 0,
     ) -> tuple[dict[str, list[str]], str]:
@@ -202,7 +215,6 @@ class ThreeXUIAdapter:
         Args:
             tg_id (int): Telegram ID пользователя.
             days (int): срок действия конфигурации в днях или ноль строкой для бесконечности.
-            inbounds (list[SInbound]): Список доступных инбаундов
 
         Returns
             tuple:
@@ -217,11 +229,11 @@ class ThreeXUIAdapter:
         """
         logger.info("Создание новой конфигурации для tg_id={} на {} дней", tg_id, days)
         credentials = S3XuiCredentials(
-            username=settings_bot.x_ray_username.get_secret_value(),
-            password=settings_bot.x_ray_password.get_secret_value(),
+            username=self.username,
+            password=self.password,
         )
         await self._login(user_credentials=credentials)
-        inbounds_correct = await self._get_inbound(inbounds_cfg=inbounds)
+        inbounds_correct = await self._get_inbound(inbounds_cfg=self.inbounds_name)
         user_add_info = {"config_ids": set(), "sub_ids": set()}
         for inb in inbounds_correct:
             uid = str(uuid.uuid4())
@@ -251,8 +263,8 @@ class ThreeXUIAdapter:
         await self._restart_x_ray()
         await self._logout()
         url = (
-            f"https://{settings_bot.x_ray_host}:{settings_bot.x_ray_subscription_port}/"
-            f"{settings_bot.x_ray_subscription_prefix}/user_{tg_id}"
+            f"https://{self.host}:{self.sub_port}/"
+            f"{self.sub_prefix}/user_{tg_id}"
         )
         logger.info("Конфигурация успешно создана для tg_id={}", tg_id)
         return {
@@ -260,12 +272,11 @@ class ThreeXUIAdapter:
             "sub_ids": list(user_add_info["sub_ids"]),
         }, url
 
-    async def delete_config(self, config_id: str, inbounds: list[SInbound]) -> bool:
+    async def delete_config(self, config_id: str,) -> bool:
         """Удаляет конфигурацию пользователя из указанных inbound.
 
         Args:
             config_id (str): UUID конфигурации пользователя.
-            inbounds (list[SInbound]): список inbound, из которых нужно удалить.
 
         Returns
             bool: True при успешном выполнении.
@@ -276,7 +287,7 @@ class ThreeXUIAdapter:
             password=settings_bot.x_ray_password.get_secret_value(),
         )
         await self._login(user_credentials=cred)
-        correct_inbounds = await self._get_inbound(inbounds_cfg=inbounds)
+        correct_inbounds = await self._get_inbound(inbounds_cfg=self.inbounds_name)
         for inb in correct_inbounds:
             await self.api.post(
                 url=f"{self.prefix}/panel/api/inbounds/{inb.id}/delClient/{config_id}",

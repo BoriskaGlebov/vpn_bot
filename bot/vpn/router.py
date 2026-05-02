@@ -43,6 +43,7 @@ premium_locations = [location.value for location in PremiumLocations]
 
 
 # TODO тестирование
+#TODO убрать из роута работу с сервисом ВПН.
 class VPNStates(StatesGroup):  # type: ignore[misc]
     """Состояния роутера генерации конфиг файлов."""
 
@@ -51,7 +52,8 @@ class VPNStates(StatesGroup):  # type: ignore[misc]
 
 class VPNRouter(BaseRouter):
     """Роутер для обработки команд VPN."""
-
+    main_vpn=settings_bot.vpn.main
+    fi_vpn=settings_bot.vpn.fi
     def __init__(
         self,
         bot: Bot,
@@ -126,10 +128,12 @@ class VPNRouter(BaseRouter):
             try:
                 async with ssh_lock:
                     async with AsyncSSHClientVPN2(
-                        host=settings_bot.vpn_host,
-                        username=settings_bot.vpn_username,
+                        host=self.main_vpn.host,
+                        username=self.main_vpn.username,
                         known_hosts=None,
-                        container=settings_bot.vpn_container,
+                        container=self.main_vpn.container,
+                        use_local=self.main_vpn.use_local
+
                     ) as ssh_client:
                         (
                             file_path,
@@ -166,10 +170,11 @@ class VPNRouter(BaseRouter):
             try:
                 async with ssh_lock:
                     async with AsyncSSHClientWG2(
-                        host=settings_bot.vpn_host,
-                        username=settings_bot.vpn_username,
+                        host=self.main_vpn.host,
+                        username=self.main_vpn.username,
                         known_hosts=None,
-                        container=settings_bot.vpn_container,
+                        container=self.main_vpn.container,
+                        use_local=self.main_vpn.use_local
                     ) as ssh_client:
                         (
                             file_path,
@@ -223,16 +228,16 @@ class VPNRouter(BaseRouter):
             try:
                 async with ssh_lock:
                     async with HostDockerSSHClient(
-                        host=f"{settings_bot.proxy_prefix}.{settings_bot.vpn_host}",
-                        username=settings_bot.vpn_username,
-                        use_local=settings_bot.use_local,
+                        host=f"{self.main_vpn.proxy.prefix}.{self.main_vpn.host}",
+                        username=self.main_vpn.username,
+                        use_local=self.main_vpn.use_local,
                     ) as client:
                         info = await self.subscription_service.get_subscription_info(
                             tg_id=user.id
                         )
                         if "Активна" in info:
                             mtproto = MTProtoProxy(
-                                client=client, port=settings_bot.proxy_port
+                                client=client, port=self.main_vpn.proxy.port
                             )
                             url_proxy = await mtproto.get_proxy_link()
                             keyboard = proxy_url_button(url_proxy=url_proxy)
@@ -286,16 +291,12 @@ class VPNRouter(BaseRouter):
             try:
                 async with ssh_lock:
                     async with HostDockerSSHClient(
-                        host=f"{settings_bot.proxy_test_prefix}.{settings_bot.vpn_test_host}",
-                        username=settings_bot.vpn_test_username,
-                        use_local=(
-                            settings_bot.use_local
-                            if settings_bot.vpn_test_host == settings_bot.vpn_host
-                            else False
-                        ),
+                        host=f"{self.fi_vpn.proxy.prefix}.{self.fi_vpn.host}",
+                        username=self.fi_vpn.username,
+                        use_local=self.fi_vpn.use_local,
                     ) as client:
                         mtproto = MTProtoProxy(
-                            client=client, port=settings_bot.proxy_port
+                            client=client, port=self.fi_vpn.proxy.port
                         )
                         url_proxy = await mtproto.get_proxy_link()
                         keyboard = proxy_url_button(url_proxy=url_proxy)

@@ -43,7 +43,7 @@ from shared.enums.admin_enum import FilterTypeEnum
 m_subscription = settings_bot.messages.modes.subscription
 
 
-# TODO дать возможность уалять свои конфиг файлы
+# TODO дать возможность удалять свои конфиг файлы
 
 
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
@@ -56,7 +56,7 @@ class SubscriptionStates(StatesGroup):  # type: ignore[misc]
 
 class SubscriptionRouter(BaseRouter):
     """Роутер для управления процессом подписки пользователей."""
-
+    price_map=settings_bot.pricing
     def __init__(
         self,
         bot: Bot,
@@ -157,11 +157,11 @@ class SubscriptionRouter(BaseRouter):
             )
             if role == FilterTypeEnum.FOUNDER:
                 text = m_subscription.founder_start.format(
-                    device_limit=settings_bot.max_configs_per_user * 2,
-                    month=settings_bot.price_map_founder.get(1, 0),
-                    quarter=settings_bot.price_map_founder.get(3, 0),
-                    half_year=settings_bot.price_map_founder.get(6, 0),
-                    year=settings_bot.price_map_founder.get(12, 0),
+                    device_limit=settings_bot.core.max_configs_per_user * 2,
+                    month=self.price_map.price_map_founder.get(1, 0),
+                    quarter=self.price_map.price_map_founder.get(3, 0),
+                    half_year=self.price_map.price_map_founder.get(6, 0),
+                    year=self.price_map.price_map_founder.get(12, 0),
                 )
                 kb = subscription_options_kb(
                     premium=False,
@@ -170,11 +170,11 @@ class SubscriptionRouter(BaseRouter):
                 )
             elif not is_premium:
                 text = m_subscription.start.format(
-                    device_limit=settings_bot.max_configs_per_user,
-                    month=settings_bot.price_map.get(1, 0),
-                    quarter=settings_bot.price_map.get(3, 0),
-                    half_year=settings_bot.price_map.get(6, 0),
-                    year=settings_bot.price_map.get(12, 0),
+                    device_limit=settings_bot.core.max_configs_per_user,
+                    month=self.price_map.price_map.get(1, 0),
+                    quarter=self.price_map.price_map.get(3, 0),
+                    half_year=self.price_map.price_map.get(6, 0),
+                    year=self.price_map.price_map.get(12, 0),
                 )
                 kb = subscription_options_kb(
                     premium=False,
@@ -182,11 +182,11 @@ class SubscriptionRouter(BaseRouter):
                 )
             else:
                 text = m_subscription.premium_start.format(
-                    device_limit=settings_bot.max_configs_per_user * 2,
-                    month=settings_bot.price_map_premium.get(1, 0),
-                    quarter=settings_bot.price_map_premium.get(3, 0),
-                    half_year=settings_bot.price_map_premium.get(6, 0),
-                    year=settings_bot.price_map_premium.get(12, 0),
+                    device_limit=settings_bot.core.max_configs_per_user * 2,
+                    month=self.price_map.price_map_premium.get(1, 0),
+                    quarter=self.price_map.price_map_premium.get(3, 0),
+                    half_year=self.price_map.price_map_premium.get(6, 0),
+                    year=self.price_map.price_map_premium.get(12, 0),
                 )
                 kb = subscription_options_kb(premium=is_premium, trial=not used_trial)
                 await state.update_data(premium=is_premium)
@@ -280,19 +280,19 @@ class SubscriptionRouter(BaseRouter):
 
         text = (
             m_subscription.premium_start.format(
-                device_limit=settings_bot.max_configs_per_user * 2,
-                month=settings_bot.price_map_premium.get(1, 0),
-                quarter=settings_bot.price_map_premium.get(3, 0),
-                half_year=settings_bot.price_map_premium.get(6, 0),
-                year=settings_bot.price_map_premium.get(12, 0),
+                device_limit=settings_bot.core.max_configs_per_user * 2,
+                month=self.price_map.price_map_premium.get(1, 0),
+                quarter=self.price_map.price_map_premium.get(3, 0),
+                half_year=self.price_map.price_map_premium.get(6, 0),
+                year=self.price_map.price_map_premium.get(12, 0),
             )
             if premium
             else m_subscription.start.format(
-                device_limit=settings_bot.max_configs_per_user,
-                month=settings_bot.price_map.get(1, 0),
-                quarter=settings_bot.price_map.get(3, 0),
-                half_year=settings_bot.price_map.get(6, 0),
-                year=settings_bot.price_map.get(12, 0),
+                device_limit=settings_bot.core.max_configs_per_user,
+                month=self.price_map.price_map.get(1, 0),
+                quarter=self.price_map.price_map.get(3, 0),
+                half_year=self.price_map.price_map.get(6, 0),
+                year=self.price_map.price_map.get(12, 0),
             )
         )
 

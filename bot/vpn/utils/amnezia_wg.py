@@ -93,7 +93,7 @@ class AsyncSSHClientWG:
             )
             self._process = await asyncio.wait_for(
                 self._conn.create_process(f"docker exec -i {self.container} sh;\n"),
-                timeout=settings_bot.common_timeout,
+                timeout=CONNECT_TIMEOUT,
             )
             logger.bind(user=self.username).debug(
                 f"AsyncSSH: подключение и shell-сессия установлены к {self.host}"
