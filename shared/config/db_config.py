@@ -1,5 +1,5 @@
 from pydantic import SecretStr, computed_field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from shared.config.app_config import SettingsCommon
 

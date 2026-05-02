@@ -68,7 +68,8 @@ class Container:
     def __init__(self, bot: Bot) -> None:
         """Инициализирует сервисы без асинхронных операций."""
         self.redis_manager = RedisClient(
-            str(settings_bot.redis.url), default_expire=settings_bot.redis.default_expire
+            str(settings_bot.redis.url),
+            default_expire=settings_bot.redis.default_expire,
         )
         self.api_client = APIClient(
             base_url=settings_bot.api.url, port=settings_bot.api.port

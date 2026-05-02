@@ -4,8 +4,8 @@ import time
 import aioboto3
 from aiogram import Bot
 
-from bot.help.keyboards.inline_kb import send_link_button
 from bot.core.config import settings_bot
+from bot.help.keyboards.inline_kb import send_link_button
 
 
 class Device:

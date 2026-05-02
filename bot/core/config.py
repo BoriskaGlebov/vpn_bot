@@ -11,7 +11,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from box import Box
 from loguru import logger
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import SettingsConfigDict
 
 from shared.config.db_config import RedisSettings
 
@@ -71,7 +71,6 @@ class BotSettings(SettingsCommon):
 class ApiSettings(SettingsCommon):
     url: str = "api"
     port: int = 8089
-
 
     model_config = SettingsConfigDict(env_prefix="API_")
 
