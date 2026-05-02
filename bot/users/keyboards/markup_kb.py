@@ -43,7 +43,7 @@ def main_kb(
         KeyboardButton(text=MainMenuText.CHECK_STATUS.value),
         KeyboardButton(text=MainMenuText.HELP.value),
     )
-    if user_telegram_id in settings_bot.bot.admin_ids:
+    if user_telegram_id in settings_bot.core.admin_ids:
         builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL.value))
     return builder.as_markup(
         resize_keyboard=True,

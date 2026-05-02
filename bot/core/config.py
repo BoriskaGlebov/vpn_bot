@@ -193,7 +193,7 @@ class VPNNode(SettingsCommon):
         """Гарантирует наличие XRay-конфигурации.
 
         Returns
-            XRaySettingsSOF: Настройки XRay.
+            XRaySettings: Настройки XRay.
 
         Raises
             AppError: Если XRay не настроен.
@@ -202,6 +202,20 @@ class VPNNode(SettingsCommon):
         if self.xray is None:
             raise AppError(f"XRay не настроен для {self.host}")
         return self.xray
+
+    def require_proxy(self) -> ProxySettings:
+        """Гарантирует наличие Proxy-конфигурации.
+
+        Returns
+            ProxySettings: Настройки Proxy.
+
+        Raises
+            AppError: Если Proxy не настроен.
+
+        """
+        if self.proxy is None:
+            raise AppError(f"Proxy не настроен для {self.host}")
+        return self.proxy
 
 
 class VPNRegistry(SettingsCommon):

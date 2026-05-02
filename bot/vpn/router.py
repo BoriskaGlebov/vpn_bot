@@ -55,6 +55,8 @@ class VPNRouter(BaseRouter):
 
     main_vpn = settings_bot.vpn.main
     fi_vpn = settings_bot.vpn.fi
+    main_proxy = settings_bot.vpn.main.require_proxy()
+    fi_proxy = settings_bot.vpn.fi.require_proxy()
 
     def __init__(
         self,
@@ -229,7 +231,7 @@ class VPNRouter(BaseRouter):
             try:
                 async with ssh_lock:
                     async with HostDockerSSHClient(
-                        host=f"{self.main_vpn.proxy.prefix}.{self.main_vpn.host}",
+                        host=f"{self.main_proxy.prefix}.{self.main_vpn.host}",
                         username=self.main_vpn.username,
                         use_local=self.main_vpn.use_local,
                     ) as client:
@@ -238,7 +240,7 @@ class VPNRouter(BaseRouter):
                         )
                         if "Активна" in info:
                             mtproto = MTProtoProxy(
-                                client=client, port=self.main_vpn.proxy.port
+                                client=client, port=self.main_proxy.port
                             )
                             url_proxy = await mtproto.get_proxy_link()
                             keyboard = proxy_url_button(url_proxy=url_proxy)
@@ -292,13 +294,11 @@ class VPNRouter(BaseRouter):
             try:
                 async with ssh_lock:
                     async with HostDockerSSHClient(
-                        host=f"{self.fi_vpn.proxy.prefix}.{self.fi_vpn.host}",
+                        host=f"{self.fi_proxy.prefix}.{self.fi_vpn.host}",
                         username=self.fi_vpn.username,
                         use_local=self.fi_vpn.use_local,
                     ) as client:
-                        mtproto = MTProtoProxy(
-                            client=client, port=self.fi_vpn.proxy.port
-                        )
+                        mtproto = MTProtoProxy(client=client, port=self.fi_proxy.port)
                         url_proxy = await mtproto.get_proxy_link()
                         keyboard = proxy_url_button(url_proxy=url_proxy)
                         if url_proxy:

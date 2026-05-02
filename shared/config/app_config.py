@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
-def deep_merge(a: dict, b: dict) -> dict:
+def deep_merge(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     """Рекурсивно объединяет два словаря.
 
     Значения из `b` имеют приоритет и переопределяют значения из `a`.
