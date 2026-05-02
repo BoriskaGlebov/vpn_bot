@@ -24,7 +24,7 @@ reload_fast_api = false
 [bot]
 
 # ! Базовый URL сайта (например, для webhook)
-base_site = "https://help-blocks.ru"
+base_site = "https://help-blocks.ru/bot"
 # *Использовать webhook или polling по умолчанию polling false
 use_polling = false
 
@@ -173,6 +173,6 @@ endpoint_url = "https://storage.yandexcloud.net"
 [ai]
 #AI модель указвать только на локальной разработке так все через яндекс идет
 #Размерность для эмбеддингов 256 такую LLM нало брать, что б в БД положить
-model_name = "intfloat/multilingual-e5-base"
+model_name = "intfloat/multilingual-e5-small"
 #по умослчани нормализация TRUE
 normalize = true

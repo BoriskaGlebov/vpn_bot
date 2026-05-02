@@ -131,65 +131,29 @@ jobs:
           # == CORE ==
 
           BOT_TOKEN=${{ secrets.BOT_TOKEN }}
-          MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}
-          BASE_SITE=${{ vars.BASE_SITE }}
-          USE_POLLING=${{ vars.USE_POLLING }}
-          USE_LOCAL=${{ vars.USE_LOCAL }}
+
+          # == API ==
+
           SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-          ADMIN_IDS=${{ secrets.ADMIN_IDS }}
-
-          # == VPN1 ==
-
-          VPN_HOST=${{ secrets.VPN_HOST }}
-          VPN_USERNAME=${{ secrets.VPN_USERNAME }}
-          VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}
-
-          # == PROXY1 ==
-
-          VPN_PROXY=${{ secrets.VPN_PROXY }}
-          PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}
-          PROXY_PORT=${{ secrets.PROXY_PORT }}
-
-          # == PROXY2 ==
-
-          VPN_TEST_HOST=${{ secrets.VPN_TEST_HOST }}
-          VPN_TEST_USERNAME=${{ secrets.VPN_TEST_USERNAME }}
-          PROXY_TEST_PREFIX=${{ secrets.PROXY_TEST_PREFIX }}
 
           # ==X-RAY ==
 
-          X_RAY_HOST=${{ secrets.X_RAY_HOST }}
-          X_RAY_PANEL_PREFIX=${{ secrets.X_RAY_PANEL_PREFIX }}
-          X_RAY_SUBSCRIPTION_PREFIX=${{ secrets.X_RAY_SUBSCRIPTION_PREFIX }}
-          X_RAY_PANEL_PORT=${{ secrets.X_RAY_PANEL_PORT }}
-          X_RAY_SUBSCRIPTION_PORT=${{ secrets.X_RAY_SUBSCRIPTION_PORT }}
-          X_RAY_USERNAME=${{ secrets.X_RAY_USERNAME }}
           X_RAY_PASSWORD=${{ secrets.X_RAY_PASSWORD }}
-          INBOUNDS=${{ secrets.INBOUNDS }}
 
 
           # == DATABASE ==
-          DB_USER=${{ secrets.DB_USER }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_DATABASE=${{ secrets.DB_DATABASE }}
 
           # == REDIS ==
-          REDIS_USER=${{ secrets.REDIS_USER }}
           REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
 
           # == STORAGE ==
-          BUCKET_NAME=${{ vars.BUCKET_NAME }}
-          PREFIX=${{ vars.PREFIX }}
-          ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}
           ACCESS_KEY=${{ secrets.ACCESS_KEY }}
           SECRET_KEY=${{ secrets.SECRET_KEY }}
 
           # == AI ==
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
           SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
-          YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}
-          MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}
-          NORMALIZE=${{ vars.NORMALIZE }}
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
           ENV_EOF
 
