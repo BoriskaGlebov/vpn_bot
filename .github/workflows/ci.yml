@@ -81,7 +81,7 @@ jobs:
           ACCESS_KEY: ${{ secrets.ACCESS_KEY }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
-          X_RAY_PASSWORD: ${{ vars.X_RAY_PASSWORD }}
+          SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
         run: poetry run pytest -vs .
 
   deploy_develop:
