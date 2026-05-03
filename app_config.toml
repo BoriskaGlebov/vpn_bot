@@ -50,6 +50,7 @@ username = "vpn_user"
 container_old="amnezia-awg"
 container = "amnezia-awg2"
 use_local = true
+location_prefix= "FR"
 
 [vpn.nodes.fi]
 host = "vpn-boriska.ru"
@@ -57,6 +58,7 @@ username = "prod_server"
 container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
+location_prefix= "FI"
 
 [vpn.nodes.sof]
 host = "x-ray-boriska.pro"
@@ -64,6 +66,7 @@ username = "xray"
 container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
+location_prefix= "SOF"
 
 
 # === PROXY ===

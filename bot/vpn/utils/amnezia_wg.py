@@ -36,6 +36,7 @@ class AsyncSSHClientWG:
             будут выполняться команды. По умолчанию "amnezia-awg".
         use_local (bool): Переменная определяет, если код запущен на одном сервере с ВПН,
             то подключение через локальный демон Docker, если False то ппо ssh
+        location_prefix (str): Приставка к названию файла, что б можно было определить локацию.
 
     """
 
@@ -51,6 +52,7 @@ class AsyncSSHClientWG:
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
         use_local: bool = True,
+        location_prefix: str = "FR",
     ) -> None:
         self.container = container
         self.use_local = use_local
@@ -61,6 +63,7 @@ class AsyncSSHClientWG:
         self.username = username
         self.port = port
         self.known_hosts = known_hosts
+        self.location_prefix = location_prefix
 
         self._conn: asyncssh.SSHClientConnection | None = None
         self._process: asyncssh.SSHClientProcess[str] | None = None
@@ -602,7 +605,7 @@ class AsyncSSHClientWG:
             new_ip, private_key, pub_server_key, preshared_key
         )
         if not filename.endswith(".conf"):
-            filename = f"WG{filename}.conf"
+            filename = f"WG{self.location_prefix}{filename}.conf"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
@@ -1049,6 +1052,7 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
             будут выполняться команды. По умолчанию "amnezia-awg".
         use_local (bool): Переменная определяет, если код запущен на одном сервере с ВПН,
             то подлючение через локальный демон Docker, если False то ппо ssh
+        location_prefix (str): Приставка к названию файла, что б можно было определить локацию.
 
     """
 
@@ -1063,8 +1067,11 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
         known_hosts: str | None = None,
         container: str = "amnezia-awg2",
         use_local: bool = True,
+        location_prefix: str = "FR",
     ) -> None:
-        super().__init__(host, username, port, known_hosts, container, use_local)
+        super().__init__(
+            host, username, port, known_hosts, container, use_local, location_prefix
+        )
 
     async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
         """Получает индивидуальные данные для подключения VPN и порт контейнера.

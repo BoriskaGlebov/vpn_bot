@@ -234,6 +234,7 @@ class SchedulerBotService:
                     host=self.vpn_main.host,
                     username=self.vpn_main.username,
                     use_local=self.vpn_main.use_local,
+                    location_prefix=self.vpn_main.location_prefix,
                 ) as ssh_client:
                     if await ssh_client.full_delete_user(public_key=cfg.pub_key):
                         logger.info(

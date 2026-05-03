@@ -137,6 +137,7 @@ class VPNRouter(BaseRouter):
                         known_hosts=None,
                         container=self.main_vpn.container,
                         use_local=self.main_vpn.use_local,
+                        location_prefix=self.main_vpn.location_prefix,
                     ) as ssh_client:
                         (
                             file_path,
@@ -178,6 +179,7 @@ class VPNRouter(BaseRouter):
                         known_hosts=None,
                         container=self.main_vpn.container,
                         use_local=self.main_vpn.use_local,
+                        location_prefix=self.main_vpn.location_prefix,
                     ) as ssh_client:
                         (
                             file_path,

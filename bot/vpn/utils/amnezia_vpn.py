@@ -21,6 +21,7 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
             Если None, проверка отключается.
         container (str, optional): Имя контейнера Docker, в котором
             будут выполняться команды. По умолчанию "amnezia-awg".
+        location_prefix (str): Приставка к названию файла, что б можно было определить локацию.
 
     """
 
@@ -32,8 +33,11 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
         use_local: bool = True,
+        location_prefix: str = "FR",
     ) -> None:
-        super().__init__(host, username, port, known_hosts, container, use_local)
+        super().__init__(
+            host, username, port, known_hosts, container, use_local, location_prefix
+        )
 
     async def _save_wg_config(
         self,
@@ -87,6 +91,7 @@ class AsyncSSHClientVPN2(AsyncSSHClientVPN, AsyncSSHClientWG2):
             Если None, проверка отключается.
         container (str, optional): Имя контейнера Docker, в котором
             будут выполняться команды. По умолчанию "amnezia-awg".
+        location_prefix (str): Приставка к названию файла, что б можно было определить локацию.
 
     """
 
@@ -98,8 +103,11 @@ class AsyncSSHClientVPN2(AsyncSSHClientVPN, AsyncSSHClientWG2):
         known_hosts: str | None = None,
         container: str = "amnezia-awg2",
         use_local: bool = True,
+        location_prefix: str = "FR",
     ) -> None:
-        super().__init__(host, username, port, known_hosts, container, use_local)
+        super().__init__(
+            host, username, port, known_hosts, container, use_local, location_prefix
+        )
 
 
 if __name__ == "__main__":

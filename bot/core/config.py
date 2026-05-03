@@ -19,7 +19,6 @@ from shared.config.logger_config import LoggerConfig
 
 __all__ = ["logger", "settings_bot", "bot", "dp"]
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
@@ -176,6 +175,7 @@ class VPNNode(SettingsCommon):
         container (str): Имя Docker-контейнера.
         container_old (str | None): Старое имя контейнера.
         use_local (bool): Использовать локальную ноду.
+        location_prefix (str): Префикс для определения локации файла, базово Франция
         proxy (ProxySettings | None): Настройки прокси.
         xray (XRaySettingsSOF | None): Настройки XRay.
 
@@ -186,6 +186,7 @@ class VPNNode(SettingsCommon):
     container: str
     container_old: str | None = None
     use_local: bool = False
+    location_prefix: str = "FR"
     proxy: ProxySettings | None = None
     xray: XRaySettings | None = None
 
