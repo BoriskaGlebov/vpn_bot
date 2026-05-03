@@ -1,7 +1,7 @@
 services:
   vpn_bot:
     env_file:
-      - .env.local
+      - .env.dev
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
@@ -14,7 +14,7 @@ services:
       - infrastructure_net
   api:
     env_file:
-      - .env.local
+      - .env.dev
     healthcheck:
       test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8089/api/health', timeout=2)" ]
       interval: 30s
