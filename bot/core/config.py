@@ -408,6 +408,3 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
-
-if __name__ == "__main__":
-    print(settings_bot.vpn.sof.xray.password.get_secret_value())
