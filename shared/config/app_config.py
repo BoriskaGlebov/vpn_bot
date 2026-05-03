@@ -1,7 +1,10 @@
+import os
 import tomllib
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+from loguru import logger
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -62,19 +65,26 @@ def load_toml_config() -> dict[str, Any]:
         tomllib.TOMLDecodeError: Если один из файлов содержит невалидный TOML.
 
     """
+    logger.info("Загружаю настройки для бота из временного окружения.")
     base = {}
     local = {}
+    load_dotenv(BASE_DIR / ".env")
+    load_dotenv(BASE_DIR / ".env.dev", override=True)
+    load_dotenv(BASE_DIR / ".env.local", override=True)
 
     base_path = BASE_DIR / "app_config.toml"
+    dev_path = BASE_DIR / "app_config.develop.toml"
     local_path = BASE_DIR / "app_config.local.toml"
+    dev_stage = os.getenv("STAGE", "prod")
 
-    if base_path.exists():
+    if dev_stage == "prod":
         base = tomllib.load(open(base_path, "rb"))
+    else:
+        base = tomllib.load(open(dev_path, "rb"))
     if local_path.exists():
         local = tomllib.load(open(local_path, "rb"))
-    # res_merge = deep_merge(base, local)
-    # return res_merge
-    return {**base, **local}
+    res_merge = deep_merge(base, local)
+    return res_merge
 
 
 class SettingsCommon(BaseSettings):

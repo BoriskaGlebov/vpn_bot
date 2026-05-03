@@ -116,13 +116,13 @@ jobs:
             git reset --hard origin/develop
             git clean -fd
 
-            echo "Recreate .env.local file..."
-            rm -f .env.local
+            echo "Recreate .env.develop file..."
+            rm -f .env.develop
 
 
-            echo "Recreate .env.local file..."
+            echo "Recreate .env.develop file..."
 
-            cat <<ENV_EOF > .env.local
+            cat <<ENV_EOF > .env.develop
 
           # == STAGE ==
 
@@ -142,14 +142,15 @@ jobs:
 
 
           # == DATABASE ==
-          DB_USER=${{secrets.DB_USER}}
+
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
 
           # == REDIS ==
-          REDIS_USER=${{secrets.REDIS_USER}}
+
           REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
 
           # == STORAGE ==
+
           ACCESS_KEY=${{ secrets.ACCESS_KEY }}
           SECRET_KEY=${{ secrets.SECRET_KEY }}
 

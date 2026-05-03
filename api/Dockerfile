@@ -46,7 +46,7 @@ RUN poetry install --without dev --no-cache
 
 # Копируем проект целиком
 COPY --chown=botuser:bot api/ api/
-COPY --chown=botuser:bot pyproject.toml poetry.lock alembic.ini app_config.toml  ./
+COPY --chown=botuser:bot pyproject.toml poetry.lock alembic.ini app_config.toml app_config.develop.toml  ./
 COPY --chown=botuser:bot shared/ shared/
 
 # Делаем entrypoint исполняемым

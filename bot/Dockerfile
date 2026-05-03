@@ -46,7 +46,7 @@ RUN poetry install --without dev --no-cache
 
 # Копируем проект целиком
 COPY --chown=botuser:bot bot/ bot/
-COPY --chown=botuser:bot pyproject.toml poetry.lock  ./
+COPY --chown=botuser:bot pyproject.toml poetry.lock app_config.toml app_config.develop.toml ./
 COPY --chown=botuser:bot shared/ shared/
 
 # Делаем entrypoint исполняемым

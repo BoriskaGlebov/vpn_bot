@@ -8,7 +8,6 @@ from pydantic import Field, SecretStr
 from shared.config.app_config import (
     SettingsApp,
     SettingsCommon,
-    deep_merge,
     load_toml_config,
 )
 from shared.config.db_config import PostgresSettings
@@ -53,11 +52,12 @@ load_dotenv(BASE_DIR / ".env.local")
 env_conf = {
     "db": {
         "user": os.getenv("DB_USER"),
-    }
+        "database": os.getenv("DB_NAME"),
+    },
+    "redis": {},
 }
 toml_loader = load_toml_config()
-merged = deep_merge(toml_loader, env_conf)
-settings_api = SettingsAPI(**merged)  # type: ignore
+settings_api = SettingsAPI(**toml_loader)  # type: ignore
 
 LoggerConfig(
     log_dir=BASE_DIR / "api" / "logs",
