@@ -111,7 +111,7 @@ def subscription_options_kb(
         )
 
     # добавляем кнопку "Бесплатно" только для обычного режима
-    if not premium and trial:
+    if not premium and not founder and not trial:
         builder.button(
             text="🎁 7 дней — Бесплатно",
             callback_data=SubscriptionCB(action=SubscriptionAction.SELECT, months=7),
