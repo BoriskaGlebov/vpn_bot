@@ -227,6 +227,10 @@ class NewsRouter(BaseRouter):
             state: Контекст FSM.
 
         """
+        if message.text is None:
+            await message.answer("Отправь числовой user_id")
+            return
+
         try:
             user_id = int(message.text)
         except ValueError:
@@ -304,6 +308,11 @@ class NewsRouter(BaseRouter):
             sent = 0
             if target == "one":
                 user_id = data.get("user_id")
+                if not isinstance(user_id, int):
+                    self.logger.error("user_id отсутствует или некорректен")
+                    await msg.edit_text("❌ Некорректный user_id")
+                    await state.clear()
+                    return
                 try:
                     await self._send_news(user_id, news)
                     sent = 1
