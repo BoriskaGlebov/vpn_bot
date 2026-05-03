@@ -283,12 +283,13 @@ class ThreeXUIAdapter:
                 if days > 0
                 else 0
             )
+            flow = "xtls-rprx-vision" if "XHTTP" not in inb.remark else ""
             user_add = S3XuiUSerSettings(
                 id=uid,
                 email=f"user_{tg_id}_{uid[:4]}",
                 tgId=tg_id,
                 subId=f"user_{tg_id}",
-                flow="xtls-rprx-vision",
+                flow=flow,
                 limitIp=0,
                 totalGB=0,
                 expiryTime=remaining_days,
