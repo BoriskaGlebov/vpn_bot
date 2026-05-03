@@ -283,6 +283,7 @@ class ThreeXUIAdapter:
                 if days > 0
                 else 0
             )
+            # У подключения XHTTP нет параметра flow предается пустая строка.
             flow = "xtls-rprx-vision" if "XHTTP" not in inb.remark else ""
             user_add = S3XuiUSerSettings(
                 id=uid,
