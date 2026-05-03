@@ -12,7 +12,10 @@ from aiogram.filters import (
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import (
+    Message,
+    ReplyKeyboardRemove,
+)
 from aiogram.types import User as TGUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
@@ -25,6 +28,7 @@ from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import ToggleSubscriptionMode
 from bot.users.enums import ChatType, MainMenuText
+from bot.users.keyboards.inline_kb import id_link_kb
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SUserOut
 from bot.users.services import UserService
@@ -34,6 +38,7 @@ from shared.enums.admin_enum import RoleEnum
 
 m_admin = settings_bot.messages.modes.admin
 m_start = settings_bot.messages.modes.start
+m_id = settings_bot.messages.modes.id
 m_error = settings_bot.messages.errors
 m_echo = settings_bot.messages.general.echo
 INVALID_FOR_USER = [
@@ -122,6 +127,7 @@ class UserRouter(BaseRouter):
                 ~F.text.in_(INVALID_FOR_USER),
             ),
         )
+        self.router.message.register(self.cmd_id, Command("id"))
 
     async def _process_referral(
         self,
@@ -327,3 +333,15 @@ class UserRouter(BaseRouter):
             )
 
             await state.set_state(UserStates.press_admin)
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def cmd_id(self, message: Message, user: TGUser, state: FSMContext) -> None:
+        """Отправляет пользователю его Telegram ID с удобным копированием."""
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await state.clear()
+            user_id = user.id
+
+            text = m_id.start.format(user_id=user_id)
+
+            await message.answer(text, reply_markup=id_link_kb(user_id))
