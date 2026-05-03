@@ -99,7 +99,10 @@ class VPNRouter(BaseRouter):
         )
         self.router.message.register(
             self.generate_subscription,
-            and_f(F.text.in_(premium_locations), StateFilter(VPNStates.check_location)),
+            and_f(
+                F.text == PremiumLocations.BULGARIA,
+                StateFilter(VPNStates.check_location),
+            ),
             is_premium,
         )
 
