@@ -65,7 +65,7 @@ class AsyncSSHClientVPN(AsyncSSHClientWG):
         )
         encode_conf = base64.b64encode(config_text.encode()).decode()
         if not filename.endswith(".conf"):
-            filename = f"VPN{filename}.vpn"
+            filename = f"VPN{self.location_prefix}{filename}.vpn"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
