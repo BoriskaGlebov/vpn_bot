@@ -138,7 +138,7 @@ jobs:
 
           # ==X-RAY ==
 
-          X_RAY_PASSWORD=${{ secrets.X_RAY_PASSWORD }}
+          SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
 
 
           # == DATABASE ==
