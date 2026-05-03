@@ -116,13 +116,13 @@ jobs:
             git reset --hard origin/develop
             git clean -fd
 
-            echo "Recreate .env.develop file..."
-            rm -f .env.develop
+            echo "Recreate .env.dev file..."
+            rm -f .env.dev
 
 
-            echo "Recreate .env.develop file..."
+            echo "Recreate .env.dev file..."
 
-            cat <<ENV_EOF > .env.develop
+            cat <<ENV_EOF > .env.dev
 
           # == STAGE ==
 
