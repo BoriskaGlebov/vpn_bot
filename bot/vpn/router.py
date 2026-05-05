@@ -12,11 +12,10 @@ from aiogram.types import (
 )
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
-from core.config import VPNNode
 from loguru._logger import Logger
 
 from bot.app_error.base_error import AppError, SubscriptionNotFoundError
-from bot.core.config import settings_bot
+from bot.core.config import VPNNode, settings_bot
 from bot.core.filters import IsPremium
 from bot.integrations.redis_client import RedisClient
 from bot.subscription.services import SubscriptionService
@@ -146,8 +145,12 @@ class VPNRouter(BaseRouter):
             )
         location = message.text.lower()
         for loc in settings_bot.vpn.nodes:
-            if loc in location:
-                self.logger.debug("Определил локацию по тексту кнопки {}.", loc)
+            is_loc_pref_in = loc in location
+            is_flag_in = settings_bot.vpn.nodes.get(loc).flag in location
+            if is_loc_pref_in and is_flag_in:
+                self.logger.debug(
+                    "Определил локацию по тексту кнопки {} -> {}.", location, loc
+                )
                 return loc
         return None
 

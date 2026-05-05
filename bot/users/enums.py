@@ -58,4 +58,17 @@ class Location(str, Enum):
     MAIN = settings_bot.vpn.main.location_prefix.lower()
     # FRANCE = "FR"
     FINLAND = settings_bot.vpn.fi.location_prefix.lower()
+
+
+class PremiumLocation(str, Enum):
+    """Перечисление доступных премиум VPN-локаций.
+
+    Используется для идентификации серверов VPN по географическому признаку
+    и сопоставления с конфигурацией из settings_bot.
+
+    Attributes
+        SOFIA (str): софийская VPN-локация (settings_bot.vpn.sof).
+
+    """
+
     SOFIA = settings_bot.vpn.sof.location_prefix.lower()

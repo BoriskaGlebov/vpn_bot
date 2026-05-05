@@ -34,10 +34,6 @@ def main_kb(
                 KeyboardButton(text=vpn_button_text("AmneziaVPN", location)),
                 KeyboardButton(text=vpn_button_text("AmneziaWG", location)),
             )
-        # builder.row(
-        #     KeyboardButton(text=MainMenuText.AMNEZIA_VPN.value),
-        #     KeyboardButton(text=MainMenuText.AMNEZIA_WG.value),
-        # )
         builder.row(
             KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value),
         )
