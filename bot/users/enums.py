@@ -1,5 +1,7 @@
 from enum import Enum
 
+from bot.core.config import settings_bot
+
 
 class ChatType(str, Enum):
     """Типы чатов в Telegram."""
@@ -32,8 +34,8 @@ class MainMenuText(str, Enum):
 
     """
 
-    AMNEZIA_VPN = "🇫🇷 AmneziaVPN"
-    AMNEZIA_WG = "🇫🇷 AmneziaWG"
+    AMNEZIA_VPN = f"{settings_bot.vpn.main.flag} AmneziaVPN"
+    AMNEZIA_WG = f"{settings_bot.vpn.main.flag} AmneziaWG"
     AMNEZIA_PROXY = "📦 AmneziaProxy"
     FREE_AMNEZIA_PROXY = "📦 Free AmneziaProxy TG"
     RENEW_SUBSCRIPTION = "💎 Продлить VPN-Boriska"

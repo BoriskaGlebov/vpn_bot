@@ -6,7 +6,7 @@ max_configs_per_user = 10
 #Дефолтное время для Timeout ошибки при подключени к стороннему сревису
 common_timeout = 10
 
-admin_ids = [439653349, 123456789]
+admin_ids = [439653349,]
 
 # === LOGGER ===
 # *Уровни логирования по умолчанию INFO, INFO WARNING
@@ -51,6 +51,7 @@ container_old="amnezia-awg"
 container = "amnezia-awg2"
 use_local = true
 location_prefix= "FR"
+flag="🇫🇷"
 
 [vpn.nodes.fi]
 host = "vpn-boriska.ru"
@@ -59,6 +60,7 @@ container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 location_prefix= "FI"
+flag= "🇫🇮"
 
 [vpn.nodes.sof]
 host = "x-ray-boriska.pro"
@@ -67,6 +69,7 @@ container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 location_prefix= "SOF"
+flag= "🇫🇮"
 
 
 # === PROXY ===
