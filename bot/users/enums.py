@@ -21,8 +21,6 @@ class MainMenuText(str, Enum):
 
 
     Attributes
-        AMNEZIA_VPN: Кнопка получения конфигурации AmneziaVPN.
-        AMNEZIA_WG: Кнопка получения конфигурации AmneziaWG.
         AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм.
         FREE_AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм бесплатно.
         RENEW_SUBSCRIPTION: Кнопка продления активной подписки.
@@ -34,8 +32,6 @@ class MainMenuText(str, Enum):
 
     """
 
-    AMNEZIA_VPN = f"{settings_bot.vpn.main.flag} AmneziaVPN"
-    AMNEZIA_WG = f"{settings_bot.vpn.main.flag} AmneziaWG"
     AMNEZIA_PROXY = "📦 AmneziaProxy"
     FREE_AMNEZIA_PROXY = "📦 Free AmneziaProxy TG"
     RENEW_SUBSCRIPTION = "💎 Продлить VPN-Boriska"
@@ -44,3 +40,22 @@ class MainMenuText(str, Enum):
     HELP = "❓ Помощь в настройке VPN"
     ADMIN_PANEL = "⚙️ Панель администратора"
     PREMIUM = "💎 Мой Премиум"
+
+
+class Location(str, Enum):
+    """Перечисление доступных VPN-локаций.
+
+    Используется для идентификации серверов VPN по географическому признаку
+    и сопоставления с конфигурацией из settings_bot.
+
+    Attributes
+        MAIN (str): основная VPN-локация (значение берётся из settings_bot.vpn.main).
+        FINLAND (str): финская VPN-локация (settings_bot.vpn.fi).
+        SOFIA (str): софийская VPN-локация (settings_bot.vpn.sof).
+
+    """
+
+    MAIN = settings_bot.vpn.main.location_prefix.lower()
+    # FRANCE = "FR"
+    FINLAND = settings_bot.vpn.fi.location_prefix.lower()
+    SOFIA = settings_bot.vpn.sof.location_prefix.lower()

@@ -27,11 +27,12 @@ from bot.integrations.redis_client import RedisClient
 from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import ToggleSubscriptionMode
-from bot.users.enums import ChatType, MainMenuText
+from bot.users.enums import ChatType, Location, MainMenuText
 from bot.users.keyboards.inline_kb import id_link_kb
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SUserOut
 from bot.users.services import UserService
+from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
 from shared.enums.admin_enum import RoleEnum
@@ -41,10 +42,15 @@ m_start = settings_bot.messages.modes.start
 m_id = settings_bot.messages.modes.id
 m_error = settings_bot.messages.errors
 m_echo = settings_bot.messages.general.echo
+location_buttons_text = [
+    vpn_button_text(protocol, location)
+    for location in Location
+    for protocol in ("AmneziaWG", "AmneziaVPN")
+]
 INVALID_FOR_USER = [
     MainMenuText.CHOOSE_SUBSCRIPTION.value,
-    MainMenuText.AMNEZIA_VPN.value,
-    MainMenuText.AMNEZIA_WG.value,
+    # MainMenuText.AMNEZIA_VPN.value,
+    # MainMenuText.AMNEZIA_WG.value,
     MainMenuText.AMNEZIA_PROXY.value,
     MainMenuText.FREE_AMNEZIA_PROXY.value,
     MainMenuText.CHECK_STATUS.value,
@@ -52,6 +58,7 @@ INVALID_FOR_USER = [
     MainMenuText.RENEW_SUBSCRIPTION.value,
     MainMenuText.PREMIUM.value,
 ]
+INVALID_FOR_USER.extend(location_buttons_text)
 INVALID_FOR_ADMIN = [
     MainMenuText.ADMIN_PANEL.value,
     MainMenuText.HELP.value,
@@ -71,6 +78,7 @@ class UserStates(StatesGroup):  # type: ignore[misc]
     press_admin: State = State()
 
 
+# TODO тут добавились новыые методы нужно тестирование
 class UserRouter(BaseRouter):
     """Роутер для обработки пользовательских команд и сообщений.
 

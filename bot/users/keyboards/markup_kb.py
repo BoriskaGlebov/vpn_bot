@@ -2,7 +2,8 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 from bot.core.config import settings_bot
-from bot.users.enums import MainMenuText
+from bot.users.enums import Location, MainMenuText
+from bot.users.utils.text_generator import vpn_button_text
 
 
 def main_kb(
@@ -28,10 +29,15 @@ def main_kb(
             KeyboardButton(text=MainMenuText.PREMIUM.value),
         )
     if active_subscription:
-        builder.row(
-            KeyboardButton(text=MainMenuText.AMNEZIA_VPN.value),
-            KeyboardButton(text=MainMenuText.AMNEZIA_WG.value),
-        )
+        for location in Location:
+            builder.row(
+                KeyboardButton(text=vpn_button_text("AmneziaVPN", location)),
+                KeyboardButton(text=vpn_button_text("AmneziaWG", location)),
+            )
+        # builder.row(
+        #     KeyboardButton(text=MainMenuText.AMNEZIA_VPN.value),
+        #     KeyboardButton(text=MainMenuText.AMNEZIA_WG.value),
+        # )
         builder.row(
             KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value),
         )

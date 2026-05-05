@@ -59,7 +59,7 @@ username = "prod_server"
 container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = true
-location_prefix= "Fi"
+location_prefix= "FI"
 flag= "🇫🇮"
 
 [vpn.nodes.sof]

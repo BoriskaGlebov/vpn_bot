@@ -19,7 +19,7 @@ from bot.scheduler.schemas import (
 )
 from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.adapter import VPNAPIAdapter
-from bot.vpn.router import ssh_lock
+from bot.vpn.services import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
