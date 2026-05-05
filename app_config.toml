@@ -93,38 +93,38 @@ port = 443
 
 # === X-RAY ===
 
-#[xray.main]
-#host = "x-boriska"
-#panel_prefix = "panel-12345"
-#subscription_prefix = "sub-12345"
-#panel_port = 5443
-#subscription_port = 2096
-#username = "username"
-#
-#[[xray.main.inbounds]]
-#port = 443
-#name = "🇧🇬 | XHTTP"
-#
-#[[xray.main.inbounds]]
-#port = 8443
-#name = "🇧🇬 | TCP Reality"
-#
-#[xray.fi]
-#host = "x-boriska"
-#panel_prefix = "panel-12345"
-#subscription_prefix = "sub-12345"
-#panel_port = 5443
-#subscription_port = 2096
-#username = "username"
-#
-#[[xray.fi.inbounds]]
-#port = 443
-#name = "🇧🇬 | XHTTP"
-#
-#[[xray.fi.inbounds]]
-#port = 8443
-#name = "🇧🇬 | TCP Reality"
-#
+[xray.main]
+host = "help-blocks.ru"
+panel_prefix = "panel-45gh65"
+subscription_prefix = "sub-45gh45"
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+
+[[xray.main.inbounds]]
+port = 8443
+name = "🇫🇷 | XHTTP"
+
+[[xray.main.inbounds]]
+port = 9443
+name = "🇫🇷 | TCP Reality"
+
+[xray.fi]
+host = "vpn-boriska.ru"
+panel_prefix = "panel-78gh98"
+subscription_prefix = "sub-45gh45"
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+
+[[xray.fi.inbounds]]
+port = 8443
+name = "🇫🇮 | XHTTP"
+
+[[xray.fi.inbounds]]
+port = 9443
+name = "🇫🇮 | TCP Reality"
+
 [vpn.nodes.sof.xray]
 host = "x-ray-boriska.pro"
 panel_prefix = "panel-df06dg"

@@ -27,7 +27,7 @@ from bot.integrations.redis_client import RedisClient
 from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import ToggleSubscriptionMode
-from bot.users.enums import ChatType, Location, MainMenuText
+from bot.users.enums import ChatType, Location, MainMenuText, VPNProtocol
 from bot.users.keyboards.inline_kb import id_link_kb
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SUserOut
@@ -45,12 +45,10 @@ m_echo = settings_bot.messages.general.echo
 location_buttons_text = [
     vpn_button_text(protocol, location)
     for location in Location
-    for protocol in ("AmneziaWG", "AmneziaVPN")
+    for protocol in VPNProtocol
 ]
 INVALID_FOR_USER = [
     MainMenuText.CHOOSE_SUBSCRIPTION.value,
-    # MainMenuText.AMNEZIA_VPN.value,
-    # MainMenuText.AMNEZIA_WG.value,
     MainMenuText.AMNEZIA_PROXY.value,
     MainMenuText.FREE_AMNEZIA_PROXY.value,
     MainMenuText.CHECK_STATUS.value,

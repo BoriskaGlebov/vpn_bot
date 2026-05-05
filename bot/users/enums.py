@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import Enum, StrEnum
 
 from bot.core.config import settings_bot
 
@@ -72,3 +72,27 @@ class PremiumLocation(str, Enum):
     """
 
     SOFIA = settings_bot.vpn.sof.location_prefix.lower()
+
+
+class VPNProtocol(StrEnum):
+    """Поддерживаемые VPN-протоколы.
+
+    Значения перечисления используются для отображения пользователю
+    и конфигурации подключений.
+
+    Attributes
+        AWG: Протокол Amnezia WireGuard (AmneziaWG).
+            Оптимизированная версия WireGuard с обходом DPI.
+
+        AVPN: Протокол AmneziaVPN.
+            Собственная реализация VPN с дополнительной обфускацией трафика.
+
+        XRAY: Протокол Xray (VLESS + Reality + XHTTP/TLS).
+            Используется для маскировки трафика под обычный HTTPS
+            и обхода сетевых ограничений.
+
+    """
+
+    AWG = "AmneziaWG"
+    AVPN = "AmneziaVPN"
+    XRAY = "X-RAY Vless Reality XHTTP/TLS"
