@@ -24,10 +24,13 @@ def main_kb(
 
     """
     builder = ReplyKeyboardBuilder()
-    if premium_access and active_subscription:
-        builder.row(
-            KeyboardButton(text=MainMenuText.PREMIUM.value),
-        )
+    # if premium_access and active_subscription:
+    #     builder.row(
+    #         KeyboardButton(text=MainMenuText.PREMIUM.value),
+    #     )
+    builder.row(
+        KeyboardButton(text=MainMenuText.PREMIUM.value),
+    )
     if active_subscription:
         for location in Location:
             builder.row(

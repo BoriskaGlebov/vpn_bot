@@ -40,7 +40,7 @@ class MainMenuText(str, Enum):
     CHECK_STATUS = "📈 Проверить статус подписки"
     HELP = "❓ Помощь в настройке VPN"
     ADMIN_PANEL = "⚙️ Панель администратора"
-    PREMIUM = "💎 Мой Премиум"
+    PREMIUM = "💎 Премиум возможности 💎"
 
 
 class Location(str, Enum):

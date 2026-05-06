@@ -2,7 +2,6 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from aiogram import Bot, F
-from aiogram.filters import StateFilter, and_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -18,12 +17,13 @@ from bot.app_error.base_error import AppError, SubscriptionNotFoundError
 from bot.core.config import VPNNode, settings_bot
 from bot.core.filters import IsPremium
 from bot.integrations.redis_client import RedisClient
+from bot.subscription.keyboards.inline_kb import subscription_options_kb
+from bot.subscription.router import SubscriptionStates
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.enums import Location, MainMenuText, VPNProtocol
+from bot.users.enums import Location, MainMenuText, PremiumLocation, VPNProtocol
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
-from bot.vpn.enums import PremiumLocations
 from bot.vpn.keyboards.inline_kb import proxy_url_button, xray_urk_kb
 from bot.vpn.keyboards.markup_kb import premium_locations_kb
 from bot.vpn.services import SSHClientFactory, VPNService
@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 m_vpn = settings_bot.messages.modes.vpn
 m_subscription = settings_bot.messages.modes.subscription
 x_ray_messages = settings_bot.messages.modes.vpn.x_ray
-premium_locations = [location.value for location in PremiumLocations]
 
 
 # TODO тестирование
@@ -107,13 +106,44 @@ class VPNRouter(BaseRouter):
             self.three_x_ui_locations, F.text == MainMenuText.PREMIUM, is_premium
         )
         self.router.message.register(
-            self.generate_subscription,
-            and_f(
-                F.text == PremiumLocations.BULGARIA,
-                StateFilter(VPNStates.check_location),
-            ),
-            is_premium,
+            self.upgrade_subscription,
+            F.text == MainMenuText.PREMIUM,
         )
+
+        for prem_location in PremiumLocation:
+            self.router.message.register(
+                self.get_config_amnezia_vpn,
+                F.text == vpn_button_text(VPNProtocol.AVPN, prem_location),
+                is_premium,
+                flags={"location": prem_location},
+            )
+
+            self.router.message.register(
+                self.get_config_amnezia_wg,
+                F.text == vpn_button_text(VPNProtocol.AWG, prem_location),
+                is_premium,
+                flags={"location": prem_location},
+            )
+            self.router.message.register(
+                self.generate_subscription,
+                F.text == vpn_button_text(VPNProtocol.XRAY, prem_location),
+                is_premium,
+                flags={"location": prem_location},
+            )
+        (
+            self.router.message.register(
+                self.create_proxy_url,
+                F.text == MainMenuText.AMNEZIA_PROXY.value,
+            ),
+        )
+        # self.router.message.register(
+        #     self.generate_subscription,
+        #     and_f(
+        #         F.text == PremiumLocations.BULGARIA,
+        #         StateFilter(VPNStates.check_location),
+        #     ),
+        #     is_premium,
+        # )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
         """Проверка от повторного создания конфиг файла."""
@@ -469,4 +499,46 @@ class VPNRouter(BaseRouter):
 
             await message.answer(
                 text=x_ray_messages.ready_config, reply_markup=xray_urk_kb(url=url)
+            )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def upgrade_subscription(
+        self, message: Message, user: TgUser, state: FSMContext
+    ) -> None:
+        """Отправляет пользователю сообщение с предложением перейти на премиум-подписку.
+
+        Формирует текст с тарифами и преимуществами премиум-плана, после чего
+        отправляет его пользователю вместе с клавиатурой выбора тарифа.
+
+        Перед отправкой переводит FSM в состояние начала оформления подписки.
+
+        Args:
+            message (Message): Объект входящего сообщения от пользователя.
+            user (TgUser): Объект пользователя Telegram (используется для контекста и логики доступа).
+            state (FSMContext): Контекст конечного автомата состояний (FSM) для управления шагами подписки.
+
+        Returns
+            None
+
+        Side effects
+            - Устанавливает состояние FSM `SubscriptionStates.subscription_start`
+            - Отправляет сообщение пользователю с описанием премиум-тарифа
+            - Показывает клавиатуру выбора подписки
+
+        """
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await state.set_state(SubscriptionStates.subscription_start)
+            price_map = settings_bot.pricing.price_map_premium
+            text = m_subscription.upgrade_subscription.format(
+                device_limit=settings_bot.core.max_configs_per_user * 2,
+                month=price_map.get(1, 0),
+                quarter=price_map.get(3, 0),
+                half_year=price_map.get(6, 0),
+                year=price_map.get(12, 0),
+            )
+
+            await message.answer(
+                text=text,
+                reply_markup=subscription_options_kb(premium=True, trial=False),
             )
