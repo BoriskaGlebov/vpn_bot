@@ -16,7 +16,7 @@ from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN, AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
-from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
+from bot.vpn.utils.x_ray_config import XRayRegistry
 
 ssh_lock = asyncio.Lock()
 xray_lock = asyncio.Lock()
@@ -41,11 +41,11 @@ class VPNService:
         self,
         adapter: VPNAPIAdapter,
         user_adapter: UsersAPIAdapter,
-        xray_adapter: ThreeXUIAdapter,
+        xray_registry: XRayRegistry,  # TODO Поменял нужны изменения
     ) -> None:
         self.api_adapter = adapter
         self.user_adapter = user_adapter
-        self.xray_adapter = xray_adapter
+        self.xray_registry = xray_registry
 
     async def _limit_and_user_inf(self, tg_user: TGUser) -> SUserOut:
         """Проверяет лимит пользователя и возвращает пользователя из БД.
@@ -190,11 +190,12 @@ class VPNService:
                 return url_proxy
 
     # TODO наверно не тестировал
-    async def generate_xray_subscription(self, tg_user: TGUser) -> str:
+    async def generate_xray_subscription(self, tg_user: TGUser, location: str) -> str:
         """Создаёт XRay подписку и сохраняет её в БД.
 
         Args:
             tg_user: Telegram пользователь.
+            location: Префикс локации, где создавать подключение.
 
         Returns
             str: URL подписки.
@@ -218,9 +219,9 @@ class VPNService:
         days_left = max((end - now).days, 0) if end else 0
 
         logger.debug("Осталось дней tg_id={} days={}", tg_user.id, days_left)
-
+        adapter = self.xray_registry.get(name=location)
         async with xray_lock:
-            sub_info, sub_url = await self.xray_adapter.add_new_config(
+            sub_info, sub_url = await adapter.add_new_config(
                 tg_id=tg_user.id,
                 days=days_left,
             )
@@ -245,7 +246,7 @@ class VPNService:
 
             async with xray_lock:
                 for cid in config_ids:
-                    await self.xray_adapter.delete_config(config_id=cid)
+                    await adapter.delete_config(config_id=cid)
 
             raise
 

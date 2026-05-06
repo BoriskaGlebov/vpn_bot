@@ -341,37 +341,53 @@ class ThreeXUIAdapter:
         return True
 
 
-#
-# if __name__ == '__main__':
-#     async def main():
-#         user_cred = S3XuiCredentials(username=settings_bot.x_ray_username.get_secret_value(),
-#                                      password=settings_bot.x_ray_password.get_secret_value())
-#         client = APIClient(
-#             base_url=settings_bot.x_ray_base_url_panel,
-#             port=settings_bot.x_ray_panel_port,
-#             scheme="https"
-#
-#         )
-#         adapter = ThreeXUIAdapter(api_client=client, prefix=f"/{settings_bot.x_ray_panel_prefix}")
-#         # await adapter._login(user_credentials=user_cred)
-#         # res = await adapter._get_all_inbounds()
-#         # print(res)
-#         # res2=await adapter._get_inbound(inbounds_cfg=settings_bot.inbounds)
-#         # print(res2)
-#         res, url = await adapter.add_new_config(tg_id=456789,
-#                                                 days=33,
-#                                                 inbounds=settings_bot.inbounds)
-#         # print(res)
-#         # print(res['config_ids'])
-#         # print(res['sub_ids'])
-#         # print(type(json.dumps(res['config_ids'])))
-#         await asyncio.sleep(10)
-#         for i in res['config_ids']:
-#             res= await adapter.delete_config(config_id=i, inbounds=settings_bot.inbounds)
-#             # print(res)
-#             # await asyncio.sleep(3)
-#
-#
-#     #
-#     #
-#     asyncio.run(main())
+class XRayRegistry:
+    """Реестр XRay-адаптеров.
+
+    Хранит набор адаптеров ThreeXUIAdapter, сопоставленных с именами VPN-нод,
+    и предоставляет методы для их получения.
+
+    Используется сервисами для выбора конкретной XRay-ноды при выполнении
+    операций (создание пользователя, выдача подписки и т.д.).
+
+    Attributes
+        _adapters (dict[str, ThreeXUIAdapter]):
+            Словарь адаптеров, где ключ — имя ноды, значение — адаптер XRay.
+
+    Args
+        adapters (dict[str, ThreeXUIAdapter]):
+            Предварительно созданные адаптеры XRay, сгруппированные по именам нод.
+
+    Notes
+        - Класс не изменяет переданный словарь и не управляет жизненным циклом адаптеров.
+        - Не выполняет выбор ноды — только предоставляет доступ.
+        - Валидация наличия ключа делегируется вызывающему коду.
+
+    """
+
+    def __init__(self, adapters: dict[str, ThreeXUIAdapter]) -> None:
+        self._adapters = adapters
+
+    def get(self, name: str) -> ThreeXUIAdapter:
+        """Возвращает адаптер по имени ноды.
+
+        Args:
+            name (str): Имя VPN-ноды.
+
+        Returns
+            ThreeXUIAdapter: Адаптер, соответствующий указанной ноде.
+
+        Raises
+            KeyError: Если адаптер с таким именем не найден.
+
+        """
+        return self._adapters[name]
+
+    def all(self) -> list[ThreeXUIAdapter]:
+        """Возвращает список всех доступных адаптеров.
+
+        Returns
+            list[ThreeXUIAdapter]: Список всех зарегистрированных XRay-адаптеров.
+
+        """
+        return list(self._adapters.values())

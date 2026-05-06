@@ -22,7 +22,7 @@ from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
-from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
+from bot.vpn.utils.x_ray_config import XRayRegistry
 
 m_subscription_local = settings_bot.messages.modes.subscription
 
@@ -79,7 +79,7 @@ class SchedulerBotService:
         adapter: SchedulerAPIAdapter,
         bot: Bot,
         vpn_adapter: VPNAPIAdapter,
-        xray_adapter: ThreeXUIAdapter,
+        xray_registry: XRayRegistry,  # TODO заменил отредайтируй
     ) -> None:
         """Инициализация класса планировщика.
 
@@ -87,12 +87,12 @@ class SchedulerBotService:
             adapter: Клиент для обращения к API планировщика.
             bot: Telegram bot instance для отправки сообщений.
             vpn_adapter: Клиента для обращения к API VPN
-            xray_adapter: Адаптре для работы с 3xui панелью.
+            xray_registry: Адаптры для работы с 3xui панелью.
 
         """
         self.api_adapter = adapter
         self.vpn_adapter = vpn_adapter
-        self.xray_adapter = xray_adapter
+        self.xray_registry = xray_registry
         self.bot = bot
 
     async def _run_check_all(self) -> CheckAllSubscriptionsResponse | None:

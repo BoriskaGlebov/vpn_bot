@@ -20,7 +20,7 @@ from bot.core.filters import IsPremium
 from bot.integrations.redis_client import RedisClient
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.enums import Location, MainMenuText
+from bot.users.enums import Location, MainMenuText, VPNProtocol
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
 from bot.vpn.enums import PremiumLocations
@@ -79,13 +79,18 @@ class VPNRouter(BaseRouter):
         for location in Location:
             self.router.message.register(
                 self.get_config_amnezia_vpn,
-                F.text == vpn_button_text("AmneziaVPN", location),
+                F.text == vpn_button_text(VPNProtocol.AVPN, location),
                 flags={"location": location},
             )
 
             self.router.message.register(
                 self.get_config_amnezia_wg,
-                F.text == vpn_button_text("AmneziaWG", location),
+                F.text == vpn_button_text(VPNProtocol.AWG, location),
+                flags={"location": location},
+            )
+            self.router.message.register(
+                self.generate_subscription,
+                F.text == vpn_button_text(VPNProtocol.XRAY, location),
                 flags={"location": location},
             )
         (
@@ -452,10 +457,15 @@ class VPNRouter(BaseRouter):
         """
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
+            xray_location = await self._get_location_server(message=message)
+            if xray_location is None:
+                raise AppError("Не предалась локация на кнопке вызова Xray конфига")
             await message.answer(
                 x_ray_messages.start_generate, reply_markup=ReplyKeyboardRemove()
             )
-            url = await self.vpn_service.generate_xray_subscription(tg_user=user)
+            url = await self.vpn_service.generate_xray_subscription(
+                tg_user=user, location=xray_location
+            )
 
             await message.answer(
                 text=x_ray_messages.ready_config, reply_markup=xray_urk_kb(url=url)
