@@ -69,7 +69,7 @@ container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 location_prefix= "SOF"
-flag= "🇫🇮"
+flag= "🇧🇬"
 
 
 # === PROXY ===

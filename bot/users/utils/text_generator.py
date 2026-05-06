@@ -1,8 +1,8 @@
 from bot.core.config import settings_bot
-from bot.users.enums import Location
+from bot.users.enums import Location, PremiumLocation
 
 
-def vpn_button_text(protocol: str, location: Location) -> str:
+def vpn_button_text(protocol: str, location: Location | PremiumLocation) -> str:
     """Создает текст кнопок стилизованный под их локации."""
     loc = settings_bot.vpn.nodes.get(location.value)
     if loc:

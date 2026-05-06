@@ -31,8 +31,6 @@ from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG2
 from bot.vpn.utils.mtproto import HostDockerSSHClient
 
-# from vpn.utils import amnezia_wg
-
 if TYPE_CHECKING:
     pass
 
