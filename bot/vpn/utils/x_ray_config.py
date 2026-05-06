@@ -50,6 +50,7 @@ class ThreeXUIAdapter:
         host: str,
         sub_port: int,
         sub_prefix: str,
+        location_prefix: str,
     ) -> None:
         """Инициализирует адаптер 3x-ui.
 
@@ -62,6 +63,7 @@ class ThreeXUIAdapter:
             host (str): Хост XRay.
             sub_port (int): Порт subscription endpoint.
             sub_prefix (str): Префикс subscription endpoint.
+            location_prefix (str): Идентификатор местоположения сервера для БД.
 
         """
         self.api = api_client
@@ -72,6 +74,7 @@ class ThreeXUIAdapter:
         self.host = host
         self.sub_port = sub_port
         self.sub_prefix = sub_prefix
+        self.location_prefix = location_prefix
 
     async def _login(
         self, user_credentials: S3XuiCredentials
@@ -310,7 +313,7 @@ class ThreeXUIAdapter:
                 id=uid,
                 email=f"user_{tg_id}_{uid[:4]}",
                 tgId=tg_id,
-                subId=f"user_{tg_id}",
+                subId=f"{self.location_prefix}user_{tg_id}",
                 flow=flow,
                 limitIp=0,
                 totalGB=0,

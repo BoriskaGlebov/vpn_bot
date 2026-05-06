@@ -58,5 +58,5 @@ def main_kb(
         builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL.value))
     return builder.as_markup(
         resize_keyboard=True,
-        one_time_keyboard=False,
+        one_time_keyboard=True,
     )

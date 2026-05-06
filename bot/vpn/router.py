@@ -537,7 +537,7 @@ class VPNRouter(BaseRouter):
                 half_year=price_map.get(6, 0),
                 year=price_map.get(12, 0),
             )
-
+            await state.update_data(premium=True)
             await message.answer(
                 text=text,
                 reply_markup=subscription_options_kb(premium=True, trial=False),

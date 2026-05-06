@@ -155,6 +155,7 @@ class Container:
                 host=xray.host,
                 sub_port=xray.subscription_port,
                 sub_prefix=xray.subscription_prefix,
+                location_prefix=node.location_prefix,
             )
 
         self._xray_clients = xray_clients

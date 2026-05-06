@@ -182,7 +182,7 @@ class SubscriptionScheduler:
                                 first_name=user.first_name or "undefined",
                                 last_name=user.last_name or "undefined",
                                 message=(
-                                    f"⚠️ Удалён VPN-конфиг\n"
+                                    f"⚠️ Удаляется VPN-конфиг\n"
                                     f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
                                     f"📄 Файл: {file}\n"
                                     f"⏳ Причина: истекла подписка"
@@ -326,7 +326,7 @@ class SubscriptionScheduler:
                     first_name=user.first_name or "undefined",
                     last_name=user.last_name or "undefined",
                     message=(
-                        f"⚠️ Удалён VPN-конфиг (превышение лимита)\n"
+                        f"⚠️ Удаляется VPN-конфиг (превышение лимита)\n"
                         f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
                         f"📄 Файл: {file.file_name}\n"
                         f"📊 Лимит: {limit}, было: {len(configs)}"
