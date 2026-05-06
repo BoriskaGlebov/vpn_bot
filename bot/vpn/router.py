@@ -179,7 +179,8 @@ class VPNRouter(BaseRouter):
         location = message.text.lower()
         for loc in settings_bot.vpn.nodes:
             is_loc_pref_in = loc in location
-            is_flag_in = settings_bot.vpn.nodes.get(loc).flag in location
+            is_location = settings_bot.vpn.get(loc)
+            is_flag_in = is_location.flag in location if is_location else False
             if is_loc_pref_in and is_flag_in:
                 self.logger.debug(
                     "Определил локацию по тексту кнопки {} -> {}.", location, loc
@@ -264,6 +265,8 @@ class VPNRouter(BaseRouter):
 
         """
         location = await self._get_location_server(message=message)
+        if location is None:
+            raise AppError("Не определил локацию сервера.")
         server_info = settings_bot.vpn.get(name=location)
 
         redis_key = f"vpn:config:{user.id}:amnezia_vpn"
@@ -304,6 +307,8 @@ class VPNRouter(BaseRouter):
 
         """
         location = await self._get_location_server(message=message)
+        if location is None:
+            raise AppError("Не определил локацию сервера.")
         server_info = settings_bot.vpn.get(name=location)
 
         redis_key = f"vpn:config:{user.id}:amnezia_wg"

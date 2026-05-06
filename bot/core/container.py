@@ -140,7 +140,7 @@ class Container:
             xray = node.require_xray()
 
             client = APIClient(
-                base_url=xray.url_panel,
+                base_url=xray.url_panel,  # type: ignore[arg-type]
                 port=xray.panel_port,
                 scheme="https",
             )
