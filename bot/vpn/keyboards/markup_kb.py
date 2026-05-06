@@ -24,7 +24,7 @@ def premium_locations_kb() -> ReplyKeyboardMarkup:
             KeyboardButton(text=vpn_button_text(VPNProtocol.AWG, location)),
             KeyboardButton(text=vpn_button_text(VPNProtocol.AVPN, location)),
         )
-        if settings_bot.vpn.nodes.get(location.value.lower()).xray is not None:
+        if settings_bot.vpn.get(location.value.lower()).xray is not None:
             builder.row(
                 KeyboardButton(text=vpn_button_text(VPNProtocol.XRAY, location)),
             )
