@@ -24,14 +24,10 @@ def main_kb(
 
     """
     builder = ReplyKeyboardBuilder()
-    # if premium_access and active_subscription:
-    #     builder.row(
-    #         KeyboardButton(text=MainMenuText.PREMIUM.value),
-    #     )
-    builder.row(
-        KeyboardButton(text=MainMenuText.PREMIUM.value),
-    )
     if active_subscription:
+        builder.row(
+            KeyboardButton(text=MainMenuText.PREMIUM.value),
+        )
         for location in Location:
             builder.row(
                 KeyboardButton(text=vpn_button_text(VPNProtocol.AWG, location)),

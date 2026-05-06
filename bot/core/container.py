@@ -201,4 +201,4 @@ class Container:
 
 if __name__ == "__main__":
     con = Container(bot=bot)
-    print(con.xray_adapters.get("main").sub_port)
+    print(con.xray_adapters.get("main"))

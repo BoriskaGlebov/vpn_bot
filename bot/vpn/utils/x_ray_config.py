@@ -9,7 +9,7 @@ from bot.app_error.api_error import APIClientConnectionError, APIClientError
 from bot.app_error.base_error import AppError
 from bot.core.config import SInbound
 from bot.integrations.api_client import APIClient
-from bot.vpn.DTO import Inbound
+from bot.vpn.DTO import Inbound, UserUUID
 from bot.vpn.schemas import S3XuiCredentials, S3XuiUSerSettings
 
 
@@ -146,6 +146,27 @@ class ThreeXUIAdapter:
 
         logger.info("Получено inbound-конфигураций: {}", len(inbounds))
         return inbounds
+
+    async def _get_all_users(self) -> list[UserUUID]:
+        """Получает все inbound-конфигурации из панели.
+
+        Returns
+            list[UserUUID]: Список идентификаторы-пользователей.
+
+        Raises
+            APIClientError: При ошибке API.
+
+        """
+        logger.info("Запрос списка inbound-конфигураций")
+        data = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
+
+        objs = data.get("obj", [])
+        user_uuids: list[UserUUID] = []
+        for obj in objs:
+            for user in obj["clientStats"]:
+                user_uuids.append(UserUUID(conf_uuid=user["uuid"]))
+        logger.info("Получено идентификаторы-пользователей: {}", len(user_uuids))
+        return user_uuids
 
     async def _add_user(
         self,
@@ -332,6 +353,10 @@ class ThreeXUIAdapter:
             password=self.password,
         )
         await self._login(user_credentials=cred)
+        user_id = await self._get_all_users()
+        if UserUUID(conf_uuid=config_id) not in user_id:
+            logger.debug(f"{config_id} -  нет такого на этом сервер.")
+            return False
         correct_inbounds = await self._get_inbound(inbounds_cfg=self.inbounds_name)
         for inb in correct_inbounds:
             await self.api.post(
@@ -339,6 +364,17 @@ class ThreeXUIAdapter:
             )
         await self._logout()
         return True
+
+    def __repr__(self) -> str:
+        """Строковое представление экземпляра класса."""
+        return (
+            f"ThreeXUIAdapter("
+            f"host={self.host}, "
+            f"prefix={self.prefix}, "
+            f"inbounds={len(self.inbounds_name)}, "
+            f"username={self.username}"
+            f")"
+        )
 
 
 class XRayRegistry:
@@ -391,3 +427,7 @@ class XRayRegistry:
 
         """
         return list(self._adapters.values())
+
+    def __repr__(self) -> str:
+        """Строковое представление экземпляра класса."""
+        return f"XRayRegistry(adapters={list(self._adapters.keys())})"
