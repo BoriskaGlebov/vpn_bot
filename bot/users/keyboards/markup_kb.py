@@ -34,7 +34,13 @@ def main_kb(
                 KeyboardButton(text=vpn_button_text(VPNProtocol.AWG, location)),
                 KeyboardButton(text=vpn_button_text(VPNProtocol.AVPN, location)),
             )
-            if settings_bot.vpn.nodes.get(location.value).xray is not None:
+            if location.name == Location.MAIN.name and (
+                settings_bot.vpn.main.xray is not None
+            ):
+                builder.row(
+                    KeyboardButton(text=vpn_button_text(VPNProtocol.XRAY, location)),
+                )
+            elif settings_bot.vpn.nodes.get(location.value.lower()).xray is not None:
                 builder.row(
                     KeyboardButton(text=vpn_button_text(VPNProtocol.XRAY, location)),
                 )

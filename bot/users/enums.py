@@ -1,4 +1,5 @@
 from enum import Enum, StrEnum
+from pprint import pprint
 
 from bot.core.config import settings_bot
 
@@ -96,3 +97,20 @@ class VPNProtocol(StrEnum):
     AWG = "AmneziaWG"
     AVPN = "AmneziaVPN"
     XRAY = "X-RAY Vless Reality XHTTP/TLS"
+
+
+if __name__ == "__main__":
+    pprint(settings_bot.vpn.model_dump())
+    # print(settings_bot.vpn.main.location_prefix.lower())
+    # print(settings_bot.vpn.fi.location_prefix.lower())
+    # print(settings_bot.vpn.nodes)
+    # for loc in Location:
+    # print(loc.name.lower())
+    # print(loc.name==Location.MAIN.name)
+    # print(settings_bot.vpn.main.xray)
+    # if loc.name==Location.MAIN.name:
+    #     print(settings_bot.vpn.nodes.get(loc.name.lower()))
+    # else:
+    #     print(settings_bot.vpn.nodes.get(loc.value))
+    # print(settings_bot.vpn.nodes.get("fi"))
+    # print(settings_bot.vpn.nodes.get("main"))
