@@ -76,7 +76,6 @@ class UserStates(StatesGroup):  # type: ignore[misc]
     press_admin: State = State()
 
 
-# TODO тут добавились новыые методы нужно тестирование
 class UserRouter(BaseRouter):
     """Роутер для обработки пользовательских команд и сообщений.
 
