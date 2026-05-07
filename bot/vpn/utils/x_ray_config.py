@@ -13,7 +13,6 @@ from bot.vpn.DTO import Inbound, UserUUID
 from bot.vpn.schemas import S3XuiCredentials, S3XuiUSerSettings
 
 
-# TODO тесты
 class ThreeXUIAdapter:
     """Адаптер для взаимодействия с панелью 3x-ui.
 
@@ -123,8 +122,9 @@ class ThreeXUIAdapter:
                 url=f"{self.prefix}/logout",
             )
             logger.info("Успешный выход из 3x-ui")
-        except APIClientError:
-            logger.warning("Разлогинил пользователя.")
+        except APIClientError as e:
+            logger.info("Logout response обработан как successful: %s", e)
+        logger.info("Сессия завершена (logout)")
 
     async def _get_all_inbounds(self) -> list[Inbound]:
         """Получает все inbound-конфигурации из панели.

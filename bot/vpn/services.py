@@ -31,10 +31,17 @@ class VPNService:
     """Сервис управления VPN-конфигурациями и XRay-подписками.
 
     Отвечает за:
-    - проверку лимитов пользователей
-    - генерацию VPN/WireGuard конфигураций
-    - создание MTProto прокси ссылок
-    - управление XRay подписками
+        - проверку лимитов пользователей
+        - генерацию VPN/WireGuard-конфигураций
+        - создание MTProto proxy-ссылок
+        - управление XRay-подписками
+        - сохранение конфигураций в БД
+
+    Attributes
+        api_adapter: Адаптер для работы с VPN API.
+        user_adapter: Адаптер для работы с пользователями.
+        xray_registry: Реестр XRay-адаптеров по локациям.
+
     """
 
     def __init__(
@@ -43,6 +50,14 @@ class VPNService:
         user_adapter: UsersAPIAdapter,
         xray_registry: XRayRegistry,  # TODO Поменял нужны изменения
     ) -> None:
+        """Инициализирует сервис управления VPN-конфигурациями.
+
+        Args:
+            adapter: Адаптер для взаимодействия с VPN API.
+            user_adapter: Адаптер для работы с пользователями.
+            xray_registry: Реестр XRay-адаптеров.
+
+        """
         self.api_adapter = adapter
         self.user_adapter = user_adapter
         self.xray_registry = xray_registry
@@ -90,31 +105,29 @@ class VPNService:
 
         Алгоритм работы:
             1. Проверяет лимит конфигураций пользователя.
-            2. Регистрирует пользователя в системе (если отсутствует).
-            3. Подключается к VPN-серверу через SSH-клиент.
-            4. Создаёт конфигурационный файл пользователя.
+            2. Регистрирует пользователя в системе при необходимости.
+            3. Подключается к VPN-серверу через SSH.
+            4. Генерирует пользовательскую конфигурацию.
             5. Сохраняет метаданные конфигурации в БД.
-            6. При ошибке БД выполняет откат на стороне SSH.
+            6. Выполняет rollback на стороне SSH при ошибке БД.
 
         Args:
-            tg_user (TGUser): Пользователь Telegram.
-            ssh_client_factory (type[AsyncSSHClientVPN | AsyncSSHClientWG]):
-                Класс SSH-клиента для подключения к серверу.
-            server_info (VPNNode):
-                Конфигурация VPN-сервера (host, container, username и т.д.).
+            tg_user: Telegram-пользователь.
+            ssh_client_factory:
+                Фабрика SSH-клиентов для подключения к VPN-серверу.
+            server_info:
+                Конфигурация VPN-сервера.
 
         Returns
             tuple[Path, str]:
-                - Path: путь к сгенерированному конфигурационному файлу
-                - str: публичный ключ (или идентификатор конфигурации)
+                Кортеж:
+                    - путь к конфигурационному файлу
+                    - публичный ключ или идентификатор конфигурации
 
         Raises
-            VPNLimitError:
-                Если пользователь превысил лимит конфигураций.
-            APIClientError:
-                Если произошла ошибка при сохранении конфигурации в БД.
-            AppError:
-                Если произошла критическая ошибка генерации.
+            VPNLimitError: Если пользователь превысил лимит конфигураций.
+            APIClientError: При ошибке сохранения конфигурации в БД.
+            AppError: При критической ошибке генерации конфигурации.
 
         """
         logger.info("Генерация VPN конфига tg_id={}", tg_user.id)
@@ -161,17 +174,19 @@ class VPNService:
     async def get_mtproto_url(
         self, ssh_client_factory: type[HostDockerSSHClient], server_info: VPNNode
     ) -> str:
-        """Генерирует MTProto proxy ссылку.
+        """Генерирует MTProto proxy-ссылку.
 
         Args:
-            ssh_client_factory: SSH клиент для docker хоста.
-            server_info: конфигурация сервера.
+            ssh_client_factory:
+                SSH-клиент для подключения к docker-хосту.
+            server_info:
+                Конфигурация VPN-сервера.
 
         Returns
-            str: ссылка прокси.
+            str: MTProto proxy-ссылка.
 
         Raises
-            AppError: если proxy не настроен.
+            AppError: Если MTProto proxy не настроен.
 
         """
         proxy_info = server_info.proxy
@@ -191,18 +206,26 @@ class VPNService:
 
     # TODO наверно не тестировал
     async def generate_xray_subscription(self, tg_user: TGUser, location: str) -> str:
-        """Создаёт XRay подписку и сохраняет её в БД.
+        """Создаёт XRay-подписку и сохраняет её в БД.
+
+        Алгоритм работы:
+            1. Проверяет лимит пользователя.
+            2. Определяет оставшееся время действия подписки.
+            3. Создаёт XRay-конфигурации через адаптер локации.
+            4. Сохраняет subscription-данные в БД.
+            5. Выполняет rollback конфигураций при ошибке БД.
 
         Args:
-            tg_user: Telegram пользователь.
-            location: Префикс локации, где создавать подключение.
+            tg_user: Telegram-пользователь.
+            location: Префикс локации для создания подключения.
 
         Returns
-            str: URL подписки.
+            str: URL XRay-подписки.
 
         Raises
-            VPNLimitError
-            APIClientError
+            VPNLimitError: Если превышен лимит конфигураций.
+            APIClientError: При ошибке сохранения конфигурации в БД.
+            RuntimeError: Если адаптер не вернул subscription ID.
 
         """
         logger.info("Генерация XRay tg_id={}", tg_user.id)
