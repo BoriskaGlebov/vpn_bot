@@ -30,7 +30,6 @@ m_subscription_local = settings_bot.messages.modes.subscription
 ALL_LOCATIONS = (*Location, *PremiumLocation)
 
 
-# TODO Тестирование возможно станет не актуальным
 @dataclass
 class SubscriptionBotStats:
     """Агрегатор статистики проверки подписок.
@@ -79,7 +78,7 @@ class SchedulerBotService:
         adapter: SchedulerAPIAdapter,
         bot: Bot,
         vpn_adapter: VPNAPIAdapter,
-        xray_registry: XRayRegistry,  # TODO заменил отредактируй
+        xray_registry: XRayRegistry,
     ) -> None:
         """Инициализация класса планировщика.
 
@@ -87,7 +86,7 @@ class SchedulerBotService:
             adapter: Клиент для обращения к API планировщика.
             bot: Telegram bot instance для отправки сообщений.
             vpn_adapter: Клиента для обращения к API VPN
-            xray_registry: Адаптры для работы с 3xui панелью.
+            xray_registry: Адаптеры для работы с 3xui панелью.
 
         """
         self.api_adapter = adapter
@@ -164,6 +163,7 @@ class SchedulerBotService:
     async def _handle_broken_pipe(
         self, client_cls: AsyncSSHClientWG, error: Exception
     ) -> None:
+        """Обработка события, когда не может подключиться к контейнеру с настройками."""
         logger.error("SSH соединение разорвано ({}): {}", str(client_cls), error)
 
         await send_to_admins(
@@ -180,26 +180,18 @@ class SchedulerBotService:
         config_id: str,
         serv_loc: str,
     ) -> None:
-        logger.error("SSH соединение разорвано ({}): {}", str(client_cls), error)
+        """Обработчик ошибки работы с 3XUI панелью."""
+        logger.error(
+            "Ошибка при осуществлении запроса к XRAY панели: ({}): {}",
+            str(client_cls),
+            error,
+        )
 
         await send_to_admins(
             bot=self.bot,
             message_text=(
                 f"⚠️ Ошибка удаления config_id={config_id} в {serv_loc}: {error}\n\n"
                 f"ThreeXUIAdapter - {client_cls}"
-            ),
-        )
-
-    async def _handle_not_found(
-        self, cfg: DeletedVPNConfigSchema, client_cls: AsyncSSHClientWG
-    ) -> None:
-        logger.warning("Не найден в {}: {}", client_cls, cfg.file_name)
-
-        await send_to_admins(
-            bot=self.bot,
-            message_text=(
-                "🔔 Требуется проверка.\n"
-                f"Не найден в {str(client_cls)}: {cfg.file_name}"
             ),
         )
 
@@ -298,8 +290,6 @@ class SchedulerBotService:
                             )
                             return DeleteStatus.DELETED
 
-                        # await self._handle_not_found(cfg, client_cls)
-
                 except AmneziaError as e:
                     logger.error("SSH deletion error ({}): {}", client_cls.__name__, e)
                     deletion_statistic.append(DeleteStatus.ERROR)
@@ -313,9 +303,6 @@ class SchedulerBotService:
                 if DeleteStatus.ERROR not in deletion_statistic
                 else DeleteStatus.ERROR
             )
-
-        logger.info("Конфиг не найден ни на одном SSH сервере")
-        return DeleteStatus.NOT_FOUND
 
     async def _trigger_config_deletion(
         self,
@@ -337,7 +324,6 @@ class SchedulerBotService:
                     continue
                 if ssh_status == DeleteStatus.ERROR:
                     logger.error("SSH ошибка → НЕ удаляю из БД {}", cfg.file_name)
-                    # continue
 
                 if ssh_status in (DeleteStatus.NOT_FOUND, DeleteStatus.ERROR):
                     logger.info(f"Файл не найден в Amnezia {cfg.file_name} ищу в 3x-ui")
@@ -359,8 +345,6 @@ class SchedulerBotService:
                     else:
                         logger.error("Ошибка 3x-ui → НЕ удаляю из БД {}", cfg.file_name)
             return count_deleted
-            # logger.info("Все возможные места проверил теперь удаляю.")
-            # await self._delete_from_db(cfg)
 
     async def _trigger_proxy_deletion(self, tg_id: int) -> None:
         """Триггер удаления прокси через внешний сервис."""
@@ -402,7 +386,8 @@ class SchedulerBotService:
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
-        result = await self._run_check_all()
+        result: CheckAllSubscriptionsResponse | None = await self._run_check_all()
+
         stats = SubscriptionBotStats(
             checked=result.stats.checked if result else 0,
             expired=result.stats.expired if result else 0,
