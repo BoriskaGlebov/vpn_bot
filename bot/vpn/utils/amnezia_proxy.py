@@ -8,7 +8,6 @@ import docker
 from docker.errors import DockerException
 from loguru import logger
 
-from bot.core.config import settings_bot
 from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
 
@@ -426,22 +425,3 @@ class AmneziaProxy:
             stdout=stdout,
             stderr=stderr,
         )
-
-
-if __name__ == "__main__":
-
-    async def main() -> None:
-        """Для тестов."""
-        async with AsyncDockerSSHClient(
-            host=settings_bot.vpn_host,
-            username=settings_bot.vpn_username,
-            container=settings_bot.vpn_proxy,
-        ) as client:
-            await client.connect()
-            proxy = AmneziaProxy(client=client, port=settings_bot.proxy_port)
-            await proxy._check_container()
-            await proxy.add_user(username="user1", password="password")
-            await proxy.delete_user(username="user1")
-            await proxy.reload_3proxy()
-
-    asyncio.run(main())

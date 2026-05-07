@@ -28,18 +28,18 @@ class ThreeXUIAdapter:
         - Генерация subscription-ссылок
 
     Attributes
-        api (APIClient): HTTP-клиент для работы с API панели.
-        prefix (str): Базовый префикс API (например, "/panel").
-        inbounds_name (list[SInbound]): Список ожидаемых inbound-конфигураций.
-        username (str): Логин администратора панели.
-        password (str): Пароль администратора панели.
-        host (str): Домен XRay-сервера.
-        sub_port (int): Порт subscription endpoint.
-        sub_prefix (str): Префикс subscription endpoint.
+        api: HTTP-клиент для работы с API панели.
+        prefix: Базовый префикс API (например, "/panel").
+        inbounds_name: Список ожидаемых inbound-конфигураций.
+        username: Логин администратора панели.
+        password: Пароль администратора панели.
+        host: Домен XRay-сервера.
+        sub_port: Порт subscription endpoint.
+        sub_prefix: Префикс subscription endpoint.
+        location_prefix: Идентификатор местоположения сервера для БД.
 
     """
 
-    # TODO докумнетация
     def __init__(
         self,
         api_client: APIClient,
@@ -55,15 +55,15 @@ class ThreeXUIAdapter:
         """Инициализирует адаптер 3x-ui.
 
         Args:
-            api_client (APIClient): HTTP-клиент.
-            prefix (str): Префикс API (например, "/panel").
-            correct_inbounds (list[SInbound]): Ожидаемые inbound-конфигурации.
-            username (str): Логин администратора панели.
-            password (str): Пароль администратора панели.
-            host (str): Хост XRay.
-            sub_port (int): Порт subscription endpoint.
-            sub_prefix (str): Префикс subscription endpoint.
-            location_prefix (str): Идентификатор местоположения сервера для БД.
+            api_client: HTTP-клиент для взаимодействия с API.
+            prefix: Префикс API (например, "/panel").
+            correct_inbounds: Список ожидаемых inbound-конфигураций.
+            username: Логин администратора панели.
+            password: Пароль администратора панели.
+            host: Хост XRay-сервера.
+            sub_port: Порт subscription endpoint.
+            sub_prefix: Префикс subscription endpoint.
+            location_prefix: Префикс локации для формирования subscription ID.
 
         """
         self.api = api_client
@@ -81,18 +81,18 @@ class ThreeXUIAdapter:
     ) -> tuple[dict[str, Any], int]:
         """Авторизация в панели 3x-ui.
 
-        Устанавливает сессию в API клиенте.
+        Устанавливает сессию в API-клиенте.
 
         Args:
-            user_credentials: DTO с логином и паролем администратора.
+            user_credentials: Объект с логином и паролем администратора.
 
         Returns
-            tuple:
-                - dict: ответ API
-                - int: HTTP статус код
+            tuple: (response, status_code)
+                response: Ответ API.
+                status_code: HTTP статус-код.
 
         Raises
-            APIClientConnectionError: при ошибке соединения с API.
+            APIClientConnectionError: При ошибке соединения с API.
 
         """
         logger.debug(
@@ -111,7 +111,11 @@ class ThreeXUIAdapter:
         """Завершает сессию в панели 3x-ui.
 
         Ошибки игнорируются, так как операция не критична
-        и не влияет на дальнейшее выполнение.
+        для дальнейшего выполнения.
+
+        Raises
+            APIClientError: Ошибка API игнорируется внутри метода.
+
         """
         try:
             logger.info("Попытка выхода из 3x-ui")
@@ -151,13 +155,13 @@ class ThreeXUIAdapter:
         return inbounds
 
     async def _get_all_users(self) -> list[UserUUID]:
-        """Получает все inbound-конфигурации из панели.
+        """Получает список всех пользователей (UUID) из inbound-конфигураций.
 
         Returns
-            list[UserUUID]: Список идентификаторы-пользователей.
+            list[UserUUID]: Список UUID пользователей.
 
         Raises
-            APIClientError: При ошибке API.
+            APIClientError: При ошибке запроса к API.
 
         """
         logger.info("Запрос списка inbound-конфигураций")
@@ -176,16 +180,16 @@ class ThreeXUIAdapter:
         inbound_id: int,
         user_add: S3XuiUSerSettings,
     ) -> tuple[dict[str, Any], int]:
-        """Добавляет пользователя в inbound.
+        """Добавляет пользователя в указанную inbound-конфигурацию.
 
         Args:
-            inbound_id (int): ID inbound-конфигурации.
-            user_add (S3XuiUSerSettings): DTO с настройками пользователя.
+            inbound_id: Идентификатор inbound.
+            user_add: Параметры создаваемого пользователя.
 
         Returns
-            tuple[dict[str, Any], int]:
-                - Ответ API
-                - HTTP статус код
+            tuple: (response, status_code)
+                response: Ответ API.
+                status_code: HTTP статус-код.
 
         Raises
             APIClientError: При ошибке API.
@@ -213,14 +217,14 @@ class ThreeXUIAdapter:
         )
 
     async def _restart_x_ray(self) -> tuple[dict[str, Any], int] | None:
-        """Перезапускает XRay сервис.
+        """Перезапускает сервис XRay.
 
         Returns
-            tuple[dict[str, Any], int] | None:
-                Ответ API или None при ошибке соединения.
+            Optional[tuple]: Ответ API при успехе, иначе None.
 
         Notes
-            Ошибка может возникнуть при активных соединениях или недоступности сервера.
+            Может возвращать None при активных соединениях или
+            недоступности сервера.
 
         """
         try:
@@ -235,20 +239,18 @@ class ThreeXUIAdapter:
             return None
 
     async def _get_inbound(self, inbounds_cfg: list[SInbound]) -> list[Inbound]:
-        """Возвращает inbound-конфигурации, соответствующие ожидаемым.
+        """Получает inbound-конфигурации, соответствующие заданным критериям.
 
-        Сопоставление происходит по:
-            - port
-            - remark (name)
+        Сопоставление выполняется по портам и имени (remark).
 
         Args:
-            inbounds_cfg (list[SInbound]): Ожидаемые inbound-конфигурации.
+            inbounds_cfg: Список ожидаемых inbound-конфигураций.
 
         Returns
-            list[Inbound]: Найденные inbound.
+            list[Inbound]: Найденные inbound-конфигурации.
 
         Raises
-            AppError: Если найдено меньше inbound, чем ожидается.
+            AppError: Если найдено меньше inbound, чем ожидалось.
 
         """
         all_inbounds = await self._get_all_inbounds()
@@ -264,31 +266,33 @@ class ThreeXUIAdapter:
         tg_id: int,
         days: int = 0,
     ) -> tuple[dict[str, list[str]], str]:
-        """Создаёт новую VPN-конфигурацию для пользователя.
+        """Создаёт новую VPN-конфигурацию пользователя.
 
         Полный цикл:
             1. Авторизация
-            2. Получение inbound
+            2. Получение inbound-конфигураций
             3. Генерация пользователя
-            4. Добавление в каждый inbound
+            4. Добавление пользователя в inbound
             5. Перезапуск XRay
             6. Формирование subscription URL
 
         Args:
-            tg_id (int): Telegram ID пользователя.
-            days (int, optional): Срок действия в днях.
+            tg_id: Telegram ID пользователя.
+            days: Срок действия конфигурации в днях.
                 0 — бессрочная конфигурация.
 
         Returns
-            tuple[dict[str, list[str]], str]:
-                - Словарь:
-                    - config_ids: list[str] — UUID конфигов
-                    - sub_ids: list[str] — subscription ID
-                - subscription URL
+            tuple: (
+                dict: {
+                    "config_ids": list[str],
+                    "sub_ids": list[str]
+                },
+                subscription_url: str
+            )
 
         Raises
-            AppError: Если inbound не найден.
-            APIClientError: При ошибке API.
+            AppError: При отсутствии необходимых inbound.
+            APIClientError: При ошибках API.
 
         """
         logger.info("Создание новой конфигурации для tg_id={} на {} дней", tg_id, days)
@@ -339,13 +343,14 @@ class ThreeXUIAdapter:
         self,
         config_id: str,
     ) -> bool:
-        """Удаляет конфигурацию пользователя из всех целевых inbound.
+        """Удаляет конфигурацию пользователя из всех inbound.
 
         Args:
-            config_id (str): UUID конфигурации.
+            config_id: UUID конфигурации пользователя.
 
         Returns
-            bool: True при успешном выполнении.
+            bool: True, если удаление выполнено успешно,
+            False если конфигурация не найдена.
 
         Raises
             APIClientError: При ошибке API.
@@ -369,7 +374,12 @@ class ThreeXUIAdapter:
         return True
 
     def __repr__(self) -> str:
-        """Строковое представление экземпляра класса."""
+        """Строковое представление экземпляра класса.
+
+        Returns
+            str: Краткое описание адаптера (host, prefix, inbound count, username).
+
+        """
         return (
             f"ThreeXUIAdapter("
             f"host={self.host}, "
