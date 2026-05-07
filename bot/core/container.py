@@ -5,7 +5,7 @@ from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
-from bot.core.config import bot, settings_bot
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
@@ -24,65 +24,67 @@ from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 
-# TODO не валидная документация
 class Container:
     """DI-контейнер приложения.
 
-    Отвечает за создание и связывание зависимостей между слоями:
-    API-клиентами, адаптерами, сервисами и инфраструктурой (Redis, XRay).
+    Отвечает за создание и связывание зависимостей:
+    API-клиентов, адаптеров, сервисов и инфраструктуры (Redis, XRay).
 
     Архитектура
         APIClient:
-            Низкоуровневый HTTP-клиент для внешнего API и XRay-панелей.
+            HTTP-клиент для backend API и XRay-панелей.
 
         Adapters:
-            Обёртки над API-клиентами, инкапсулирующие HTTP-вызовы.
+            Обёртки над APIClient, инкапсулирующие HTTP-запросы.
 
         Services:
-            Слой бизнес-логики, использующий адаптеры.
+            Бизнес-логика, использующая адаптеры.
 
         Redis:
-            Используется для кеша и временных данных (FSM, embedding и пр.).
+            Общий RedisClient для кеша и временных данных.
 
         XRayRegistry:
-            Реестр XRay-нод (несколько VPN-серверов), каждая со своим API-клиентом
-            и адаптером ThreeXUIAdapter.
+            Реестр XRay-нoд, создаётся из settings_bot.vpn.nodes.
 
     Attributes
-        redis_manager (RedisClient): Менеджер подключения к Redis.
+        redis_manager (RedisClient): подключение к Redis.
+        api_client (APIClient): клиент backend API.
 
-        api_client (APIClient): HTTP-клиент для основного backend API.
+        user_adapter (UsersAPIAdapter)
+        admin_adapter (AdminAPIAdapter)
+        subscription_adapter (SubscriptionAPIAdapter)
+        referral_adapter (ReferralAPIAdapter)
+        vpn_adapter (VPNAPIAdapter)
+        news_adapter (NewsAPIAdapter)
+        scheduler_adapter (SchedulerAPIAdapter)
 
-        user_adapter (UsersAPIAdapter): Адаптер пользователей.
-        admin_adapter (AdminAPIAdapter): Адаптер админских операций.
-        subscription_adapter (SubscriptionAPIAdapter): Адаптер подписок.
-        referral_adapter (ReferralAPIAdapter): Адаптер рефералов.
-        vpn_adapter (VPNAPIAdapter): Адаптер VPN API.
-        news_adapter (NewsAPIAdapter): Адаптер новостей.
-        scheduler_adapter (SchedulerAPIAdapter): Адаптер планировщика.
+        _xray_clients (list[APIClient]): HTTP-клиенты XRay (для shutdown).
+        xray_adapters (XRayRegistry): реестр VPN/XRay нод.
 
-        xray_adapters (XRayRegistry): Реестр XRay-нод.
+        user_service (UserService)
+        admin_service (AdminService)
+        subscription_service (SubscriptionService)
+        referral_service (ReferralService)
+        vpn_service (VPNService)
+        news_service (NewsService)
+        scheduler_bot_service (SchedulerBotService)
 
-        user_service (UserService): Сервис пользователей.
-        admin_service (AdminService): Сервис администрирования.
-        subscription_service (SubscriptionService): Сервис подписок.
-        referral_service (ReferralService): Сервис рефералов.
-        vpn_service (VPNService): Сервис управления VPN.
-        news_service (NewsService): Сервис новостей.
-        scheduler_bot_service (SchedulerBotService): Сервис задач бота.
+        redis_admin_mess_storage (RedisAdminMessageStorage)
+        redis_embedding_cache (RedisEmbeddingCache)
 
-        redis_admin_mess_storage (RedisAdminMessageStorage):
-            Хранилище сообщений админки.
+        bot (Bot): экземпляр aiogram Bot (используется в scheduler).
 
-        redis_embedding_cache (RedisEmbeddingCache):
-            Кеш эмбеддингов.
+        chat_service (ChatService | None): отключён (в разработке).
 
     Notes
-        - Контейнер создаёт XRayRegistry на основе настроек VPNRegistry.
-        - Для каждой ноды создаётся отдельный APIClient.
-        - Все XRay-клиенты корректно закрываются при shutdown().
-        - Контейнер не содержит бизнес-логики и не выбирает ноды —
-          это ответственность сервисов.
+        - Конфигурация берётся из settings_bot (api, redis, vpn).
+        - XRayRegistry инициализируется из settings_bot.vpn.nodes.
+        - Каждый XRay node имеет собственный APIClient.
+        - Все XRay APIClient закрываются в shutdown().
+        - Redis подключается в init().
+
+        Контейнер не содержит бизнес-логики и не выбирает VPN-ноды —
+        он только создаёт их из конфигурации.
 
     """
 
@@ -198,8 +200,3 @@ class Container:
         await self.api_client.close()
         for client in self._xray_clients:
             await client.close()
-
-
-if __name__ == "__main__":
-    con = Container(bot=bot)
-    print(con.xray_adapters.get("main"))
