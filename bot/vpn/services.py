@@ -26,7 +26,6 @@ SSHClientFactory = Callable[
 ]
 
 
-# TODO тесты логи документация
 class VPNService:
     """Сервис управления VPN-конфигурациями и XRay-подписками.
 
@@ -48,7 +47,7 @@ class VPNService:
         self,
         adapter: VPNAPIAdapter,
         user_adapter: UsersAPIAdapter,
-        xray_registry: XRayRegistry,  # TODO Поменял нужны изменения
+        xray_registry: XRayRegistry,
     ) -> None:
         """Инициализирует сервис управления VPN-конфигурациями.
 
@@ -204,7 +203,6 @@ class VPNService:
                 url_proxy = await mtproto.get_proxy_link()
                 return url_proxy
 
-    # TODO наверно не тестировал
     async def generate_xray_subscription(self, tg_user: TGUser, location: str) -> str:
         """Создаёт XRay-подписку и сохраняет её в БД.
 
