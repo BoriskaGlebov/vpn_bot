@@ -176,6 +176,7 @@ class VPNNode(SettingsCommon):
         container_old (str | None): Старое имя контейнера.
         use_local (bool): Использовать локальную ноду.
         location_prefix (str): Префикс для определения локации файла, базово Франция
+        flag (str): Флаг страны для кнопок.
         proxy (ProxySettings | None): Настройки прокси.
         xray (XRaySettingsSOF | None): Настройки XRay.
 
@@ -187,6 +188,7 @@ class VPNNode(SettingsCommon):
     container_old: str | None = None
     use_local: bool = False
     location_prefix: str = "FR"
+    flag: str = "🏴‍☠️"
     proxy: ProxySettings | None = None
     xray: XRaySettings | None = None
 
@@ -409,3 +411,8 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
+
+
+if __name__ == "__main__":
+    s = settings_bot.vpn.get("main")
+    print(s.xray)

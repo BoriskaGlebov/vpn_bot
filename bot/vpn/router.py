@@ -2,7 +2,6 @@ import asyncio
 from typing import TYPE_CHECKING
 
 from aiogram import Bot, F
-from aiogram.filters import StateFilter, and_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -14,36 +13,35 @@ from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.app_error.base_error import SubscriptionNotFoundError
-from bot.core.config import settings_bot
+from bot.app_error.base_error import AppError, SubscriptionNotFoundError
+from bot.core.config import VPNNode, settings_bot
 from bot.core.filters import IsPremium
 from bot.integrations.redis_client import RedisClient
+from bot.subscription.keyboards.inline_kb import subscription_options_kb
+from bot.subscription.router import SubscriptionStates
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.enums import MainMenuText
+from bot.users.enums import Location, MainMenuText, PremiumLocation, VPNProtocol
+from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
-from bot.vpn.enums import PremiumLocations
 from bot.vpn.keyboards.inline_kb import proxy_url_button, xray_urk_kb
 from bot.vpn.keyboards.markup_kb import premium_locations_kb
-from bot.vpn.services import VPNService
+from bot.vpn.services import SSHClientFactory, VPNService
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG2
-from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
+from bot.vpn.utils.mtproto import HostDockerSSHClient
 
 if TYPE_CHECKING:
     pass
 
-ssh_lock = asyncio.Lock()
-xray_lock = asyncio.Lock()
-
 m_vpn = settings_bot.messages.modes.vpn
 m_subscription = settings_bot.messages.modes.subscription
 x_ray_messages = settings_bot.messages.modes.vpn.x_ray
-premium_locations = [location.value for location in PremiumLocations]
 
 
 # TODO тестирование
 # TODO убрать из роута работу с сервисом ВПН.
+# TODO тут добавились новыые методы нужно тестирование
 class VPNStates(StatesGroup):  # type: ignore[misc]
     """Состояния роутера генерации конфиг файлов."""
 
@@ -76,14 +74,24 @@ class VPNRouter(BaseRouter):
     def _register_handlers(self) -> None:
         """Регистрация хендлеров."""
         is_premium = IsPremium(user_adapter=self.user_adapter)
-        self.router.message.register(
-            self.get_config_amnezia_vpn,
-            F.text == MainMenuText.AMNEZIA_VPN.value,
-        )
-        self.router.message.register(
-            self.get_config_amnezia_wg,
-            F.text == MainMenuText.AMNEZIA_WG.value,
-        )
+
+        for location in Location:
+            self.router.message.register(
+                self.get_config_amnezia_vpn,
+                F.text == vpn_button_text(VPNProtocol.AVPN, location),
+                flags={"location": location},
+            )
+
+            self.router.message.register(
+                self.get_config_amnezia_wg,
+                F.text == vpn_button_text(VPNProtocol.AWG, location),
+                flags={"location": location},
+            )
+            self.router.message.register(
+                self.generate_subscription,
+                F.text == vpn_button_text(VPNProtocol.XRAY, location),
+                flags={"location": location},
+            )
         (
             self.router.message.register(
                 self.create_proxy_url,
@@ -98,13 +106,44 @@ class VPNRouter(BaseRouter):
             self.three_x_ui_locations, F.text == MainMenuText.PREMIUM, is_premium
         )
         self.router.message.register(
-            self.generate_subscription,
-            and_f(
-                F.text == PremiumLocations.BULGARIA,
-                StateFilter(VPNStates.check_location),
-            ),
-            is_premium,
+            self.upgrade_subscription,
+            F.text == MainMenuText.PREMIUM,
         )
+
+        for prem_location in PremiumLocation:
+            self.router.message.register(
+                self.get_config_amnezia_vpn,
+                F.text == vpn_button_text(VPNProtocol.AVPN, prem_location),
+                is_premium,
+                flags={"location": prem_location},
+            )
+
+            self.router.message.register(
+                self.get_config_amnezia_wg,
+                F.text == vpn_button_text(VPNProtocol.AWG, prem_location),
+                is_premium,
+                flags={"location": prem_location},
+            )
+            self.router.message.register(
+                self.generate_subscription,
+                F.text == vpn_button_text(VPNProtocol.XRAY, prem_location),
+                is_premium,
+                flags={"location": prem_location},
+            )
+        (
+            self.router.message.register(
+                self.create_proxy_url,
+                F.text == MainMenuText.AMNEZIA_PROXY.value,
+            ),
+        )
+        # self.router.message.register(
+        #     self.generate_subscription,
+        #     and_f(
+        #         F.text == PremiumLocations.BULGARIA,
+        #         StateFilter(VPNStates.check_location),
+        #     ),
+        #     is_premium,
+        # )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
         """Проверка от повторного создания конфиг файла."""
@@ -117,86 +156,232 @@ class VPNRouter(BaseRouter):
             return False
         return True
 
-    @BaseRouter.log_method
-    @BaseRouter.require_user
-    async def get_config_amnezia_vpn(
-        self, message: Message, user: TgUser, state: FSMContext
+    async def _get_location_server(
+        self,
+        message: Message,
+    ) -> str | None:
+        """Определяет сервер VPN по тексту сообщения.
+
+        Args:
+            message (Message): сообщение пользователя с выбранной локацией.
+
+        Returns
+            str | None: имя сервера, если найдено совпадение, иначе None.
+
+        Raises
+            AppError: если message.text отсутствует.
+
+        """
+        if message.text is None:
+            raise AppError(
+                "Почему-то кнопка не передала текст при выборе локации сервера."
+            )
+        location = message.text.lower()
+        for loc in settings_bot.vpn.nodes:
+            is_loc_pref_in = loc in location
+            is_location = settings_bot.vpn.get(loc)
+            is_flag_in = is_location.flag in location if is_location else False
+            if is_loc_pref_in and is_flag_in:
+                self.logger.debug(
+                    "Определил локацию по тексту кнопки {} -> {}.", location, loc
+                )
+                return loc
+        return None
+
+    async def _handle_vpn_config(
+        self,
+        *,
+        message: Message,
+        user: TgUser,
+        state: FSMContext,
+        ssh_client_factory: SSHClientFactory,
+        server_info: VPNNode,
+        redis_key: str,
+        start_text: str,
     ) -> None:
-        """Пользователь получает конфиг AmneziaVPN."""
-        redis_key = f"vpn:config:{user.id}:amnezia_vpn"
-        acquired_check = await self._check_acquired(redis_key, message)
-        if not acquired_check:
-            return
+        """Генерирует и отправляет VPN конфигурацию пользователю.
+
+        Args:
+            message (Message): входящее сообщение Telegram.
+            user (TgUser): пользователь Telegram.
+            state (FSMContext): FSM состояние.
+            ssh_client_factory (SSHClientFactory): фабрика SSH клиента.
+            server_info (VPNNode): конфигурация сервера VPN.
+            redis_key (str): ключ блокировки генерации.
+            start_text (str): текст начала процесса.
+
+        Side Effects
+            - создаёт VPN конфиг
+            - отправляет файл пользователю
+            - очищает FSM и Redis lock
+
+        """
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             status_msg = await message.answer(
-                text=m_vpn.amnezia_vpn,
+                text=start_text,
                 reply_markup=ReplyKeyboardRemove(),
             )
-            try:
-                async with ssh_lock:
-                    async with AsyncSSHClientVPN2(
-                        host=self.main_vpn.host,
-                        username=self.main_vpn.username,
-                        known_hosts=None,
-                        container=self.main_vpn.container,
-                        use_local=self.main_vpn.use_local,
-                        location_prefix=self.main_vpn.location_prefix,
-                    ) as ssh_client:
-                        (
-                            file_path,
-                            pub_key,
-                        ) = await self.vpn_service.generate_user_config(
-                            tg_user=user,
-                            ssh_client=ssh_client,
-                        )
-                        await status_msg.answer(text=m_vpn.config_ready)
 
-                        await message.answer_document(
-                            document=FSInputFile(path=file_path)
-                        )
-                        file_path.unlink(missing_ok=True)
+            try:
+                file_path, pub_key = await self.vpn_service.generate_user_config(
+                    tg_user=user,
+                    ssh_client_factory=ssh_client_factory,
+                    server_info=server_info,
+                )
+
+                await status_msg.answer(text=m_vpn.config_ready)
+
+                await message.answer_document(document=FSInputFile(path=file_path))
+
+                file_path.unlink(missing_ok=True)
+
             finally:
                 await state.clear()
                 await self.redis.delete(redis_key)
 
     @BaseRouter.log_method
     @BaseRouter.require_user
+    async def get_config_amnezia_vpn(
+        self,
+        message: Message,
+        user: TgUser,
+        state: FSMContext,
+    ) -> None:
+        """Генерация конфигурации AmneziaVPN для пользователя.
+
+        Flow:
+            1. Определяет сервер по локации
+            2. Проверяет блокировку генерации (Redis)
+            3. Генерирует VPN конфиг
+            4. Отправляет файл пользователю
+
+        Args:
+            message (Message): входящее сообщение.
+            user (TgUser): пользователь Telegram.
+            state (FSMContext): FSM контекст.
+
+        Returns
+            None
+
+        """
+        location = await self._get_location_server(message=message)
+        if location is None:
+            raise AppError("Не определил локацию сервера.")
+        server_info = settings_bot.vpn.get(name=location)
+
+        redis_key = f"vpn:config:{user.id}:amnezia_vpn"
+        acquired_check = await self._check_acquired(redis_key, message)
+        if not acquired_check:
+            return
+
+        await self._handle_vpn_config(
+            message=message,
+            user=user,
+            state=state,
+            ssh_client_factory=AsyncSSHClientVPN2,
+            server_info=server_info,
+            redis_key=redis_key,
+            start_text=m_vpn.amnezia_vpn,
+        )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
     async def get_config_amnezia_wg(
         self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
-        """Пользователь получает конфиг AmneziaWG."""
+        """Генерация конфигурации AmneziaWG.
+
+        Steps:
+            1. Определение сервера
+            2. Проверка Redis lock
+            3. Генерация WG конфигурации
+            4. Отправка файла пользователю
+
+        Args:
+            message (Message): входящее сообщение.
+            user (TgUser): пользователь.
+            state (FSMContext): FSM контекст.
+
+        Returns
+            None
+
+        """
+        location = await self._get_location_server(message=message)
+        if location is None:
+            raise AppError("Не определил локацию сервера.")
+        server_info = settings_bot.vpn.get(name=location)
+
         redis_key = f"vpn:config:{user.id}:amnezia_wg"
         acquired_check = await self._check_acquired(redis_key, message)
         if not acquired_check:
             return
+        await self._handle_vpn_config(
+            message=message,
+            user=user,
+            state=state,
+            ssh_client_factory=AsyncSSHClientWG2,
+            server_info=server_info,
+            redis_key=redis_key,
+            start_text=m_vpn.amnezia_wg,
+        )
+
+    async def _handle_proxy_generation(
+        self,
+        *,
+        message: Message,
+        user: TgUser,
+        state: FSMContext,
+        redis_key: str,
+        server_info: VPNNode,
+        use_free: bool = False,
+    ) -> None:
+        """Генерация MTProto proxy URL.
+
+        Args:
+            message (Message): входящее сообщение.
+            user (TgUser): пользователь Telegram.
+            state (FSMContext): FSM контекст.
+            redis_key (str): ключ блокировки Redis.
+            server_info (VPNNode): конфигурация сервера.
+            use_free (bool): использовать ли бесплатный сервер.
+
+        Behavior
+            - проверяет подписку (если use_free=False)
+            - генерирует proxy URL
+            - отправляет пользователю кнопку с ссылкой
+
+        """
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            status_msg = await message.answer(
-                text=m_vpn.amnezia_wg,
+            await message.answer(text=m_vpn.proxy_intro)
+            await asyncio.sleep(0.5)
+
+            await message.answer(
+                text=m_vpn.amnezia_proxy,
                 reply_markup=ReplyKeyboardRemove(),
             )
-            try:
-                async with ssh_lock:
-                    async with AsyncSSHClientWG2(
-                        host=self.main_vpn.host,
-                        username=self.main_vpn.username,
-                        known_hosts=None,
-                        container=self.main_vpn.container,
-                        use_local=self.main_vpn.use_local,
-                        location_prefix=self.main_vpn.location_prefix,
-                    ) as ssh_client:
-                        (
-                            file_path,
-                            pub_key,
-                        ) = await self.vpn_service.generate_user_config(
-                            tg_user=user,
-                            ssh_client=ssh_client,
-                        )
-                        await status_msg.answer(text=m_vpn.config_ready)
 
-                        await message.answer_document(
-                            document=FSInputFile(path=file_path)
+            try:
+                if not use_free:
+                    info = await self.subscription_service.get_subscription_info(
+                        tg_id=user.id
+                    )
+
+                    if "Активна" not in info:
+                        raise SubscriptionNotFoundError(user_id=user.id)
+
+                url_proxy = await self.vpn_service.get_mtproto_url(
+                    ssh_client_factory=HostDockerSSHClient,
+                    server_info=server_info,
+                )
+
+                keyboard = proxy_url_button(url_proxy=url_proxy)
+
+                if url_proxy:
+                    for i, msg in enumerate(m_vpn.proxy_ready):
+                        await message.answer(
+                            text=msg,
+                            reply_markup=keyboard if i == 0 else None,
                         )
-                        file_path.unlink(missing_ok=True)
 
             finally:
                 await state.clear()
@@ -207,137 +392,72 @@ class VPNRouter(BaseRouter):
     async def create_proxy_url(
         self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
-        """Генерирует уникальный прокси для пользователя и отправляет ссылку в Telegram.
+        """Создание платного MTProto proxy URL.
 
         Args:
-            message (Message): Объект сообщения из Telegram.
-            user (TgUser): Пользователь Telegram.
-            state (FSMContext): Контекст конечного автомата состояния (FSM).
+            message (Message): входящее сообщение.
+            user (TgUser): пользователь.
+            state (FSMContext): FSM контекст.
 
-        Raises
-            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
-            AmneziaSSHError: При ошибках подключения к контейнеру или выполнении команд.
-            ValueError: Если данные пользователя некорректны.
+        Returns
+            None
 
         """
         redis_key = f"vpn:config:{user.id}:amnezia_proxy"
-        acquired_check = await self._check_acquired(redis_key, message)
-        if not acquired_check:
-            return
-        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            await message.answer(
-                text=m_vpn.proxy_intro,
-            )
-            await asyncio.sleep(0.5)
-            await message.answer(
-                text=m_vpn.amnezia_proxy,
-                reply_markup=ReplyKeyboardRemove(),
-            )
-            try:
-                async with ssh_lock:
-                    async with HostDockerSSHClient(
-                        host=f"{self.main_proxy.prefix}.{self.main_vpn.host}",
-                        username=self.main_vpn.username,
-                        use_local=self.main_vpn.use_local,
-                    ) as client:
-                        info = await self.subscription_service.get_subscription_info(
-                            tg_id=user.id
-                        )
-                        if "Активна" in info:
-                            mtproto = MTProtoProxy(
-                                client=client, port=self.main_proxy.port
-                            )
-                            url_proxy = await mtproto.get_proxy_link()
-                            keyboard = proxy_url_button(url_proxy=url_proxy)
-                            if url_proxy:
-                                for num, mess in enumerate(m_vpn.proxy_ready):
-                                    if not num:
-                                        await message.answer(
-                                            text=mess,
-                                            reply_markup=keyboard,
-                                        )
-                                        continue
 
-                                    await message.answer(text=mess)
-                        else:
-                            raise SubscriptionNotFoundError(user_id=user.id)
-            finally:
-                await state.clear()
-                await self.redis.delete(redis_key)
+        if not await self._check_acquired(redis_key, message):
+            return
+
+        await self._handle_proxy_generation(
+            message=message,
+            user=user,
+            state=state,
+            redis_key=redis_key,
+            server_info=settings_bot.vpn.main,
+            use_free=False,
+        )
 
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def create_free_proxy_url(
         self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
-        """Генерирует уникальный тестовый  прокси для пользователя и отправляет ссылку в Telegram.
+        """Создание бесплатного MTProto proxy URL.
 
         Args:
-            message (Message): Объект сообщения из Telegram.
-            user (TgUser): Пользователь Telegram.
-            state (FSMContext): Контекст конечного автомата состояния (FSM).
+            message (Message): входящее сообщение.
+            user (TgUser): пользователь.
+            state (FSMContext): FSM контекст.
 
-        Raises
-            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
-            AmneziaSSHError: При ошибках подключения к контейнеру или выполнении команд.
-            ValueError: Если данные пользователя некорректны.
+        Returns
+            None
 
         """
         redis_key = f"vpn:config:{user.id}:amnezia_proxy"
-        acquired_check = await self._check_acquired(redis_key, message)
-        if not acquired_check:
+
+        if not await self._check_acquired(redis_key, message):
             return
-        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            await message.answer(
-                text=m_vpn.proxy_intro,
-            )
-            await asyncio.sleep(0.5)
-            await message.answer(
-                text=m_vpn.amnezia_proxy,
-                reply_markup=ReplyKeyboardRemove(),
-            )
-            try:
-                async with ssh_lock:
-                    async with HostDockerSSHClient(
-                        host=f"{self.fi_proxy.prefix}.{self.fi_vpn.host}",
-                        username=self.fi_vpn.username,
-                        use_local=self.fi_vpn.use_local,
-                    ) as client:
-                        mtproto = MTProtoProxy(client=client, port=self.fi_proxy.port)
-                        url_proxy = await mtproto.get_proxy_link()
-                        keyboard = proxy_url_button(url_proxy=url_proxy)
-                        if url_proxy:
-                            for num, mess in enumerate(m_vpn.proxy_ready):
-                                if not num:
-                                    await message.answer(
-                                        text=mess,
-                                        reply_markup=keyboard,
-                                    )
-                                    continue
 
-                                await message.answer(text=mess)
-
-            finally:
-                await state.clear()
-                await self.redis.delete(redis_key)
+        await self._handle_proxy_generation(
+            message=message,
+            user=user,
+            state=state,
+            redis_key=redis_key,
+            server_info=settings_bot.vpn.fi,
+            use_free=True,
+        )
 
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def three_x_ui_locations(
         self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
-        """Отправляет пользователю список доступных XRay-локаций.
-
-        Используется как первый шаг перед генерацией подписки.
+        """Отправляет список доступных XRay-локаций и переводит пользователя в FSM состояние выбора.
 
         Args:
-            message (Message): входящее сообщение Telegram.
-            user (TgUser): текущий пользователь.
-            state (FSMContext): FSM-контекст пользователя.
-
-        Side Effects:
-            - отправляет сообщение с клавиатурой локаций
-            - устанавливает состояние FSM: VPNStates.check_location
+            message (Message): входящее сообщение.
+            user (TgUser): пользователь.
+            state (FSMContext): FSM контекст.
 
         Returns
             None
@@ -354,37 +474,76 @@ class VPNRouter(BaseRouter):
     async def generate_subscription(
         self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
-        """Генерирует XRay subscription URL и отправляет пользователю.
+        """Генерация XRay подписки для пользователя.
 
-        Полный сценарий:
-            1. Сбрасывает FSM состояние
-            2. Генерирует подписку через VPN сервис
-            3. Отправляет пользователю URL и инструкцию
+        Flow:
+            1. Очистка FSM состояния
+            2. Генерация подписки через VPN сервис
+            3. Отправка пользователю ссылки и инструкции
 
         Args:
-            message (Message): входящее сообщение Telegram.
-            user (TgUser): текущий пользователь.
-            state (FSMContext): FSM-контекст.
-
-        Side Effects:
-            - очищает FSM состояние
-            - выполняет SSH-заблокированную операцию генерации
-            - отправляет пользователю 2 сообщения:
-                1. подтверждение
-                2. ссылку на подписку
+            message (Message): входящее сообщение.
+            user (TgUser): пользователь Telegram.
+            state (FSMContext): FSM контекст.
 
         Returns
             None
 
         """
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            async with xray_lock:
-                await state.clear()
-                await message.answer(
-                    x_ray_messages.start_generate, reply_markup=ReplyKeyboardRemove()
-                )
-                url = await self.vpn_service.generate_xray_subscription(tg_user=user)
+            await state.clear()
+            xray_location = await self._get_location_server(message=message)
+            if xray_location is None:
+                raise AppError("Не предалась локация на кнопке вызова Xray конфига")
+            await message.answer(
+                x_ray_messages.start_generate, reply_markup=ReplyKeyboardRemove()
+            )
+            url = await self.vpn_service.generate_xray_subscription(
+                tg_user=user, location=xray_location
+            )
 
-                await message.answer(
-                    text=x_ray_messages.ready_config, reply_markup=xray_urk_kb(url=url)
-                )
+            await message.answer(
+                text=x_ray_messages.ready_config, reply_markup=xray_urk_kb(url=url)
+            )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def upgrade_subscription(
+        self, message: Message, user: TgUser, state: FSMContext
+    ) -> None:
+        """Отправляет пользователю сообщение с предложением перейти на премиум-подписку.
+
+        Формирует текст с тарифами и преимуществами премиум-плана, после чего
+        отправляет его пользователю вместе с клавиатурой выбора тарифа.
+
+        Перед отправкой переводит FSM в состояние начала оформления подписки.
+
+        Args:
+            message (Message): Объект входящего сообщения от пользователя.
+            user (TgUser): Объект пользователя Telegram (используется для контекста и логики доступа).
+            state (FSMContext): Контекст конечного автомата состояний (FSM) для управления шагами подписки.
+
+        Returns
+            None
+
+        Side effects
+            - Устанавливает состояние FSM `SubscriptionStates.subscription_start`
+            - Отправляет сообщение пользователю с описанием премиум-тарифа
+            - Показывает клавиатуру выбора подписки
+
+        """
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await state.set_state(SubscriptionStates.subscription_start)
+            price_map = settings_bot.pricing.price_map_premium
+            text = m_subscription.upgrade_subscription.format(
+                device_limit=settings_bot.core.max_configs_per_user * 2,
+                month=price_map.get(1, 0),
+                quarter=price_map.get(3, 0),
+                half_year=price_map.get(6, 0),
+                year=price_map.get(12, 0),
+            )
+            await state.update_data(premium=True)
+            await message.answer(
+                text=text,
+                reply_markup=subscription_options_kb(premium=True, trial=False),
+            )

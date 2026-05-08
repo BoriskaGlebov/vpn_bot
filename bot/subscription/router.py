@@ -167,7 +167,7 @@ class SubscriptionRouter(BaseRouter):
                 )
                 kb = subscription_options_kb(
                     premium=False,
-                    trial=not used_trial,
+                    trial=True,  # нечего им смотреть на триал, помечаю что использовал.
                     founder=bool(role == FilterTypeEnum.FOUNDER),
                 )
             elif not is_premium:
@@ -180,7 +180,7 @@ class SubscriptionRouter(BaseRouter):
                 )
                 kb = subscription_options_kb(
                     premium=False,
-                    trial=not used_trial,
+                    trial=used_trial,
                 )
             else:
                 text = m_subscription.premium_start.format(
@@ -190,7 +190,7 @@ class SubscriptionRouter(BaseRouter):
                     half_year=self.price_map.price_map_premium.get(6, 0),
                     year=self.price_map.price_map_premium.get(12, 0),
                 )
-                kb = subscription_options_kb(premium=is_premium, trial=not used_trial)
+                kb = subscription_options_kb(premium=is_premium, trial=used_trial)
                 await state.update_data(premium=is_premium)
             await message.answer(
                 text=text,
@@ -301,7 +301,7 @@ class SubscriptionRouter(BaseRouter):
         await msg.edit_text(
             text=text,
             reply_markup=subscription_options_kb(
-                premium=True if premium else False, trial=True
+                premium=True if premium else False, trial=False
             ),
         )
         await query.answer("")

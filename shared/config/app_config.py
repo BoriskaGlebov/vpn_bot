@@ -76,7 +76,6 @@ def load_toml_config() -> dict[str, Any]:
     dev_path = BASE_DIR / "app_config.develop.toml"
     local_path = BASE_DIR / "app_config.local.toml"
     dev_stage = os.getenv("STAGE", "prod")
-
     if dev_stage == "prod":
         base = tomllib.load(open(base_path, "rb"))
     else:

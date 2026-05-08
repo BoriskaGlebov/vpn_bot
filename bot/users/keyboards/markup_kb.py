@@ -2,7 +2,8 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 from bot.core.config import settings_bot
-from bot.users.enums import MainMenuText
+from bot.users.enums import Location, MainMenuText, VPNProtocol
+from bot.users.utils.text_generator import vpn_button_text
 
 
 def main_kb(
@@ -23,15 +24,25 @@ def main_kb(
 
     """
     builder = ReplyKeyboardBuilder()
-    if premium_access and active_subscription:
+    if active_subscription:
         builder.row(
             KeyboardButton(text=MainMenuText.PREMIUM.value),
         )
-    if active_subscription:
-        builder.row(
-            KeyboardButton(text=MainMenuText.AMNEZIA_VPN.value),
-            KeyboardButton(text=MainMenuText.AMNEZIA_WG.value),
-        )
+        for location in Location:
+            builder.row(
+                KeyboardButton(text=vpn_button_text(VPNProtocol.AWG, location)),
+                KeyboardButton(text=vpn_button_text(VPNProtocol.AVPN, location)),
+            )
+            if location.name == Location.MAIN.name and (
+                settings_bot.vpn.main.xray is not None
+            ):
+                builder.row(
+                    KeyboardButton(text=vpn_button_text(VPNProtocol.XRAY, location)),
+                )
+            elif settings_bot.vpn.get(location.value.lower()).xray is not None:
+                builder.row(
+                    KeyboardButton(text=vpn_button_text(VPNProtocol.XRAY, location)),
+                )
         builder.row(
             KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value),
         )
@@ -47,5 +58,5 @@ def main_kb(
         builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL.value))
     return builder.as_markup(
         resize_keyboard=True,
-        one_time_keyboard=False,
+        one_time_keyboard=True,
     )

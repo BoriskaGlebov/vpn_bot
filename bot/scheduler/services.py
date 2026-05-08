@@ -9,6 +9,7 @@ from loguru import logger
 from bot.app_error.api_error import APIClientError
 from bot.core.config import settings_bot
 from bot.scheduler.adapter import SchedulerAPIAdapter
+from bot.scheduler.enums import DeleteStatus
 from bot.scheduler.schemas import (
     AdminNotifyEventSchema,
     CheckAllSubscriptionsResponse,
@@ -17,14 +18,16 @@ from bot.scheduler.schemas import (
     EventBase,
     UserNotifyEventSchema,
 )
+from bot.users.enums import Location, PremiumLocation
 from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.adapter import VPNAPIAdapter
-from bot.vpn.router import ssh_lock
+from bot.vpn.services import ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
-from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
+from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 m_subscription_local = settings_bot.messages.modes.subscription
+ALL_LOCATIONS = (*Location, *PremiumLocation)
 
 
 @dataclass
@@ -70,16 +73,12 @@ class SubscriptionBotStats:
 class SchedulerBotService:
     """Сервис бота для обработки событий планировщика подписок."""
 
-    vpn_main = settings_bot.vpn.main
-    vpn_fi = settings_bot.vpn.fi
-    vpn_sof = settings_bot.vpn.sof
-
     def __init__(
         self,
         adapter: SchedulerAPIAdapter,
         bot: Bot,
         vpn_adapter: VPNAPIAdapter,
-        xray_adapter: ThreeXUIAdapter,
+        xray_registry: XRayRegistry,
     ) -> None:
         """Инициализация класса планировщика.
 
@@ -87,12 +86,12 @@ class SchedulerBotService:
             adapter: Клиент для обращения к API планировщика.
             bot: Telegram bot instance для отправки сообщений.
             vpn_adapter: Клиента для обращения к API VPN
-            xray_adapter: Адаптре для работы с 3xui панелью.
+            xray_registry: Адаптеры для работы с 3xui панелью.
 
         """
         self.api_adapter = adapter
         self.vpn_adapter = vpn_adapter
-        self.xray_adapter = xray_adapter
+        self.xray_registry = xray_registry
         self.bot = bot
 
     async def _run_check_all(self) -> CheckAllSubscriptionsResponse | None:
@@ -162,28 +161,37 @@ class SchedulerBotService:
             )
 
     async def _handle_broken_pipe(
-        self, client_cls: type[AsyncSSHClientWG], error: Exception
+        self, client_cls: AsyncSSHClientWG, error: Exception
     ) -> None:
-        logger.error("SSH соединение разорвано ({}): {}", client_cls.__name__, error)
+        """Обработка события, когда не может подключиться к контейнеру с настройками."""
+        logger.error("SSH соединение разорвано ({}): {}", str(client_cls), error)
 
         await send_to_admins(
             bot=self.bot,
             message_text=(
-                "⚠️ Не удалось подключиться к контейнеру\n"
-                f"{client_cls.__name__}: {error}"
+                f"⚠️ Не удалось подключиться к контейнеру\n{str(client_cls)}: {error}"
             ),
         )
 
-    async def _handle_not_found(
-        self, cfg: DeletedVPNConfigSchema, client_cls: type[AsyncSSHClientWG]
+    async def _handle_xray_error(
+        self,
+        client_cls: ThreeXUIAdapter,
+        error: Exception,
+        config_id: str,
+        serv_loc: str,
     ) -> None:
-        logger.warning("Не найден в {}: {}", client_cls.__name__, cfg.file_name)
+        """Обработчик ошибки работы с 3XUI панелью."""
+        logger.error(
+            "Ошибка при осуществлении запроса к XRAY панели: ({}): {}",
+            str(client_cls),
+            error,
+        )
 
         await send_to_admins(
             bot=self.bot,
             message_text=(
-                "🔔 Требуется проверка.\n"
-                f"Не найден в {client_cls.__name__}: {cfg.file_name}"
+                f"⚠️ Ошибка удаления config_id={config_id} в {serv_loc}: {error}\n\n"
+                f"ThreeXUIAdapter - {client_cls}"
             ),
         )
 
@@ -206,73 +214,137 @@ class SchedulerBotService:
     async def _fallback_delete_3xui(
         self,
         cfg: DeletedVPNConfigSchema,
-    ) -> None:
+    ) -> DeleteStatus:
         """Удаляет конфиг через 3x-ui если не найден в SSH."""
         logger.info("Fallback: проверка 3x-ui")
-
+        deletion_statistic = []
         try:
             all_configs = json.loads(cfg.pub_key)
-
-            for config_id in all_configs:
-                await self.xray_adapter.delete_config(
-                    config_id=config_id,
+            for serv_loc in ALL_LOCATIONS:
+                adapter = self.xray_registry.get(
+                    serv_loc.value if serv_loc.name.lower() != "main" else "main"
                 )
+                results = []
+                for config_id in all_configs:
+                    try:
+                        is_deleted = await adapter.delete_config(config_id=config_id)
+                        results.append(is_deleted)
+
+                    except APIClientError as e:
+                        logger.warning(
+                            "Ошибка удаления config_id={} в {}: {}",
+                            config_id,
+                            serv_loc,
+                            e,
+                        )
+                        results.append(False)
+                        deletion_statistic.append(DeleteStatus.ERROR)
+                        await self._handle_xray_error(
+                            client_cls=adapter,
+                            error=e,
+                            config_id=config_id,
+                            serv_loc=serv_loc,
+                        )
+
+                if all(results):
+                    return DeleteStatus.DELETED
+
+            return (
+                DeleteStatus.NOT_FOUND
+                if DeleteStatus.ERROR not in deletion_statistic
+                else DeleteStatus.ERROR
+            )
 
         except json.JSONDecodeError:
             logger.error("Ошибка десериализации pub_key: {}", cfg.pub_key)
-            raise
+            return DeleteStatus.ERROR
 
     async def _delete_from_ssh(
         self,
         cfg: DeletedVPNConfigSchema,
         ssh_clients: list[type[AsyncSSHClientWG]],
-    ) -> bool:
+    ) -> DeleteStatus:
         """Пытается удалить конфиг через SSH на всех клиентах."""
+        deletion_statistic = []
         for client_cls in ssh_clients:
-            try:
-                async with client_cls(
-                    host=self.vpn_main.host,
-                    username=self.vpn_main.username,
-                    use_local=self.vpn_main.use_local,
-                    location_prefix=self.vpn_main.location_prefix,
-                ) as ssh_client:
-                    if await ssh_client.full_delete_user(public_key=cfg.pub_key):
-                        logger.info(
-                            "Конфиг удален {} через {}",
-                            cfg.file_name,
-                            client_cls.__name__,
+            for loc_prefix in ALL_LOCATIONS:
+                if loc_prefix.name.lower() == "main":
+                    server_info = settings_bot.vpn.get("main")
+                else:
+                    server_info = settings_bot.vpn.get(loc_prefix.value)
+                try:
+                    async with client_cls(
+                        host=server_info.host,
+                        username=server_info.username,
+                        use_local=server_info.use_local,
+                        location_prefix=server_info.location_prefix,
+                    ) as ssh_client:
+                        result = await ssh_client.full_delete_user(
+                            public_key=cfg.pub_key
                         )
-                        return True
+                        if result:
+                            logger.info(
+                                "Конфиг удален {} через {}",
+                                cfg.file_name,
+                                client_cls.__name__,
+                            )
+                            return DeleteStatus.DELETED
 
-                    await self._handle_not_found(cfg, client_cls)
+                except AmneziaError as e:
+                    logger.error("SSH deletion error ({}): {}", client_cls.__name__, e)
+                    deletion_statistic.append(DeleteStatus.ERROR)
 
-            except AmneziaError as e:
-                logger.error("SSH deletion error ({}): {}", client_cls.__name__, e)
-
-            except BrokenPipeError as e:
-                await self._handle_broken_pipe(client_cls, e)
-
-        logger.info("Конфиг не найден ни на одном SSH сервере")
-        return False
+                except BrokenPipeError as e:
+                    await self._handle_broken_pipe(ssh_client, e)
+                    deletion_statistic.append(DeleteStatus.ERROR)
+        else:
+            return (
+                DeleteStatus.NOT_FOUND
+                if DeleteStatus.ERROR not in deletion_statistic
+                else DeleteStatus.ERROR
+            )
 
     async def _trigger_config_deletion(
         self,
         tg_id: int,
         configs: list[DeletedVPNConfigSchema],
         ssh_clients: list[type[AsyncSSHClientWG]],
-    ) -> None:
+    ) -> int:
         """Оркестрирует удаление VPN-конфигов."""
         if not configs:
-            return
-
+            return 0
+        count_deleted = 0
         async with ssh_lock:
             for cfg in configs:
-                deleted = await self._delete_from_ssh(cfg, ssh_clients)
+                ssh_status = await self._delete_from_ssh(cfg, ssh_clients)
 
-                if not deleted:
-                    await self._fallback_delete_3xui(cfg)
-                logger.info("Все возможные места проверил теперь удаляю.")
-                await self._delete_from_db(cfg)
+                if ssh_status == DeleteStatus.DELETED:
+                    await self._delete_from_db(cfg)
+                    count_deleted += 1
+                    continue
+                if ssh_status == DeleteStatus.ERROR:
+                    logger.error("SSH ошибка → НЕ удаляю из БД {}", cfg.file_name)
+
+                if ssh_status in (DeleteStatus.NOT_FOUND, DeleteStatus.ERROR):
+                    logger.info(f"Файл не найден в Amnezia {cfg.file_name} ищу в 3x-ui")
+                    xray_status = await self._fallback_delete_3xui(cfg)
+
+                    if xray_status == DeleteStatus.DELETED:
+                        logger.success(f"Удалил файл в панели 3x-ui {cfg.file_name}")
+                        await self._delete_from_db(cfg)
+                        count_deleted += 1
+                        continue
+                    elif (
+                        xray_status == DeleteStatus.NOT_FOUND
+                        and ssh_status == DeleteStatus.NOT_FOUND
+                    ):
+                        logger.warning(f"Не нашел файл в панели 3x-ui {cfg.file_name}")
+                        await self._delete_from_db(cfg)
+                        count_deleted += 1
+                        continue
+                    else:
+                        logger.error("Ошибка 3x-ui → НЕ удаляю из БД {}", cfg.file_name)
+            return count_deleted
 
     async def _trigger_proxy_deletion(self, tg_id: int) -> None:
         """Триггер удаления прокси через внешний сервис."""
@@ -314,7 +386,8 @@ class SchedulerBotService:
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
-        result = await self._run_check_all()
+        result: CheckAllSubscriptionsResponse | None = await self._run_check_all()
+
         stats = SubscriptionBotStats(
             checked=result.stats.checked if result else 0,
             expired=result.stats.expired if result else 0,
@@ -345,24 +418,26 @@ class SchedulerBotService:
         ]
 
         for event in delete_events:
-            await self._trigger_config_deletion(
+            count_deleted = await self._trigger_config_deletion(
                 event.user_id, event.configs, [AsyncSSHClientWG, AsyncSSHClientWG2]
             )
-            stats.configs_deleted += len(event.configs)
+            stats.configs_deleted += count_deleted
+            if count_deleted > 0:
+                user_text = m_subscription_local.expire_subscription.delete_configs_user
+                await self._send_user_message(
+                    tg_id=event.user_id, message=user_text, event=event
+                )
 
-            user_text = m_subscription_local.expire_subscription.delete_configs_user
-            await self._send_user_message(
-                tg_id=event.user_id, message=user_text, event=event
-            )
-
-            admin_text = m_subscription_local.expire_subscription.admin_stats.format(
-                tg_id=event.user_id,
-                username=f"@{event.username}",
-                first_name=event.first_name,
-                last_name=event.last_name,
-                file_name="\n".join(cfg.file_name for cfg in event.configs),
-            )
-            await send_to_admins(bot=self.bot, message_text=admin_text)
+                admin_text = (
+                    m_subscription_local.expire_subscription.admin_stats.format(
+                        tg_id=event.user_id,
+                        username=f"@{event.username}",
+                        first_name=event.first_name,
+                        last_name=event.last_name,
+                        file_name="\n".join(cfg.file_name for cfg in event.configs),
+                    )
+                )
+                await send_to_admins(bot=self.bot, message_text=admin_text)
 
         for n_event in notify_events:
             if isinstance(n_event, UserNotifyEventSchema):

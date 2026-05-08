@@ -8,7 +8,7 @@ from aiogram.exceptions import TelegramForbiddenError
 from bot.app_error.api_error import APIClientError
 from bot.integrations.api_client import APIClient
 from bot.scheduler.adapter import SchedulerAPIAdapter
-from bot.scheduler.enums import SubscriptionEventType
+from bot.scheduler.enums import DeleteStatus, SubscriptionEventType
 from bot.scheduler.schemas import (
     AdminNotifyEventSchema,
     CheckAllSubscriptionsResponse,
@@ -19,6 +19,8 @@ from bot.scheduler.schemas import (
     UserNotifyEventSchema,
 )
 from bot.scheduler.services import SchedulerBotService
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from bot.vpn.utils.x_ray_config import XRayRegistry
 
 
 @pytest.fixture
@@ -26,13 +28,17 @@ def service():
     adapter = AsyncMock()
     vpn_adapter = AsyncMock()
     xray_adapter = AsyncMock()
+    xray_adapter.delete_config = AsyncMock(return_value=True)
+
+    xray_registry = MagicMock()
+    xray_registry.get.return_value = xray_adapter
     bot = AsyncMock(spec=Bot)
 
     return SchedulerBotService(
         adapter=adapter,
         bot=bot,
         vpn_adapter=vpn_adapter,
-        xray_adapter=xray_adapter,
+        xray_registry=xray_registry,
     )
 
 
@@ -181,9 +187,9 @@ async def test_send_user_message_forbidden(service, monkeypatch):
     send_mock.assert_awaited_once()
 
 
-class FakeSSH:
+class FakeSSH(AsyncSSHClientWG):
     def __init__(self, host=None, username=None, **kwargs):
-        pass
+        super().__init__(host, username)
 
     async def __aenter__(self):
         return self
@@ -199,14 +205,19 @@ class FakeSSH:
 async def test_delete_from_ssh_success(service):
     cfg = MagicMock(pub_key="key", file_name="file")
 
-    result = await service._delete_from_ssh(cfg, [FakeSSH])
+    result = await service._delete_from_ssh(
+        cfg,
+        [
+            FakeSSH,
+        ],
+    )
 
-    assert result is True
+    assert result == DeleteStatus.DELETED
 
 
 class FakeSSHFail(FakeSSH):
     def __init__(self, host=None, username=None, **kwargs):
-        pass
+        super().__init__(host, username, **kwargs)
 
     async def __aenter__(self):
         return self
@@ -222,26 +233,37 @@ class FakeSSHFail(FakeSSH):
 async def test_delete_from_ssh_not_found(service):
     cfg = MagicMock(pub_key="key", file_name="file")
 
-    result = await service._delete_from_ssh(cfg, [FakeSSHFail])
+    result = await service._delete_from_ssh(
+        cfg,
+        [
+            FakeSSHFail,
+        ],
+    )
 
-    assert result is False
+    assert result == DeleteStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
 async def test_fallback_delete_3xui(service):
-    cfg = MagicMock(pub_key='["id1","id2"]')
+    cfg = MagicMock()
+    cfg.pub_key = '["id1","id2"]'
 
     await service._fallback_delete_3xui(cfg)
 
-    assert service.xray_adapter.delete_config.await_count == 2
+    adapter = service.xray_registry.get.return_value
+    assert adapter.delete_config.await_count == 2
 
 
 @pytest.mark.asyncio
 async def test_fallback_delete_3xui_invalid_json(service):
     cfg = MagicMock(pub_key="not_json")
 
-    with pytest.raises(Exception):
-        await service._fallback_delete_3xui(cfg)
+    result = await service._fallback_delete_3xui(cfg)
+
+    assert result in (
+        DeleteStatus.ERROR,
+        DeleteStatus.NOT_FOUND,
+    )
 
 
 @pytest.mark.asyncio
@@ -283,7 +305,7 @@ async def test_check_all_with_delete_event(service, monkeypatch):
     )
 
     service.api_adapter.check_all.return_value = response
-    service._trigger_config_deletion = AsyncMock()
+    service._trigger_config_deletion = AsyncMock(return_value=1)
 
     send_mock = AsyncMock()
     monkeypatch.setattr("bot.scheduler.services.send_to_admins", send_mock)

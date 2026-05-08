@@ -273,3 +273,49 @@ async def test_mistake_handler_user_press_admin(
     )
 
     fake_message.delete.assert_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.users
+async def test_cmd_id(
+    fake_bot: Any,
+    fake_logger: Any,
+    fake_redis: Any,
+    make_fake_message: Any,
+    fake_state: Any,
+) -> None:
+    """Проверяет команду /id — отправка Telegram ID пользователю."""
+
+    user_id = 123
+    fake_message = make_fake_message(user_id=user_id)
+
+    referral_service = AsyncMock(spec=ReferralService)
+
+    router = UserRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        redis_manager=fake_redis,
+        user_service=AsyncMock(),
+        referral_service=referral_service,
+    )
+
+    # важно: user объект из dependency injection
+    fake_user = type("FakeUser", (), {"id": user_id})()
+
+    await router.cmd_id(
+        message=fake_message,
+        state=fake_state,
+    )
+
+    # 1. state cleared
+    fake_state.clear.assert_awaited_once()
+
+    # 2. message sent
+    fake_message.answer.assert_awaited_once()
+
+    # 3. проверка текста
+    args, kwargs = fake_message.answer.await_args
+    assert str(user_id) in (kwargs.get("text") or args[0])
+
+    # 4. проверка keyboard
+    assert "reply_markup" in kwargs

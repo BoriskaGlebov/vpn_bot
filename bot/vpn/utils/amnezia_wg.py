@@ -68,6 +68,10 @@ class AsyncSSHClientWG:
         self._conn: asyncssh.SSHClientConnection | None = None
         self._process: asyncssh.SSHClientProcess[str] | None = None
 
+    def __str__(self) -> str:
+        """Строковое представление класса."""
+        return f"{self.__class__.__name__} - {self.host}"
+
     async def connect(self) -> None:
         """Устанавливает SSH-соединение и открывает shell-сессию.
 
@@ -1185,27 +1189,24 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
         return "\n".join(lines)
 
 
-if __name__ == "__main__":
-    """Пример использования AsyncSSHClient."""
-    key_path = Path().home() / ".ssh" / "test_vpn"
-
-    async def main() -> None:
-        """Пример использования AsyncSSHClient."""
-        async with AsyncSSHClientWG2(
-            host="vpn-boriska.ru",
-            username="prod_server",
-            known_hosts=None,  # Отключить проверку known_hosts
-            container="amnezia-awg2",
-        ) as ssh_client:
-            await ssh_client.connect()
-            res = await ssh_client.write_single_cmd(cmd="whoami")
-            print(res)
-            # await ssh_client.add_new_user_gen_config("boris_blade")
-            # await ssh_client.full_delete_user(
-            #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-            # )
-
-    asyncio.run(main())
-
-if __name__ == "__main__":
-    print(AsyncSSHClientWG.__name__)
+# if __name__ == "__main__":
+#     """Пример использования AsyncSSHClient."""
+#     key_path = Path().home() / ".ssh" / "test_vpn"
+#
+#     async def main() -> None:
+#         """Пример использования AsyncSSHClient."""
+#         async with AsyncSSHClientWG2(
+#             host="vpn-boriska.ru",
+#             username="prod_server",
+#             known_hosts=None,  # Отключить проверку known_hosts
+#             container="amnezia-awg2",
+#         ) as ssh_client:
+#             await ssh_client.connect()
+#             res = await ssh_client.write_single_cmd(cmd="whoami")
+#             print(res)
+#             # await ssh_client.add_new_user_gen_config("boris_blade")
+#             # await ssh_client.full_delete_user(
+#             #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
+#             # )
+#
+#     asyncio.run(main())

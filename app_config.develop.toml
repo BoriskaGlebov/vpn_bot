@@ -50,7 +50,8 @@ username = "prod_server"
 container_old="amnezia-awg"
 container = "amnezia-awg2"
 use_local = true
-location_prefix= "FR"
+location_prefix= "FI"
+flag= "🇫🇮"
 
 [vpn.nodes.fi]
 host = "vpn-boriska.ru"
@@ -58,7 +59,8 @@ username = "prod_server"
 container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = true
-location_prefix= "Fi"
+location_prefix= "FI"
+flag= "🇫🇮"
 
 [vpn.nodes.sof]
 host = "x-ray-boriska.pro"
@@ -67,6 +69,7 @@ container = "amnezia-awg2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 location_prefix= "SOF"
+flag= "🇧🇬"
 
 
 # === PROXY ===
@@ -90,38 +93,40 @@ port = 443
 
 # === X-RAY ===
 
-#[xray.main]
-#host = "x-boriska"
-#panel_prefix = "panel-12345"
-#subscription_prefix = "sub-12345"
-#panel_port = 5443
-#subscription_port = 2096
-#username = "username"
-#
-#[[xray.main.inbounds]]
-#port = 443
-#name = "🇧🇬 | XHTTP"
-#
-#[[xray.main.inbounds]]
-#port = 8443
-#name = "🇧🇬 | TCP Reality"
-#
-#[xray.fi]
-#host = "x-boriska"
-#panel_prefix = "panel-12345"
-#subscription_prefix = "sub-12345"
-#panel_port = 5443
-#subscription_port = 2096
-#username = "username"
-#
-#[[xray.fi.inbounds]]
-#port = 443
-#name = "🇧🇬 | XHTTP"
-#
-#[[xray.fi.inbounds]]
-#port = 8443
-#name = "🇧🇬 | TCP Reality"
-#
+[vpn.nodes.main.xray]
+host = "vpn-boriska.ru"
+panel_prefix = "panel-78gh98"
+subscription_prefix = "sub-45gh45"
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+
+[[vpn.nodes.main.xray.inbounds]]
+port = 2054
+name = "🇫🇮 | XHTTP Test"
+
+[[vpn.nodes.main.xray.inbounds]]
+port = 2055
+name = "🇫🇮 | TCP Reality Test"
+
+
+[vpn.nodes.fi.xray]
+host = "vpn-boriska.ru"
+panel_prefix = "panel-78gh98"
+subscription_prefix = "sub-45gh45"
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+
+[[vpn.nodes.fi.xray.inbounds]]
+port = 2054
+name = "🇫🇮 | XHTTP Test"
+
+[[vpn.nodes.fi.xray.inbounds]]
+port = 2055
+name = "🇫🇮 | TCP Reality Test"
+
+
 [vpn.nodes.sof.xray]
 host = "x-ray-boriska.pro"
 panel_prefix = "panel-df06dg"

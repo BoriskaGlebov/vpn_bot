@@ -1,4 +1,3 @@
-import asyncio
 import base64
 from pathlib import Path
 
@@ -108,26 +107,3 @@ class AsyncSSHClientVPN2(AsyncSSHClientVPN, AsyncSSHClientWG2):
         super().__init__(
             host, username, port, known_hosts, container, use_local, location_prefix
         )
-
-
-if __name__ == "__main__":
-    """Пример использования AsyncSSHClient."""
-
-    # key_path = Path().home() / ".ssh" / "test_vpn"
-
-    async def main() -> None:
-        """Пример использования AsyncSSHClient."""
-        async with AsyncSSHClientVPN(
-            host="vpn-boriska.ru",
-            username="prod_server",
-            known_hosts=None,  # Отключить проверку known_hosts
-            container="amnezia-awg2",
-        ) as ssh_client:
-            await ssh_client.connect()
-            # await ssh_client.add_new_user_gen_config("boris456.vpn")
-            # await ssh_client.full_delete_user(
-            #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-            # )
-            # await ssh_client.connect()
-
-    asyncio.run(main())

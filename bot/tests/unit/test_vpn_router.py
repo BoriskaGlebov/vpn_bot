@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from bot.subscription.router import SubscriptionStates
 from bot.vpn.router import VPNRouter
 
 
@@ -74,63 +75,85 @@ async def test_check_acquired_already_running(router, message):
 async def test_get_config_amnezia_vpn_success(mocker, router, message, user, state):
     router.redis.set.return_value = True
 
-    # mock status message
-    status_msg = mocker.MagicMock()
-    status_msg.answer = mocker.AsyncMock()
-    message.answer.return_value = status_msg
-
-    # mock ssh client context manager
-    ssh_client = mocker.AsyncMock()
-
-    mocker.patch(
-        "bot.vpn.router.AsyncSSHClientVPN2",
-        return_value=ssh_client,
+    # FIX: обходим логику определения локации
+    mocker.patch.object(
+        router,
+        "_get_location_server",
+        return_value="fi",
     )
 
-    ssh_client.__aenter__.return_value = ssh_client
-
+    server_info = mocker.Mock()
+    router._get_location_server.return_value = "fi"
     router.vpn_service.generate_user_config.return_value = (
         Path("/tmp/test.conf"),
         "pubkey",
     )
 
+    # mock FSM message answer
+    status_msg = mocker.MagicMock()
+    status_msg.answer = mocker.AsyncMock()
+    message.answer.return_value = status_msg
+
     mocker.patch("pathlib.Path.unlink")
 
-    await router.get_config_amnezia_vpn(message=message, state=state)
+    await router.get_config_amnezia_vpn(
+        message=message,
+        state=state,
+    )
 
     router.vpn_service.generate_user_config.assert_awaited_once()
-
     message.answer_document.assert_awaited_once()
-
     state.clear.assert_awaited_once()
     router.redis.delete.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_get_config_amnezia_vpn_locked(router, message, user, state):
+async def test_get_config_amnezia_vpn_locked(
+    mocker,
+    router,
+    message,
+    state,
+):
     router.redis.set.return_value = False
 
-    await router.get_config_amnezia_vpn(message=message, state=state)
+    # чтобы роутер не упал на определении локации
+    mocker.patch.object(
+        router,
+        "_get_location_server",
+        return_value="fi",
+    )
+
+    await router.get_config_amnezia_vpn(
+        message=message,
+        state=state,
+    )
 
     router.vpn_service.generate_user_config.assert_not_called()
 
+    message.answer.assert_awaited_once_with(
+        "⏳ Генерация вашего конфига уже в процессе, подождите немного."
+    )
+
 
 @pytest.mark.asyncio
-async def test_get_config_amnezia_wg_success(mocker, router, message, user, state):
+async def test_get_config_amnezia_wg_success(
+    mocker,
+    router,
+    message,
+    state,
+):
     router.redis.set.return_value = True
+
+    # чтобы не падало на определении локации
+    mocker.patch.object(
+        router,
+        "_get_location_server",
+        return_value="fi",
+    )
 
     status_msg = mocker.MagicMock()
     status_msg.answer = mocker.AsyncMock()
     message.answer.return_value = status_msg
-
-    ssh_client = mocker.AsyncMock()
-
-    mocker.patch(
-        "bot.vpn.router.AsyncSSHClientWG2",
-        return_value=ssh_client,
-    )
-
-    ssh_client.__aenter__.return_value = ssh_client
 
     router.vpn_service.generate_user_config.return_value = (
         Path("/tmp/test_wg.conf"),
@@ -139,15 +162,18 @@ async def test_get_config_amnezia_wg_success(mocker, router, message, user, stat
 
     mocker.patch("pathlib.Path.unlink")
 
-    await router.get_config_amnezia_wg(message=message, state=state)
+    await router.get_config_amnezia_wg(
+        message=message,
+        state=state,
+    )
 
     router.vpn_service.generate_user_config.assert_awaited_once()
+
     message.answer_document.assert_awaited_once()
+
     state.clear.assert_awaited_once()
+
     router.redis.delete.assert_awaited_once()
-
-
-import pytest
 
 
 @pytest.mark.asyncio
@@ -174,70 +200,65 @@ async def test_create_proxy_url_no_subscription(mocker, router, message, user, s
 
 
 @pytest.mark.asyncio
-async def test_create_proxy_url_success(mocker, router, message, user, state):
+async def test_create_proxy_url_success(
+    mocker,
+    router,
+    message,
+    state,
+):
     router.redis.set.return_value = True
 
-    status_msg = mocker.MagicMock()
-    status_msg.answer = mocker.AsyncMock()
-    message.answer.return_value = status_msg
-
     router.subscription_service.get_subscription_info = mocker.AsyncMock(
-        return_value="Активна"
+        return_value="Активна",
     )
 
-    client = mocker.AsyncMock()
-    mocker.patch(
-        "bot.vpn.router.HostDockerSSHClient",
-        return_value=client,
-    )
-    client.__aenter__.return_value = client
-
-    mtproto = mocker.AsyncMock()
-    mtproto.get_proxy_link.return_value = "tg://proxy"
-
-    mocker.patch(
-        "bot.vpn.router.MTProtoProxy",
-        return_value=mtproto,
+    router.vpn_service.get_mtproto_url = mocker.AsyncMock(
+        return_value="tg://proxy",
     )
 
     message.answer = mocker.AsyncMock()
 
-    await router.create_proxy_url(message=message, state=state)
+    await router.create_proxy_url(
+        message=message,
+        state=state,
+    )
 
-    mtproto.get_proxy_link.assert_awaited_once()
+    router.vpn_service.get_mtproto_url.assert_awaited_once()
+
     message.answer.assert_awaited()
+
     state.clear.assert_awaited_once()
+
+    router.redis.delete.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_create_free_proxy_url_success(mocker, router, message, user, state):
+async def test_create_free_proxy_url_success(
+    mocker,
+    router,
+    message,
+    state,
+):
     router.redis.set.return_value = True
 
-    status_msg = mocker.MagicMock()
-    status_msg.answer = mocker.AsyncMock()
-    message.answer.return_value = status_msg
-
-    client = mocker.AsyncMock()
-    mocker.patch(
-        "bot.vpn.router.HostDockerSSHClient",
-        return_value=client,
-    )
-    client.__aenter__.return_value = client
-
-    mtproto = mocker.AsyncMock()
-    mtproto.get_proxy_link.return_value = "tg://proxy"
-
-    mocker.patch(
-        "bot.vpn.router.MTProtoProxy",
-        return_value=mtproto,
+    router.vpn_service.get_mtproto_url = mocker.AsyncMock(
+        return_value="tg://proxy",
     )
 
     message.answer = mocker.AsyncMock()
 
-    await router.create_free_proxy_url(message=message, state=state)
+    await router.create_free_proxy_url(
+        message=message,
+        state=state,
+    )
 
-    mtproto.get_proxy_link.assert_awaited_once()
+    router.vpn_service.get_mtproto_url.assert_awaited_once()
+
+    message.answer.assert_awaited()
+
     state.clear.assert_awaited_once()
+
+    router.redis.delete.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -251,15 +272,68 @@ async def test_three_x_ui_locations_sets_state(mocker, router, message, user, st
 
 
 @pytest.mark.asyncio
-async def test_generate_subscription_success(mocker, router, message, user, state):
+async def test_generate_subscription_success(
+    mocker,
+    router,
+    message,
+    state,
+):
     message.answer = mocker.AsyncMock()
 
-    router.vpn_service.generate_xray_subscription = mocker.AsyncMock(
-        return_value="https://subscription.url"
+    mocker.patch.object(
+        router,
+        "_get_location_server",
+        return_value="fi",
     )
 
-    await router.generate_subscription(message=message, state=state)
+    router.vpn_service.generate_xray_subscription = mocker.AsyncMock(
+        return_value="https://subscription.url",
+    )
+
+    await router.generate_subscription(
+        message=message,
+        state=state,
+    )
+
+    state.clear.assert_awaited_once()
 
     router.vpn_service.generate_xray_subscription.assert_awaited_once()
-    message.answer.assert_awaited()
-    state.clear.assert_awaited_once()
+
+    kwargs = router.vpn_service.generate_xray_subscription.await_args.kwargs
+
+    assert kwargs["location"] == "fi"
+    assert kwargs["tg_user"].id == 123
+
+    assert message.answer.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_upgrade_subscription_success(
+    mocker,
+    router,
+    message,
+    state,
+):
+    message.answer = mocker.AsyncMock()
+
+    await router.upgrade_subscription(
+        message=message,
+        state=state,
+    )
+
+    state.set_state.assert_awaited_once_with(
+        SubscriptionStates.subscription_start,
+    )
+
+    state.update_data.assert_awaited_once_with(
+        premium=True,
+    )
+
+    message.answer.assert_awaited_once()
+
+    kwargs = message.answer.await_args.kwargs
+
+    assert "text" in kwargs
+    assert kwargs["text"]
+
+    assert kwargs["reply_markup"] is not None
