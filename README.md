@@ -256,8 +256,8 @@ pytest -q
 ```bash
   Address = 10.8.0.1/16
   # перезапуск wg
-  wg-quick down /opt/amnezia/awg/wg0.conf 2>/dev/null
-  wg-quick up /opt/amnezia/awg/wg0.conf
+  wg-quick down /opt/amnezia/awg/awg0.conf 2>/dev/null
+  wg-quick up /opt/amnezia/awg/awg0.conf
   # очищаем старые правила
   iptables -F
   iptables -t nat -F
