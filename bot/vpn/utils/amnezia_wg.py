@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import ipaddress
 import json
 import shlex
@@ -592,7 +593,7 @@ class AsyncSSHClientWG:
         pub_server_key: str,
         preshared_key: str,
     ) -> Path:
-        """Создает и сохраняет пользовательский конфиг.
+        """Создает и сохраняет пользовательский конфиг для AmneziaWG.
 
         Args:
             filename (str): Название файла конфигурации.
@@ -617,6 +618,60 @@ class AsyncSSHClientWG:
         async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
             await f.write(config_text)
         return file_cfg
+
+    async def _save_vpn_config(
+        self,
+        filename: str,
+        new_ip: str,
+        private_key: str,
+        pub_server_key: str,
+        preshared_key: str,
+    ) -> Path:
+        """Создает и сохраняет пользовательский конфиг для AmneziaVPN.
+
+        Args:
+            filename (str): Название файла конфигурации.
+            new_ip (str): IP-адрес пользователя.
+            private_key (str): Приватный ключ пользователя.
+            pub_server_key (str): Публичный ключ сервера.
+            preshared_key (str): PSK ключ сервера.
+
+        Returns
+            file_path (Path): путь к временному файл для его удаления
+
+        """
+        config_text = await self._generate_wg_config(
+            new_ip, private_key, pub_server_key, preshared_key
+        )
+        encode_conf = base64.b64encode(config_text.encode()).decode()
+        if not filename.endswith(".conf"):
+            filename = f"VPN{self.location_prefix}{filename}.vpn"
+        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir.mkdir(parents=True, exist_ok=True)
+        file_cfg = file_dir / filename
+
+        async with aiofiles.open(file_cfg, "w") as f:
+            await f.write("vpn://\n")
+            await f.write(encode_conf)
+
+        return file_cfg
+
+    async def _save_wg_config_bundle(
+        self,
+        filename: str,
+        new_ip: str,
+        private_key: str,
+        pub_server_key: str,
+        preshared_key: str,
+    ) -> tuple[Path, Path]:
+        wg_file = await self._save_wg_config(
+            filename, new_ip, private_key, pub_server_key, preshared_key
+        )
+        vpn_file = await self._save_vpn_config(
+            filename, new_ip, private_key, pub_server_key, preshared_key
+        )
+
+        return wg_file, vpn_file
 
     async def _add_to_clients_table(self, public_key: str, client_name: str) -> bool:
         """Добавляет запись в clientsTable Amnezia.
@@ -718,7 +773,7 @@ class AsyncSSHClientWG:
                     stderr=stderr,
                 )
 
-    async def add_new_user_gen_config(self, file_name: str) -> tuple[Path, str]:
+    async def add_new_user_gen_config(self, file_name: str) -> tuple[Path, Path, str]:
         """Добавляет нового пользователя и генерирует конфигурационный файл WireGuard.
 
         Последовательно выполняются следующие шаги:
@@ -734,7 +789,7 @@ class AsyncSSHClientWG:
             10. Перезапускается интерфейс WireGuard.
 
         Args:
-            file_name (str): Имя файла конфигурации для нового пользователя.
+            file_name (str): Имя файлов .conf .vpn и для нового пользователя.
 
         Raises
             AmneziaError: Если произошла любая ошибка при работе с контейнером,
@@ -767,17 +822,17 @@ class AsyncSSHClientWG:
                 logger.bind(user=self.username).success(
                     "Новый клиент добавлен в clientsTable"
                 )
-            file = await self._save_wg_config(
+            file1, file2 = await self._save_wg_config_bundle(
                 filename, correct_ip, private_key, pub_server_key, psk
             )
 
-            if file:
-                logger.bind(user=self.username).success(
-                    f"Создан файл конфиг: {file_name}"
-                )
+            if file1:
+                logger.bind(user=self.username).success(f"Создан файл конфиг: {file1}")
+            if file2:
+                logger.bind(user=self.username).success(f"Создан файл конфиг: {file2}")
             await self._delete_temp_files()
             await self._reboot_interface()
-            return file, pub_key
+            return file1, file2, pub_key
         except AmneziaError as e:
             logger.error(e)
             raise

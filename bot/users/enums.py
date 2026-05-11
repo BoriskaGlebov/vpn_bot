@@ -87,12 +87,15 @@ class VPNProtocol(StrEnum):
         AVPN: Протокол AmneziaVPN.
             Собственная реализация VPN с дополнительной обфускацией трафика.
 
+        AMNEZIA: Протокол Amnezia WireGuard.
+
         XRAY: Протокол Xray (VLESS + Reality + XHTTP/TLS).
             Используется для маскировки трафика под обычный HTTPS
             и обхода сетевых ограничений.
 
     """
 
-    AWG = "AmneziaWG"
-    AVPN = "AmneziaVPN"
-    XRAY = "X-RAY Vless Reality XHTTP/TLS"
+    # AWG = "AmneziaWG"
+    # AVPN = "AmneziaVPN"
+    AMNEZIA = "AmneziaVPN"
+    XRAY = "⚡ XRay Pro"

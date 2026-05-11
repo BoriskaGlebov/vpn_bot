@@ -332,7 +332,7 @@ class ThreeXUIAdapter:
 
         await self._restart_x_ray()
         await self._logout()
-        url = f"https://{self.host}:{self.sub_port}/{self.sub_prefix}/user_{tg_id}"
+        url = f"https://{self.host}:{self.sub_port}/{self.sub_prefix}/{self.location_prefix}user_{tg_id}"
         logger.info("Конфигурация успешно создана для tg_id={}", tg_id)
         return {
             "config_ids": list(user_add_info["config_ids"]),
