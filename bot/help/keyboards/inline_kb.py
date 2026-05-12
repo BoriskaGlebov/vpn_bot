@@ -20,6 +20,7 @@ def device_keyboard() -> InlineKeyboardMarkup:
         ("💻 Windows / Linux", "device_pc"),
         ("📺 Smart TV", "device_tv"),
         ("🔀 Раздельное туннелирование", "device_split"),
+        ("🔥 Happ", "device_happ"),
         ("─────────────", "device_noop"),
         ("👨‍💻 Связаться с разработчиком", "device_developer"),
     ]
