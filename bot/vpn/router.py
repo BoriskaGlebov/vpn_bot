@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 m_vpn = settings_bot.messages.modes.vpn
 m_subscription = settings_bot.messages.modes.subscription
 x_ray_messages = settings_bot.messages.modes.vpn.x_ray
-# TODO Вернуться на шаг назад к стандартным локациям
 
 
 class VPNStates(StatesGroup):  # type: ignore[misc]
