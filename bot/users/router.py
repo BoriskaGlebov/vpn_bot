@@ -55,6 +55,7 @@ INVALID_FOR_USER = [
     MainMenuText.HELP.value,
     MainMenuText.RENEW_SUBSCRIPTION.value,
     MainMenuText.PREMIUM.value,
+    MainMenuText.BACK.value,
 ]
 INVALID_FOR_USER.extend(location_buttons_text)
 INVALID_FOR_ADMIN = [
@@ -106,7 +107,9 @@ class UserRouter(BaseRouter):
         self.referral_service = referral_service
 
     def _register_handlers(self) -> None:
-        self.router.message.register(self.cmd_start, CommandStart())
+        self.router.message.register(
+            self.cmd_start, or_f(CommandStart(), F.text == MainMenuText.BACK.value)
+        )
         self.router.message.register(
             self.admin_start,
             and_f(
@@ -180,9 +183,9 @@ class UserRouter(BaseRouter):
     async def cmd_start(
         self,
         message: Message,
-        command: CommandStart,
         user: TGUser,
         state: FSMContext,
+        command: CommandStart = CommandStart(),
     ) -> None:
         """Обработчик команды /start.
 

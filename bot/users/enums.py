@@ -29,6 +29,7 @@ class MainMenuText(str, Enum):
         HELP: Кнопка вызова справки и помощи по настройке VPN.
         ADMIN_PANEL: Кнопка перехода в административную панель (доступна администраторам).
         PREMIUM: Возможности премиум пользователей.
+        BACK: Шаг назад
 
     """
 
@@ -40,6 +41,7 @@ class MainMenuText(str, Enum):
     HELP = "❓ Помощь в настройке VPN"
     ADMIN_PANEL = "⚙️ Панель администратора"
     PREMIUM = "💎 Премиум возможности 💎"
+    BACK = "❌ Стандартные локации"
 
 
 class Location(str, Enum):

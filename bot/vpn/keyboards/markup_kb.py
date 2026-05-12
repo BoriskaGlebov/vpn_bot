@@ -2,7 +2,7 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 from bot.core.config import settings_bot
-from bot.users.enums import Location, PremiumLocation, VPNProtocol
+from bot.users.enums import Location, MainMenuText, PremiumLocation, VPNProtocol
 from bot.users.utils.text_generator import vpn_button_text
 
 
@@ -33,6 +33,7 @@ def premium_locations_kb() -> ReplyKeyboardMarkup:
             )
 
         builder.add(*buttons)
+    builder.add(KeyboardButton(text=MainMenuText.BACK))
     builder.adjust(2)
 
     return builder.as_markup(
