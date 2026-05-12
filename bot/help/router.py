@@ -17,6 +17,7 @@ from bot.help.enums import DeviceEnum
 from bot.help.keyboards.inline_kb import device_keyboard, inline_developer_keyboard
 from bot.help.utils.android_device import AndroidDevice
 from bot.help.utils.common_device import Device
+from bot.help.utils.happ_device import HappDevice
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
 from bot.help.utils.split_device import SplitDevice
@@ -43,6 +44,7 @@ class HelpRouter(BaseRouter):
         DeviceEnum.PC: PCDevice,
         DeviceEnum.TV: TVDevice,
         DeviceEnum.SPLIT: SplitDevice,
+        DeviceEnum.HAPP: HappDevice,
     }
 
     def __init__(self, bot: Bot, logger: Logger, redis: RedisClient) -> None:

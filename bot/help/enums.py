@@ -9,3 +9,4 @@ class DeviceEnum(str, Enum):
     PC = "pc"
     TV = "tv"
     SPLIT = "split"
+    HAPP = "happ"

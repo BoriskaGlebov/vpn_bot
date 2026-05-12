@@ -216,6 +216,93 @@ bot:
 
             ✅ Готово! Теперь интернет работает комфортно и без постоянных переключений.
 
+        happ:
+          - |
+            🚀 Подключение VPN через Happ
+            📲 Что такое Happ?
+
+            Happ — удобное приложение для VPN с поддержкой нового протокола на базе Xray.
+            Он работает стабильнее, быстрее и лучше справляется с блокировками 👌
+
+            Скачать приложение:
+
+            <a href="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe">🪟 Windows</a>
+            <a href="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973">🍎 macOS</a>
+            <a href="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973">📱 iPhone / iPad (iOS)</a>
+            <a href="https://play.google.com/store/apps/details?id=com.happproxy">🤖 Android</a>
+            <a href="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb">🐧 Linux</a>
+
+            🔗 Как подключиться
+            1️⃣ Получаем ссылку в боте
+
+            После того как бот отправит вам ссылку для подключения VPN.
+
+            👉 Просто зажмите сообщение и нажмите «Копировать».
+
+          - |
+            2️⃣ Открываем Happ
+
+            Запускаем приложение и нажимаем кнопку ➕ в правом верхнем углу.
+
+          - |
+            3️⃣ Импортируем настройки
+
+            Выбираем пункт:
+
+            📋 «Вставить из буфера обмена»
+
+            Happ сам всё настроит автоматически ✨
+
+          - |
+            4️⃣ Обновляем подписку
+
+            После добавления у вас появится подписка с серверами и протоколами 🌍
+
+          - |
+            ⚠️ Перед использованием ОБЯЗАТЕЛЬНО обновляйте подписку:
+
+             Открываем подписку
+             Нажимаем 🔄 «Обновить»
+             Ждём сообщение об успешном обновлении
+
+             Так вы всегда будете получать актуальные серверы и настройки 👍
+          - |
+            5️⃣ Проверяем сервер
+
+            Рядом с серверами должно появиться время отклика (например 50 ms или 120 ms) ⏱️
+
+            Если цифры появились — всё работает отлично ✅
+
+          - |
+            6️⃣ Подключаемся
+
+            Жмём большую кнопку «Подключиться» 🚀
+
+            Через пару секунд VPN должен заработать 🔥
+
+          - |
+            ⚙️ Полезные функции Happ
+
+            В приложении есть много удобных настроек:
+
+            ✨ Раздельное туннелирование
+            (можно выбрать какие приложения работают через VPN)
+
+            🔄 Автообновление подписок
+
+            🚀 Автоподключение при запуске приложения
+
+            🛠️ И другие полезные функции — всё находится в настройках Happ.
+
+            Если что-то не получается — пишите в поддержку 💬
+            Скачать приложение:
+
+             <a href="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe">🪟 Windows</a>
+            <a href="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973">🍎 macOS</a>
+            <a href="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973">📱 iPhone / iPad (iOS)</a>
+            <a href="https://play.google.com/store/apps/details?id=com.happproxy">🤖 Android</a>
+            <a href="https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb">🐧 Linux</a>
+
     subscription:
       start: |
        💎 <b>Пробный период — 7 дней бесплатно!</b>
