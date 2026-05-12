@@ -29,20 +29,20 @@ def main_kb(
             KeyboardButton(text=MainMenuText.PREMIUM.value),
         )
         for location in Location:
-            builder.row(
-                KeyboardButton(text=vpn_button_text(VPNProtocol.AWG, location)),
-                KeyboardButton(text=vpn_button_text(VPNProtocol.AVPN, location)),
-            )
-            if location.name == Location.MAIN.name and (
-                settings_bot.vpn.main.xray is not None
-            ):
-                builder.row(
-                    KeyboardButton(text=vpn_button_text(VPNProtocol.XRAY, location)),
+            buttons = [
+                KeyboardButton(text=vpn_button_text(VPNProtocol.AMNEZIA, location)),
+            ]
+            xray_available = (
+                location.name == Location.MAIN.name
+                and settings_bot.vpn.main.xray is not None
+            ) or settings_bot.vpn.get(location.value.lower()).xray is not None
+            if xray_available:
+                buttons.append(
+                    KeyboardButton(text=vpn_button_text(VPNProtocol.XRAY, location))
                 )
-            elif settings_bot.vpn.get(location.value.lower()).xray is not None:
-                builder.row(
-                    KeyboardButton(text=vpn_button_text(VPNProtocol.XRAY, location)),
-                )
+            builder.add(*buttons)
+        builder.adjust(1, 2)
+
         builder.row(
             KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value),
         )

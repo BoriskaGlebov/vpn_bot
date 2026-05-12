@@ -656,7 +656,6 @@ async def test_delete_temp_files_stderr(ssh_client):
 
 
 @pytest.mark.vpn
-@pytest.mark.vpn
 async def test_add_new_user_gen_config_success(ssh_client):
     ssh_client._check_container = AsyncMock()
     ssh_client._generate_private_key = AsyncMock(return_value="PRIVATE_KEY")
@@ -666,6 +665,11 @@ async def test_add_new_user_gen_config_success(ssh_client):
     ssh_client._get_psk_key = AsyncMock(return_value="PSK_KEY")
     ssh_client._add_user_in_config = AsyncMock(return_value="OK")
     ssh_client._add_to_clients_table = AsyncMock(return_value=True)
+
+    ssh_client._save_wg_config_bundle = AsyncMock(
+        return_value=("file1.conf", "file2.vpn")
+    )
+
     ssh_client._save_wg_config = AsyncMock(return_value=True)
     ssh_client._delete_temp_files = AsyncMock()
     ssh_client._reboot_interface = AsyncMock()
@@ -674,21 +678,15 @@ async def test_add_new_user_gen_config_success(ssh_client):
 
     ssh_client._check_container.assert_awaited_once()
     ssh_client._generate_private_key.assert_awaited_once()
-    assert ssh_client._generate_private_key.return_value == "PRIVATE_KEY"
     ssh_client._generate_public_key.assert_awaited_once()
-    assert ssh_client._generate_public_key.return_value == "PUB_KEY"
     ssh_client._get_public_server_key.assert_awaited_once()
-    assert ssh_client._get_public_server_key.return_value == "PUB_SERVER_KEY"
     ssh_client._get_correct_ip.assert_awaited_once()
-    assert ssh_client._get_correct_ip.return_value == "10.0.0.2/32"
     ssh_client._get_psk_key.assert_awaited_once()
-    assert ssh_client._get_psk_key.return_value == "PSK_KEY"
     ssh_client._add_user_in_config.assert_awaited_once()
-    assert ssh_client._add_user_in_config.return_value == "OK"
     ssh_client._add_to_clients_table.assert_awaited_once()
-    assert ssh_client._add_to_clients_table.return_value == True
-    ssh_client._save_wg_config.assert_awaited_once()
-    assert ssh_client._save_wg_config.return_value == True
+
+    ssh_client._save_wg_config_bundle.assert_awaited_once()
+
     ssh_client._delete_temp_files.assert_awaited_once()
     ssh_client._reboot_interface.assert_awaited_once()
 

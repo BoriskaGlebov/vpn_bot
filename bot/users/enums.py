@@ -29,6 +29,7 @@ class MainMenuText(str, Enum):
         HELP: Кнопка вызова справки и помощи по настройке VPN.
         ADMIN_PANEL: Кнопка перехода в административную панель (доступна администраторам).
         PREMIUM: Возможности премиум пользователей.
+        BACK: Шаг назад
 
     """
 
@@ -40,6 +41,7 @@ class MainMenuText(str, Enum):
     HELP = "❓ Помощь в настройке VPN"
     ADMIN_PANEL = "⚙️ Панель администратора"
     PREMIUM = "💎 Премиум возможности 💎"
+    BACK = "❌ Стандартные локации"
 
 
 class Location(str, Enum):
@@ -87,12 +89,15 @@ class VPNProtocol(StrEnum):
         AVPN: Протокол AmneziaVPN.
             Собственная реализация VPN с дополнительной обфускацией трафика.
 
+        AMNEZIA: Протокол Amnezia WireGuard.
+
         XRAY: Протокол Xray (VLESS + Reality + XHTTP/TLS).
             Используется для маскировки трафика под обычный HTTPS
             и обхода сетевых ограничений.
 
     """
 
-    AWG = "AmneziaWG"
-    AVPN = "AmneziaVPN"
-    XRAY = "X-RAY Vless Reality XHTTP/TLS"
+    # AWG = "AmneziaWG"
+    # AVPN = "AmneziaVPN"
+    AMNEZIA = "AmneziaVPN"
+    XRAY = "⚡ XRay Pro"

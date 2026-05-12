@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     FSInputFile,
+    InputMediaDocument,
     Message,
     ReplyKeyboardRemove,
 )
@@ -27,7 +28,6 @@ from bot.utils.base_router import BaseRouter
 from bot.vpn.keyboards.inline_kb import proxy_url_button, xray_urk_kb
 from bot.vpn.keyboards.markup_kb import premium_locations_kb
 from bot.vpn.services import SSHClientFactory, VPNService
-from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG2
 from bot.vpn.utils.mtproto import HostDockerSSHClient
 
@@ -37,11 +37,9 @@ if TYPE_CHECKING:
 m_vpn = settings_bot.messages.modes.vpn
 m_subscription = settings_bot.messages.modes.subscription
 x_ray_messages = settings_bot.messages.modes.vpn.x_ray
+# TODO Вернуться на шаг назад к стандартным локациям
 
 
-# TODO тестирование
-# TODO убрать из роута работу с сервисом ВПН.
-# TODO тут добавились новыые методы нужно тестирование
 class VPNStates(StatesGroup):  # type: ignore[misc]
     """Состояния роутера генерации конфиг файлов."""
 
@@ -77,14 +75,8 @@ class VPNRouter(BaseRouter):
 
         for location in Location:
             self.router.message.register(
-                self.get_config_amnezia_vpn,
-                F.text == vpn_button_text(VPNProtocol.AVPN, location),
-                flags={"location": location},
-            )
-
-            self.router.message.register(
                 self.get_config_amnezia_wg,
-                F.text == vpn_button_text(VPNProtocol.AWG, location),
+                F.text == vpn_button_text(VPNProtocol.AMNEZIA, location),
                 flags={"location": location},
             )
             self.router.message.register(
@@ -112,15 +104,8 @@ class VPNRouter(BaseRouter):
 
         for prem_location in PremiumLocation:
             self.router.message.register(
-                self.get_config_amnezia_vpn,
-                F.text == vpn_button_text(VPNProtocol.AVPN, prem_location),
-                is_premium,
-                flags={"location": prem_location},
-            )
-
-            self.router.message.register(
                 self.get_config_amnezia_wg,
-                F.text == vpn_button_text(VPNProtocol.AWG, prem_location),
+                F.text == vpn_button_text(VPNProtocol.AMNEZIA, prem_location),
                 is_premium,
                 flags={"location": prem_location},
             )
@@ -136,14 +121,6 @@ class VPNRouter(BaseRouter):
                 F.text == MainMenuText.AMNEZIA_PROXY.value,
             ),
         )
-        # self.router.message.register(
-        #     self.generate_subscription,
-        #     and_f(
-        #         F.text == PremiumLocations.BULGARIA,
-        #         StateFilter(VPNStates.check_location),
-        #     ),
-        #     is_premium,
-        # )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
         """Проверка от повторного создания конфиг файла."""
@@ -223,7 +200,11 @@ class VPNRouter(BaseRouter):
             )
 
             try:
-                file_path, pub_key = await self.vpn_service.generate_user_config(
+                (
+                    file_path1,
+                    file_path2,
+                    pub_key,
+                ) = await self.vpn_service.generate_user_config(
                     tg_user=user,
                     ssh_client_factory=ssh_client_factory,
                     server_info=server_info,
@@ -231,58 +212,64 @@ class VPNRouter(BaseRouter):
 
                 await status_msg.answer(text=m_vpn.config_ready)
 
-                await message.answer_document(document=FSInputFile(path=file_path))
+                await message.answer_media_group(
+                    media=[
+                        InputMediaDocument(media=FSInputFile(file_path1)),
+                        InputMediaDocument(media=FSInputFile(file_path2)),
+                    ]
+                )
 
-                file_path.unlink(missing_ok=True)
+                file_path1.unlink(missing_ok=True)
+                file_path2.unlink(missing_ok=True)
 
             finally:
                 await state.clear()
                 await self.redis.delete(redis_key)
 
-    @BaseRouter.log_method
-    @BaseRouter.require_user
-    async def get_config_amnezia_vpn(
-        self,
-        message: Message,
-        user: TgUser,
-        state: FSMContext,
-    ) -> None:
-        """Генерация конфигурации AmneziaVPN для пользователя.
-
-        Flow:
-            1. Определяет сервер по локации
-            2. Проверяет блокировку генерации (Redis)
-            3. Генерирует VPN конфиг
-            4. Отправляет файл пользователю
-
-        Args:
-            message (Message): входящее сообщение.
-            user (TgUser): пользователь Telegram.
-            state (FSMContext): FSM контекст.
-
-        Returns
-            None
-
-        """
-        location = await self._get_location_server(message=message)
-        if location is None:
-            raise AppError("Не определил локацию сервера.")
-        server_info = settings_bot.vpn.get(name=location)
-
-        redis_key = f"vpn:config:{user.id}:amnezia_vpn"
-        acquired_check = await self._check_acquired(redis_key, message)
-        if not acquired_check:
-            return
-
-        await self._handle_vpn_config(
-            message=message,
-            user=user,
-            state=state,
-            ssh_client_factory=AsyncSSHClientVPN2,
-            server_info=server_info,
-            redis_key=redis_key,
-            start_text=m_vpn.amnezia_vpn,
-        )
+    # @BaseRouter.log_method
+    # @BaseRouter.require_user
+    # async def get_config_amnezia_vpn(
+    #     self,
+    #     message: Message,
+    #     user: TgUser,
+    #     state: FSMContext,
+    # ) -> None:
+    #     """Генерация конфигурации AmneziaVPN для пользователя.
+    #
+    #     Flow:
+    #         1. Определяет сервер по локации
+    #         2. Проверяет блокировку генерации (Redis)
+    #         3. Генерирует VPN конфиг
+    #         4. Отправляет файл пользователю
+    #
+    #     Args:
+    #         message (Message): входящее сообщение.
+    #         user (TgUser): пользователь Telegram.
+    #         state (FSMContext): FSM контекст.
+    #
+    #     Returns
+    #         None
+    #
+    #     """
+    #     location = await self._get_location_server(message=message)
+    #     if location is None:
+    #         raise AppError("Не определил локацию сервера.")
+    #     server_info = settings_bot.vpn.get(name=location)
+    #
+    #     redis_key = f"vpn:config:{user.id}:amnezia_vpn"
+    #     acquired_check = await self._check_acquired(redis_key, message)
+    #     if not acquired_check:
+    #         return
+    #
+    #     await self._handle_vpn_config(
+    #         message=message,
+    #         user=user,
+    #         state=state,
+    #         ssh_client_factory=AsyncSSHClientVPN2,
+    #         server_info=server_info,
+    #         redis_key=redis_key,
+    #         start_text=m_vpn.amnezia_vpn,
+    #     )
 
     @BaseRouter.log_method
     @BaseRouter.require_user
