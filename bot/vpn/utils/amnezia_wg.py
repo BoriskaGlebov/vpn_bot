@@ -837,6 +837,7 @@ class AsyncSSHClientWG:
             logger.error(e)
             raise
 
+    # TODO или тут гддето проблема влогике удаления
     async def _delete_user_wg0(self, public_key: str) -> bool | None:
         """Удаляет пользователя с указанным публичным ключом из wg0.conf.
 
@@ -1064,6 +1065,7 @@ class AsyncSSHClientWG:
                 cause=e,
             ) from e
 
+    # TODO тут возникает Race Condition
     async def close(self) -> None:
         """Закрывает shell-сессию и соединение."""
         if self._process is not None:
