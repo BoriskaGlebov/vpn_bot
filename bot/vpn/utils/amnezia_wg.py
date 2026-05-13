@@ -158,7 +158,12 @@ class AsyncSSHClientWG:
         marker = "__EXIT__"
         self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
         await self._process.stdin.drain()
-        output = await self._process.stdout.readuntil("\n")
+        try:
+            output = await self._process.stdout.readuntil("\n")
+        except asyncio.IncompleteReadError as e:
+            if e.partial == b"":
+                raise AmneziaSSHError("AsyncSSH: соединение закрыто при чтении stdout")
+            raise
         while marker not in output:
             output += await self._process.stdout.readuntil("\n")
         stdout, _, exit_info = output.rpartition("__EXIT__")

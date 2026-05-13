@@ -121,6 +121,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # trigger=IntervalTrigger(seconds=45, minutes=0),
         trigger=CronTrigger(hour=8, minute=0),
         kwargs={"service": container.scheduler_bot_service},
+        id="scheduled_check",
+        max_instances=1,  # Запрещаем параллельное выполнение
+        coalesce=True,  # Если накопилось несколько вызовов - выполнить один раз
+        misfire_grace_time=30,  # Пропустить, если опоздали на 30+ секунд
+        replace_existing=True,  # Заменить, если задача с таким id уже есть
     )
     scheduler.start()
     logger.info("🕒 Планировщик запущен — проверка каждый день в 8:00")
