@@ -161,17 +161,18 @@ class SchedulerBotService:
             )
 
     async def _handle_broken_pipe(
-        self, client_cls: AsyncSSHClientWG, error: Exception
+        self, client_cls: AsyncSSHClientWG, file_name: str, error: Exception
     ) -> None:
         """Обработка события, когда не может подключиться к контейнеру с настройками."""
         logger.error("SSH соединение разорвано ({}): {}", str(client_cls), error)
 
-        await send_to_admins(
-            bot=self.bot,
-            message_text=(
-                f"⚠️ Не удалось подключиться к контейнеру\n{str(client_cls)}: {error}"
-            ),
-        )
+        # await send_to_admins(
+        #     bot=self.bot,
+        #     message_text=(
+        #         f"⚠️ Не удалось подключиться к контейнеру\n{str(client_cls)}: {error}\n"
+        #         f"Когда удалял файл - <b>{file_name}</b>"
+        #     ),
+        # )
 
     async def _handle_xray_error(
         self,
@@ -295,7 +296,7 @@ class SchedulerBotService:
                     deletion_statistic.append(DeleteStatus.ERROR)
 
                 except BrokenPipeError as e:
-                    await self._handle_broken_pipe(ssh_client, e)
+                    await self._handle_broken_pipe(ssh_client, cfg.file_name, e)
                     deletion_statistic.append(DeleteStatus.ERROR)
         else:
             return (
