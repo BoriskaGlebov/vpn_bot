@@ -160,7 +160,7 @@ jobs:
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
           ENV_EOF
 
-
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> .env.dev
             echo "Restart Docker containers..."
             make compose-down
             make compose-up
