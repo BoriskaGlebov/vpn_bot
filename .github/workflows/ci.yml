@@ -109,6 +109,10 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
+
+            # Явно загружаем bashrc чтобы активировать ssh-agent
+            source ~/.bashrc
+
             cd /home/prod_server/production/vpn_bot || exit 1
             echo "Pull latest code..."
             git checkout develop
@@ -118,9 +122,6 @@ jobs:
 
             echo "Recreate .env.dev file..."
             rm -f .env.dev
-
-
-            echo "Recreate .env.dev file..."
 
             cat <<ENV_EOF > .env.dev
 
@@ -160,6 +161,7 @@ jobs:
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
           ENV_EOF
 
+            echo "SSH_AUTH_SOCK добавляю в .env.dev"
             echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> .env.dev
             echo "Restart Docker containers..."
             make compose-down
