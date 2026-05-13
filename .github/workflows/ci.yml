@@ -110,8 +110,27 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
 
-            # Явно загружаем bashrc чтобы активировать ssh-agent
-            source ~/.bashrc
+             # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
+            # Запускаем агент, если не запущен
+            if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
+              eval $(ssh-agent) > /dev/null
+              echo "SSH agent started with socket: $SSH_AUTH_SOCK"
+            fi
+
+            # Добавляем ключи
+            if [ -f ~/.ssh/help_blocks ]; then
+              ssh-add ~/.ssh/help_blocks < /dev/null 2>/dev/null
+              echo "SSH key added"
+            fi
+            # Добавляем ключи
+              if [ -f ~/.ssh/xray_boriska ]; then
+                ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
+                echo "SSH key added"
+              fi
+
+            # Проверяем что ключи добавились
+            ssh-add -l
+            # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====
 
             cd /home/prod_server/production/vpn_bot || exit 1
             echo "Pull latest code..."
