@@ -76,30 +76,12 @@ jobs:
         env:
           ENV_FILE: .env.test
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          BASE_SITE: ${{ vars.BASE_SITE }}
-          DB_DATABASE: ${{ vars.DB_DATABASE }}
           DB_PASSWORD: ${{ vars.DB_PASSWORD }}
-          DB_USER: ${{ vars.DB_USER }}
           REDIS_PASSWORD: ${{ vars.REDIS_PASSWORD }}
-          REDIS_USER: ${{ vars.REDIS_USER }}
-          VPN_CONTAINER: ${{ vars.VPN_CONTAINER }}
-          VPN_HOST: ${{ vars.VPN_HOST }}
-          VPN_USERNAME: ${{ vars.VPN_USERNAME }}
-          PROXY_PREFIX: ${{ vars.PROXY_PREFIX }}
-          VPN_PROXY: ${{ vars.VPN_PROXY }}
-          BUCKET_NAME: ${{ vars.BUCKET_NAME }}
-          PREFIX: ${{ vars.PREFIX }}
-          ENDPOINT_URL: ${{ vars.ENDPOINT_URL }}
           ACCESS_KEY: ${{ secrets.ACCESS_KEY }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          USE_LOCAL: ${{ vars.USE_LOCAL }}
-          ACCESS_KEY_AI: ${{ vars.ACCESS_KEY_AI }}
-          SECRET_KEY_AI: ${{ vars.SECRET_KEY_AI }}
-          YANDEX_FOLDER_ID: ${{ vars.YANDEX_FOLDER_ID }}
-          MODEL_LLM_NAME: ${{ vars.MODEL_LLM_NAME }}
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
+          SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
         run: poetry run pytest -vs .
 
   deploy_develop:
@@ -125,8 +107,31 @@ jobs:
 
       - name: Recreate .env and restart containers
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
+
+             # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
+            # Запускаем агент, если не запущен
+            if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
+              eval $(ssh-agent) > /dev/null
+              echo "SSH agent started with socket: $SSH_AUTH_SOCK"
+            fi
+
+            # Добавляем ключи
+            if [ -f ~/.ssh/help_blocks ]; then
+              ssh-add ~/.ssh/help_blocks < /dev/null 2>/dev/null
+              echo "SSH key added"
+            fi
+            # Добавляем ключи
+              if [ -f ~/.ssh/xray_boriska ]; then
+                ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
+                echo "SSH key added"
+              fi
+
+            # Проверяем что ключи добавились
+            ssh-add -l
+            # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====
+
             cd /home/prod_server/production/vpn_bot || exit 1
             echo "Pull latest code..."
             git checkout develop
@@ -134,46 +139,56 @@ jobs:
             git reset --hard origin/develop
             git clean -fd
 
-            echo "Recreate .env.local file..."
-            rm -f .env.local
+            echo "Recreate .env.dev file..."
+            rm -f .env.dev
 
-            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env.local
-            echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env.local
-            echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env.local
-            echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env.local
-            echo "PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}" >> .env.local
-            echo "VPN_PROXY=${{ secrets.VPN_PROXY }}" >> .env.local
-            echo "PROXY_PORT=${{ secrets.PROXY_PORT }}" >> .env.local
-            echo "SESSION_SECRET=${{secrets.SESSION_SECRET}}">> .env.local
-            echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env.local
-            echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env.local
-            echo "PRICE_MAP=${{ vars.PRICE_MAP }}" >> .env.local
-            echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env.local
-            echo "DB_USER=${{ secrets.DB_USER }}" >> .env.local
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env.local
-            echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env.local
-            echo "REDIS_USER=${{ secrets.REDIS_USER }}" >> .env.local
-            echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env.local
-            echo "USE_POLLING=${{ vars.USE_POLLING }}" >> .env.local
-            echo "BUCKET_NAME=${{ vars.BUCKET_NAME }}" >> .env.local
-            echo "PREFIX=${{ vars.PREFIX }}" >> .env.local
-            echo "ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}" >> .env.local
-            echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env.local
-            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.local
-            echo "ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}" >> .env.local
-            echo "SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}" >> .env.local
-            echo "YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}" >> .env.local
-            echo "MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}" >> .env.local
-            echo "NORMALIZE=${{ vars.NORMALIZE }}" >> .env.local
-            echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
-            echo "SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}" >> .env.local
+            cat <<ENV_EOF > .env.dev
 
+          # == STAGE ==
+
+          STAGE=develop
+
+          # == CORE ==
+
+          BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+
+          # == API ==
+
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+
+          # ==X-RAY ==
+
+          SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
+
+
+          # == DATABASE ==
+
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+          # == REDIS ==
+
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+          # == STORAGE ==
+
+          ACCESS_KEY=${{ secrets.ACCESS_KEY }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+
+          # == AI ==
+          ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
+          SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
+          SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+          ENV_EOF
+
+            echo "SSH_AUTH_SOCK добавляю в .env.dev"
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> .env.dev
             echo "Restart Docker containers..."
             make compose-down
             make compose-up
 
             docker restart nginx
-          EOF
+          SSH_EOF
 
 
   deploy_prod:

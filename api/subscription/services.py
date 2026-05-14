@@ -185,7 +185,12 @@ class SubscriptionService:
         if not user_model:
             logger.warning("Пользователь не найден: user_id={}", user_id)
             raise UserNotFoundError(tg_id=user_id)
-        sub_type = SubscriptionType.PREMIUM if premium else SubscriptionType.STANDARD
+        if user_model.role.name == FilterTypeEnum.FOUNDER:
+            sub_type = SubscriptionType.FOUNDER
+        elif premium:
+            sub_type = SubscriptionType.PREMIUM
+        else:
+            sub_type = SubscriptionType.STANDARD
         active_sub = next(
             (
                 sbscr
@@ -212,7 +217,7 @@ class SubscriptionService:
             current_sub = user_model.current_subscription
             if current_sub is not None:
                 current_sub.extend(months=months)
-                current_sub.type = SubscriptionType.PREMIUM
+                current_sub.type = SubscriptionType.FOUNDER
                 return await UserMapper.to_schema(user=user_model)
         logger.info(
             "Создание новой подписки: user_id={}, months={}, type={}",

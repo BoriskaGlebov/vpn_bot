@@ -92,7 +92,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                     f"[DAO] Создание конфига отклонено — пользователь {user_id} достиг лимита",
                 )
                 raise VPNLimitError(
-                    user_id=user_id, limit=settings_api.max_configs_per_user
+                    user_id=user_id, limit=settings_api.core.max_configs_per_user
                 )
 
             config = VPNConfig(user_id=user_id, file_name=file_name, pub_key=pub_key)

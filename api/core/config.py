@@ -1,50 +1,72 @@
-from collections.abc import Iterable
+import os
 from pathlib import Path
-from typing import Any
+from pprint import pprint
 
-from pydantic import field_validator
+from dotenv import load_dotenv
+from pydantic import Field, SecretStr
 
-from shared.config.app_config import SettingsApp
-from shared.config.db_config import SettingsDB
+from shared.config.app_config import (
+    SettingsApp,
+    SettingsCommon,
+    load_toml_config,
+)
+from shared.config.db_config import PostgresSettings
 from shared.config.logger_config import LoggerConfig
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
-class SettingsAPI(SettingsApp):
+class SettingsAPI(SettingsCommon):
     """Конфигурация API-сервиса.
 
-    Расширяет базовые настройки приложения (`SettingsApp`) параметрами,
-    специфичными для FastAPI-сервиса.
+    Расширяет базовые настройки приложения (`SettingsCommon`) параметрами,
+    специфичными для FastAPI-сервиса, и агрегирует конфигурации
+    других подсистем (ядро приложения и база данных).
 
     Attributes
-        admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
+        core (SettingsApp):
+            Основные настройки приложения (бизнес-логика, бот, XRay, прокси и т.д.).
+
+        db (PostgresSettings):
+            Конфигурация подключения к PostgreSQL базе данных.
+            Включает параметры подключения и формирование URL.
+
+
+
+        session_secret (SecretStr):
+            Секретный ключ для подписи сессий (например, cookies или JWT).
+
+
 
     """
 
-    admin_ids: set[int] | str = ""
+    core: SettingsApp = Field(default_factory=SettingsApp)
+    # core: SettingsApp
+    db: PostgresSettings = Field(default_factory=PostgresSettings)
+    # db: PostgresSettings
 
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def parse_admin_ids(cls, v: Any) -> set[int]:
-        """Парсит строку с ID администраторов в множество целых чисел."""
-        if isinstance(v, str):
-            return set(int(i) for i in v.split(",") if i.strip().isdigit())
-        if isinstance(v, Iterable):
-            try:
-                return {int(i) for i in v}
-            except (ValueError, TypeError):
-                raise ValueError("admin_ids должна содержать только целые числа")
-
-        raise TypeError("admin_ids должно быть строкой или коллекцией")
+    session_secret: SecretStr = SecretStr("secret")
 
 
-settings_api = SettingsAPI()  # type: ignore
-settings_db = SettingsDB()  # type: ignore
+load_dotenv(BASE_DIR / ".env.local")
+env_conf = {
+    "db": {
+        "user": os.getenv("DB_USER"),
+        "database": os.getenv("DB_NAME"),
+    },
+    "redis": {},
+}
+toml_loader = load_toml_config()
+settings_api = SettingsAPI(**toml_loader)  # type: ignore
 
 LoggerConfig(
     log_dir=BASE_DIR / "api" / "logs",
-    logger_level_stdout=settings_api.logger_level_stdout,
-    logger_level_file=settings_api.logger_level_file,
-    logger_error_file=settings_api.logger_error_file,
+    logger_level_stdout=settings_api.core.logger_level_stdout,
+    logger_level_file=settings_api.core.logger_level_file,
+    logger_error_file=settings_api.core.logger_error_file,
 )
+if __name__ == "__main__":
+    # pprint(load_toml_config())
+    # pprint(settings_api.core.model_dump())
+    pprint(settings_api.db.model_dump())
+    # pprint(os.getenv("DB_USER"))

@@ -6,15 +6,18 @@ from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from bot.core.config import SettingsBot
+from bot.core.config import Settings
 from bot.core.config import bot as real_bot
+from bot.core.config import load_toml_config
 
 
 @pytest.fixture(scope="session")
-def test_settings_bot() -> SettingsBot:
+def test_settings_bot() -> Settings:
     """Фикстура для загрузки тестовых настроек из .env.test."""
-    return SettingsBot(
-        _env_file=Path(__file__).resolve().parent.parent.parent.parent / ".env.test"
+    toml_loader = load_toml_config()
+    return Settings(
+        **toml_loader,
+        _env_file=Path(__file__).resolve().parent.parent.parent.parent / ".env.test",
     )
 
 
@@ -33,17 +36,17 @@ def test_settings_bot() -> SettingsBot:
 #
 #
 # @pytest.fixture(scope="session")
-# def test_admin_id(test_settings_bot: SettingsBot) -> int:
+# def test_admin_id(test_settings_bot: Settings) -> int:
 #     """Фикстура для получения ID администратора из настроек."""
 #     return list(test_settings_bot.admin_ids)[0]
 #
 
 
 @pytest.fixture(scope="session")
-async def test_bot(test_settings_bot: SettingsBot) -> AsyncGenerator[Bot, Any]:
+async def test_bot(test_settings_bot: Settings) -> AsyncGenerator[Bot, Any]:
     """Фикстура для интеграционных тестов с тестовым ботом."""
     bot_instance = Bot(
-        token=test_settings_bot.bot_token.get_secret_value(),
+        token=test_settings_bot.bot.token.get_secret_value(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 

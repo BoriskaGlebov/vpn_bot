@@ -1,0 +1,184 @@
+# === CORE ===
+[core]
+# По умолчанию 10 конфиг файлов для полльзователя.
+max_configs_per_user = 2
+#Настроки сервера на которм контейнер с VPN для подключения к нему.
+#Дефолтное время для Timeout ошибки при подключени к стороннему сревису
+common_timeout = 10
+
+admin_ids = [439653349,]
+
+# === LOGGER ===
+# *Уровни логирования по умолчанию INFO, INFO WARNING
+logger_level_stdout = "DEBUG"
+logger_level_file = "DEBUG"
+logger_error_file = "WARNING"
+
+
+# === FASTAPI ===
+# *Настройки FastAPI по умолчанию оба False
+debug_fast_api = false
+reload_fast_api = false
+
+# === BOT ===
+[bot]
+
+# ! Базовый URL сайта (например, для webhook)
+base_site = "https://vpn-boriska.ru/bot"
+# *Использовать webhook или polling по умолчанию polling false
+use_polling = false
+
+# === PRICING ===
+[pricing]
+# Цена за тарифы 1, 3, 6, 12 месяцев и триал период на 7 дней
+price_map = {1 = 149, 3 = 399, 6 = 749, 12 = 1390, 7 = 0}
+price_map_premium = {1 = 249, 3 = 699, 6 = 1290, 12 = 2490, 7 = 0}
+price_map_founder = {1 = 199, 3 = 549, 6 = 1049, 12 = 1990, 7 = 0}
+
+
+# === API ===
+[api]
+url = "api"
+#API по умолчанию api c портом 8089
+port = 8089
+
+# === VPN SERVERS ===
+[vpn.nodes.main]
+#Сервер на котором крутится бот потому для него он локально может подключиться
+host = "vpn-boriska.ru"
+username = "prod_server"
+container_old="amnezia-awg"
+container = "amnezia-awg2"
+use_local = true
+location_prefix= "FI"
+flag= "🇫🇮"
+
+[vpn.nodes.fi]
+host = "vpn-boriska.ru"
+username = "prod_server"
+container = "amnezia-awg2"
+#Сервер с допольнительным ВПН только подключение через ssh
+use_local = true
+location_prefix= "FI"
+flag= "🇫🇮"
+
+[vpn.nodes.sof]
+host = "x-ray-boriska.pro"
+username = "xray"
+container = "amnezia-awg2"
+#Сервер с допольнительным ВПН только подключение через ssh
+use_local = false
+location_prefix= "SOF"
+flag= "🇧🇬"
+
+
+# === PROXY ===
+[vpn.nodes.main.proxy]
+prefix = "proxy-boriska"
+container = "telemt"
+# по умолчанию порт 443 налр испльзовать его
+port = 443
+
+[vpn.nodes.fi.proxy]
+prefix = "proxy-boriska"
+container = "telemt"
+# по умолчанию порт 443 налр испльзовать его
+port = 443
+
+#[vpn.nodes.sof.proxy]
+#prefix = "proxy-boriska"
+#container = "telemt"
+## по умолчанию порт 443 налр испльзовать его
+#port = 443
+
+# === X-RAY ===
+
+[vpn.nodes.main.xray]
+host = "vpn-boriska.ru"
+panel_prefix = "panel-78gh98"
+subscription_prefix = "sub-gh456hg"
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+
+[[vpn.nodes.main.xray.inbounds]]
+port = 2054
+name = "🇫🇮 | XHTTP Test"
+
+[[vpn.nodes.main.xray.inbounds]]
+port = 2055
+name = "🇫🇮 | TCP Reality Test"
+
+
+[vpn.nodes.fi.xray]
+host = "vpn-boriska.ru"
+panel_prefix = "panel-78gh98"
+subscription_prefix = "sub-45gh45"
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+
+[[vpn.nodes.fi.xray.inbounds]]
+port = 2054
+name = "🇫🇮 | XHTTP Test"
+
+[[vpn.nodes.fi.xray.inbounds]]
+port = 2055
+name = "🇫🇮 | TCP Reality Test"
+
+
+[vpn.nodes.sof.xray]
+host = "x-ray-boriska.pro"
+panel_prefix = "panel-df06dg"
+subscription_prefix = "sub-dk-34gs"
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+
+[[vpn.nodes.sof.xray.inbounds]]
+port = 2054
+name = "🇧🇬 | XHTTP Test"
+
+[[vpn.nodes.sof.xray.inbounds]]
+port = 2055
+name = "🇧🇬 | TCP Reality Test"
+
+
+
+# === DB ===
+[db]
+# * Настройки базы данных PostgreSQL по умолчанию postgres
+host = "postgres"
+# по умолчани порт 5432
+port = 5432
+user = "user_vpn"
+database = "vpn_boriska_db"
+#Размерность для эмбеддингов по умолчанию Яндекс использует 256  и на локально модели тот же парметр
+embedding_dim = 256
+
+# === REDIS ===
+[redis]
+# *Контекнер Redis по умолчанию redis
+host = "redis"
+# по умолчанию порт 6379
+port = 6379
+# по умолачанию пишит все в 0 базу
+db = 1
+# по умолчанию 3600 секунд время жизни кэша редис
+default_expire = 3600
+user = "vpn_user"
+
+# === STORAGE ===
+[bucket]
+#Bucket настройки
+bucket_name = "vpn-bot-images"
+prefix = "media/"
+endpoint_url = "https://storage.yandexcloud.net"
+
+# === AI ===
+[ai]
+#AI модель указвать только на локальной разработке так все через яндекс идет
+#Размерность для эмбеддингов 256 такую LLM нало брать, что б в БД положить
+model_name = "intfloat/multilingual-e5-small"
+#по умослчани нормализация TRUE
+normalize = true

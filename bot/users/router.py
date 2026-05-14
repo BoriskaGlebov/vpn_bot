@@ -12,7 +12,10 @@ from aiogram.filters import (
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, ReplyKeyboardRemove
+from aiogram.types import (
+    Message,
+    ReplyKeyboardRemove,
+)
 from aiogram.types import User as TGUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
@@ -23,27 +26,38 @@ from bot.core.filters import IsAdmin
 from bot.integrations.redis_client import RedisClient
 from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
-from bot.users.enums import ChatType, MainMenuText
+from bot.subscription.enums import ToggleSubscriptionMode
+from bot.users.enums import ChatType, Location, MainMenuText, VPNProtocol
+from bot.users.keyboards.inline_kb import id_link_kb
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SUserOut
 from bot.users.services import UserService
+from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
 from shared.enums.admin_enum import RoleEnum
 
 m_admin = settings_bot.messages.modes.admin
 m_start = settings_bot.messages.modes.start
+m_id = settings_bot.messages.modes.id
 m_error = settings_bot.messages.errors
 m_echo = settings_bot.messages.general.echo
+location_buttons_text = [
+    vpn_button_text(protocol, location)
+    for location in Location
+    for protocol in VPNProtocol
+]
 INVALID_FOR_USER = [
     MainMenuText.CHOOSE_SUBSCRIPTION.value,
-    MainMenuText.AMNEZIA_VPN.value,
-    MainMenuText.AMNEZIA_WG.value,
     MainMenuText.AMNEZIA_PROXY.value,
+    MainMenuText.FREE_AMNEZIA_PROXY.value,
     MainMenuText.CHECK_STATUS.value,
     MainMenuText.HELP.value,
     MainMenuText.RENEW_SUBSCRIPTION.value,
+    MainMenuText.PREMIUM.value,
+    MainMenuText.BACK.value,
 ]
+INVALID_FOR_USER.extend(location_buttons_text)
 INVALID_FOR_ADMIN = [
     MainMenuText.ADMIN_PANEL.value,
     MainMenuText.HELP.value,
@@ -93,7 +107,9 @@ class UserRouter(BaseRouter):
         self.referral_service = referral_service
 
     def _register_handlers(self) -> None:
-        self.router.message.register(self.cmd_start, CommandStart())
+        self.router.message.register(
+            self.cmd_start, or_f(CommandStart(), F.text == MainMenuText.BACK.value)
+        )
         self.router.message.register(
             self.admin_start,
             and_f(
@@ -119,6 +135,7 @@ class UserRouter(BaseRouter):
                 ~F.text.in_(INVALID_FOR_USER),
             ),
         )
+        self.router.message.register(self.cmd_id, Command("id"))
 
     async def _process_referral(
         self,
@@ -166,9 +183,9 @@ class UserRouter(BaseRouter):
     async def cmd_start(
         self,
         message: Message,
-        command: CommandStart,
         user: TGUser,
         state: FSMContext,
+        command: CommandStart = CommandStart(),
     ) -> None:
         """Обработчик команды /start.
 
@@ -214,15 +231,19 @@ class UserRouter(BaseRouter):
                         tg_id=user.id,
                     ),
                 )
+                subscription = user_info.current_subscription
+
+                is_active = subscription.is_active if subscription else False
+                subscription_type = subscription.type if subscription else None
+                check_premium = subscription_type == ToggleSubscriptionMode.PREMIUM
+                founder_role = user_info.role.name == RoleEnum.FOUNDER
+
                 await message.answer(
                     follow_up_message,
                     reply_markup=main_kb(
-                        active_subscription=(
-                            user_info.current_subscription.is_active
-                            if user_info.current_subscription
-                            else False
-                        ),
+                        active_subscription=is_active,
                         user_telegram_id=user.id,
+                        premium_access=True if check_premium or founder_role else False,
                     ),
                 )
             else:
@@ -246,7 +267,7 @@ class UserRouter(BaseRouter):
                         user_telegram_id=user.id,
                     ),
                 )
-                if user_info.telegram_id not in settings_bot.admin_ids:
+                if user_info.telegram_id not in settings_bot.core.admin_ids:
                     admin_message = m_admin.new_registration.format(
                         first_name=user_info.first_name or "undefined",
                         last_name=user_info.last_name or "undefined",
@@ -291,7 +312,7 @@ class UserRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
 
-            if user.id not in settings_bot.admin_ids:
+            if user.id not in settings_bot.core.admin_ids:
                 self.logger.bind(user=user.username or user.id).warning(
                     f"Попытка доступа к админ-панели не админом: {user.id}"
                 )
@@ -320,3 +341,15 @@ class UserRouter(BaseRouter):
             )
 
             await state.set_state(UserStates.press_admin)
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def cmd_id(self, message: Message, user: TGUser, state: FSMContext) -> None:
+        """Отправляет пользователю его Telegram ID с удобным копированием."""
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await state.clear()
+            user_id = user.id
+
+            text = m_id.start.format(user_id=user_id)
+
+            await message.answer(text, reply_markup=id_link_kb(user_id))

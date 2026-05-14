@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import ipaddress
 import json
 import shlex
@@ -19,8 +20,7 @@ from bot.vpn.utils.amnezia_exceptions import (
     AmneziaSSHError,
 )
 
-USE_LOCAL = settings_bot.use_local
-CONNECT_TIMEOUT = settings_bot.common_timeout
+CONNECT_TIMEOUT = settings_bot.core.common_timeout
 
 
 class AsyncSSHClientWG:
@@ -35,6 +35,9 @@ class AsyncSSHClientWG:
             Если None, проверка отключается.
         container (str, optional): Имя контейнера Docker, в котором
             будут выполняться команды. По умолчанию "amnezia-awg".
+        use_local (bool): Переменная определяет, если код запущен на одном сервере с ВПН,
+            то подключение через локальный демон Docker, если False то ппо ssh
+        location_prefix (str): Приставка к названию файла, что б можно было определить локацию.
 
     """
 
@@ -49,7 +52,8 @@ class AsyncSSHClientWG:
         port: int = 22,
         known_hosts: str | None = None,
         container: str = "amnezia-awg",
-        use_local: bool = USE_LOCAL,
+        use_local: bool = True,
+        location_prefix: str = "FR",
     ) -> None:
         self.container = container
         self.use_local = use_local
@@ -60,9 +64,14 @@ class AsyncSSHClientWG:
         self.username = username
         self.port = port
         self.known_hosts = known_hosts
+        self.location_prefix = location_prefix
 
         self._conn: asyncssh.SSHClientConnection | None = None
         self._process: asyncssh.SSHClientProcess[str] | None = None
+
+    def __str__(self) -> str:
+        """Строковое представление класса."""
+        return f"{self.__class__.__name__} - {self.host}"
 
     async def connect(self) -> None:
         """Устанавливает SSH-соединение и открывает shell-сессию.
@@ -92,7 +101,7 @@ class AsyncSSHClientWG:
             )
             self._process = await asyncio.wait_for(
                 self._conn.create_process(f"docker exec -i {self.container} sh;\n"),
-                timeout=settings_bot.common_timeout,
+                timeout=CONNECT_TIMEOUT,
             )
             logger.bind(user=self.username).debug(
                 f"AsyncSSH: подключение и shell-сессия установлены к {self.host}"
@@ -149,7 +158,12 @@ class AsyncSSHClientWG:
         marker = "__EXIT__"
         self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
         await self._process.stdin.drain()
-        output = await self._process.stdout.readuntil("\n")
+        try:
+            output = await self._process.stdout.readuntil("\n")
+        except asyncio.IncompleteReadError as e:
+            if e.partial == b"":
+                raise AmneziaSSHError("AsyncSSH: соединение закрыто при чтении stdout")
+            raise
         while marker not in output:
             output += await self._process.stdout.readuntil("\n")
         stdout, _, exit_info = output.rpartition("__EXIT__")
@@ -584,7 +598,7 @@ class AsyncSSHClientWG:
         pub_server_key: str,
         preshared_key: str,
     ) -> Path:
-        """Создает и сохраняет пользовательский конфиг.
+        """Создает и сохраняет пользовательский конфиг для AmneziaWG.
 
         Args:
             filename (str): Название файла конфигурации.
@@ -601,7 +615,7 @@ class AsyncSSHClientWG:
             new_ip, private_key, pub_server_key, preshared_key
         )
         if not filename.endswith(".conf"):
-            filename = f"WG{filename}.conf"
+            filename = f"WG{self.location_prefix}{filename}.conf"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
@@ -609,6 +623,60 @@ class AsyncSSHClientWG:
         async with aiofiles.open(file_cfg, "w", encoding="utf-8") as f:
             await f.write(config_text)
         return file_cfg
+
+    async def _save_vpn_config(
+        self,
+        filename: str,
+        new_ip: str,
+        private_key: str,
+        pub_server_key: str,
+        preshared_key: str,
+    ) -> Path:
+        """Создает и сохраняет пользовательский конфиг для AmneziaVPN.
+
+        Args:
+            filename (str): Название файла конфигурации.
+            new_ip (str): IP-адрес пользователя.
+            private_key (str): Приватный ключ пользователя.
+            pub_server_key (str): Публичный ключ сервера.
+            preshared_key (str): PSK ключ сервера.
+
+        Returns
+            file_path (Path): путь к временному файл для его удаления
+
+        """
+        config_text = await self._generate_wg_config(
+            new_ip, private_key, pub_server_key, preshared_key
+        )
+        encode_conf = base64.b64encode(config_text.encode()).decode()
+        if not filename.endswith(".conf"):
+            filename = f"VPN{self.location_prefix}{filename}.vpn"
+        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir.mkdir(parents=True, exist_ok=True)
+        file_cfg = file_dir / filename
+
+        async with aiofiles.open(file_cfg, "w") as f:
+            await f.write("vpn://\n")
+            await f.write(encode_conf)
+
+        return file_cfg
+
+    async def _save_wg_config_bundle(
+        self,
+        filename: str,
+        new_ip: str,
+        private_key: str,
+        pub_server_key: str,
+        preshared_key: str,
+    ) -> tuple[Path, Path]:
+        wg_file = await self._save_wg_config(
+            filename, new_ip, private_key, pub_server_key, preshared_key
+        )
+        vpn_file = await self._save_vpn_config(
+            filename, new_ip, private_key, pub_server_key, preshared_key
+        )
+
+        return wg_file, vpn_file
 
     async def _add_to_clients_table(self, public_key: str, client_name: str) -> bool:
         """Добавляет запись в clientsTable Amnezia.
@@ -710,7 +778,7 @@ class AsyncSSHClientWG:
                     stderr=stderr,
                 )
 
-    async def add_new_user_gen_config(self, file_name: str) -> tuple[Path, str]:
+    async def add_new_user_gen_config(self, file_name: str) -> tuple[Path, Path, str]:
         """Добавляет нового пользователя и генерирует конфигурационный файл WireGuard.
 
         Последовательно выполняются следующие шаги:
@@ -726,7 +794,7 @@ class AsyncSSHClientWG:
             10. Перезапускается интерфейс WireGuard.
 
         Args:
-            file_name (str): Имя файла конфигурации для нового пользователя.
+            file_name (str): Имя файлов .conf .vpn и для нового пользователя.
 
         Raises
             AmneziaError: Если произошла любая ошибка при работе с контейнером,
@@ -759,21 +827,22 @@ class AsyncSSHClientWG:
                 logger.bind(user=self.username).success(
                     "Новый клиент добавлен в clientsTable"
                 )
-            file = await self._save_wg_config(
+            file1, file2 = await self._save_wg_config_bundle(
                 filename, correct_ip, private_key, pub_server_key, psk
             )
 
-            if file:
-                logger.bind(user=self.username).success(
-                    f"Создан файл конфиг: {file_name}"
-                )
+            if file1:
+                logger.bind(user=self.username).success(f"Создан файл конфиг: {file1}")
+            if file2:
+                logger.bind(user=self.username).success(f"Создан файл конфиг: {file2}")
             await self._delete_temp_files()
             await self._reboot_interface()
-            return file, pub_key
+            return file1, file2, pub_key
         except AmneziaError as e:
             logger.error(e)
             raise
 
+    # TODO или тут гддето проблема влогике удаления
     async def _delete_user_wg0(self, public_key: str) -> bool | None:
         """Удаляет пользователя с указанным публичным ключом из wg0.conf.
 
@@ -1001,6 +1070,7 @@ class AsyncSSHClientWG:
                 cause=e,
             ) from e
 
+    # TODO тут возникает Race Condition
     async def close(self) -> None:
         """Закрывает shell-сессию и соединение."""
         if self._process is not None:
@@ -1046,6 +1116,9 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
             Если None, проверка отключается.
         container (str, optional): Имя контейнера Docker, в котором
             будут выполняться команды. По умолчанию "amnezia-awg".
+        use_local (bool): Переменная определяет, если код запущен на одном сервере с ВПН,
+            то подлючение через локальный демон Docker, если False то ппо ssh
+        location_prefix (str): Приставка к названию файла, что б можно было определить локацию.
 
     """
 
@@ -1059,9 +1132,12 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
         port: int = 22,
         known_hosts: str | None = None,
         container: str = "amnezia-awg2",
-        use_local: bool = USE_LOCAL,
+        use_local: bool = True,
+        location_prefix: str = "FR",
     ) -> None:
-        super().__init__(host, username, port, known_hosts, container, use_local)
+        super().__init__(
+            host, username, port, known_hosts, container, use_local, location_prefix
+        )
 
     async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
         """Получает индивидуальные данные для подключения VPN и порт контейнера.
@@ -1175,24 +1251,24 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
         return "\n".join(lines)
 
 
-if __name__ == "__main__":
-    """Пример использования AsyncSSHClient."""
-    key_path = Path().home() / ".ssh" / "test_vpn"
-
-    async def main() -> None:
-        """Пример использования AsyncSSHClient."""
-        async with AsyncSSHClientWG2(
-            host="vpn-boriska.ru",
-            username="prod_server",
-            known_hosts=None,  # Отключить проверку known_hosts
-            container="amnezia-awg2",
-        ) as ssh_client:
-            await ssh_client.connect()
-            res = await ssh_client.write_single_cmd(cmd="whoami")
-            print(res)
-            # await ssh_client.add_new_user_gen_config("boris_blade")
-            # await ssh_client.full_delete_user(
-            #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-            # )
-
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     """Пример использования AsyncSSHClient."""
+#     key_path = Path().home() / ".ssh" / "test_vpn"
+#
+#     async def main() -> None:
+#         """Пример использования AsyncSSHClient."""
+#         async with AsyncSSHClientWG2(
+#             host="vpn-boriska.ru",
+#             username="prod_server",
+#             known_hosts=None,  # Отключить проверку known_hosts
+#             container="amnezia-awg2",
+#         ) as ssh_client:
+#             await ssh_client.connect()
+#             res = await ssh_client.write_single_cmd(cmd="whoami")
+#             print(res)
+#             # await ssh_client.add_new_user_gen_config("boris_blade")
+#             # await ssh_client.full_delete_user(
+#             #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
+#             # )
+#
+#     asyncio.run(main())

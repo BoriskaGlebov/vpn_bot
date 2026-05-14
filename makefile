@@ -24,7 +24,7 @@ else ifeq ($(STAGE),local)
   ENV_FILE = .env.local
 else
   COMPOSE_FILES = $(COMPOSE_DEV)
-  ENV_FILE = .env.local
+  ENV_FILE = .env.dev
 endif
 
 

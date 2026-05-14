@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+import json
 from functools import cached_property
 from pathlib import Path
 from typing import Any
@@ -9,89 +9,297 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from box import Box
 from loguru import logger
-from pydantic import Field, SecretStr, computed_field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
+from pydantic_settings import SettingsConfigDict
 
-__all__ = ["logger", "settings_bot", "settings_db", "bot", "dp"]
-
-from shared.config.app_config import SettingsApp
-from shared.config.db_config import SettingsDB
+from bot.app_error.base_error import AppError
+from shared.config.app_config import SettingsApp, SettingsCommon, load_toml_config
+from shared.config.db_config import RedisSettings
 from shared.config.logger_config import LoggerConfig
+
+__all__ = ["logger", "settings_bot", "bot", "dp"]
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
-class SettingsBot(SettingsApp):
-    """Конфигурация бота и логирования.
+class SInbound(BaseModel):
+    """Модель inbound-конфигурации XRay.
 
     Attributes
-        bot_token (SecretStr): Токен бота для подключения к Telegram Bot API.
-        admin_ids (Union[Set[int], str]): Список Telegram ID администраторов с расширенными правами.
-        base_site (str): Базовый URL сайта, используемый для формирования вебхука.
-        vpn_host (str): Хост VPN-сервера.
-        vpn_username (str): Имя пользователя для подключения к VPN.
-        vpn_container (str): Имя Docker-контейнера VPN (если используется).
-        proxy_prefix  (str): Префикс к proxy, для обращения по второму ip.
-        vpn_proxy (str) : Имя Docker-контейнера PROXY (если используется).
-        proxy_port (str) : Порт для прокси на сервере.
-        max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
-        use_polling (bool): Использовать polling вместо webhook (по умолчанию False, удобно для тестов).
-        use_local (bool): Учитывать место развертывание бота, локальная машина или целевой хост.
-        messages (dict[str, Any]): Словарь с текстами сообщений бота (диалоги, подсказки и т.д.).
-        price_map (dict[int, int]): Карта цен подписок по месяцам, может быть задана через .env в JSON.
-    Properties
-        common_timeout (uint): Дефолтное время на подключение к удаленному серверу, после Timeout.
-        webhook_url (str): URL вебхука. Формируется автоматически на основе BASE_SITE.
+        port (int): Порт, на котором слушает inbound.
+        name (str): Человекочитаемое имя inbound (например, с флагом страны).
 
     """
 
-    bot_token: SecretStr
-    admin_ids: set[int] | str = ""
+    port: int
+    name: str
+
+
+class BotSettings(SettingsCommon):
+    """Настройки Telegram-бота.
+
+    Attributes
+        token (SecretStr): Токен Telegram Bot API.
+        admin_ids (set[int] | str): Список ID администраторов.
+            Может передаваться как:
+            - строка: "1,2,3"
+            - коллекция: list[int] | set[int] | tuple[int, ...]
+        base_site (str): Базовый URL сайта (используется для webhook).
+        use_polling (bool): Использовать polling вместо webhook.
+
+    Properties
+        webhook_url (str): Полный URL webhook.
+
+    """
+
+    token: SecretStr
     base_site: str
-
-    vpn_host: str
-    vpn_username: str
-    vpn_container: str
-    proxy_prefix: str
-    vpn_proxy: str
-    proxy_port: str = "443"
-
     use_polling: bool = False
+
+    @computed_field
+    def webhook_url(self) -> str:
+        """Формирует URL webhook.
+
+        Returns
+            str: URL вида "{base_site}/webhook".
+
+        """
+        return f"{self.base_site}/webhook"
+
+    model_config = SettingsConfigDict(env_prefix="BOT_")
+
+
+class ApiSettings(SettingsCommon):
+    """Настройки API-сервиса.
+
+    Attributes
+        url (str): Хост или путь API.
+        port (int): Порт API.
+
+    """
+
+    url: str = "api"
+    port: int = 8089
+
+    model_config = SettingsConfigDict(env_prefix="API_")
+
+
+class ProxySettings(SettingsCommon):
+    """Настройки прокси-контейнера.
+
+    Attributes
+        prefix (str): Префикс домена/URL.
+        container (str): Имя Docker-контейнера.
+        port (int): Порт прокси.
+
+    """
+
+    prefix: str
+    container: str = "telemt"
+    port: int = 443
+
+
+class XRaySettings(SettingsCommon):
+    """Настройки XRay (3x-ui панель и подписки).
+
+    Attributes
+        host (str): Домен XRay.
+        panel_prefix (str): Префикс панели управления.
+        subscription_prefix (str): Префикс подписок.
+        panel_port (int): Порт панели.
+        subscription_port (int): Порт подписок.
+        username (SecretStr): Логин панели.
+        password (SecretStr): Пароль панели.
+        inbounds (list[SInbound]): Список inbound-конфигураций.
+
+    Properties
+        url_panel (str): Домен панели (panel.{host}).
+
+    """
+
+    host: str = "undefined"
+    panel_prefix: str = "undefined"
+    subscription_prefix: str = "undefined"
+
+    panel_port: int = 0
+    subscription_port: int = 0
+
+    username: SecretStr
+    password: SecretStr
+
+    inbounds: list[SInbound] = Field(default_factory=list)
+
+    @computed_field
+    def url_panel(self) -> str:
+        """Возвращает домен панели XRay.
+
+        Returns
+            str: Домен вида "panel.{host}".
+
+        """
+        return f"panel.{self.host}"
+
+    @field_validator("inbounds", mode="before")
+    @classmethod
+    def parse_inbounds(cls, v: Any) -> list[SInbound]:
+        """Парсит inbound-конфигурации.
+
+        Args:
+            v (Any): JSON-строка или список словарей.
+
+        Returns
+            list[SInbound]: Список inbound-объектов.
+
+        Raises
+            ValueError: Если JSON некорректен.
+
+        """
+        if isinstance(v, str):
+            try:
+                data = json.loads(v)
+            except json.JSONDecodeError as e:
+                raise ValueError("INBOUNDS должен быть валидным JSON") from e
+            return [SInbound(**item) for item in data]
+
+        return v
+
+    model_config = SettingsConfigDict(env_prefix="SOF_X_RAY_")
+
+
+class VPNNode(SettingsCommon):
+    """Конфигурация VPN-ноды.
+
+    Attributes
+        host (str): Хост ноды.
+        username (str): Пользователь для подключения.
+        container (str): Имя Docker-контейнера.
+        container_old (str | None): Старое имя контейнера.
+        use_local (bool): Использовать локальную ноду.
+        location_prefix (str): Префикс для определения локации файла, базово Франция
+        flag (str): Флаг страны для кнопок.
+        proxy (ProxySettings | None): Настройки прокси.
+        xray (XRaySettingsSOF | None): Настройки XRay.
+
+    """
+
+    host: str
+    username: str
+    container: str
+    container_old: str | None = None
+    use_local: bool = False
+    location_prefix: str = "FR"
+    flag: str = "🏴‍☠️"
+    proxy: ProxySettings | None = None
+    xray: XRaySettings | None = None
+
+    def require_xray(self) -> XRaySettings:
+        """Гарантирует наличие XRay-конфигурации.
+
+        Returns
+            XRaySettings: Настройки XRay.
+
+        Raises
+            AppError: Если XRay не настроен.
+
+        """
+        if self.xray is None:
+            raise AppError(f"XRay не настроен для {self.host}")
+        return self.xray
+
+    def require_proxy(self) -> ProxySettings:
+        """Гарантирует наличие Proxy-конфигурации.
+
+        Returns
+            ProxySettings: Настройки Proxy.
+
+        Raises
+            AppError: Если Proxy не настроен.
+
+        """
+        if self.proxy is None:
+            raise AppError(f"Proxy не настроен для {self.host}")
+        return self.proxy
+
+
+class VPNRegistry(SettingsCommon):
+    """Реестр VPN-нод.
+
+    Attributes
+        nodes (dict[str, VPNNode]): Словарь нод по имени.
+
+    """
+
+    nodes: dict[str, VPNNode]
+
+    def get(self, name: str) -> VPNNode:
+        """Возвращает ноду по имени.
+
+        Args:
+            name (str): Имя ноды.
+
+        Returns
+            VPNNode: Найденная нода.
+
+        Raises
+            ValueError: Если нода не найдена.
+
+        """
+        try:
+            return self.nodes[name]
+        except KeyError as exc:
+            raise ValueError(f"VPN node '{name}' не найден в настройках.") from exc
+
+    @property
+    def main(self) -> VPNNode:
+        """Основная нода."""
+        return self.get("main")
+
+    @property
+    def sof(self) -> VPNNode:
+        """Нода SOF."""
+        return self.get("sof")
+
+    @property
+    def fi(self) -> VPNNode:
+        """Нода FI."""
+        return self.get("fi")
+
+
+class VPNSettingsMain(SettingsCommon):
+    host: str
+    username: str
+    container: str = "amnezia-awg2"
+    container_old: str = "amnezia-awg"
     use_local: bool = True
+
+    model_config = SettingsConfigDict(env_prefix="MAIN_VPN_")
+
+
+class PricingSettings(SettingsCommon):
+    """Настройки тарифов.
+
+    Attributes
+        price_map (dict[int, int]): Базовые тарифы (месяцы → цена).
+        price_map_premium (dict[int, int]): Премиум тарифы.
+        price_map_founder (dict[int, int]): Founder тарифы.
+
+    """
 
     price_map: dict[int, int] = Field(
         default_factory=lambda: {1: 100, 3: 280, 6: 520, 12: 1000, 7: 0},
         description="Карта цен подписок по месяцам",
     )
-    common_timeout: int = 10
-
-    @computed_field
-    def webhook_url(self) -> str:
-        """Возвращает URL вебхука."""
-        return f"{self.base_site}/webhook"
-
-    @field_validator("admin_ids", mode="before")
-    @classmethod
-    def parse_admin_ids(cls, v: Any) -> set[int]:
-        """Парсит строку с ID администраторов в множество целых чисел."""
-        if isinstance(v, str):
-            return set(int(i) for i in v.split(",") if i.strip().isdigit())
-        if isinstance(v, Iterable):
-            try:
-                return {int(i) for i in v}
-            except (ValueError, TypeError):
-                raise ValueError("admin_ids должна содержать только целые числа")
-
-        raise TypeError("admin_ids должно быть строкой или коллекцией")
-
-    @cached_property
-    def messages(self) -> Box:
-        from bot.dialogs.dialogs_text import dialogs
-
-        return dialogs
+    price_map_premium: dict[int, int] = Field(
+        default_factory=lambda: {1: 249, 3: 699, 6: 1290, 12: 2490, 7: 0},
+        description="Карта цен подписок по месяцам",
+    )
+    price_map_founder: dict[int, int] = Field(
+        default_factory=lambda: {1: 249, 3: 699, 6: 1290, 12: 2490, 7: 0},
+        description="Карта цен подписок по месяцам",
+    )
 
 
-class SettingsBucket(BaseSettings):
+class BucketSettings(SettingsCommon):
     """Настройки подключения к S3-совместимому хранилищу (например, Яндекс Object Storage).
 
     Attributes
@@ -109,42 +317,102 @@ class SettingsBucket(BaseSettings):
     access_key: SecretStr
     secret_key: SecretStr
 
-    model_config = SettingsConfigDict(
-        env_file=[
-            str(BASE_DIR / ".env"),
-            str(BASE_DIR / ".env.local"),
-        ],
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+
+class Settings(SettingsCommon):
+    """Агрегированная конфигурация приложения.
+
+    Объединяет все настройки бота, API, VPN, хранилищ и инфраструктуры
+    в единую типизированную структуру.
+
+    Attributes
+        core (SettingsApp): Базовые настройки приложения
+            (логирование, таймауты и пр.).
+
+        bot (BotSettings): Настройки Telegram-бота
+            (токен, администраторы, webhook/polling).
+
+        api (ApiSettings): Конфигурация API-сервиса
+            (хост, порт).
+
+        vpn (VPNRegistry): Реестр VPN-нод.
+            Содержит именованные конфигурации серверов (main, sof, fi и др.).
+
+        pricing (PricingSettings): Настройки тарифов и цен.
+
+        bucket (BucketSettings): Настройки S3-совместимого хранилища
+            (например, Yandex Object Storage).
+
+        redis (RedisSettings): Настройки Redis
+            (подключение и TTL для FSM/кэша).
+
+    Properties
+        messages (Box): Тексты диалогов бота.
+            Загружаются из `bot.dialogs.dialogs_text` и кэшируются
+            после первого обращения.
+
+    Notes
+        - Конфигурация загружается из TOML + переменных окружения.
+        - Все вложенные модели валидируются через Pydantic.
+        - Используется строгая типизация для совместимости с mypy.
+
+    """
+
+    core: SettingsApp = Field(default_factory=SettingsApp)
+
+    bot: BotSettings = Field(default_factory=BotSettings)
+    api: ApiSettings = Field(default_factory=ApiSettings)
+
+    vpn: VPNRegistry = Field(default_factory=VPNRegistry)
+
+    pricing: PricingSettings = Field(default_factory=PricingSettings)
+
+    bucket: BucketSettings = Field(default_factory=BucketSettings)
+
+    redis: RedisSettings = Field(default_factory=RedisSettings)
+
+    @cached_property
+    def messages(self) -> Box:
+        """Возвращает тексты диалогов бота.
+
+        Кэшируется после первого вызова.
+
+        Returns
+            Box: Объект с текстами диалогов.
+
+        """
+        from bot.dialogs.dialogs_text import dialogs
+
+        return dialogs
 
 
-settings_bot = SettingsBot()  # type: ignore
-settings_db = SettingsDB()  # type: ignore
-settings_bucket = SettingsBucket()  # type: ignore
+toml_loader = load_toml_config()
+settings_bot = Settings(**toml_loader)  # type: ignore
+
 # settings_ai = SettingsAI()
 
 LoggerConfig(
     log_dir=BASE_DIR / "bot" / "logs",
-    logger_level_stdout=settings_bot.logger_level_stdout,
-    logger_level_file=settings_bot.logger_level_file,
-    logger_error_file=settings_bot.logger_error_file,
+    logger_level_stdout=settings_bot.core.logger_level_stdout,
+    logger_level_file=settings_bot.core.logger_level_file,
+    logger_error_file=settings_bot.core.logger_error_file,
 )
 # Инициализируем бота и диспетчер
 bot: Bot = Bot(
-    token=settings_bot.bot_token.get_secret_value(),
+    token=settings_bot.bot.token.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
 )
-# Хранилище FSM
+# # Хранилище FSM
 storage = RedisStorage.from_url(
-    str(settings_db.redis_url),
-    state_ttl=3600,  # ⏰ время жизни состояния (в секундах)
-    data_ttl=3600,  # ⏰ время жизни данных FSM
+    str(settings_bot.redis.url),
+    state_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни состояния (в секундах)
+    data_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни данных FSM
 )
 # Это если работать без Redis
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
 
+
 if __name__ == "__main__":
-    print(BASE_DIR)
+    s = settings_bot.vpn.get("main")
+    print(s.xray)

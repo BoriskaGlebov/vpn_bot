@@ -98,9 +98,7 @@ class SubscriptionService:
                 период уже использован.
 
         """
-        res, status = await self.api_adapter.activate_trial(tg_id=tg_id, days=days)
-        # if status != 201:
-        #     raise ValueError(res.get("detail", "Уже есть подписка."))
+        await self.api_adapter.activate_trial(tg_id=tg_id, days=days)
 
     async def activate_paid_subscription(
         self, tg_id: int, months: int, premium: bool

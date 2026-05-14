@@ -63,7 +63,7 @@ class UserService:
         schema_role = SRole(
             name=(
                 "admin"
-                if telegram_user.telegram_id in settings_api.admin_ids
+                if telegram_user.telegram_id in settings_api.core.admin_ids
                 else "user"
             )
         )

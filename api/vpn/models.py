@@ -9,6 +9,7 @@ from api.core.database import Base, int_pk
 
 if TYPE_CHECKING:
     from api.users.models import User
+# TODO Мне нужна новая модель для хранения конфиг файлов 3xui
 
 
 class VPNConfigStatus(str, Enum):

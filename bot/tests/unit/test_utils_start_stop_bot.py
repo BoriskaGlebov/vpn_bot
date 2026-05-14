@@ -30,7 +30,7 @@ async def test_start_bot_sends_messages_and_logs(
         side_effect=[None, TelegramBadRequest(method="send_message", message="ошибка")]
     )
 
-    monkeypatch.setattr(start_module.settings_bot, "admin_ids", {111, 222})
+    monkeypatch.setattr(start_module.settings_bot.core, "admin_ids", {111, 222})
     monkeypatch.setattr(start_module, "logger", fake_logger)
 
     # act
@@ -61,7 +61,7 @@ async def test_stop_bot_sends_messages_and_logs(
     fake_bot.send_message = AsyncMock()
     fake_logger.bind.return_value = fake_logger
 
-    monkeypatch.setattr(start_module.settings_bot, "admin_ids", {1, 2, 3})
+    monkeypatch.setattr(start_module.settings_bot.core, "admin_ids", {1, 2, 3})
     monkeypatch.setattr(start_module, "logger", fake_logger)
     monkeypatch.setattr(start_module, "send_to_admins", AsyncMock())
 
@@ -95,7 +95,7 @@ async def test_send_to_admins_logs_bad_request(
     fake_bot.send_message = AsyncMock(side_effect=raise_bad_request)
     fake_logger.bind.return_value = fake_logger
 
-    monkeypatch.setattr(start_module.settings_bot, "admin_ids", {42})
+    monkeypatch.setattr(start_module.settings_bot.core, "admin_ids", {42})
     monkeypatch.setattr(start_module, "logger", fake_logger)
 
     # act
@@ -124,7 +124,7 @@ async def test_send_to_admins_success(
     """
     fake_bot.send_message = AsyncMock()
 
-    monkeypatch.setattr(start_module.settings_bot, "admin_ids", {1, 2})
+    monkeypatch.setattr(start_module.settings_bot.core, "admin_ids", {1, 2})
 
     await start_module.send_to_admins(
         bot=fake_bot,
@@ -164,7 +164,7 @@ async def test_send_to_admins_handles_bad_request(
     fake_bot.send_message = AsyncMock(side_effect=raise_bad_request)
 
     monkeypatch.setattr("bot.utils.start_stop_bot.logger", fake_logger)
-    monkeypatch.setattr(config.settings_bot, "admin_ids", {42})
+    monkeypatch.setattr(config.settings_bot.core, "admin_ids", {42})
 
     await start_module.send_to_admins(bot=fake_bot, message_text="Тест")
 

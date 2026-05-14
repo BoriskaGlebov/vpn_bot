@@ -1,4 +1,6 @@
-from enum import Enum
+from enum import Enum, StrEnum
+
+from bot.core.config import settings_bot
 
 
 class ChatType(str, Enum):
@@ -19,22 +21,83 @@ class MainMenuText(str, Enum):
 
 
     Attributes
-        AMNEZIA_VPN: Кнопка получения конфигурации AmneziaVPN.
-        AMNEZIA_WG: Кнопка получения конфигурации AmneziaWG.
         AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм.
+        FREE_AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм бесплатно.
         RENEW_SUBSCRIPTION: Кнопка продления активной подписки.
         CHOOSE_SUBSCRIPTION: Кнопка выбора и оформления подписки.
         CHECK_STATUS: Кнопка проверки статуса текущей подписки.
         HELP: Кнопка вызова справки и помощи по настройке VPN.
         ADMIN_PANEL: Кнопка перехода в административную панель (доступна администраторам).
+        PREMIUM: Возможности премиум пользователей.
+        BACK: Шаг назад
 
     """
 
-    AMNEZIA_VPN = "🔑 AmneziaVPN"
-    AMNEZIA_WG = "🌐 AmneziaWG"
     AMNEZIA_PROXY = "📦 AmneziaProxy"
+    FREE_AMNEZIA_PROXY = "📦 Free AmneziaProxy TG"
     RENEW_SUBSCRIPTION = "💎 Продлить VPN-Boriska"
     CHOOSE_SUBSCRIPTION = "💰 Выбрать подписку VPN-Boriska"
     CHECK_STATUS = "📈 Проверить статус подписки"
     HELP = "❓ Помощь в настройке VPN"
     ADMIN_PANEL = "⚙️ Панель администратора"
+    PREMIUM = "💎 Премиум возможности 💎"
+    BACK = "❌ Стандартные локации"
+
+
+class Location(str, Enum):
+    """Перечисление доступных VPN-локаций.
+
+    Используется для идентификации серверов VPN по географическому признаку
+    и сопоставления с конфигурацией из settings_bot.
+
+    Attributes
+        MAIN (str): основная VPN-локация (значение берётся из settings_bot.vpn.main).
+        FINLAND (str): финская VPN-локация (settings_bot.vpn.fi).
+        SOFIA (str): софийская VPN-локация (settings_bot.vpn.sof).
+
+    """
+
+    MAIN = settings_bot.vpn.main.location_prefix.lower()
+    # FRANCE = "FR"
+    FINLAND = settings_bot.vpn.fi.location_prefix.lower()
+
+
+class PremiumLocation(str, Enum):
+    """Перечисление доступных премиум VPN-локаций.
+
+    Используется для идентификации серверов VPN по географическому признаку
+    и сопоставления с конфигурацией из settings_bot.
+
+    Attributes
+        SOFIA (str): софийская VPN-локация (settings_bot.vpn.sof).
+
+    """
+
+    SOFIA = settings_bot.vpn.sof.location_prefix.lower()
+
+
+class VPNProtocol(StrEnum):
+    """Поддерживаемые VPN-протоколы.
+
+    Значения перечисления используются для отображения пользователю
+    и конфигурации подключений.
+
+    Attributes
+        AWG: Протокол Amnezia WireGuard (AmneziaWG).
+            Оптимизированная версия WireGuard с обходом DPI.
+
+        AVPN: Протокол AmneziaVPN.
+            Собственная реализация VPN с дополнительной обфускацией трафика.
+
+        AMNEZIA: Протокол Amnezia WireGuard.
+
+        XRAY: Протокол Xray (VLESS + Reality + XHTTP/TLS).
+            Используется для маскировки трафика под обычный HTTPS
+            и обхода сетевых ограничений.
+
+    """
+
+    # AWG = "AmneziaWG"
+    # AVPN = "AmneziaVPN"
+    AMNEZIA = "AmneziaVPN"
+    XRAY = "⚡ XRay Pro"

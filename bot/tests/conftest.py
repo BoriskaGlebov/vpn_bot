@@ -98,7 +98,7 @@ def patch_deps(
 
     # Подменяем настройки
     monkeypatch.setattr(settings_bot.messages, "description", "Описание работы Бота")
-    monkeypatch.setattr(settings_bot, "admin_ids", {123, 456})
+    monkeypatch.setattr(settings_bot.core, "admin_ids", {123, 456})
 
     return fake_bot, fake_logger
 
@@ -434,6 +434,7 @@ def ssh_client():
         username="testuser",
         known_hosts=None,
         container="test-container",
+        use_local=False,
     )
 
 
@@ -445,6 +446,7 @@ def ssh_client_vpn():
         username="testuser",
         known_hosts=None,
         container="test-container",
+        use_local=True,
     )
 
 

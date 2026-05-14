@@ -148,7 +148,7 @@ def subscription_selection_kb(
     """
     builder = InlineKeyboardBuilder()
 
-    for months in list(settings_bot.price_map.keys())[:-1]:
+    for months in list(settings_bot.pricing.price_map.keys())[:-1]:
         builder.button(
             text=f"{months} мес.",
             callback_data=UserPageCB(
