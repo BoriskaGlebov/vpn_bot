@@ -110,7 +110,7 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
 
-             # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
+            # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
             # Запускаем агент, если не запущен
             if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
               eval $(ssh-agent) > /dev/null
@@ -122,11 +122,12 @@ jobs:
               ssh-add ~/.ssh/help_blocks < /dev/null 2>/dev/null
               echo "SSH key added"
             fi
+
             # Добавляем ключи
-              if [ -f ~/.ssh/xray_boriska ]; then
-                ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
-                echo "SSH key added"
-              fi
+            if [ -f ~/.ssh/xray_boriska ]; then
+              ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
+              echo "SSH key added"
+            fi
 
             # Проверяем что ключи добавились
             ssh-add -l
@@ -237,44 +238,76 @@ jobs:
 
       - name: Recreate .env and restart containers
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
+
+            # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
+            if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
+              eval $(ssh-agent) > /dev/null
+              echo "SSH agent started with socket: $SSH_AUTH_SOCK"
+            fi
+
+            if [ -f ~/.ssh/vpn_boriska ]; then
+              ssh-add ~/.ssh/vpn_boriska < /dev/null 2>/dev/null
+              echo "SSH key added"
+            fi
+
+            if [ -f ~/.ssh/xray_boriska ]; then
+              ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
+              echo "SSH key added"
+            fi
+
+            # Проверяем что ключи добавились
+            ssh-add -l
+            # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====
+
+
             cd /home/vpn_user/test_zone/vpn_bot || exit 1
 
             echo "Recreate .env file..."
             rm -f .env
 
-            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env
-            echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env
-            echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env
-            echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env
-            echo "PROXY_PREFIX=${{ secrets.PROXY_PREFIX }}" >> .env
-            echo "VPN_PROXY=${{ secrets.VPN_PROXY }}" >> .env
-            echo "PROXY_PORT=${{ secrets.PROXY_PORT }}" >> .env
-            echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> .env
-            echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env
-            echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env
-            echo "PRICE_MAP=${{ vars.PRICE_MAP }}" >> .env
-            echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env
-            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-            echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env
-            echo "REDIS_USER=${{ secrets.REDIS_USER }}" >> .env
-            echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env
-            echo "USE_POLLING=${{ vars.USE_POLLING }}" >> .env
-            echo "BUCKET_NAME=${{ vars.BUCKET_NAME }}" >> .env
-            echo "PREFIX=${{ vars.PREFIX }}" >> .env
-            echo "ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}" >> .env
-            echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env
-            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env
-            echo "ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}" >> .env
-            echo "SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}" >> .env
-            echo "YANDEX_FOLDER_ID=${{ secrets.YANDEX_FOLDER_ID }}" >> .env
-            echo "MODEL_LLM_NAME=${{ vars.MODEL_LLM_NAME }}" >> .env
-            echo "NORMALIZE=${{ vars.NORMALIZE }}" >> .env
-            echo "SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}" >> .env
-            echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env
-            echo "TELEMT_SECRET_HELLO=${{ secrets.TELEMT_SECRET_HELLO }}" >> .env
+            cat <<ENV_EOF > .env
+
+          # == STAGE ==
+
+          STAGE=prod
+
+          # == CORE ==
+
+          BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+
+          # == API ==
+
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+
+          # ==X-RAY ==
+
+          SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
+
+
+          # == DATABASE ==
+
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+          # == REDIS ==
+
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+          # == STORAGE ==
+
+          ACCESS_KEY=${{ secrets.ACCESS_KEY }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+
+          # == AI ==
+          ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
+          SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
+          SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+          ENV_EOF
+
+            echo "SSH_AUTH_SOCK добавляю в .env"
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> .env
 
             echo "Restart Docker containers..."
             make compose-down STAGE=prod
