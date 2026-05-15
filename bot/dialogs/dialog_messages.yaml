@@ -160,7 +160,7 @@ bot:
             <a href="https://play.google.com/store/apps/details?id=org.amnezia.vpn">AmneziaVPN</a> из Google Play.
         iphone:
           - |
-            1. <b>Скачайте приложение .</b>
+            1. <b>Скачайте приложение.</b>
             <a href="https://apps.apple.com/us/app/amneziawg/id6478942365">AmneziaWG</a> из App Store.
           - 2. <b>Откройте приложение</b> после установки и нажмите ➕ .
           - 3. <b>Выберите</b> пункт «Импорт из файла или архива» и укажите файл <code>config_file.conf</code>.
