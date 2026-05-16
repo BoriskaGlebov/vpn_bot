@@ -1,7 +1,7 @@
 import pytest
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.methods import GetMyCommands, GetMyDescription
-from aiogram.types import BotCommandScopeAllPrivateChats
+from aiogram.types import BotCommandScopeAllPrivateChats, BotCommandScopeDefault
 
 from bot.main import start_bot, stop_bot
 
@@ -16,7 +16,7 @@ async def test_start_and_stop(test_bot, test_settings_bot):
     except TelegramBadRequest as e:
         pytest.fail(f"start_bot() вызвал ошибку при работе с Telegram API: {e}")
 
-    commands_response = await bot(GetMyCommands(scope=BotCommandScopeAllPrivateChats()))
+    commands_response = await bot(GetMyCommands(scope=BotCommandScopeDefault()))
     commands_texts = set(cmd.command for cmd in commands_response)
     assert len(commands_texts) > 0, "Команды не были установлены"
     assert commands_texts == set(
