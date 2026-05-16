@@ -1,6 +1,7 @@
 from aiogram.types import (
     BotCommand,
     BotCommandScopeAllGroupChats,
+    BotCommandScopeAllPrivateChats,
     BotCommandScopeChat,
     BotCommandScopeDefault,
 )
@@ -53,6 +54,15 @@ async def set_bot_commands() -> None:
         [BotCommand(command="reset", description="reset")],
         scope=BotCommandScopeDefault(),
     )
+
+    scopes = [
+        BotCommandScopeDefault(),
+        BotCommandScopeAllPrivateChats(),
+        BotCommandScopeAllGroupChats(),
+    ]
+
+    for s in scopes:
+        logger.info((s, await bot.get_my_commands(scope=s)))
     #
     # await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
     #
