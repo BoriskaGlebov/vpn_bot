@@ -13,6 +13,7 @@ from aiogram.filters import (
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
+    BotCommandScopeChat,
     Message,
     ReplyKeyboardRemove,
 )
@@ -203,6 +204,16 @@ class UserRouter(BaseRouter):
 
         """
         assert message.from_user is not None
+
+        try:
+            await self.bot.delete_my_commands(
+                scope=BotCommandScopeChat(chat_id=message.from_user.id)
+            )
+            self.logger.info(
+                f"Очищены личные команды для пользователя {message.from_user.id}"
+            )
+        except Exception:
+            pass
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
             if message.chat.type != ChatType.PRIVATE:
