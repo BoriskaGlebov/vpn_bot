@@ -204,7 +204,7 @@ class UserRouter(BaseRouter):
 
         """
         assert message.from_user is not None
-
+        # TODO ВОзможно будут жалобы?
         try:
             await self.bot.delete_my_commands(
                 scope=BotCommandScopeChat(chat_id=message.from_user.id)
