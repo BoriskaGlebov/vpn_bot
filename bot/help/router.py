@@ -27,6 +27,7 @@ from bot.users.enums import ChatType, MainMenuText
 from bot.utils.base_router import BaseRouter
 
 m_help = settings_bot.messages.modes.help
+links = settings_bot.messages.modes.help.links
 
 
 class HelpStates(StatesGroup):  # type: ignore[misc]
@@ -55,6 +56,11 @@ class HelpRouter(BaseRouter):
         self.router.message.register(
             self.help_cmd,
             or_f(Command("help"), F.text == MainMenuText.HELP.value),
+            F.chat.type == ChatType.PRIVATE,
+        )
+        self.router.message.register(
+            self.info_cmd,
+            or_f(Command("info"), F.text == MainMenuText.INFO.value),
             F.chat.type == ChatType.PRIVATE,
         )
         self.router.callback_query.register(
@@ -141,3 +147,23 @@ class HelpRouter(BaseRouter):
         finally:
             await self.redis.delete(redis_key)
             await state.clear()
+
+    # TODO не тестировал
+    @BaseRouter.log_method
+    async def info_cmd(self, message: Message, state: FSMContext) -> None:
+        """Обрабатывает команду /info и показывает пользователю соглашения.
+
+        Для платежной системы важна эта информация.
+
+        Args:
+            message (Message): Объект сообщения Telegram.
+            state (FSMContext): Контекст конечного автомата состояний пользователя.
+
+        """
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await state.clear()
+            await message.answer(
+                text=m_help.info,
+                reply_markup=ReplyKeyboardRemove(),
+                disable_web_page_preview=True,
+            )
