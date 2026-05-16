@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram.types import (
     BotCommand,
     BotCommandScopeAllGroupChats,
@@ -65,6 +67,15 @@ async def set_bot_commands() -> None:
         logger.info((s, await bot.get_my_commands(scope=s)))
 
     logger.info(await bot.get_my_commands())
+    await bot.set_my_commands(
+        user_commands,
+        scope=BotCommandScopeDefault(),
+    )
+    await asyncio.sleep(2)
+    await bot.set_my_commands(
+        user_commands,
+        scope=BotCommandScopeDefault(),
+    )
     #
     # await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
     #
