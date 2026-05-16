@@ -4,6 +4,7 @@ from aiogram.types import (
     BotCommandScopeAllGroupChats,
     BotCommandScopeAllPrivateChats,
     BotCommandScopeChat,
+    BotCommandScopeDefault,
 )
 
 from bot.core.config import (
@@ -38,6 +39,7 @@ async def set_bot_commands() -> None:
 
     """
     logger.info("Удаляю старые команды пользователям.")
+    await bot.delete_my_commands(scope=BotCommandScopeDefault())
     await bot.delete_my_commands(scope=BotCommandScopeAllPrivateChats())
     await bot.delete_my_commands(scope=BotCommandScopeAllGroupChats())
 
@@ -46,8 +48,16 @@ async def set_bot_commands() -> None:
     logger.success(
         "Удалил старые команды для пользователей.Устанавливаю новые команды."
     )
+    commands = await bot.get_my_commands(scope=BotCommandScopeAllPrivateChats())
 
-    await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
+    logger.info(commands)
+
+    commands = await bot.get_my_commands(scope=BotCommandScopeDefault())
+
+    logger.info(commands)
+    await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+
+    # await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
 
     for admin_id in settings_bot.core.admin_ids:
@@ -62,3 +72,11 @@ async def set_bot_commands() -> None:
                 )
             else:
                 raise
+
+    commands = await bot.get_my_commands(scope=BotCommandScopeAllPrivateChats())
+
+    logger.info(commands)
+
+    commands = await bot.get_my_commands(scope=BotCommandScopeDefault())
+
+    logger.info(commands)
