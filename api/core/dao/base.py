@@ -5,6 +5,7 @@ from typing import (
     TypeVar,
     cast,
 )
+from uuid import UUID
 
 from loguru import logger
 from pydantic import BaseModel
@@ -65,12 +66,12 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     async def find_one_or_none_by_id(
-        cls, data_id: int, session: AsyncSession
+        cls, data_id: int|UUID, session: AsyncSession
     ) -> T | None:
         """Находит запись по ID.
 
         Args:
-            data_id (int): Идентификатор записи.
+            data_id (int|UUID): Идентификатор записи.
             session (AsyncSession): Сессия для взаимодействия с БД.
 
         Returns

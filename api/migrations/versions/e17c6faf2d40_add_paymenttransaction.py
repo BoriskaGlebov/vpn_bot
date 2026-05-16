@@ -1,8 +1,8 @@
 """add PaymentTransaction
 
-Revision ID: 6e4bd287a7bf
+Revision ID: e17c6faf2d40
 Revises: c017a8b8370f
-Create Date: 2026-05-16 22:05:25.581701
+Create Date: 2026-05-16 23:10:23.085853
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '6e4bd287a7bf'
+revision: str = 'e17c6faf2d40'
 down_revision: Union[str, Sequence[str], None] = 'c017a8b8370f'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -26,7 +26,7 @@ def upgrade() -> None:
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('amount', sa.Integer(), nullable=False),
     sa.Column('currency', sa.String(length=8), nullable=False),
-    sa.Column('status', sa.Enum('PENDING', 'CONFIRMED', 'PAID', 'FAILED', 'CANCELED', name='paymentstatus'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'PAID', 'FAILED', 'CANCELED', name='paymentstatus'), nullable=False),
     sa.Column('source', sa.Enum('MANUAL', 'GATEWAY', name='paymentsource'), nullable=False),
     sa.Column('subscription_months', sa.Integer(), nullable=False),
     sa.Column('is_premium', sa.Boolean(), nullable=False),

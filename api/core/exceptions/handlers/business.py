@@ -13,7 +13,9 @@ from api.app_error.base_error import (
     SubscriptionNotFoundError,
     TrialAlreadyUsedError,
     UserNotFoundError,
-    VPNLimitError,
+    VPNLimitError, PaymentError, PaymentTransactionNotFoundError, PaymentAlreadyProcessedError,
+    PaymentAlreadyConfirmedError, InvalidPaymentStatusTransitionError, PaymentCanceledError, PaymentFailedError,
+    PaymentConfirmationError,
 )
 
 
@@ -208,5 +210,54 @@ async def vpn_limit_handler(
                 f"для пользователя user_id={exc.user_id}"
             ),
             "error": "vpn_limit_reached",
+        },
+    )
+
+#TODO хэндлеры на корректный статус ошибки об оплате
+
+async def payment_exception_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Обрабатывает ошибки платежной системы."""
+
+    exc = cast(PaymentError, exc)
+
+    if isinstance(exc, PaymentTransactionNotFoundError):
+        status_code = status.HTTP_404_NOT_FOUND
+
+    elif isinstance(
+        exc,
+        (
+            PaymentAlreadyProcessedError,
+            PaymentAlreadyConfirmedError,
+            InvalidPaymentStatusTransitionError,
+        ),
+    ):
+        status_code = status.HTTP_409_CONFLICT
+
+    elif isinstance(exc, PaymentCanceledError):
+        status_code = status.HTTP_400_BAD_REQUEST
+
+    elif isinstance(exc, PaymentFailedError):
+        status_code = status.HTTP_402_PAYMENT_REQUIRED
+
+    elif isinstance(exc, PaymentConfirmationError):
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    else:
+        status_code = status.HTTP_400_BAD_REQUEST
+
+    logger.warning(
+        "PaymentError: path={}, error={}",
+        request.url.path,
+        str(exc),
+    )
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "detail": str(exc),
+            "error": exc.__class__.__name__,
         },
     )

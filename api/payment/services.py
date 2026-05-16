@@ -1,8 +1,14 @@
+from datetime import datetime, UTC
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.payment.dao import PaymentTransactionDAO
-from api.payment.schemas import SCreateManualPaymentTransaction, SCreateTransaction, SPaymentTransactionResponse
+from api.payment.schemas import SCreateManualPaymentTransaction, SCreateTransaction, SPaymentTransactionResponse, \
+    SConfirmPayment, SCancelPayment
 from api.users.models import User
+from api.app_error.api_error import APIClientError
+from api.app_error.base_error import PaymentTransactionNotFoundError, PaymentAlreadyProcessedError
+from api.payment.model import PaymentStatus
 
 
 class PaymentService:
@@ -14,12 +20,62 @@ class PaymentService:
                                  )->SPaymentTransactionResponse:
         payment_schema=SCreateTransaction(
             user_id=user_auth.id,
+            paid_at=datetime.now(),
             **transaction.model_dump(exclude_unset=True)
         )
         res = await PaymentTransactionDAO.add(session=session,
                                         values=payment_schema,)
         return SPaymentTransactionResponse.model_validate(res)
 
+    async def confirm_transaction(self, data: SConfirmPayment, session: AsyncSession)->SPaymentTransactionResponse:
+        tx = await PaymentTransactionDAO.find_one_or_none_by_id(session=session,
+                                                     data_id=data.transaction_id)
+
+        if not tx:
+            raise PaymentTransactionNotFoundError(transaction_id=str(data.transaction_id))
+
+        if tx.status != PaymentStatus.PENDING:
+            raise PaymentAlreadyProcessedError(transaction_id=str(data.transaction_id),
+                                               status=tx.status)
+
+        tx.status = PaymentStatus.PAID
+        tx.confirmed_by_admin_id = data.admin_id
+        tx.confirmed_at = datetime.now()
+
+        await session.flush()
+        await session.refresh(tx)
+
+        return SPaymentTransactionResponse.model_validate(tx)
+
+    async def cancel_transaction(
+            self,
+            session: AsyncSession,
+            data: SCancelPayment,
+    ):
+        tx = await PaymentTransactionDAO.find_one_or_none_by_id(
+            session=session,
+            data_id=data.transaction_id,
+        )
+
+        if not tx:
+            raise PaymentTransactionNotFoundError(
+                transaction_id=str(data.transaction_id),
+            )
+
+        if tx.status != PaymentStatus.PENDING:
+            raise PaymentAlreadyProcessedError(
+                transaction_id=str(data.transaction_id),
+                status=tx.status,
+            )
+
+        tx.status = PaymentStatus.CANCELED
+        tx.confirmed_by_admin_id = data.admin_id
+        tx.confirmed_at = datetime.now()
+
+        await session.flush()
+        await session.refresh(tx)
+
+        return SPaymentTransactionResponse.model_validate(tx)
     # async def register_referral(
     #     self,
     #     session: AsyncSession,

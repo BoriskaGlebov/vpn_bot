@@ -1,11 +1,14 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.payment.schemas import SCreateManualPaymentTransaction, SPaymentTransactionResponse
+from api.admin.dependencies import check_admin_role
+from api.payment.schemas import SCreateManualPaymentTransaction, SPaymentTransactionResponse, SConfirmPayment, \
+    SConfirmPaymentIn, SCancelPaymentIn, SCancelPayment
 from api.core.dependencies import get_current_user, get_session
 from api.payment.services import PaymentService
 from api.users.models import User
 
+#TODO нужно не забыть про документацию для api
 router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
 
 #
@@ -18,7 +21,38 @@ async def create_transaction(transaction:SCreateManualPaymentTransaction,
     res=await service.create_transaction(session=session,transaction=transaction,user_auth=user_auth)
     return res
 
-# async def check_premium(
+@router.post("/transaction/confirm")
+async def confirm_transaction(
+    data: SConfirmPaymentIn,
+    service:PaymentService = Depends(PaymentService),
+    admin_auth: User = Depends(check_admin_role),
+    session: AsyncSession = Depends(get_session)
+)->SPaymentTransactionResponse:
+    conf_payment=SConfirmPayment(admin_id=admin_auth.id,transaction_id=data.transaction_id)
+    res=await service.confirm_transaction(session=session,data=conf_payment)
+    return res
+
+@router.post("/transaction/cancel")
+async def cancel_transaction(
+    data: SCancelPaymentIn,
+    service: PaymentService = Depends(PaymentService),
+    admin_auth: User = Depends(check_admin_role),
+    session: AsyncSession = Depends(get_session),
+) -> SPaymentTransactionResponse:
+
+    cancel_data = SCancelPayment(
+        transaction_id=data.transaction_id,
+        admin_id=admin_auth.id,
+    )
+
+    res = await service.cancel_transaction(
+        session=session,
+        data=cancel_data,
+    )
+
+    return res
+
+# async def cheturn Noneeck_premium(
 #     tg_id: int,
 #     session: AsyncSession = Depends(get_session),
 #     service: SubscriptionService = Depends(get_subscription_service),

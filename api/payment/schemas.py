@@ -21,12 +21,11 @@ class SCreateManualPaymentTransaction(BaseModel):
 
 class SCreateTransaction(SCreateManualPaymentTransaction):
     user_id:int
+    paid_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 class SPaymentTransactionResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: UUID
 
     user_id: int
@@ -49,6 +48,27 @@ class SPaymentTransactionResponse(BaseModel):
 
     confirmed_at: datetime | None
     paid_at: datetime | None
+    model_config = ConfigDict(from_attributes=True)
+
+class SConfirmPaymentIn(BaseModel):
+    transaction_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+class SConfirmPayment(SConfirmPaymentIn):
+    admin_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class SCancelPaymentIn(BaseModel):
+    transaction_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SCancelPayment(BaseModel):
+    transaction_id: UUID
+    admin_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
 
 # from pydantic import BaseModel, ConfigDict, Field
 #

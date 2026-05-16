@@ -33,7 +33,7 @@ from api.core.exceptions.handlers.business import (
     subscription_not_found_handler,
     trial_already_used_handler,
     user_not_found_handler,
-    vpn_limit_handler,
+    vpn_limit_handler, payment_exception_handler,
 )
 from api.core.exceptions.handlers.http import (
     database_exception_handler,
@@ -61,6 +61,7 @@ from api.users.utils.init_default_roles import init_default_roles_admins
 from api.vpn.admin import VPNConfigAdmin
 from api.vpn.router import router as vpn_router
 from api.payment.router import router as payment_router
+from api.app_error.base_error import PaymentError
 
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
@@ -160,7 +161,7 @@ app.add_exception_handler(VPNLimitError, vpn_limit_handler)
 app.add_exception_handler(MissingTelegramHeaderError, missing_telegram_header_handler)
 app.add_exception_handler(UserNotFoundHeaderError, unregistered_user_handler)
 app.add_exception_handler(AdminNotFoundHeaderError, user_not_admin_handler)
-
+app.add_exception_handler(PaymentError,payment_exception_handler)
 app.add_middleware(LogContextMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
