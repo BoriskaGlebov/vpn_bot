@@ -2,6 +2,7 @@ import asyncio
 
 from aiogram.types import (
     BotCommand,
+    BotCommandScopeAllChatAdministrators,
     BotCommandScopeAllGroupChats,
     BotCommandScopeAllPrivateChats,
     BotCommandScopeChat,
@@ -41,11 +42,15 @@ async def set_bot_commands() -> None:
     """
     await asyncio.sleep(5)
     logger.info("Удаляю старые команды пользователям.")
-    await bot.delete_my_commands(scope=BotCommandScopeDefault())
-    await bot.delete_my_commands(scope=BotCommandScopeDefault(), language_code="ru")
-    await bot.delete_my_commands(scope=BotCommandScopeDefault(), language_code="en")
+    scopes = [
+        BotCommandScopeDefault(),
+        BotCommandScopeAllPrivateChats(),
+        BotCommandScopeAllGroupChats(),
+        BotCommandScopeAllChatAdministrators(),
+    ]
 
-    await bot.delete_my_commands(scope=BotCommandScopeAllGroupChats())
+    for scope in scopes:
+        await bot.delete_my_commands(scope=scope)
 
     for admin_id in settings_bot.core.admin_ids:
         await bot.delete_my_commands(scope=BotCommandScopeChat(chat_id=admin_id))
@@ -57,26 +62,11 @@ async def set_bot_commands() -> None:
         [BotCommand(command="reset", description="reset")],
         scope=BotCommandScopeDefault(),
     )
-
-    scopes = [
-        BotCommandScopeDefault(),
-        BotCommandScopeAllPrivateChats(),
-        BotCommandScopeAllGroupChats(),
-    ]
-
-    for s in scopes:
-        logger.info((s, await bot.get_my_commands(scope=s)))
-
-    logger.info(await bot.get_my_commands())
     await bot.set_my_commands(
-        user_commands,
-        scope=BotCommandScopeDefault(),
+        [BotCommand(command="reset", description="reset")],
+        scope=BotCommandScopeAllPrivateChats(),
     )
-    await asyncio.sleep(2)
-    await bot.set_my_commands(
-        user_commands,
-        scope=BotCommandScopeDefault(),
-    )
+
     #
     # await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
     #
