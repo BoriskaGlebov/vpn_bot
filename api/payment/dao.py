@@ -1,5 +1,5 @@
 from api.core.dao.base import BaseDAO
-from payment.model import PaymentTransaction
+from api.payment.model import PaymentTransaction
 
 #TODO документация типы данных и тесты если будут методы
 class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):

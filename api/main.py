@@ -60,6 +60,7 @@ from api.users.router import router as user_router
 from api.users.utils.init_default_roles import init_default_roles_admins
 from api.vpn.admin import VPNConfigAdmin
 from api.vpn.router import router as vpn_router
+from api.payment.router import router as payment_router
 
 # API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
@@ -143,6 +144,7 @@ app.include_router(referrals_router)
 app.include_router(vpn_router)
 app.include_router(news_router)
 app.include_router(scheduler_router)
+app.include_router(payment_router)
 
 app.add_exception_handler(UserNotFoundError, user_not_found_handler)
 app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)

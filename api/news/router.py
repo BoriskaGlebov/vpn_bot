@@ -8,7 +8,7 @@ from api.news.dependencies import get_news_service
 from api.news.services import NewsService
 from api.users.models import User
 
-router = APIRouter(prefix="/news", tags=["bot", "news"])
+router = APIRouter(prefix="/news", tags=["bot", "NEWS"])
 
 
 @router.get(

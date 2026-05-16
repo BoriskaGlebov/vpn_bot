@@ -36,19 +36,21 @@ class PaymentTransaction(Base):
         index=True,
         nullable=False,
     )
-    user: Mapped["User"] = relationship("User", lazy="selectin")
+    user: Mapped["User"] = relationship("User",
+                                        foreign_keys=[user_id],
+                                        lazy="selectin")
 
     amount: Mapped[int] = mapped_column(nullable=False)
     currency: Mapped[str] = mapped_column(String(8), default="RUB")
 
     status: Mapped[PaymentStatus] = mapped_column(
         SQLEnum(PaymentStatus),
-        name="peyment_status_type",
         default=PaymentStatus.PENDING,
         index=True,
     )
 
-    source: Mapped[PaymentSource] = mapped_column(SQLEnum(PaymentSource), name="source_type")
+    source: Mapped[PaymentSource] = mapped_column(SQLEnum(PaymentSource),
+                                                  default=PaymentSource.MANUAL)
 
     subscription_months: Mapped[int] = mapped_column(nullable=False)
     is_premium: Mapped[bool] = mapped_column(default=False)
@@ -82,3 +84,7 @@ class PaymentTransaction(Base):
 
     confirmed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     paid_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    def __str__(self) -> str:
+        short_id = str(self.id)[:4].upper()
+        return f"#{short_id} {self.status.value} {self.amount}{self.currency} ({self.source.value})"
