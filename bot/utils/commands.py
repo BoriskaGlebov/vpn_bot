@@ -63,6 +63,8 @@ async def set_bot_commands() -> None:
 
     for s in scopes:
         logger.info((s, await bot.get_my_commands(scope=s)))
+
+    logger.info(await bot.get_my_commands())
     #
     # await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
     #
