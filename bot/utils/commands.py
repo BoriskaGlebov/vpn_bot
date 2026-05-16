@@ -5,7 +5,6 @@ from aiogram.types import (
     BotCommandScopeAllChatAdministrators,
     BotCommandScopeAllGroupChats,
     BotCommandScopeAllPrivateChats,
-    BotCommandScopeChat,
     BotCommandScopeDefault,
 )
 
@@ -40,33 +39,37 @@ async def set_bot_commands() -> None:
     Returns: None.
 
     """
-    await asyncio.sleep(5)
-    logger.info("Удаляю старые команды пользователям.")
-    scopes = [
+    # 1. Очищаем все скоупы подряд (несколько раз для надежности)
+    all_scopes = [
         BotCommandScopeDefault(),
         BotCommandScopeAllPrivateChats(),
         BotCommandScopeAllGroupChats(),
         BotCommandScopeAllChatAdministrators(),
     ]
 
-    for scope in scopes:
-        await bot.delete_my_commands(scope=scope)
+    for _ in range(3):  # Повторяем 3 раза
+        for scope in all_scopes:
+            try:
+                await bot.delete_my_commands(scope=scope)
+                logger.info(f"Очищен {scope.__class__.__name__}")
+            except Exception as e:
+                logger.error(f"Ошибка {scope.__class__.__name__}: {e}")
+        await asyncio.sleep(1)
 
-    for admin_id in settings_bot.core.admin_ids:
-        await bot.delete_my_commands(scope=BotCommandScopeChat(chat_id=admin_id))
-    logger.success(
-        "Удалил старые команды для пользователей.Устанавливаю новые команды."
-    )
-    # Временные команды
+    # 2. Проверяем результат
+    for scope in all_scopes:
+        cmds = await bot.get_my_commands(scope=scope)
+        logger.info(f"{scope.__class__.__name__}: {[c.command for c in cmds]}")
+
+    # 3. Теперь устанавливаем ТОЛЬКО в Default
     await bot.set_my_commands(
         [BotCommand(command="reset", description="reset")],
         scope=BotCommandScopeDefault(),
     )
-    await bot.set_my_commands(
-        [BotCommand(command="reset", description="reset")],
-        scope=BotCommandScopeAllPrivateChats(),
-    )
 
+    # 4. Финальная проверка
+    final = await bot.get_my_commands()
+    logger.success(f"✅ Финальные команды в Default: {[c.command for c in final]}")
     #
     # await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
     #
