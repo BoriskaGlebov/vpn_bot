@@ -1,8 +1,6 @@
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     BotCommand,
     BotCommandScopeAllGroupChats,
-    BotCommandScopeAllPrivateChats,
     BotCommandScopeChat,
     BotCommandScopeDefault,
 )
@@ -40,7 +38,9 @@ async def set_bot_commands() -> None:
     """
     logger.info("Удаляю старые команды пользователям.")
     await bot.delete_my_commands(scope=BotCommandScopeDefault())
-    await bot.delete_my_commands(scope=BotCommandScopeAllPrivateChats())
+    await bot.delete_my_commands(scope=BotCommandScopeDefault(), language_code="ru")
+    await bot.delete_my_commands(scope=BotCommandScopeDefault(), language_code="en")
+
     await bot.delete_my_commands(scope=BotCommandScopeAllGroupChats())
 
     for admin_id in settings_bot.core.admin_ids:
@@ -48,37 +48,34 @@ async def set_bot_commands() -> None:
     logger.success(
         "Удалил старые команды для пользователей.Устанавливаю новые команды."
     )
-    logger.info(await bot.get_my_commands())
-
-    commands = await bot.get_my_commands(scope=BotCommandScopeAllPrivateChats())
-
-    logger.info(commands)
-
-    commands = await bot.get_my_commands(scope=BotCommandScopeDefault())
-
-    logger.info(commands)
-    await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
-
-    # await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
-    await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
-
-    for admin_id in settings_bot.core.admin_ids:
-        try:
-            await bot.set_my_commands(
-                admin_commands, scope=BotCommandScopeChat(chat_id=admin_id)
-            )
-        except TelegramBadRequest as e:
-            if "chat not found" in str(e):
-                logger.bind(user=admin_id).error(
-                    f"⚠️  Ошибка: у администратора {admin_id} не начат чат с ботом."
-                )
-            else:
-                raise
-
-    commands = await bot.get_my_commands(scope=BotCommandScopeAllPrivateChats())
-
-    logger.info(commands)
-
-    commands = await bot.get_my_commands(scope=BotCommandScopeDefault())
-
-    logger.info(commands)
+    # Временные команды
+    await bot.set_my_commands(
+        [BotCommand(command="reset", description="reset")],
+        scope=BotCommandScopeDefault(),
+    )
+    #
+    # await bot.set_my_commands(user_commands, scope=BotCommandScopeDefault())
+    #
+    # # await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
+    # await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
+    #
+    # for admin_id in settings_bot.core.admin_ids:
+    #     try:
+    #         await bot.set_my_commands(
+    #             admin_commands, scope=BotCommandScopeChat(chat_id=admin_id)
+    #         )
+    #     except TelegramBadRequest as e:
+    #         if "chat not found" in str(e):
+    #             logger.bind(user=admin_id).error(
+    #                 f"⚠️  Ошибка: у администратора {admin_id} не начат чат с ботом."
+    #             )
+    #         else:
+    #             raise
+    #
+    # commands = await bot.get_my_commands(scope=BotCommandScopeAllPrivateChats())
+    #
+    # logger.info(commands)
+    #
+    # commands = await bot.get_my_commands(scope=BotCommandScopeDefault())
+    #
+    # logger.info(commands)
