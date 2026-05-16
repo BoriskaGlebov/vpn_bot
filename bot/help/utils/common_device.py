@@ -61,7 +61,10 @@ class Device:
             )
         for file, caption in zip(media, messages):
             await bot.send_photo(
-                chat_id=chat_id, photo=file, caption=caption, parse_mode="HTML"
+                chat_id=chat_id,
+                photo=file,
+                caption=caption.format(link=link),
+                parse_mode="HTML",
             )
             await asyncio.sleep(1.5)
         if link:

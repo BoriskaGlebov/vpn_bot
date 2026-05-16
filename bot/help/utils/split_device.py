@@ -11,7 +11,7 @@ class SplitDevice(Device):
 
     PREFIX = f"{settings_bot.bucket.prefix}amnezia_split/"
     MESSAGES_PATH = settings_bot.messages.modes.help.instructions.split
-    LINK_PATH = None
+    LINK_PATH = settings_bot.messages.modes.help.instructions.links.split
 
     @classmethod
     async def send_message(cls, bot: Bot, chat_id: int) -> None:
@@ -31,6 +31,7 @@ class SplitDevice(Device):
         """
         media = await cls._list_files()
         messages = cls.MESSAGES_PATH
+        link = cls.LINK_PATH
 
         if not messages:
             raise ValueError(f"{cls.__name__}: Пустой список инстуркций")
@@ -45,14 +46,16 @@ class SplitDevice(Device):
                 "Ожидается: вступление + подписи ко всем фото (+ опционально финал)"
             )
 
-        await bot.send_message(chat_id, messages[0], disable_web_page_preview=True)
+        await bot.send_message(
+            chat_id, messages[0].format(link=link), disable_web_page_preview=True
+        )
         has_final = len(messages) == len(media) + 2
         captions = messages[1:-1] if has_final else messages[1:]
         for file, caption in zip(media, captions):
             await bot.send_photo(
                 chat_id=chat_id,
                 photo=file,
-                caption=caption,
+                caption=caption.format(link=link),
                 parse_mode="HTML",
             )
             await asyncio.sleep(1.2)
