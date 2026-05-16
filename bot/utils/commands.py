@@ -39,6 +39,7 @@ async def set_bot_commands() -> None:
     Returns: None.
 
     """
+    await asyncio.sleep(5)
     logger.info("Удаляю старые команды пользователям.")
     await bot.delete_my_commands(scope=BotCommandScopeDefault())
     await bot.delete_my_commands(scope=BotCommandScopeDefault(), language_code="ru")
