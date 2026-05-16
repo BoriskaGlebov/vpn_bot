@@ -37,6 +37,16 @@ async def set_bot_commands() -> None:
     Returns: None.
 
     """
+    logger.info("Удаляю старые команды пользователям.")
+    await bot.delete_my_commands(scope=BotCommandScopeAllPrivateChats())
+    await bot.delete_my_commands(scope=BotCommandScopeAllGroupChats())
+
+    for admin_id in settings_bot.core.admin_ids:
+        await bot.delete_my_commands(scope=BotCommandScopeChat(chat_id=admin_id))
+    logger.success(
+        "Удалил старые команды для пользователей.Устанавливаю новые команды."
+    )
+
     await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
     await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
 
