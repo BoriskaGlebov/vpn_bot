@@ -48,6 +48,8 @@ async def set_bot_commands() -> None:
     logger.success(
         "Удалил старые команды для пользователей.Устанавливаю новые команды."
     )
+    logger.info(await bot.get_my_commands())
+
     commands = await bot.get_my_commands(scope=BotCommandScopeAllPrivateChats())
 
     logger.info(commands)

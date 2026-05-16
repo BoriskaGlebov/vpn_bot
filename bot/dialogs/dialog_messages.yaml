@@ -6,7 +6,7 @@ bot:
     users: &defaults
       start: 🚀  Начать пользоваться VPN
       id: 🆔 Мой ID
-      ai_assistant:  🤖 ИИ помощник
+#      ai_assistant:  🤖 ИИ помощник
       help: 💡  Как получить и настроить VPN
       friends: 🎁 Пригласить друга
       info: 📝 Информация о проекте
