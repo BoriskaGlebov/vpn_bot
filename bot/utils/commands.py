@@ -41,7 +41,6 @@ async def set_bot_commands() -> None:
     Returns: None.
 
     """
-    # 1. Очищаем все скоупы подряд (несколько раз для надежности)
     all_scopes = [
         BotCommandScopeDefault(),
         BotCommandScopeAllPrivateChats(),
@@ -75,6 +74,3 @@ async def set_bot_commands() -> None:
                 )
             else:
                 raise
-
-
-#
