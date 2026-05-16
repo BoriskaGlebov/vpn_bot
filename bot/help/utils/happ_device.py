@@ -11,7 +11,7 @@ class HappDevice(Device):
 
     PREFIX = f"{settings_bot.bucket.prefix}happ/"
     MESSAGES_PATH = settings_bot.messages.modes.help.instructions.happ
-    LINK_PATH = None
+    LINK_PATH = settings_bot.messages.modes.help.instructions.links.happ
 
     @classmethod
     async def send_message(cls, bot: Bot, chat_id: int) -> None:
@@ -31,6 +31,7 @@ class HappDevice(Device):
         """
         media = await cls._list_files()
         messages = cls.MESSAGES_PATH
+        link = cls.LINK_PATH
 
         if not messages:
             raise ValueError(f"{cls.__name__}: Пустой список инстуркций")
@@ -45,7 +46,9 @@ class HappDevice(Device):
                 "Ожидается: вступление + подписи ко всем фото (+ опционально финал)"
             )
 
-        await bot.send_message(chat_id, messages[0], disable_web_page_preview=True)
+        await bot.send_message(
+            chat_id, messages[0].format(*link), disable_web_page_preview=True
+        )
         await asyncio.sleep(1.2)
         has_final = len(messages) == len(media) + 2
         captions = messages[1:-1] if has_final else messages[1:]
@@ -59,4 +62,6 @@ class HappDevice(Device):
             await asyncio.sleep(1.2)
 
         if has_final:
-            await bot.send_message(chat_id, messages[-1], disable_web_page_preview=True)
+            await bot.send_message(
+                chat_id, messages[-1].format(*link), disable_web_page_preview=True
+            )
