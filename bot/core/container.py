@@ -10,6 +10,7 @@ from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.news.services import NewsService
+from bot.payment.adapter import PaymentAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage, RedisEmbeddingCache
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.referrals.services import ReferralService
@@ -22,9 +23,9 @@ from bot.users.services import UserService
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
-from bot.payment.adapter import PaymentAPIAdapter
 
-#TODO добавил новый адаптер
+
+# TODO добавил новый адаптер
 class Container:
     """DI-контейнер приложения.
 
@@ -96,7 +97,7 @@ class Container:
     user_adapter: UsersAPIAdapter
     admin_adapter: AdminAPIAdapter
     subscription_adapter: SubscriptionAPIAdapter
-    payment_adapter:PaymentAPIAdapter
+    payment_adapter: PaymentAPIAdapter
     referral_adapter: ReferralAPIAdapter
     vpn_adapter: VPNAPIAdapter
     news_adapter: NewsAPIAdapter
@@ -174,7 +175,7 @@ class Container:
         self.subscription_service = SubscriptionService(
             adapter=self.subscription_adapter,
             user_adapter=self.user_adapter,
-            payment_adapter=self.payment_adapter
+            payment_adapter=self.payment_adapter,
         )
         self.vpn_service = VPNService(
             adapter=self.vpn_adapter,

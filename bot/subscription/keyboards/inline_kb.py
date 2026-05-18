@@ -72,7 +72,7 @@ class AdminPaymentCB(CallbackData, prefix="admin"):  # type: ignore[misc,call-ar
     user_id: int
     months: int
     premium: bool = False
-    transaction_id:UUID
+    transaction_id: UUID
 
 
 def subscription_options_kb(
@@ -160,7 +160,9 @@ def payment_confirm_kb(months: int, founder: bool) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def admin_payment_kb(user_id: int, months: int, premium: bool,transaction_id:UUID) -> InlineKeyboardMarkup:
+def admin_payment_kb(
+    user_id: int, months: int, premium: bool, transaction_id: UUID
+) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру для администраторов для подтверждения или отклонения оплаты пользователя.
 
     Args
@@ -180,7 +182,7 @@ def admin_payment_kb(user_id: int, months: int, premium: bool,transaction_id:UUI
             user_id=user_id,
             months=months,
             premium=premium,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
         ),
     )
     builder.button(
@@ -190,7 +192,7 @@ def admin_payment_kb(user_id: int, months: int, premium: bool,transaction_id:UUI
             user_id=user_id,
             months=months,
             premium=premium,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
         ),
     )
     return builder.as_markup()

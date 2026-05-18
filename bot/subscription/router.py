@@ -569,7 +569,7 @@ class SubscriptionRouter(BaseRouter):
             months = callback_data.months
             transaction_id = callback_data.transaction_id
             try:
-                tx = await self.subscription_service.payment_adapter.cancel_transaction(
+                await self.subscription_service.payment_adapter.cancel_transaction(
                     transaction_id
                 )
             except APIClientError as e:
