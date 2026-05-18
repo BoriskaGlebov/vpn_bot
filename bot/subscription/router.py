@@ -18,6 +18,7 @@ from bot.app_error.base_error import AppError, MessageNotFoundError, UserNotFoun
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
 from bot.redis_service import RedisAdminMessageStorage
+from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
     AdminPaymentAction,
@@ -38,7 +39,6 @@ from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
-from bot.referrals.schemas import GrantReferralBonusResponse
 from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
@@ -349,7 +349,7 @@ class SubscriptionRouter(BaseRouter):
                         is_founder=founder,
                     )
                 )
-            except APIClientError as exc:
+            except APIClientError:
                 raise
 
             await msg.edit_text(m_subscription.wait_for_paid.user)
@@ -452,8 +452,10 @@ class SubscriptionRouter(BaseRouter):
             premium = callback_data.premium
             transaction_id = callback_data.transaction_id
             try:
-                confirm_transaction = await self.subscription_service.payment_adapter.confirm_transaction(
-                    transaction_id
+                confirm_transaction = (
+                    await self.subscription_service.payment_adapter.confirm_transaction(
+                        transaction_id
+                    )
                 )
             except APIClientError as e:
                 raise e
@@ -481,7 +483,9 @@ class SubscriptionRouter(BaseRouter):
                     ),
                     # reply_markup=main_kb(active_subscription=True),
                 )
-                referral_result:GrantReferralBonusResponse = confirm_transaction.referral_res
+                referral_result: GrantReferralBonusResponse = (
+                    confirm_transaction.referral_res
+                )
                 if referral_result.success and referral_result.inviter_telegram_id:
                     await self.bot.send_message(
                         chat_id=referral_result.inviter_telegram_id,
