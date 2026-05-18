@@ -1,216 +1,239 @@
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.app_error.base_error import (
+    PaymentAlreadyProcessedError,
+    PaymentTransactionNotFoundError,
+)
 from api.payment.dao import PaymentTransactionDAO
-from api.payment.schemas import SCreateManualPaymentTransaction, SCreateTransaction, SPaymentTransactionResponse, \
-    SConfirmPayment, SCancelPayment, SConfirmPaymentIn, SConfirmPaymentConfirmUpdate, SConfirmIn, SCancelPaymentIn, \
-    SCancelIn
-from api.users.models import User
-from api.app_error.api_error import APIClientError
-from api.app_error.base_error import PaymentTransactionNotFoundError, PaymentAlreadyProcessedError
 from api.payment.model import PaymentStatus
+from api.payment.schemas import (
+    SCancelInID,
+    SCancelPayment,
+    SConfirmInID,
+    SConfirmPayment,
+    SConfirmPaymentConfirmUpdate,
+    SCreateManualPaymentTransaction,
+    SCreateTransaction,
+    SPaymentTransactionResponse,
+    SYearIncome,
+)
+from api.users.models import User
 
 
 class PaymentService:
+    """Сервис для работы с платежными транзакциями.
 
-    async def create_transaction(self,
-                                 session:AsyncSession,
-                                 transaction:SCreateManualPaymentTransaction,
-                                 user_auth:User
-                                 )->SPaymentTransactionResponse:
-        payment_schema=SCreateTransaction(
+    Отвечает за:
+        - создание транзакций;
+        - подтверждение платежей;
+        - отмену платежей;
+        - получение финансовой статистики.
+    """
+
+    async def create_transaction(
+        self,
+        session: AsyncSession,
+        transaction: SCreateManualPaymentTransaction,
+        user_auth: User,
+    ) -> SPaymentTransactionResponse:
+        """Создает новую платежную транзакцию.
+
+        Args:
+            session:
+                Асинхронная SQLAlchemy-сессия.
+
+            transaction:
+                Данные создаваемой транзакции.
+
+            user_auth:
+                Авторизованный пользователь.
+
+        Returns
+            Данные созданной платежной транзакции.
+
+        """
+        logger.info(
+            f"[SERVICE] Создание платежной транзакции "
+            f"для пользователя ID={user_auth.id}"
+        )
+        payment_schema = SCreateTransaction(
             user_id=user_auth.id,
             paid_at=datetime.now(),
-            **transaction.model_dump(exclude_unset=True)
+            **transaction.model_dump(exclude_unset=True),
         )
-        res = await PaymentTransactionDAO.add(session=session,
-                                              values=payment_schema,)
+        res = await PaymentTransactionDAO.add(
+            session=session,
+            values=payment_schema,
+        )
+        logger.success(
+            f"[SERVICE] Платежная транзакция успешно создана. Transaction ID={res.id}"
+        )
+
         return SPaymentTransactionResponse.model_validate(res)
 
-    async def confirm_transaction(self, data: SConfirmPayment, session: AsyncSession)->SPaymentTransactionResponse:
-        tx = await PaymentTransactionDAO.find_one_or_none_by_id(session=session,
-                                                     data_id=data.transaction_id)
+    async def confirm_transaction(
+        self, data: SConfirmPayment, session: AsyncSession
+    ) -> SPaymentTransactionResponse:
+        """Подтверждает платежную транзакцию.
+
+        Изменяет статус транзакции на ``PAID``.
+
+        Args:
+            data:
+                Данные подтверждения платежа.
+
+            session:
+                Асинхронная SQLAlchemy-сессия.
+
+        Returns
+            Обновленная платежная транзакция.
+
+        Raises
+            PaymentTransactionNotFoundError:
+                Если транзакция не найдена.
+
+            PaymentAlreadyProcessedError:
+                Если транзакция уже обработана.
+
+        """
+        logger.info(
+            f"[SERVICE] Подтверждение платежной транзакции ID={data.transaction_id}"
+        )
+        tx = await PaymentTransactionDAO.find_one_or_none_by_id(
+            session=session, data_id=data.transaction_id
+        )
 
         if not tx:
-            raise PaymentTransactionNotFoundError(transaction_id=str(data.transaction_id))
+            logger.warning(
+                f"[SERVICE] Транзакция не найдена. Transaction ID={data.transaction_id}"
+            )
+            raise PaymentTransactionNotFoundError(
+                transaction_id=str(data.transaction_id)
+            )
 
         if tx.status != PaymentStatus.PENDING:
-            raise PaymentAlreadyProcessedError(transaction_id=str(data.transaction_id),
-                                               status=tx.status)
+            logger.warning(
+                f"[SERVICE] Попытка повторной обработки транзакции. "
+                f"Transaction ID={data.transaction_id}. "
+                f"Текущий статус={tx.status.value}"
+            )
+            raise PaymentAlreadyProcessedError(
+                transaction_id=str(data.transaction_id), status=tx.status
+            )
 
-        await PaymentTransactionDAO.update(session=session,
-                                           filters=SConfirmIn(id=data.transaction_id),
-                                           values=SConfirmPaymentConfirmUpdate(
-                                               status=PaymentStatus.PAID,
-                                               confirmed_by_admin_id=data.admin_id,
-                                               confirmed_at=datetime.now(),
-                                           ))
+        await PaymentTransactionDAO.update(
+            session=session,
+            filters=SConfirmInID(id=data.transaction_id),
+            values=SConfirmPaymentConfirmUpdate(
+                status=PaymentStatus.PAID,
+                confirmed_by_admin_id=data.admin_id,
+                confirmed_at=datetime.now(),
+            ),
+        )
         await session.refresh(tx)
+        logger.success(
+            f"[SERVICE] Транзакция подтверждена. Transaction ID={data.transaction_id}"
+        )
         return SPaymentTransactionResponse.model_validate(tx)
 
     async def cancel_transaction(
-            self,
-            session: AsyncSession,
-            data: SCancelPayment,
-    )->SPaymentTransactionResponse:
+        self,
+        session: AsyncSession,
+        data: SCancelPayment,
+    ) -> SPaymentTransactionResponse:
+        """Отменяет платежную транзакцию.
+
+        Изменяет статус транзакции на ``CANCELED``.
+
+        Args:
+            session:
+                Асинхронная SQLAlchemy-сессия.
+
+            data:
+                Данные отмены платежа.
+
+        Returns
+            Обновленная платежная транзакция.
+
+        Raises
+            PaymentTransactionNotFoundError:
+                Если транзакция не найдена.
+
+            PaymentAlreadyProcessedError:
+                Если транзакция уже обработана.
+
+        """
+        logger.info(f"[SERVICE] Отмена платежной транзакции ID={data.transaction_id}")
         tx = await PaymentTransactionDAO.find_one_or_none_by_id(
             session=session,
             data_id=data.transaction_id,
         )
 
         if not tx:
+            logger.warning(
+                f"[SERVICE] Транзакция для отмены не найдена. "
+                f"Transaction ID={data.transaction_id}"
+            )
             raise PaymentTransactionNotFoundError(
                 transaction_id=str(data.transaction_id),
             )
 
         if tx.status != PaymentStatus.PENDING:
+            logger.warning(
+                f"[SERVICE] Попытка отмены уже обработанной транзакции. "
+                f"Transaction ID={data.transaction_id}. "
+                f"Текущий статус={tx.status.value}"
+            )
+
             raise PaymentAlreadyProcessedError(
                 transaction_id=str(data.transaction_id),
                 status=tx.status,
             )
 
-        await PaymentTransactionDAO.update(session=session,
-                                           filters=SCancelIn(id=data.transaction_id),
-                                           values=SConfirmPaymentConfirmUpdate(
-                                               status=PaymentStatus.CANCELED,
-                                               confirmed_by_admin_id=data.admin_id,
-                                               confirmed_at=datetime.now(),
-                                           ))
+        await PaymentTransactionDAO.update(
+            session=session,
+            filters=SCancelInID(id=data.transaction_id),
+            values=SConfirmPaymentConfirmUpdate(
+                status=PaymentStatus.CANCELED,
+                confirmed_by_admin_id=data.admin_id,
+                confirmed_at=datetime.now(),
+            ),
+        )
         await session.refresh(tx)
+        logger.success(
+            f"[SERVICE] Транзакция отменена. Transaction ID={data.transaction_id}"
+        )
         return SPaymentTransactionResponse.model_validate(tx)
-    # async def register_referral(
-    #     self,
-    #     session: AsyncSession,
-    #     invited_user: SUserOut,
-    #     inviter_telegram_id: int | None,
-    # ) -> None:
-    #     """Регистрирует приглашение нового пользователя.
-    #
-    #     Args:
-    #         session (AsyncSession): Асинхронная сессия SQLAlchemy.
-    #         invited_user (SUserOut): Данные приглашенного пользователя.
-    #         inviter_telegram_id (Optional[int]): Telegram ID пригласителя.
-    #             Если None, регистрация не производится.
-    #
-    #     Returns
-    #         None: Метод не возвращает значения.
-    #
-    #     """
-    #     logger.debug(
-    #         "регистрация реферала invited_user_id={} inviter_telegram_id={}",
-    #         invited_user.id,
-    #         inviter_telegram_id,
-    #     )
-    #     if not inviter_telegram_id or invited_user.has_used_trial:
-    #         logger.debug(
-    #             "Реферал не зарегистрирован: inviter_telegram_id={} has_used_trial={}",
-    #             inviter_telegram_id,
-    #             invited_user.has_used_trial,
-    #         )
-    #         return
-    #     s_user = SUserTelegramID(telegram_id=inviter_telegram_id)
-    #     inviter_model = await UserDAO.find_one_or_none(
-    #         session=session, filters=s_user, options=UserDAO.base_options
-    #     )
-    #     if not inviter_model:
-    #         logger.warning(
-    #             "Пригласитель не найден telegram_id={}",
-    #             inviter_telegram_id,
-    #         )
-    #         return
-    #
-    #     await ReferralDAO.add_referral(
-    #         session=session,
-    #         inviter_id=inviter_model.id,
-    #         invited_id=invited_user.id,
-    #     )
-    #
-    #     logger.info(
-    #         "Реферал зарегистрирован inviter_id={} invited_id={}",
-    #         inviter_model.id,
-    #         invited_user.id,
-    #     )
-    #
-    # async def grant_referral_bonus(
-    #     self, session: AsyncSession, invited_user: SUserOut, months: int = 1
-    # ) -> tuple[bool, int | None]:
-    #     """Начисляет бонус пригласителю за регистрацию нового пользователя.
-    #
-    #     Метод выполняет следующие шаги:
-    #         1. Проверяет наличие реферальной записи для приглашенного пользователя.
-    #         2. Проверяет, был ли уже начислен бонус.
-    #         3. Если пригласитель не имеет активной подписки, создаёт стандартную.
-    #            Иначе продлевает текущую подписку на указанное количество месяцев.
-    #         4. Отмечает факт начисления бонуса и сохраняет дату.
-    #
-    #     Args:
-    #         session (AsyncSession): Асинхронная сессия SQLAlchemy.
-    #         invited_user (SUserOut): Объект данных пользователя, который был приглашен.
-    #         months (int, optional): Количество месяцев подписки, которое будет начислено.
-    #             По умолчанию 1.
-    #
-    #     Returns
-    #         Tuple[bool, Optional[int]]:
-    #             - bool: True, если бонус успешно начислен, False — если бонус уже начислен
-    #               или приглашение не найдено.
-    #             - Optional[int]: Telegram ID пригласителя, если бонус был начислен, иначе None.
-    #
-    #     """
-    #     logger.debug(
-    #         "Выдача бонуса за приглашенного пользователя invited_user_id={} telegram_id={} months={}",
-    #         invited_user.id,
-    #         invited_user.telegram_id,
-    #         months,
-    #     )
-    #     s_referral = SReferralByInvite(invited_id=invited_user.id)
-    #     referral = await ReferralDAO.find_one_or_none(
-    #         session=session, filters=s_referral
-    #     )
-    #
-    #     if not referral:
-    #         logger.info(
-    #             f"У пользователя не было приглашения {invited_user.telegram_id}"
-    #         )
-    #         return False, invited_user.telegram_id
-    #
-    #     if referral.bonus_given:
-    #         logger.info(
-    #             f"Бонус за друга уже начислен пользователю {invited_user.telegram_id}"
-    #         )
-    #         raise ReferralBonusAlreadyGivenError(invited_user.telegram_id)
-    #
-    #     inviter = referral.inviter
-    #     current_sub = inviter.current_subscription
-    #     if current_sub is None or (current_sub.type is None):
-    #         logger.info(
-    #             "Создание подписки по рефералу inviter_telegram_id={} months={}",
-    #             inviter.telegram_id,
-    #             months,
-    #         )
-    #         sub_type = SubscriptionType.STANDARD
-    #         if inviter.role.name == RoleEnum.FOUNDER:
-    #             sub_type = SubscriptionType.FOUNDER
-    #         await SubscriptionDAO.activate_subscription(
-    #             session=session,
-    #             stelegram_id=SUserTelegramID(telegram_id=inviter.telegram_id),
-    #             month=months,
-    #             sub_type=sub_type,
-    #         )
-    #     else:
-    #         logger.info(
-    #             "Продление подписки по рефералу inviter_telegram_id={} months={}",
-    #             inviter.telegram_id,
-    #             months,
-    #         )
-    #         current_sub.extend(months=months)
-    #         await session.flush()
-    #
-    #     referral.bonus_given = True
-    #     referral.bonus_given_at = datetime.datetime.now(datetime.UTC)
-    #
-    #     await session.flush()
-    #     logger.info(
-    #         f"Бонус за подписчика предоставлен: inviter={inviter.telegram_id}, invited={invited_user.telegram_id}, months={months}"
-    #     )
-    #     return True, inviter.telegram_id
+
+    async def get_year_income(
+        self,
+        session: AsyncSession,
+        year: int | None = None,
+    ) -> SYearIncome:
+        """Возвращает суммарный доход за год.
+
+        Args:
+            session:
+                Асинхронная SQLAlchemy-сессия.
+
+            year:
+                Год для расчета дохода.
+                Если не указан — используется текущий год.
+
+        Returns
+            Суммарный доход за указанный год.
+
+        """
+        logger.info(
+            f"[SERVICE] Получение годового дохода. "
+            f"Год={year or datetime.now(tz=UTC).year}"
+        )
+        res = await PaymentTransactionDAO.get_year_income(
+            session=session,
+            year=year,
+        )
+        logger.success(f"[SERVICE] Годовой доход успешно получен. Сумма={res}")
+        return SYearIncome(year_income=res)

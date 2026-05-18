@@ -66,7 +66,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     async def find_one_or_none_by_id(
-        cls, data_id: int|UUID, session: AsyncSession
+        cls, data_id: int | UUID, session: AsyncSession
     ) -> T | None:
         """Находит запись по ID.
 

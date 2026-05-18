@@ -5,11 +5,11 @@ from sqlalchemy import engine_from_config, pool
 
 from api.core.config import settings_api
 from api.core.database import Base
+from api.payment.model import PaymentTransaction
 from api.referrals.models import Referral
 from api.subscription.models import Subscription
 from api.users.models import Role, User
 from api.vpn.models import VPNConfig
-from api.payment.model import PaymentTransaction
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

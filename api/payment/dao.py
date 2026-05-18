@@ -1,58 +1,67 @@
+from datetime import UTC, datetime
+
+from loguru import logger
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from api.core.dao.base import BaseDAO
-from api.payment.model import PaymentTransaction
+from api.payment.model import PaymentStatus, PaymentTransaction
 
-#TODO документация типы данных и тесты если будут методы
+
+# TODO документация типы данных и тесты если будут методы
 class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):
+    """DAO для работы с платежными транзакциями.
 
+    Предоставляет методы для получения и агрегации
+    информации о платежах пользователей.
+    """
 
     model = PaymentTransaction
 
-    # @classmethod
-    # async def activate_subscription(
-    #     cls,
-    #     session: AsyncSession,
-    #     stelegram_id: SUserTelegramID,
-    #     days: int | None = None,
-    #     month: int | None = None,
-    #     sub_type: SubscriptionType = SubscriptionType.STANDARD,
-    # ) -> Subscription:
-    #     """Активирует подписку пользователя на указанное количество дней или месяцев.
-    #
-    #     Аргументы
-    #         session (AsyncSession): Асинхронная сессия SQLAlchemy для работы с базой данных.
-    #         stelegram_id (SUserTelegramID): Идентификатор Telegram пользователя.
-    #         days (Optional[int], optional): Количество дней для активации подписки. Defaults to None.
-    #         month (Optional[int], optional): Количество месяцев для активации подписки. Defaults to None.
-    #         sub_type (SubscriptionType): Тип подписки пользователя
-    #
-    #     Raises
-    #         ValueError: Если пользователь с указанным Telegram ID не найден.
-    #         SQLAlchemyError: Если произошла ошибка при сохранении изменений в базе данных.
-    #
-    #     Returns
-    #         Subscription: Активированная подписка пользователя.
-    #
-    #     """
-    #     user = await UserDAO.find_one_or_none(
-    #         session=session, filters=stelegram_id, options=UserDAO.base_options
-    #     )
-    #     if not user:
-    #         logger.error(
-    #             f"[DAO] Не удалось найти пользователя с {stelegram_id.telegram_id}"
-    #         )
-    #         raise UserNotFoundError(tg_id=stelegram_id.telegram_id)
-    #     schema_subscription = SSubscription(user_id=user.id)
-    #
-    #     try:
-    #         subscription = await SubscriptionDAO.add(
-    #             session=session, values=schema_subscription
-    #         )
-    #         await session.flush()
-    #         subscription.activate(days=days, month_num=month, sub_type=sub_type)
-    #         logger.debug(f"[DAO] Активирую подписку на {days} дней")
-    #         return subscription
-    #     except (TrialAlreadyUsedError, AppError):
-    #         raise
-    #     except SQLAlchemyError as e:
-    #         logger.error(f"[DAO] Ошибка при активации подписки: {e}")
-    #         raise e
+    # TODO вернет то скорее DECIMAL???
+    @classmethod
+    async def get_year_income(
+        cls,
+        session: AsyncSession,
+        year: int | None = None,
+    ) -> int:
+        """Возвращает суммарный доход за указанный год.
+
+        Учитываются только успешно оплаченные транзакции
+        со статусом ``PAID``.
+
+        Args:
+            session:
+                Асинхронная SQLAlchemy-сессия.
+
+            year:
+                Год для расчета дохода.
+                Если не указан — используется текущий год.
+
+        Returns
+            Суммарный доход за год в минимальных единицах валюты.
+
+        """
+        if year is None:
+            year = datetime.now(tz=UTC).year
+        logger.info(
+            f"[DAO] Расчет годового дохода для {cls.model.__name__}. Год: {year}"
+        )
+        start = datetime(year, 1, 1)
+        end = datetime(year + 1, 1, 1)
+
+        stmt = select(func.coalesce(func.sum(cls.model.amount), 0)).where(
+            cls.model.status == PaymentStatus.PAID,
+            cls.model.paid_at >= start,
+            cls.model.paid_at < end,
+        )
+
+        result = await session.execute(stmt)
+
+        income: int = result.scalar_one()
+
+        logger.info(
+            f"[DAO] Годовой доход для {cls.model.__name__} за {year} год: {income}"
+        )
+
+        return income

@@ -7,15 +7,21 @@ from starlette import status
 
 from api.app_error.base_error import (
     ActiveSubscriptionExistsError,
+    InvalidPaymentStatusTransitionError,
+    PaymentAlreadyConfirmedError,
+    PaymentAlreadyProcessedError,
+    PaymentCanceledError,
+    PaymentConfirmationError,
+    PaymentError,
+    PaymentFailedError,
+    PaymentTransactionNotFoundError,
     ReferralBonusAlreadyGivenError,
     ReferralError,
     ReferralNotFoundError,
     SubscriptionNotFoundError,
     TrialAlreadyUsedError,
     UserNotFoundError,
-    VPNLimitError, PaymentError, PaymentTransactionNotFoundError, PaymentAlreadyProcessedError,
-    PaymentAlreadyConfirmedError, InvalidPaymentStatusTransitionError, PaymentCanceledError, PaymentFailedError,
-    PaymentConfirmationError,
+    VPNLimitError,
 )
 
 
@@ -213,14 +219,15 @@ async def vpn_limit_handler(
         },
     )
 
-#TODO хэндлеры на корректный статус ошибки об оплате
+
+# TODO хэндлеры на корректный статус ошибки об оплате
+
 
 async def payment_exception_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
     """Обрабатывает ошибки платежной системы."""
-
     exc = cast(PaymentError, exc)
 
     if isinstance(exc, PaymentTransactionNotFoundError):
@@ -228,11 +235,9 @@ async def payment_exception_handler(
 
     elif isinstance(
         exc,
-        (
-            PaymentAlreadyProcessedError,
-            PaymentAlreadyConfirmedError,
-            InvalidPaymentStatusTransitionError,
-        ),
+        PaymentAlreadyProcessedError
+        | PaymentAlreadyConfirmedError
+        | InvalidPaymentStatusTransitionError,
     ):
         status_code = status.HTTP_409_CONFLICT
 

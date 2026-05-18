@@ -147,7 +147,8 @@ class VPNLimitError(AppError):
         self.username = username
         self.limit = limit
 
-#TODO ДОкументация
+
+# TODO ДОкументация
 class PaymentError(AppError):
     """Базовое исключение платежной системы."""
 
@@ -158,9 +159,7 @@ class PaymentTransactionNotFoundError(PaymentError):
     """Транзакция не найдена."""
 
     def __init__(self, transaction_id: str) -> None:
-        super().__init__(
-            message=f"Транзакция {transaction_id} не найдена."
-        )
+        super().__init__(message=f"Транзакция {transaction_id} не найдена.")
         self.transaction_id = transaction_id
 
 
@@ -182,9 +181,7 @@ class PaymentConfirmationError(PaymentError):
     """Ошибка подтверждения платежа."""
 
     def __init__(self, transaction_id: str) -> None:
-        super().__init__(
-            message=f"Не удалось подтвердить транзакцию {transaction_id}."
-        )
+        super().__init__(message=f"Не удалось подтвердить транзакцию {transaction_id}.")
         self.transaction_id = transaction_id
 
 
@@ -192,9 +189,7 @@ class PaymentAlreadyConfirmedError(PaymentError):
     """Платеж уже подтвержден."""
 
     def __init__(self, transaction_id: str) -> None:
-        super().__init__(
-            message=f"Транзакция {transaction_id} уже подтверждена."
-        )
+        super().__init__(message=f"Транзакция {transaction_id} уже подтверждена.")
         self.transaction_id = transaction_id
 
 
@@ -202,9 +197,7 @@ class PaymentCanceledError(PaymentError):
     """Транзакция отменена."""
 
     def __init__(self, transaction_id: str) -> None:
-        super().__init__(
-            message=f"Транзакция {transaction_id} отменена."
-        )
+        super().__init__(message=f"Транзакция {transaction_id} отменена.")
         self.transaction_id = transaction_id
 
 
