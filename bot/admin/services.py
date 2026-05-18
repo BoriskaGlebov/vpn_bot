@@ -1,6 +1,8 @@
+from loguru import logger
+
 from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.enums import AdminModeKeys
-from bot.admin.schemas import SChangeRole, SExtendSubscription
+from bot.admin.schemas import SChangeRole, SExtendSubscription, SYearIncome
 from bot.users.router import m_admin
 from bot.users.schemas import (
     SUserOut,
@@ -35,7 +37,13 @@ class AdminService:
             SUserOut: Данные пользователя.
 
         """
-        return await self.api_adapter.get_user_by_telegram_id(telegram_id)
+        logger.info("Получение пользователя telegram_id=%s", telegram_id)
+
+        user = await self.api_adapter.get_user_by_telegram_id(telegram_id)
+
+        logger.debug("Пользователь получен telegram_id=%s", telegram_id)
+
+        return user
 
     async def get_users_by_filter(self, filter_type: RoleEnum) -> list[SUserOut]:
         """Получает список пользователей по роли.
@@ -47,7 +55,13 @@ class AdminService:
             list[SUserOut]: Список пользователей.
 
         """
-        return await self.api_adapter.get_users(filter_type)
+        logger.info("Получение пользователей по роли=%s", filter_type)
+
+        users = await self.api_adapter.get_users(filter_type)
+
+        logger.debug("Найдено пользователей: %s", len(users))
+
+        return users
 
     @classmethod
     async def format_user_text(
@@ -92,11 +106,26 @@ class AdminService:
             SUserOut: Обновлённые данные пользователя.
 
         """
+        logger.info(
+            "Изменение роли пользователя telegram_id=%s role=%s",
+            telegram_id,
+            role_name,
+        )
+
         payload = SChangeRole(
             telegram_id=telegram_id,
             role_name=role_name,
         )
-        return await self.api_adapter.change_user_role(payload)
+
+        user = await self.api_adapter.change_user_role(payload)
+
+        logger.success(
+            "Роль изменена telegram_id=%s role=%s",
+            telegram_id,
+            role_name,
+        )
+
+        return user
 
     async def extend_user_subscription(self, telegram_id: int, months: int) -> SUserOut:
         """Продлевает подписку пользователя.
@@ -109,8 +138,39 @@ class AdminService:
             SUserOut: Обновлённый пользователь.
 
         """
+        logger.info(
+            "Продление подписки telegram_id=%s months=%s",
+            telegram_id,
+            months,
+        )
+
         payload = SExtendSubscription(
             telegram_id=telegram_id,
             months=months,
         )
-        return await self.api_adapter.extend_subscription(payload)
+
+        user: SUserOut = await self.api_adapter.extend_subscription(payload)
+
+        logger.success(
+            "Подписка продлена telegram_id=%s months=%s",
+            telegram_id,
+            months,
+        )
+
+        return user
+
+    # TODO не хватает тестов
+    async def year_income(self) -> SYearIncome:
+        """Получает доход за текущий год.
+
+        Returns
+            SYearIncome: Данные о годовом доходе.
+
+        """
+        logger.info("Запрос годового дохода")
+
+        res = await self.api_adapter.year_income()
+
+        logger.debug("Годовой доход получен: %s", res.year_income)
+
+        return res

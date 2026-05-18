@@ -1,6 +1,8 @@
+import datetime
+
 from loguru import logger
 
-from bot.admin.schemas import SChangeRole, SExtendSubscription
+from bot.admin.schemas import SChangeRole, SExtendSubscription, SYearIncome
 from bot.integrations.api_client import APIClient
 from bot.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
@@ -171,3 +173,24 @@ class AdminAPIAdapter:
         )
 
         return user
+
+    # TODO не хватает тестов
+    async def year_income(self) -> SYearIncome:
+        """Получает доход за текущий год.
+
+        Returns
+            SYearIncome: Данные о доходе за год.
+
+        Raises
+            APIClientHTTPError: Ошибка HTTP-ответа API.
+            APIClientConnectionError: Ошибка сетевого соединения.
+            APIClientError: Некорректный ответ API.
+
+        """
+        logger.info("Запрос аналитика доходов за год.")
+        year = datetime.datetime.now().year
+        res = await self._client.get(
+            url="/admin/analytics/income",
+            params={"year": year} if year else None,
+        )
+        return SYearIncome.model_validate(res)

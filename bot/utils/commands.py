@@ -41,12 +41,12 @@ async def set_bot_commands() -> None:
     Returns: None.
 
     """
-    all_scopes = [
+    all_scopes = (
         BotCommandScopeDefault(),
         BotCommandScopeAllPrivateChats(),
         BotCommandScopeAllGroupChats(),
         BotCommandScopeAllChatAdministrators(),
-    ]
+    )
     for scope in all_scopes:
         try:
             await bot.delete_my_commands(scope=scope)

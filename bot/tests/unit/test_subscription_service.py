@@ -16,8 +16,8 @@ def adapter_mock():
 
 
 @pytest.fixture
-def service(adapter_mock, mock_users_adapter):
-    return SubscriptionService(adapter_mock, mock_users_adapter)
+def service(adapter_mock, mock_users_adapter, moc_payment_adapter):
+    return SubscriptionService(adapter_mock, mock_users_adapter, moc_payment_adapter)
 
 
 @pytest.mark.asyncio
@@ -73,6 +73,7 @@ async def test_activate_paid_subscription(service, adapter_mock, user_out):
 async def test_get_subscription_info_no_subscription(mocker):
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
+    payment_adapter = mocker.AsyncMock()
 
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="no_subscription",
@@ -82,7 +83,7 @@ async def test_get_subscription_info_no_subscription(mocker):
         end_date=None,
     )
 
-    service = SubscriptionService(api_adapter, user_adapter)
+    service = SubscriptionService(api_adapter, user_adapter, payment_adapter)
 
     result = await service.get_subscription_info(123)
 
@@ -93,6 +94,7 @@ async def test_get_subscription_info_no_subscription(mocker):
 async def test_get_subscription_info_active(mocker):
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
+    payment_adapter = mocker.AsyncMock()
 
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="active",
@@ -105,7 +107,7 @@ async def test_get_subscription_info_active(mocker):
         end_date=datetime(2026, 1, 1),
     )
 
-    service = SubscriptionService(api_adapter, user_adapter)
+    service = SubscriptionService(api_adapter, user_adapter, payment_adapter)
 
     result = await service.get_subscription_info(123)
 
@@ -120,6 +122,7 @@ async def test_get_subscription_info_active(mocker):
 async def test_get_subscription_info_inactive_no_end_date(mocker):
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
+    payment_adapter = mocker.AsyncMock()
 
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="inactive",
@@ -129,7 +132,7 @@ async def test_get_subscription_info_inactive_no_end_date(mocker):
         end_date=None,
     )
 
-    service = SubscriptionService(api_adapter, user_adapter)
+    service = SubscriptionService(api_adapter, user_adapter, payment_adapter)
 
     result = await service.get_subscription_info(123)
 

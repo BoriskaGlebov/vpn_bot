@@ -10,6 +10,7 @@ from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.news.services import NewsService
+from bot.payment.adapter import PaymentAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage, RedisEmbeddingCache
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.referrals.services import ReferralService
@@ -24,6 +25,7 @@ from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 
+# TODO добавил новый адаптер
 class Container:
     """DI-контейнер приложения.
 
@@ -53,6 +55,7 @@ class Container:
         user_adapter (UsersAPIAdapter)
         admin_adapter (AdminAPIAdapter)
         subscription_adapter (SubscriptionAPIAdapter)
+        payment_adapter (PaymentApiAdapter)
         referral_adapter (ReferralAPIAdapter)
         vpn_adapter (VPNAPIAdapter)
         news_adapter (NewsAPIAdapter)
@@ -94,6 +97,7 @@ class Container:
     user_adapter: UsersAPIAdapter
     admin_adapter: AdminAPIAdapter
     subscription_adapter: SubscriptionAPIAdapter
+    payment_adapter: PaymentAPIAdapter
     referral_adapter: ReferralAPIAdapter
     vpn_adapter: VPNAPIAdapter
     news_adapter: NewsAPIAdapter
@@ -128,6 +132,7 @@ class Container:
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAPIAdapter(client=self.api_client)
+        self.payment_adapter = PaymentAPIAdapter(client=self.api_client)
         self.referral_adapter = ReferralAPIAdapter(client=self.api_client)
         self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
@@ -168,7 +173,9 @@ class Container:
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
         self.subscription_service = SubscriptionService(
-            adapter=self.subscription_adapter, user_adapter=self.user_adapter
+            adapter=self.subscription_adapter,
+            user_adapter=self.user_adapter,
+            payment_adapter=self.payment_adapter,
         )
         self.vpn_service = VPNService(
             adapter=self.vpn_adapter,

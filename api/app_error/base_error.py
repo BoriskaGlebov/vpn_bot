@@ -146,3 +146,87 @@ class VPNLimitError(AppError):
         self.user_id = user_id
         self.username = username
         self.limit = limit
+
+
+# TODO ДОкументация
+class PaymentError(AppError):
+    """Базовое исключение платежной системы."""
+
+    pass
+
+
+class PaymentTransactionNotFoundError(PaymentError):
+    """Транзакция не найдена."""
+
+    def __init__(self, transaction_id: str) -> None:
+        super().__init__(message=f"Транзакция {transaction_id} не найдена.")
+        self.transaction_id = transaction_id
+
+
+class PaymentAlreadyProcessedError(PaymentError):
+    """Транзакция уже обработана."""
+
+    def __init__(self, transaction_id: str, status: str) -> None:
+        super().__init__(
+            message=(
+                f"Транзакция {transaction_id} уже обработана "
+                f"(текущий статус: {status})."
+            )
+        )
+        self.transaction_id = transaction_id
+        self.status = status
+
+
+class PaymentConfirmationError(PaymentError):
+    """Ошибка подтверждения платежа."""
+
+    def __init__(self, transaction_id: str) -> None:
+        super().__init__(message=f"Не удалось подтвердить транзакцию {transaction_id}.")
+        self.transaction_id = transaction_id
+
+
+class PaymentAlreadyConfirmedError(PaymentError):
+    """Платеж уже подтвержден."""
+
+    def __init__(self, transaction_id: str) -> None:
+        super().__init__(message=f"Транзакция {transaction_id} уже подтверждена.")
+        self.transaction_id = transaction_id
+
+
+class PaymentCanceledError(PaymentError):
+    """Транзакция отменена."""
+
+    def __init__(self, transaction_id: str) -> None:
+        super().__init__(message=f"Транзакция {transaction_id} отменена.")
+        self.transaction_id = transaction_id
+
+
+class PaymentFailedError(PaymentError):
+    """Ошибка оплаты."""
+
+    def __init__(self, transaction_id: str) -> None:
+        super().__init__(
+            message=f"Оплата транзакции {transaction_id} завершилась ошибкой."
+        )
+        self.transaction_id = transaction_id
+
+
+class InvalidPaymentStatusTransitionError(PaymentError):
+    """Недопустимый переход статуса платежа."""
+
+    def __init__(
+        self,
+        transaction_id: str,
+        from_status: str,
+        to_status: str,
+    ) -> None:
+        super().__init__(
+            message=(
+                f"Недопустимый переход статуса транзакции "
+                f"{transaction_id}: {from_status} -> {to_status}."
+            )
+        )
+
+        self.transaction_id = transaction_id
+        self.from_status = from_status
+        self.to_status = to_status

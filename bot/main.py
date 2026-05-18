@@ -66,6 +66,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         redis_manager=container.redis_manager,
         user_service=container.user_service,
         referral_service=container.referral_service,
+        admin_service=container.admin_service,
     )
 
     help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
