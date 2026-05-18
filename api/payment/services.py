@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.payment.dao import PaymentTransactionDAO
 from api.payment.schemas import SCreateManualPaymentTransaction, SCreateTransaction, SPaymentTransactionResponse, \
-    SConfirmPayment, SCancelPayment
+    SConfirmPayment, SCancelPayment, SConfirmPaymentIn, SConfirmPaymentConfirmUpdate, SConfirmIn, SCancelPaymentIn, \
+    SCancelIn
 from api.users.models import User
 from api.app_error.api_error import APIClientError
 from api.app_error.base_error import PaymentTransactionNotFoundError, PaymentAlreadyProcessedError
@@ -24,7 +25,7 @@ class PaymentService:
             **transaction.model_dump(exclude_unset=True)
         )
         res = await PaymentTransactionDAO.add(session=session,
-                                        values=payment_schema,)
+                                              values=payment_schema,)
         return SPaymentTransactionResponse.model_validate(res)
 
     async def confirm_transaction(self, data: SConfirmPayment, session: AsyncSession)->SPaymentTransactionResponse:
@@ -38,13 +39,14 @@ class PaymentService:
             raise PaymentAlreadyProcessedError(transaction_id=str(data.transaction_id),
                                                status=tx.status)
 
-        tx.status = PaymentStatus.PAID
-        tx.confirmed_by_admin_id = data.admin_id
-        tx.confirmed_at = datetime.now()
-
-        await session.flush()
+        await PaymentTransactionDAO.update(session=session,
+                                           filters=SConfirmIn(id=data.transaction_id),
+                                           values=SConfirmPaymentConfirmUpdate(
+                                               status=PaymentStatus.PAID,
+                                               confirmed_by_admin_id=data.admin_id,
+                                               confirmed_at=datetime.now(),
+                                           ))
         await session.refresh(tx)
-
         return SPaymentTransactionResponse.model_validate(tx)
 
     async def cancel_transaction(
@@ -68,13 +70,14 @@ class PaymentService:
                 status=tx.status,
             )
 
-        tx.status = PaymentStatus.CANCELED
-        tx.confirmed_by_admin_id = data.admin_id
-        tx.confirmed_at = datetime.now()
-
-        await session.flush()
+        await PaymentTransactionDAO.update(session=session,
+                                           filters=SCancelIn(id=data.transaction_id),
+                                           values=SConfirmPaymentConfirmUpdate(
+                                               status=PaymentStatus.CANCELED,
+                                               confirmed_by_admin_id=data.admin_id,
+                                               confirmed_at=datetime.now(),
+                                           ))
         await session.refresh(tx)
-
         return SPaymentTransactionResponse.model_validate(tx)
     # async def register_referral(
     #     self,

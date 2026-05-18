@@ -204,14 +204,16 @@ class UserRouter(BaseRouter):
 
         """
         assert message.from_user is not None
-        # TODO ВОзможно будут жалобы?
+        # TODO Возможно будут жалобы?
         try:
-            await self.bot.delete_my_commands(
-                scope=BotCommandScopeChat(chat_id=message.from_user.id)
-            )
-            self.logger.info(
-                f"Очищены личные команды для пользователя {message.from_user.id}"
-            )
+            user_id=message.from_user.id
+            if user_id not in settings_bot.core.admin_ids:
+                await self.bot.delete_my_commands(
+                    scope=BotCommandScopeChat(chat_id=message.from_user.id)
+                )
+                self.logger.info(
+                    f"Очищены личные команды для пользователя {message.from_user.id}"
+                )
         except Exception:
             pass
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):

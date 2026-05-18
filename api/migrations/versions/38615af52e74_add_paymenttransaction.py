@@ -1,8 +1,8 @@
 """add PaymentTransaction
 
-Revision ID: e17c6faf2d40
+Revision ID: 38615af52e74
 Revises: c017a8b8370f
-Create Date: 2026-05-16 23:10:23.085853
+Create Date: 2026-05-16 23:34:04.484280
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'e17c6faf2d40'
+revision: str = '38615af52e74'
 down_revision: Union[str, Sequence[str], None] = 'c017a8b8370f'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -30,6 +30,7 @@ def upgrade() -> None:
     sa.Column('source', sa.Enum('MANUAL', 'GATEWAY', name='paymentsource'), nullable=False),
     sa.Column('subscription_months', sa.Integer(), nullable=False),
     sa.Column('is_premium', sa.Boolean(), nullable=False),
+    sa.Column('is_founder', sa.Boolean(), nullable=False),
     sa.Column('created_by_admin_id', sa.Integer(), nullable=True),
     sa.Column('confirmed_by_admin_id', sa.Integer(), nullable=True),
     sa.Column('gateway_transaction_id', sa.String(), nullable=True),

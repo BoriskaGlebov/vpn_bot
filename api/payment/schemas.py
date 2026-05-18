@@ -14,6 +14,7 @@ class SCreateManualPaymentTransaction(BaseModel):
 
     subscription_months: int = Field(gt=0)
     is_premium: bool = False
+    is_founder: bool=False
 
     description: str | None = None
 
@@ -38,6 +39,7 @@ class SPaymentTransactionResponse(BaseModel):
 
     subscription_months: int
     is_premium: bool
+    is_founder:bool
 
     description: str | None
 
@@ -53,6 +55,15 @@ class SPaymentTransactionResponse(BaseModel):
 class SConfirmPaymentIn(BaseModel):
     transaction_id: UUID
     model_config = ConfigDict(from_attributes=True)
+class SConfirmIn(BaseModel):
+    id: UUID
+    model_config = ConfigDict(from_attributes=True)
+
+class SConfirmPaymentConfirmUpdate(BaseModel):
+    status: PaymentStatus
+    confirmed_by_admin_id:int
+    confirmed_at:datetime
+    model_config = ConfigDict(from_attributes=True)
 
 class SConfirmPayment(SConfirmPaymentIn):
     admin_id: int
@@ -60,6 +71,9 @@ class SConfirmPayment(SConfirmPaymentIn):
 
 class SCancelPaymentIn(BaseModel):
     transaction_id: UUID
+    model_config = ConfigDict(from_attributes=True)
+class SCancelIn(BaseModel):
+    id: UUID
     model_config = ConfigDict(from_attributes=True)
 
 

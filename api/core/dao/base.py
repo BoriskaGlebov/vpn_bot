@@ -172,7 +172,8 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             session.add(new_instance)
             # noinspection PyTypeChecker
             logger.debug(f"[DAO] Запись {cls.model.__name__} успешно добавлена.")
-            await session.commit()
+            await session.flush()
+            await session.refresh(new_instance)
             return new_instance
         except SQLAlchemyError as e:
             # noinspection PyTypeChecker

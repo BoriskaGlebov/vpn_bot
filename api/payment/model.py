@@ -53,6 +53,7 @@ class PaymentTransaction(Base):
 
     subscription_months: Mapped[int] = mapped_column(nullable=False)
     is_premium: Mapped[bool] = mapped_column(default=False)
+    is_founder: Mapped[bool] = mapped_column(default=False)
 
     # ADMIN AUDIT
     created_by_admin_id: Mapped[int | None] = mapped_column(

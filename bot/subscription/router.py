@@ -13,7 +13,7 @@ from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.app_error.api_error import APIClientConflictError
+from bot.app_error.api_error import APIClientConflictError, APIClientError
 from bot.app_error.base_error import AppError, MessageNotFoundError, UserNotFoundError
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
@@ -339,6 +339,15 @@ class SubscriptionRouter(BaseRouter):
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             user = query.from_user
+            try:
+                transaction_id=await self.subscription_service.payment_adapter.create_transaction(
+                    amount=price,
+                    subscription_months=months,
+                    is_premium=premium,
+                    is_founder=founder
+                )
+            except APIClientError as exc:
+                raise
 
             await msg.edit_text(m_subscription.wait_for_paid.user)
 
@@ -360,6 +369,7 @@ class SubscriptionRouter(BaseRouter):
                     user_id=user.id,
                     months=months,
                     premium=premium if premium else False,
+                    transaction_id=transaction_id.id
                 ),
                 admin_mess_storage=self.redis_service,
                 telegram_id=user.id,
@@ -437,7 +447,11 @@ class SubscriptionRouter(BaseRouter):
             user_id = callback_data.user_id
             months = callback_data.months
             premium = callback_data.premium
-
+            transaction_id=callback_data.transaction_id
+            try:
+                tx= await  self.subscription_service.payment_adapter.confirm_transaction(transaction_id)
+            except APIClientError as e:
+                raise e
             user_schema = await self.subscription_service.activate_paid_subscription(
                 user_id, months, premium
             )
@@ -548,6 +562,11 @@ class SubscriptionRouter(BaseRouter):
             await state.clear()
             user_id = callback_data.user_id
             months = callback_data.months
+            transaction_id = callback_data.transaction_id
+            try:
+                tx = await self.subscription_service.payment_adapter.cancel_transaction(transaction_id)
+            except APIClientError as e:
+                raise e
 
             user_logger.info(
                 f"Админ отклонил оплату пользователя {user_id} ({months} мес)"

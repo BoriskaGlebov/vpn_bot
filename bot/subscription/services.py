@@ -8,6 +8,7 @@ from bot.subscription.adapter import (
 from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUserOut
+from bot.payment.adapter import PaymentAPIAdapter
 from shared.enums.admin_enum import RoleEnum
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -56,10 +57,13 @@ class SubscriptionService:
     """Сервис для бизнес-логики подписки."""
 
     def __init__(
-        self, adapter: SubscriptionAPIAdapter, user_adapter: UsersAPIAdapter
+        self, adapter: SubscriptionAPIAdapter,
+            user_adapter: UsersAPIAdapter,
+            payment_adapter:PaymentAPIAdapter
     ) -> None:
         self.api_adapter = adapter
         self.user_adapter = user_adapter
+        self.payment_adapter=payment_adapter
 
     async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool, bool]:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
