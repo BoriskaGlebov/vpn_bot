@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock
 
@@ -5,6 +6,7 @@ import pytest
 from aiogram.filters import CommandStart
 from aiogram.types import ReplyKeyboardRemove
 
+from bot.admin.services import AdminService
 from bot.core.config import settings_bot
 from bot.referrals.services import ReferralService
 from bot.users.router import UserRouter, UserStates
@@ -53,6 +55,7 @@ async def test_cmd_start_new_user_monkeypatch(
     fake_user_service.register_or_get_user.return_value = (FakeUserOut(), True)
 
     referral_service = AsyncMock(spec=ReferralService)
+    admin_service = AsyncMock(spec=AdminService)
 
     router = UserRouter(
         bot=fake_bot,
@@ -60,6 +63,7 @@ async def test_cmd_start_new_user_monkeypatch(
         redis_manager=fake_redis,
         user_service=fake_user_service,
         referral_service=referral_service,
+        admin_service=admin_service,
     )
 
     await router.cmd_start(
@@ -102,6 +106,8 @@ async def test_admin_start_with_admin_monkeypatch(
     monkeypatch.setattr(settings_bot.core, "admin_ids", {123})
 
     referral_service = AsyncMock(spec=ReferralService)
+    admin_service = AsyncMock(spec=AdminService)
+    admin_service.year_income.return_value = SimpleNamespace(year_income=100_000)
 
     router = UserRouter(
         bot=fake_bot,
@@ -109,6 +115,7 @@ async def test_admin_start_with_admin_monkeypatch(
         redis_manager=fake_redis,
         user_service=AsyncMock(),
         referral_service=referral_service,
+        admin_service=admin_service,
     )
 
     await router.admin_start(message=fake_message, state=fake_state)
@@ -143,6 +150,7 @@ async def test_admin_start_non_admin_monkeypatch(
     monkeypatch.setattr(settings_bot.core, "admin_ids", {123})
 
     referral_service = AsyncMock(spec=ReferralService)
+    admin_service = AsyncMock(spec=AdminService)
 
     router = UserRouter(
         bot=fake_bot,
@@ -150,6 +158,7 @@ async def test_admin_start_non_admin_monkeypatch(
         redis_manager=fake_redis,
         user_service=AsyncMock(),
         referral_service=referral_service,
+        admin_service=admin_service,
     )
 
     await router.admin_start(message=fake_message, state=fake_state)
@@ -184,6 +193,7 @@ async def test_mistake_handler_user_press_start(
     fake_state.get_state = AsyncMock(return_value="UserStates:press_start")
 
     referral_service = AsyncMock(spec=ReferralService)
+    admin_service = AsyncMock(spec=AdminService)
 
     router = UserRouter(
         bot=fake_bot,
@@ -191,6 +201,7 @@ async def test_mistake_handler_user_press_start(
         redis_manager=fake_redis,
         user_service=AsyncMock(),
         referral_service=referral_service,
+        admin_service=admin_service,
     )
 
     await router.mistake_handler_user(fake_message, fake_state)
@@ -238,6 +249,7 @@ async def test_mistake_handler_user_press_admin(
     )
 
     referral_service = AsyncMock(spec=ReferralService)
+    admin_service = AsyncMock(spec=AdminService)
 
     router = UserRouter(
         bot=fake_bot,
@@ -245,6 +257,7 @@ async def test_mistake_handler_user_press_admin(
         redis_manager=fake_redis,
         user_service=AsyncMock(),
         referral_service=referral_service,
+        admin_service=AsyncMock(spec=AdminService),
     )
 
     # Первый вызов
@@ -290,13 +303,14 @@ async def test_cmd_id(
     fake_message = make_fake_message(user_id=user_id)
 
     referral_service = AsyncMock(spec=ReferralService)
-
+    admin_service = AsyncMock(spec=AdminService)
     router = UserRouter(
         bot=fake_bot,
         logger=fake_logger,
         redis_manager=fake_redis,
         user_service=AsyncMock(),
         referral_service=referral_service,
+        admin_service=admin_service,
     )
 
     # важно: user объект из dependency injection
