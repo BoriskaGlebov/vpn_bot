@@ -4,6 +4,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
 
 from api.payment.model import PaymentStatus, PaymentSource
+from api.referrals.schemas import GrantReferralBonusResponse
+from api.users.schemas import SUserOut
 
 
 class SCreateManualPaymentTransaction(BaseModel):
@@ -30,6 +32,7 @@ class SPaymentTransactionResponse(BaseModel):
     id: UUID
 
     user_id: int
+    tg_id:int
 
     amount: int
     currency: str
@@ -51,6 +54,11 @@ class SPaymentTransactionResponse(BaseModel):
     confirmed_at: datetime | None
     paid_at: datetime | None
     model_config = ConfigDict(from_attributes=True)
+
+class SConfirmPaymentResponse(BaseModel):
+    transaction_res: SPaymentTransactionResponse
+    subscription_res: SUserOut
+    referral_res: GrantReferralBonusResponse
 
 class SConfirmPaymentIn(BaseModel):
     transaction_id: UUID

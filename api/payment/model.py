@@ -88,3 +88,7 @@ class PaymentTransaction(Base):
     def __str__(self) -> str:
         short_id = str(self.id)[:4].upper()
         return f"#{short_id} {self.status.value} {self.amount}{self.currency} ({self.source.value})"
+
+    @property
+    def tg_id(self) -> int | None:
+        return self.user.telegram_id if self.user else None

@@ -2,11 +2,22 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.admin.dependencies import check_admin_role
-from api.payment.schemas import SCreateManualPaymentTransaction, SPaymentTransactionResponse, SConfirmPayment, \
-    SConfirmPaymentIn, SCancelPaymentIn, SCancelPayment
+from api.payment.schemas import (
+    SCreateManualPaymentTransaction,
+    SPaymentTransactionResponse,
+    SConfirmPayment,
+    SConfirmPaymentIn,
+    SCancelPaymentIn,
+    SCancelPayment,
+    SConfirmPaymentResponse,
+)
 from api.core.dependencies import get_current_user, get_session
 from api.payment.services import PaymentService
 from api.users.models import User
+from api.subscription.services import SubscriptionService
+from api.referrals.services import ReferralService
+from api.users.schemas import SUserOut
+from api.referrals.schemas import GrantReferralBonusResponse
 
 #TODO нужно не забыть про документацию для api
 router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
@@ -25,12 +36,27 @@ async def create_transaction(transaction:SCreateManualPaymentTransaction,
 async def confirm_transaction(
     data: SConfirmPaymentIn,
     service:PaymentService = Depends(PaymentService),
+    sub_service:SubscriptionService=Depends(SubscriptionService),
+    ref_service:ReferralService=Depends(ReferralService),
     admin_auth: User = Depends(check_admin_role),
     session: AsyncSession = Depends(get_session)
-)->SPaymentTransactionResponse:
+)->SConfirmPaymentResponse:
     conf_payment=SConfirmPayment(admin_id=admin_auth.id,transaction_id=data.transaction_id)
-    res=await service.confirm_transaction(session=session,data=conf_payment)
-    return res
+    tx=await service.confirm_transaction(session=session,data=conf_payment)
+    sub_res=await sub_service.activate_paid_subscription(session=session,
+                                                         user_id=tx.tg_id,
+                                                         months=tx.subscription_months,
+                                                         premium=tx.is_premium)
+    ref_res,inviter=await ref_service.grant_referral_bonus(session=session,
+                                                   invited_user=sub_res,
+                                                   )
+    return SConfirmPaymentResponse(transaction_res=tx,
+                                subscription_res=sub_res,
+                                   referral_res=GrantReferralBonusResponse(
+                                       success=ref_res,
+                                       inviter_telegram_id=inviter,
+                                       message="Бонус по реферально программе начислен"
+                                   ))
 
 @router.post("/transaction/cancel")
 async def cancel_transaction(

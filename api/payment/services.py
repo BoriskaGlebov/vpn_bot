@@ -53,7 +53,7 @@ class PaymentService:
             self,
             session: AsyncSession,
             data: SCancelPayment,
-    ):
+    )->SPaymentTransactionResponse:
         tx = await PaymentTransactionDAO.find_one_or_none_by_id(
             session=session,
             data_id=data.transaction_id,

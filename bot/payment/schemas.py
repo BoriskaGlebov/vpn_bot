@@ -12,6 +12,8 @@ from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from bot.payment.enums import PaymentStatus, PaymentSource
+from bot.referrals.schemas import GrantReferralBonusResponse
+from bot.users.schemas import SUserOut
 
 
 class SCreateManualPaymentTransactionIn(BaseModel):
@@ -78,6 +80,10 @@ class SPaymentTransactionResponse(BaseModel):
     paid_at: datetime | None
     model_config = ConfigDict(from_attributes=True)
 
+class SConfirmPaymentResponse(BaseModel):
+    transaction_res: SPaymentTransactionResponse
+    subscription_res: SUserOut
+    referral_res: GrantReferralBonusResponse
 # class SSubscriptionCheck(BaseModel):
 #     """Результат проверки подписки пользователя.
 #

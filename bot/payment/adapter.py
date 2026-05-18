@@ -9,12 +9,18 @@ from bot.subscription.schemas import (
     STrialActivateResponse,
 )
 from bot.users.schemas import SUserOut
-from bot.payment.schemas import SCreateManualPaymentTransactionIn, SPaymentTransactionResponse, SConfirmPaymentIn, \
-    SCancelPaymentIn
+from bot.payment.schemas import (
+    SCreateManualPaymentTransactionIn,
+    SPaymentTransactionResponse,
+    SConfirmPaymentIn,
+    SCancelPaymentIn,
+    SConfirmPaymentResponse,
+)
 
 type HTTPStatus = int
 
-#TODO ДОкументация тесты типы данных логирование
+
+# TODO ДОкументация тесты типы данных логирование
 class PaymentAPIAdapter:
     """Адаптер для работы с Subscription API.
 
@@ -31,46 +37,45 @@ class PaymentAPIAdapter:
         """
         self._client = client
 
-    async def create_transaction(self,
-                                 amount: int,
-                                 subscription_months:int,
-                                 is_premium: bool,
-                                 is_founder: bool,
-                                 ) -> SPaymentTransactionResponse:
+    async def create_transaction(
+        self,
+        amount: int,
+        subscription_months: int,
+        is_premium: bool,
+        is_founder: bool,
+    ) -> SPaymentTransactionResponse:
         payload = SCreateManualPaymentTransactionIn(
             amount=amount,
             currency="RUB",
             subscription_months=subscription_months,
             is_premium=is_premium,
             is_founder=is_founder,
-
         )
-        data,status_code = await self._client.post(
+        data, status_code = await self._client.post(
             "/payment/transaction",
             json=payload.model_dump(),
         )
 
         return SPaymentTransactionResponse.model_validate(data)
 
-    async def confirm_transaction(self,
-                                 transaction_id: UUID,
-                                 ) -> SPaymentTransactionResponse:
-        payload = SConfirmPaymentIn(
-            transaction_id=transaction_id
-
-        )
-        data,status_code = await self._client.post(
+    async def confirm_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SConfirmPaymentResponse:
+        payload = SConfirmPaymentIn(transaction_id=transaction_id)
+        data, status_code = await self._client.post(
             "/payment/transaction/confirm",
             json=payload.model_dump(mode="json"),
         )
 
-        return SPaymentTransactionResponse.model_validate(data)
+        return SConfirmPaymentResponse.model_validate(data)
 
-    async def cancel_transaction(self,
-                                 transaction_id: UUID,
-                                 ) -> SPaymentTransactionResponse:
+    async def cancel_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SPaymentTransactionResponse:
         payload = SCancelPaymentIn(transaction_id=transaction_id)
-        data,status_code = await self._client.post(
+        data, status_code = await self._client.post(
             "/payment/transaction/cancel",
             json=payload.model_dump(mode="json"),
         )
