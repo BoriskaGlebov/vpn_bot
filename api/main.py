@@ -19,6 +19,7 @@ from api.app_error.api_error import (
 )
 from api.app_error.base_error import (
     ActiveSubscriptionExistsError,
+    PaymentError,
     ReferralError,
     SubscriptionNotFoundError,
     TrialAlreadyUsedError,
@@ -29,6 +30,7 @@ from api.core.config import settings_api
 from api.core.database import engine
 from api.core.exceptions.handlers.business import (
     active_subscription_exists_handler,
+    payment_exception_handler,
     referral_exception_handler,
     subscription_not_found_handler,
     trial_already_used_handler,
@@ -49,6 +51,7 @@ from api.middleware.logg_router_middleware import RequestLoggingMiddleware
 from api.middleware.logger_context import LogContextMiddleware
 from api.middleware.session_middleware import DBSessionMiddleware
 from api.news.router import router as news_router
+from api.payment.router import router as payment_router
 from api.referrals.admin import ReferralAdmin
 from api.referrals.router import router as referrals_router
 from api.scheduler.router import router as scheduler_router
@@ -143,6 +146,7 @@ app.include_router(referrals_router)
 app.include_router(vpn_router)
 app.include_router(news_router)
 app.include_router(scheduler_router)
+app.include_router(payment_router)
 
 app.add_exception_handler(UserNotFoundError, user_not_found_handler)
 app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
@@ -158,7 +162,7 @@ app.add_exception_handler(VPNLimitError, vpn_limit_handler)
 app.add_exception_handler(MissingTelegramHeaderError, missing_telegram_header_handler)
 app.add_exception_handler(UserNotFoundHeaderError, unregistered_user_handler)
 app.add_exception_handler(AdminNotFoundHeaderError, user_not_admin_handler)
-
+app.add_exception_handler(PaymentError, payment_exception_handler)
 app.add_middleware(LogContextMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestLoggingMiddleware)

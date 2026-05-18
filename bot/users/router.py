@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from aiogram import Bot, F
 from aiogram.filters import (
@@ -38,6 +38,8 @@ from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import send_to_admins
 from shared.enums.admin_enum import RoleEnum
 
+if TYPE_CHECKING:
+    from bot.admin.services import AdminService
 m_admin = settings_bot.messages.modes.admin
 m_start = settings_bot.messages.modes.start
 m_id = settings_bot.messages.modes.id
@@ -101,11 +103,13 @@ class UserRouter(BaseRouter):
         redis_manager: RedisClient,
         user_service: UserService,
         referral_service: ReferralService,
+        admin_service: AdminService,
     ) -> None:
         super().__init__(bot, logger)
         self.redis_manager = redis_manager
         self.user_service = user_service
         self.referral_service = referral_service
+        self.admin_service = admin_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(
@@ -204,14 +208,16 @@ class UserRouter(BaseRouter):
 
         """
         assert message.from_user is not None
-        # TODO ВОзможно будут жалобы?
+        # TODO Возможно будут жалобы?
         try:
-            await self.bot.delete_my_commands(
-                scope=BotCommandScopeChat(chat_id=message.from_user.id)
-            )
-            self.logger.info(
-                f"Очищены личные команды для пользователя {message.from_user.id}"
-            )
+            user_id = message.from_user.id
+            if user_id not in settings_bot.core.admin_ids:
+                await self.bot.delete_my_commands(
+                    scope=BotCommandScopeChat(chat_id=message.from_user.id)
+                )
+                self.logger.info(
+                    f"Очищены личные команды для пользователя {message.from_user.id}"
+                )
         except Exception:
             pass
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
@@ -345,9 +351,17 @@ class UserRouter(BaseRouter):
                 text=m_admin.on[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
+            # TODO вот этот момент выглядит как костыль
+            income = await self.admin_service.year_income()
+            expense = 28358
+            profit = income.year_income - expense
             await self.bot.send_message(
                 chat_id=user.id,
-                text=m_admin.on[1],
+                text=m_admin.on[1].format(
+                    income=f"{income.year_income:,}".replace(",", " "),
+                    expense=f"{expense:,}".replace(",", " "),
+                    profit=f"{profit:,}".replace(",", " "),
+                ),
                 reply_markup=admin_main_kb(),
             )
 

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -62,6 +64,7 @@ class AdminPaymentCB(CallbackData, prefix="admin"):  # type: ignore[misc,call-ar
         months (int): Количество месяцев подписки, за которые производится оплата.
         premium (bool, optional): Флаг, указывающий на премиум-подписку.
             По умолчанию False.
+        transaction_id (UUID): идентификатор платежки
 
     """
 
@@ -69,6 +72,7 @@ class AdminPaymentCB(CallbackData, prefix="admin"):  # type: ignore[misc,call-ar
     user_id: int
     months: int
     premium: bool = False
+    transaction_id: UUID
 
 
 def subscription_options_kb(
@@ -156,12 +160,15 @@ def payment_confirm_kb(months: int, founder: bool) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def admin_payment_kb(user_id: int, months: int, premium: bool) -> InlineKeyboardMarkup:
+def admin_payment_kb(
+    user_id: int, months: int, premium: bool, transaction_id: UUID
+) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру для администраторов для подтверждения или отклонения оплаты пользователя.
 
     Args
         user_id (int): Идентификатор пользователя, для которого администратор подтверждает оплату.
         months (int): Количество месяцев подписки, за которые пользователь произвёл оплату.
+        transaction_id (UUID): Идентификатор транзакции
 
     Returns
         InlineKeyboardMarkup: Inline-клавиатура с кнопками "Подтвердить" и "Отменить".
@@ -175,6 +182,7 @@ def admin_payment_kb(user_id: int, months: int, premium: bool) -> InlineKeyboard
             user_id=user_id,
             months=months,
             premium=premium,
+            transaction_id=transaction_id,
         ),
     )
     builder.button(
@@ -184,6 +192,7 @@ def admin_payment_kb(user_id: int, months: int, premium: bool) -> InlineKeyboard
             user_id=user_id,
             months=months,
             premium=premium,
+            transaction_id=transaction_id,
         ),
     )
     return builder.as_markup()

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from bot.app_error.api_error import APIClientError
 from bot.core.config import settings_bot
+from bot.payment.adapter import PaymentAPIAdapter
 from bot.subscription.adapter import (
     SubscriptionAPIAdapter,
 )
@@ -56,10 +57,14 @@ class SubscriptionService:
     """Сервис для бизнес-логики подписки."""
 
     def __init__(
-        self, adapter: SubscriptionAPIAdapter, user_adapter: UsersAPIAdapter
+        self,
+        adapter: SubscriptionAPIAdapter,
+        user_adapter: UsersAPIAdapter,
+        payment_adapter: PaymentAPIAdapter,
     ) -> None:
         self.api_adapter = adapter
         self.user_adapter = user_adapter
+        self.payment_adapter = payment_adapter
 
     async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool, bool]:
         """Проверяет, имеет ли пользователь активную премиум-подписку.

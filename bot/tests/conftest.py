@@ -14,6 +14,7 @@ from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
+from bot.payment.adapter import PaymentAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.users.adapter import UsersAPIAdapter
@@ -342,6 +343,12 @@ def mock_referral_adapter():
 @pytest.fixture
 def mock_users_adapter():
     adapter = AsyncMock(spec=UsersAPIAdapter)
+    return adapter
+
+
+@pytest.fixture
+def moc_payment_adapter():
+    adapter = AsyncMock(spec=PaymentAPIAdapter)
     return adapter
 
 

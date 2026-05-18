@@ -7,6 +7,8 @@ from api.admin.dependencies import check_admin_role, get_admin_service
 from api.admin.schemas import SChangeRole, SExtendSubscription
 from api.admin.services import AdminService
 from api.core.dependencies import get_session
+from api.payment.schemas import SYearIncome
+from api.payment.services import PaymentService
 from api.users.models import User
 from api.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
@@ -288,3 +290,54 @@ async def extend_subscription(
     )
 
     return user
+
+
+# TODO Докумнетация и тесты не забудь
+@router.get(
+    "/analytics/income",
+    response_model=SYearIncome,
+    status_code=status.HTTP_200_OK,
+    summary="Получить аналитику дохода за год",
+    description=(
+        "Возвращает аналитику доходов за указанный год.\n\n"
+        "Если год не передан, используется текущий год.\n"
+        "В ответе содержится информация о доходе по месяцам "
+        "и общая сумма дохода за год."
+    ),
+    responses={
+        200: {
+            "description": "Аналитика дохода успешно получена",
+        },
+    },
+)
+async def get_income(
+    year: int | None = None,
+    service: PaymentService = Depends(PaymentService),
+    session: AsyncSession = Depends(get_session),
+) -> SYearIncome:
+    """Получает аналитику доходов за год.
+
+    Выполняет расчёт доходов системы за указанный год.
+
+    Алгоритм работы:
+    - принимает год для анализа
+    - если год не указан — используется текущий год
+    - получает данные о платежах через сервисный слой
+    - агрегирует доходы по месяцам
+    - возвращает итоговую аналитику
+
+    Args:
+        year (int | None): Год для получения аналитики.
+            Если значение не передано, используется текущий год.
+        service (PaymentService): Сервис бизнес-логики платежей.
+        session (AsyncSession): Асинхронная сессия базы данных.
+
+    Returns
+        SYearIncome: Данные аналитики доходов за год.
+
+    Raises
+        ValueError: Если передан некорректный год.
+
+    """
+    income = await service.get_year_income(session=session, year=year)
+    return income

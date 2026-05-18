@@ -46,3 +46,14 @@ class SExtendSubscription(BaseModel):
         ge=1,
         description="Количество месяцев для продления подписки (>= 1)",
     )
+
+
+class SYearIncome(BaseModel):
+    """Данные о доходе за год.
+
+    Attributes
+        year_income (int): Общий доход за текущий год в минимальных единицах (например, копейках или рублях — зависит от API).
+
+    """
+
+    year_income: int

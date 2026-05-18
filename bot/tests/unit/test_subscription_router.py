@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock, Mock
+from uuid import UUID
 
 import pytest
 from aiogram.types import ReplyKeyboardRemove
@@ -72,12 +73,24 @@ from bot.core.config import settings_bot
 async def test_user_paid_calls_admins(
     mocker, fake_bot, fake_logger, fake_redis_service
 ):
+    payment_adapter_mock = mocker.AsyncMock()
+    payment_adapter_mock.create_transaction.return_value = mocker.Mock(
+        id=UUID("12345678-1234-5678-1234-567812345678")
+    )
+    subscription_service = mocker.AsyncMock()
+    subscription_service = mocker.AsyncMock()
+    subscription_service.payment_adapter = payment_adapter_mock
+
     bot_mock = fake_bot
     msg_mock = mocker.AsyncMock()
     query_mock = mocker.AsyncMock()
     query_mock.message = msg_mock
     query_mock.from_user = mocker.Mock(id=123, username="user")
-    callback_data = mocker.Mock(months=3, founder=False)
+    callback_data = mocker.Mock(
+        months=3,
+        founder=False,
+        transaction_id=UUID("12345678-1234-5678-1234-567812345678"),
+    )
 
     # Мок price_map
     mocker.patch.object(settings_bot.pricing, "price_map", {2: 100, 3: 150})
@@ -85,7 +98,7 @@ async def test_user_paid_calls_admins(
     router = SubscriptionRouter(
         bot=bot_mock,
         logger=fake_logger,
-        subscription_service=mocker.AsyncMock(),
+        subscription_service=subscription_service,
         referral_service=mocker.AsyncMock(),
         redis_service=fake_redis_service,
     )
@@ -111,34 +124,62 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_admin_confirm_payment(mocker):
-    # --- mocks ---
+    # --- bot / message / query ---
     bot_mock = AsyncMock()
 
     msg_mock = AsyncMock()
-    msg_mock.chat.id = 999  # важно для ChatActionSender
+    msg_mock.chat.id = 999
+    msg_mock.message_id = 10
 
     query_mock = AsyncMock()
     query_mock.message = msg_mock
     query_mock.from_user = Mock(id=999, username="admin")
+    query_mock.answer = AsyncMock()
 
-    callback_data = Mock(user_id=1, months=3, premium=True)
+    # callback data (ВАЖНО: теперь есть transaction_id)
+    callback_data = Mock(
+        user_id=1,
+        months=3,
+        premium=True,
+        transaction_id=UUID("12345678-1234-5678-1234-567812345678"),
+    )
 
-    # user_schema должен иметь нужные поля
+    # --- confirm_transaction result (DTO мок) ---
     user_schema = Mock(
         username="user",
         first_name="John",
         last_name="Doe",
         telegram_id=1,
+        current_subscription=Mock(type="premium"),
     )
 
+    confirm_transaction_mock = Mock(
+        subscription_res=user_schema,
+        referral_res=Mock(
+            success=False,
+            inviter_telegram_id=None,
+        ),
+    )
+
+    # --- payment adapter ---
+    payment_adapter_mock = AsyncMock()
+    payment_adapter_mock.confirm_transaction.return_value = confirm_transaction_mock
+
+    # --- subscription service ---
     subscription_service_mock = AsyncMock()
-    subscription_service_mock.activate_paid_subscription.return_value = user_schema
+    subscription_service_mock.payment_adapter = payment_adapter_mock
 
+    # --- referral service ---
     referral_service_mock = AsyncMock()
-    referral_service_mock.grant_referral_bonus.return_value = (False, None)
 
+    # --- redis ---
     redis_mock = AsyncMock()
 
+    # --- patch external funcs ---
+    mocker.patch("bot.subscription.router.edit_admin_messages")
+    mocker.patch("bot.subscription.router.send_to_admins")
+
+    # --- router ---
     router = SubscriptionRouter(
         bot=bot_mock,
         logger=Mock(),
@@ -146,9 +187,6 @@ async def test_admin_confirm_payment(mocker):
         referral_service=referral_service_mock,
         redis_service=redis_mock,
     )
-
-    # --- правильные patch ---
-    mocker.patch("bot.subscription.router.edit_admin_messages")
 
     # --- run ---
     await router.admin_confirm_payment(
@@ -158,19 +196,15 @@ async def test_admin_confirm_payment(mocker):
     )
 
     # --- asserts ---
-    subscription_service_mock.activate_paid_subscription.assert_awaited_once_with(
-        1, 3, True
+
+    payment_adapter_mock.confirm_transaction.assert_awaited_once_with(
+        callback_data.transaction_id
     )
 
-    bot_mock.send_message.assert_awaited()  # пользователю отправлено сообщение
+    query_mock.answer.assert_awaited_once()
 
-    referral_service_mock.grant_referral_bonus.assert_awaited_once_with(
-        invited_user=user_schema
-    )
+    bot_mock.send_message.assert_awaited()  # пользователь + возможно реферал
 
-    query_mock.answer.assert_awaited()
+    referral_service_mock.grant_referral_bonus.assert_not_called()
 
-    subscription_service_mock.activate_paid_subscription.assert_awaited_once_with(
-        1, 3, True
-    )
-    bot_mock.send_message.assert_awaited()
+    # state.clear внутри edit_admin_messages / try block

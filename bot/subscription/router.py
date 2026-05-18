@@ -13,11 +13,12 @@ from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.app_error.api_error import APIClientConflictError
+from bot.app_error.api_error import APIClientConflictError, APIClientError
 from bot.app_error.base_error import AppError, MessageNotFoundError, UserNotFoundError
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
 from bot.redis_service import RedisAdminMessageStorage
+from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
     AdminPaymentAction,
@@ -339,6 +340,17 @@ class SubscriptionRouter(BaseRouter):
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             user = query.from_user
+            try:
+                transaction_id = (
+                    await self.subscription_service.payment_adapter.create_transaction(
+                        amount=price,
+                        subscription_months=months,
+                        is_premium=premium,
+                        is_founder=founder,
+                    )
+                )
+            except APIClientError:
+                raise
 
             await msg.edit_text(m_subscription.wait_for_paid.user)
 
@@ -360,6 +372,7 @@ class SubscriptionRouter(BaseRouter):
                     user_id=user.id,
                     months=months,
                     premium=premium if premium else False,
+                    transaction_id=transaction_id.id,
                 ),
                 admin_mess_storage=self.redis_service,
                 telegram_id=user.id,
@@ -437,10 +450,16 @@ class SubscriptionRouter(BaseRouter):
             user_id = callback_data.user_id
             months = callback_data.months
             premium = callback_data.premium
-
-            user_schema = await self.subscription_service.activate_paid_subscription(
-                user_id, months, premium
-            )
+            transaction_id = callback_data.transaction_id
+            try:
+                confirm_transaction = (
+                    await self.subscription_service.payment_adapter.confirm_transaction(
+                        transaction_id
+                    )
+                )
+            except APIClientError as e:
+                raise e
+            user_schema = confirm_transaction.subscription_res
             if (user_schema is None) or (user_schema.current_subscription is None):
                 raise AppError(
                     message=f"У пользователя id= {user_schema} отсутствуют подписки!!!!"
@@ -464,12 +483,12 @@ class SubscriptionRouter(BaseRouter):
                     ),
                     # reply_markup=main_kb(active_subscription=True),
                 )
-                res, inviter = await self.referral_service.grant_referral_bonus(
-                    invited_user=user_schema,
+                referral_result: GrantReferralBonusResponse = (
+                    confirm_transaction.referral_res
                 )
-                if res and inviter:
+                if referral_result.success and referral_result.inviter_telegram_id:
                     await self.bot.send_message(
-                        chat_id=inviter,
+                        chat_id=referral_result.inviter_telegram_id,
                         text=m_subscription.accept_paid.bonus.format(
                             user_info=f"@{user_schema.username}"
                             or user_schema.first_name
@@ -548,6 +567,13 @@ class SubscriptionRouter(BaseRouter):
             await state.clear()
             user_id = callback_data.user_id
             months = callback_data.months
+            transaction_id = callback_data.transaction_id
+            try:
+                await self.subscription_service.payment_adapter.cancel_transaction(
+                    transaction_id
+                )
+            except APIClientError as e:
+                raise e
 
             user_logger.info(
                 f"Админ отклонил оплату пользователя {user_id} ({months} мес)"
