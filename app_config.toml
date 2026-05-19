@@ -112,7 +112,7 @@ name = "🇫🇷 | TCP Reality"
 [vpn.nodes.fi.xray]
 host = "vpn-boriska.ru"
 panel_prefix = "panel-78gh98"
-subscription_prefix = "sub-45gh45"
+subscription_prefix = "sub-gh456hg"
 panel_port = 5443
 subscription_port = 2096
 username = "admin"
