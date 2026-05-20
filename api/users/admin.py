@@ -5,6 +5,7 @@ from api.users.filters import ActiveSubscriptionFilter
 from api.users.models import Role, User
 
 
+# TODO в админке нет поиска по телеграм ID только если в имени есть
 def format_role(obj: User, name: str) -> str:
     """Возвращает название роли пользователя."""
     return obj.role.name if obj.role else "-"
@@ -52,7 +53,7 @@ class UserAdmin(ModelView, model=User):
         "vpn_files_count",
     ]
     details_template = "admin/user_details.html"
-    column_searchable_list = ["username", "first_name", "last_name"]
+    column_searchable_list = ["username", "first_name", "last_name", "telegram_id"]
     column_filters = [
         BooleanFilter(User.has_used_trial, title="Использовал триал"),
         ForeignKeyFilter(User.role_id, Role.name, title="Роль"),
