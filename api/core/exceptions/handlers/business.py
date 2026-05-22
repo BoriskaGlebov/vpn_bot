@@ -220,9 +220,6 @@ async def vpn_limit_handler(
     )
 
 
-# TODO хэндлеры на корректный статус ошибки об оплате
-
-
 async def payment_exception_handler(
     request: Request,
     exc: Exception,

@@ -3,6 +3,7 @@ from typing import Any, Type
 from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
+from aiogram.types import ReplyKeyboardRemove
 from box import Box
 
 from bot.help.keyboards.inline_kb import device_keyboard
@@ -217,3 +218,47 @@ async def test_device_send_message(
 
         photo_url: str = kwargs["photo"]
         assert photo_url.endswith(f"{i}.png")
+
+
+@pytest.mark.asyncio
+@pytest.mark.info
+async def test_info_cmd(
+    make_fake_message: Any,
+    fake_bot: Any,
+    fake_logger: Any,
+    fake_state: Any,
+    fake_redis: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+
+    router = HelpRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        redis=fake_redis,
+    )
+
+    fake_message = make_fake_message()
+
+    typing_mock = AsyncMock()
+
+    monkeypatch.setattr(
+        "bot.help.router.ChatActionSender.typing",
+        MagicMock(return_value=typing_mock),
+    )
+
+    await router.info_cmd(fake_message, fake_state)
+
+    fake_state.clear.assert_awaited_once()
+
+    fake_message.answer.assert_awaited_once()
+
+    _, kwargs = fake_message.answer.await_args
+
+    assert kwargs["text"] == m_help.info
+
+    assert isinstance(
+        kwargs["reply_markup"],
+        ReplyKeyboardRemove,
+    )
+
+    assert kwargs["disable_web_page_preview"] is True

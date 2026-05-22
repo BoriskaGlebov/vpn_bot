@@ -1,10 +1,12 @@
+import datetime
 import json
+from unittest.mock import AsyncMock
 
 import pytest
 from httpx import Response
 
 from bot.admin.adapter import AdminAPIAdapter
-from bot.admin.schemas import SChangeRole, SExtendSubscription
+from bot.admin.schemas import SChangeRole, SExtendSubscription, SYearIncome
 from bot.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
 
@@ -89,3 +91,61 @@ async def test_extend_subscription(api_client, user_response):
 
     assert isinstance(user, SUserOut)
     assert user.telegram_id == 123456
+
+
+@pytest.mark.asyncio
+async def test_year_income_calls_client_with_current_year(mocker):
+    """Проверяет корректный вызов client.get."""
+    client = mocker.Mock()
+    client.get = AsyncMock(return_value={"year_income": 1000})
+
+    adapter = AdminAPIAdapter(client)
+
+    await adapter.year_income()
+
+    current_year = datetime.datetime.now().year
+
+    client.get.assert_awaited_once_with(
+        url="/admin/analytics/income",
+        params={"year": current_year},
+    )
+
+
+@pytest.mark.asyncio
+async def test_year_income_returns_validated_schema(mocker):
+    """Проверяет возврат валидированной схемы."""
+    response_data = {
+        "year_income": 1000,
+    }
+
+    client = mocker.Mock()
+    client.get = AsyncMock(return_value=response_data)
+
+    adapter = AdminAPIAdapter(client)
+
+    result = await adapter.year_income()
+
+    assert isinstance(result, SYearIncome)
+    assert result.year_income == 1000
+
+
+@pytest.mark.asyncio
+async def test_year_income_passes_response_to_model_validate(mocker):
+    """Проверяет вызов model_validate."""
+    response_data = {"year_income": 1000}
+
+    client = mocker.Mock()
+    client.get = AsyncMock(return_value=response_data)
+
+    validate_mock = mocker.patch.object(
+        SYearIncome,
+        "model_validate",
+        return_value="validated_result",
+    )
+
+    adapter = AdminAPIAdapter(client)
+
+    result = await adapter.year_income()
+
+    validate_mock.assert_called_once_with(response_data)
+    assert result == "validated_result"

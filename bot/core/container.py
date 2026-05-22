@@ -25,7 +25,6 @@ from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 
-# TODO добавил новый адаптер
 class Container:
     """DI-контейнер приложения.
 
