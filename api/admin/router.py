@@ -293,7 +293,6 @@ async def extend_subscription(
     return user
 
 
-# TODO Докумнетация и тесты не забудь
 @router.get(
     "/analytics/income",
     response_model=SYearIncome,
