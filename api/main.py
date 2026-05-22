@@ -51,6 +51,7 @@ from api.middleware.logg_router_middleware import RequestLoggingMiddleware
 from api.middleware.logger_context import LogContextMiddleware
 from api.middleware.session_middleware import DBSessionMiddleware
 from api.news.router import router as news_router
+from api.payment.admin import PaymentTransactionAdmin
 from api.payment.router import router as payment_router
 from api.referrals.admin import ReferralAdmin
 from api.referrals.router import router as referrals_router
@@ -188,6 +189,7 @@ admin.add_view(RoleAdmin)
 admin.add_view(SubscriptionAdmin)
 admin.add_view(VPNConfigAdmin)
 admin.add_view(ReferralAdmin)
+admin.add_view(PaymentTransactionAdmin)
 
 
 @app.get(

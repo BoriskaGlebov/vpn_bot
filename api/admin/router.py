@@ -7,6 +7,7 @@ from api.admin.dependencies import check_admin_role, get_admin_service
 from api.admin.schemas import SChangeRole, SExtendSubscription
 from api.admin.services import AdminService
 from api.core.dependencies import get_session
+from api.payment.dependencies import get_payment_service
 from api.payment.schemas import SYearIncome
 from api.payment.services import PaymentService
 from api.users.models import User
@@ -292,7 +293,6 @@ async def extend_subscription(
     return user
 
 
-# TODO Докумнетация и тесты не забудь
 @router.get(
     "/analytics/income",
     response_model=SYearIncome,
@@ -312,7 +312,7 @@ async def extend_subscription(
 )
 async def get_income(
     year: int | None = None,
-    service: PaymentService = Depends(PaymentService),
+    service: PaymentService = Depends(get_payment_service),
     session: AsyncSession = Depends(get_session),
 ) -> SYearIncome:
     """Получает аналитику доходов за год.

@@ -2,9 +2,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from bot.admin.adapter import AdminAPIAdapter
+from bot.admin.schemas import SYearIncome
 from bot.admin.services import AdminService
-from bot.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
 
 
@@ -58,3 +57,34 @@ async def test_extend_user_subscription(mock_admin_adapter, user_out):
     assert called_payload.telegram_id == 123456
     assert called_payload.months == 3
     assert user.telegram_id == 123456
+
+
+@pytest.mark.asyncio
+async def test_year_income_calls_adapter(mocker):
+    """Проверяет вызов adapter.year_income."""
+    expected = SYearIncome(year_income=1000)
+
+    adapter = mocker.Mock()
+    adapter.year_income = AsyncMock(return_value=expected)
+
+    service = AdminService(adapter)
+
+    await service.year_income()
+
+    adapter.year_income.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_year_income_returns_result(mocker):
+    """Проверяет возврат результата адаптера."""
+    expected = SYearIncome(year_income=1000)
+
+    adapter = mocker.Mock()
+    adapter.year_income = AsyncMock(return_value=expected)
+
+    service = AdminService(adapter)
+
+    result = await service.year_income()
+
+    assert result == expected
+    assert result.year_income == 1000

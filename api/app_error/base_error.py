@@ -148,7 +148,6 @@ class VPNLimitError(AppError):
         self.limit = limit
 
 
-# TODO ДОкументация
 class PaymentError(AppError):
     """Базовое исключение платежной системы."""
 

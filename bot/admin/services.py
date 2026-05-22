@@ -159,7 +159,6 @@ class AdminService:
 
         return user
 
-    # TODO не хватает тестов
     async def year_income(self) -> SYearIncome:
         """Получает доход за текущий год.
 

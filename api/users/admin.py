@@ -5,7 +5,6 @@ from api.users.filters import ActiveSubscriptionFilter
 from api.users.models import Role, User
 
 
-# TODO в админке нет поиска по телеграм ID только если в имени есть
 def format_role(obj: User, name: str) -> str:
     """Возвращает название роли пользователя."""
     return obj.role.name if obj.role else "-"

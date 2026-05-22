@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from api.payment.schemas import SYearIncome
 from api.users.schemas import SRoleOut, SUserOut
 
 
@@ -124,5 +125,28 @@ def test_extend_subscription_validation_error(client):
     }
 
     response = client.patch("/admin/users/subscription", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_get_income_success(client):
+    response = client.get("/admin/analytics/income", params={"year": 2026})
+
+    assert response.status_code == 200
+    assert response.json()["year_income"] == 1500
+
+
+def test_get_income_current_year(client):
+    response = client.get("/admin/analytics/income")
+
+    assert response.status_code == 200
+    assert response.json()["year_income"] == 1500
+
+
+def test_get_income_validation_error(client):
+    response = client.get(
+        "/admin/analytics/income",
+        params={"year": "invalid"},
+    )
 
     assert response.status_code == 422
