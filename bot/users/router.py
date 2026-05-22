@@ -351,7 +351,7 @@ class UserRouter(BaseRouter):
                 text=m_admin.on[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
-            # TODO вот этот момент выглядит как костыль
+            # TODO вот этот момент выглядит как костыль, годовые расходы жестко зашиты в код.
             income = await self.admin_service.year_income()
             expense = 28358
             profit = income.year_income - expense
