@@ -148,7 +148,6 @@ class HelpRouter(BaseRouter):
             await self.redis.delete(redis_key)
             await state.clear()
 
-    # TODO не тестировал
     @BaseRouter.log_method
     async def info_cmd(self, message: Message, state: FSMContext) -> None:
         """Обрабатывает команду /info и показывает пользователю соглашения.
