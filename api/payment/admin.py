@@ -134,14 +134,14 @@ class PaymentTransactionAdmin(ModelView, model=PaymentTransaction):
     }
 
     column_formatters = {
-        "status": format_status,
-        "source": format_source,
-        "user": format_user,
-        "created_by_admin": format_admin,
-        "confirmed_by_admin": format_admin,
-        "amount": format_amount,
-        "paid_at": format_datetime,
-        "confirmed_at": format_datetime,
+        "status": format_status,  # type: ignore[misc, dict-item]
+        "source": format_source,  # type: ignore[misc, dict-item]
+        "user": format_user,  # type: ignore[misc, dict-item]
+        "created_by_admin": format_admin,  # type: ignore[misc, dict-item]
+        "confirmed_by_admin": format_admin,  # type: ignore[misc, dict-item]
+        "amount": format_amount,  # type: ignore[misc, dict-item]
+        "paid_at": format_datetime,  # type: ignore[misc, dict-item]
+        "confirmed_at": format_datetime,  # type: ignore[misc, dict-item]
     }
 
     readonly_columns = [
