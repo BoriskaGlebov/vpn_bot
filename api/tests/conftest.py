@@ -8,10 +8,11 @@ from sqlalchemy import StaticPool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from api.admin.dependencies import check_admin_role, get_admin_service
-from api.admin.router import router
 from api.core.database import Base
 from api.core.dependencies import get_session
 from api.main import app
+from api.payment.dependencies import get_payment_service
+from api.payment.schemas import SYearIncome
 from api.users.models import User
 from api.users.utils.init_default_roles import init_default_roles_admins
 
@@ -72,16 +73,27 @@ def mock_admin():
     return admin
 
 
+class FakePaymentService:
+    async def get_year_income(self, session, year):
+        return SYearIncome(year_income=1500)
+
+
+@pytest.fixture
+def mock_payment_service():
+    return FakePaymentService()
+
+
 # --- Dependency override ---
 
 
 @pytest.fixture
-def client(mock_service, session, mock_admin):
+def client(mock_service, session, mock_admin, mock_payment_service):
     with patch(
         "api.main.init_default_roles_admins",
         new=AsyncMock(),
     ):
         app.dependency_overrides[get_admin_service] = lambda: mock_service
+        app.dependency_overrides[get_payment_service] = lambda: mock_payment_service
         app.dependency_overrides[get_session] = lambda: session
         app.dependency_overrides[check_admin_role] = lambda: mock_admin
 
