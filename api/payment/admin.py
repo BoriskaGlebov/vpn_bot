@@ -113,6 +113,7 @@ class PaymentTransactionAdmin(ModelView, model=PaymentTransaction):
         PaymentTransaction.status,
         PaymentTransaction.created_by_admin_id,
     ]
+    column_default_sort = [(PaymentTransaction.created_at, True)]
 
     column_labels = {
         "id": "ID",
