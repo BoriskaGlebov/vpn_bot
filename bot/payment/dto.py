@@ -2,6 +2,7 @@ import datetime
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+from uuid import UUID
 
 
 @dataclass(slots=True)
@@ -10,8 +11,8 @@ class CreatePaymentDTO:
     currency: str
     order_id: str
     description: str
-    success_url: str
-    failed_url: str
+    success_url: str|None=None
+    failed_url: str|None=None
     payload: str | None = None
 
 class PaymentStatus(str, Enum):

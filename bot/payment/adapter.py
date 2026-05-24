@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from loguru import logger
@@ -9,7 +10,9 @@ from bot.payment.schemas import (
     SConfirmPaymentResponse,
     SCreateManualPaymentTransactionIn,
     SPaymentTransactionResponse,
+    SAttachProviderPaymentIn,
 )
+from bot.payment.providers.payment_client import BasePaymentProvider
 
 
 # TODO ДОкументация тесты типы данных логирование
@@ -23,7 +26,7 @@ class PaymentAPIAdapter:
 
     """
 
-    def __init__(self, client: APIClient) -> None:
+    def __init__(self, client: APIClient,provider:BasePaymentProvider) -> None:
         """Инициализация адаптера.
 
         Args:
@@ -73,6 +76,60 @@ class PaymentAPIAdapter:
             json=payload.model_dump(),
         )
         logger.debug("Транзакция создана, status=%s response=%s", status_code, data)
+        return SPaymentTransactionResponse.model_validate(data)
+
+    async def attach_provider_payment(
+        self,
+        transaction_id: UUID,
+        gateway_transaction_id: str,
+        gateway_payload:dict[Any, Any] | None
+    ) -> SPaymentTransactionResponse:
+        """Привязывает provider transaction к внутренней транзакции.
+
+        Args:
+            transaction_id:
+                UUID внутренней транзакции.
+
+            gateway_transaction_id:
+                ID транзакции внешнего платёжного шлюза.
+
+        Returns:
+            SPaymentTransactionResponse:
+                Обновлённая транзакция.
+
+        Raises:
+            Exception:
+                Ошибка HTTP-клиента или валидации ответа.
+        """
+        logger.info(
+            "Привязка provider payment: transaction_id=%s gateway_id=%s",
+            transaction_id,
+            gateway_transaction_id,
+        )
+
+        payload = SAttachProviderPaymentIn(
+            # transaction_id=transaction_id,
+            gateway_transaction_id=gateway_transaction_id,
+            gateway_payload=gateway_payload
+        )
+
+        data, status_code = await self._client.post(
+            f"/payment/transaction/{transaction_id}/provider",
+            json=payload.model_dump(mode="json"),
+        )
+
+        logger.debug(
+            "Provider payment привязан: status=%s response=%s",
+            status_code,
+            data,
+        )
+
+        return SPaymentTransactionResponse.model_validate(data)
+
+    async def mark_payment_started(self, transaction_id: UUID):
+        data, _ = await self._client.post(
+            f"/payment/transaction/{transaction_id}/paid", json={}
+        )
         return SPaymentTransactionResponse.model_validate(data)
 
     async def confirm_transaction(

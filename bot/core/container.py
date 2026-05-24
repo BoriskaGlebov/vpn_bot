@@ -23,8 +23,12 @@ from bot.users.services import UserService
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
+from bot.payment.services import PaymentService
+from bot.payment.providers.payment_client import BasePaymentProvider
+from bot.payment.providers.platega import PlategaProvider
 
 
+# TODO PaymentService  добавил проверь документацию
 class Container:
     """DI-контейнер приложения.
 
@@ -54,6 +58,7 @@ class Container:
         user_adapter (UsersAPIAdapter)
         admin_adapter (AdminAPIAdapter)
         subscription_adapter (SubscriptionAPIAdapter)
+        payment_provider: (BasePaymentProvider)
         payment_adapter (PaymentApiAdapter)
         referral_adapter (ReferralAPIAdapter)
         vpn_adapter (VPNAPIAdapter)
@@ -70,6 +75,7 @@ class Container:
         vpn_service (VPNService)
         news_service (NewsService)
         scheduler_bot_service (SchedulerBotService)
+        payment_service (PaymentService)
 
         redis_admin_mess_storage (RedisAdminMessageStorage)
         redis_embedding_cache (RedisEmbeddingCache)
@@ -96,6 +102,7 @@ class Container:
     user_adapter: UsersAPIAdapter
     admin_adapter: AdminAPIAdapter
     subscription_adapter: SubscriptionAPIAdapter
+    payment_provider: BasePaymentProvider
     payment_adapter: PaymentAPIAdapter
     referral_adapter: ReferralAPIAdapter
     vpn_adapter: VPNAPIAdapter
@@ -111,6 +118,7 @@ class Container:
     vpn_service: VPNService
     news_service: NewsService
     scheduler_bot_service: SchedulerBotService
+    payment_service: PaymentService
 
     redis_admin_mess_storage: RedisAdminMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
@@ -131,7 +139,13 @@ class Container:
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAPIAdapter(client=self.api_client)
-        self.payment_adapter = PaymentAPIAdapter(client=self.api_client)
+        self.payment_provider = PlategaProvider(
+            merchant_id=settings_bot.payment.merchant_id.get_secret_value(),
+            secret_key=settings_bot.payment.api_key.get_secret_value(),
+        )
+        self.payment_adapter = PaymentAPIAdapter(
+            client=self.api_client, provider=self.payment_provider
+        )
         self.referral_adapter = ReferralAPIAdapter(client=self.api_client)
         self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
@@ -171,10 +185,14 @@ class Container:
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
+        # TODO Пока еше не определился с аргументами
+        self.payment_service = PaymentService(adapter=self.payment_adapter,
+                                              provider=self.payment_provider)
+
         self.subscription_service = SubscriptionService(
             adapter=self.subscription_adapter,
             user_adapter=self.user_adapter,
-            payment_adapter=self.payment_adapter,
+            payment_service=self.payment_service,
         )
         self.vpn_service = VPNService(
             adapter=self.vpn_adapter,

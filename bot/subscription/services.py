@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from uuid import UUID
 
 from bot.app_error.api_error import APIClientError
 from bot.core.config import settings_bot
@@ -9,6 +10,12 @@ from bot.subscription.adapter import (
 from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUserOut
+from bot.payment.services import PaymentService
+from bot.payment.schemas import (
+    SPaymentTransactionResponse,
+    SConfirmPaymentResponse,
+    SCreatePayment,
+)
 from shared.enums.admin_enum import RoleEnum
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -53,6 +60,7 @@ class SubscriptionStats:
         self.configs_deleted += other.configs_deleted
 
 
+# TODO Нужен отдельный payment_service который уже пусть все дергают
 class SubscriptionService:
     """Сервис для бизнес-логики подписки."""
 
@@ -60,11 +68,11 @@ class SubscriptionService:
         self,
         adapter: SubscriptionAPIAdapter,
         user_adapter: UsersAPIAdapter,
-        payment_adapter: PaymentAPIAdapter,
+        payment_service: PaymentService,
     ) -> None:
         self.api_adapter = adapter
         self.user_adapter = user_adapter
-        self.payment_adapter = payment_adapter
+        self.payment_service = payment_service
 
     async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool, bool]:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
@@ -209,3 +217,33 @@ class SubscriptionService:
         subscription_info = await self.get_subscription_info(tg_id)
         referral_info = await self._get_referral_info(tg_id)
         return f"{subscription_info}\n\n{referral_info}"
+
+    # TODO НОвый метод не протестирован, нужно логирование, тесты, документация, типы данных
+    async def create_transaction(
+        self, amount: int, subscription_months: int, is_premium: bool, is_founder: bool
+    ) -> SCreatePayment:
+        tx_res = await self.payment_service.create_transaction(
+            amount=amount,
+            subscription_months=subscription_months,
+            is_premium=is_premium,
+            is_founder=is_founder,
+        )
+        return tx_res
+
+    # TODO НОвый метод не протестирован, нужно логирование, тесты, документация, типы данных
+    async def cancel_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SPaymentTransactionResponse:
+        tx_res = await self.payment_service.cancel_transaction(transaction_id=transaction_id)
+        return tx_res
+
+    # TODO НОвый метод не протестирован, нужно логирование, тесты, документация, типы данных
+    async def confirm_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SConfirmPaymentResponse:
+        tx_res = await self.payment_service.confirm_transaction(
+            transaction_id=transaction_id
+        )
+        return tx_res

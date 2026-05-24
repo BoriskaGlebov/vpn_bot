@@ -1,7 +1,8 @@
+from typing import Optional
 from uuid import UUID
 
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.subscription.enums import (
@@ -11,26 +12,29 @@ from bot.subscription.enums import (
 )
 from bot.subscription.utils.sub_utils import get_correct_price_map
 
-
+#TODO тут менял многое по кнопкам
 class SubscriptionCB(CallbackData, prefix="sub"):  # type: ignore[misc,call-arg]
     """CallbackData для действий с подпиской пользователя.
 
     Используется для кнопок выбора подписки и подтверждения оплаты.
 
     Attributes
-        action (str): Тип действия. Возможные значения:
+        action (SubscriptionAction): Тип действия. Возможные значения:
             - "select": пользователь выбирает период подписки (включая пробный).
             - "paid": пользователь подтверждает оплату.
         months (int): Количество месяцев или дней для подписки.
             Для пробного периода (trial) указывается количество дней.
             По умолчанию None.
         founder (bool): Указать основателя если спец цена.
-
+        transaction_id (UUID | None): идентификатор транзакции
+        payment_url (str): ссылка на оплату подписки
     """
 
-    action: str
+    action: SubscriptionAction
     months: int = 0
     founder: bool = False
+    transaction_id: UUID | None = None
+    payment_url:str|None=None
 
 
 class ToggleSubscriptionCB(CallbackData, prefix="toggle_sub"):  # type: ignore[misc,call-arg]
@@ -87,7 +91,6 @@ def subscription_options_kb(
         founder (bool): Отключение кнопки премиум для основателей.
         premium (bool): Флаг премиум-режима (по умолчанию False).
         trial (bool): Пробный период, отключена если уже есть активная подписка
-
     Returns
         InlineKeyboardMarkup: Клавиатура с вариантами подписки.
 
@@ -133,30 +136,48 @@ def subscription_options_kb(
             callback_data=ToggleSubscriptionCB(mode=ToggleSubscriptionMode.PREMIUM),
         )
 
-    builder.button(text="❌ Отмена", callback_data="sub_cancel")
+    builder.button(text="❌ Отмена", callback_data=SubscriptionCB(action=SubscriptionAction.CANCEL))
     builder.adjust(2, 2, 1, 1)
     return builder.as_markup()
 
 
-def payment_confirm_kb(months: int, founder: bool) -> InlineKeyboardMarkup:
+def payment_confirm_kb(
+    months: int,
+    founder: bool,
+    transaction_id: UUID,
+    payment_url: str | None = None,
+) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру для подтверждения оплаты пользователем.
 
     Args
         months (int): Количество месяцев подписки, за которые пользователь произвёл оплату.
         founder (bool): Проверка на основателя.
+        payment_url (str | None): Ссылка на страницу оплаты картой.
 
     Returns
         InlineKeyboardMarkup: Inline-клавиатура с кнопками "Я оплатил" и "Отмена".
 
     """
     builder = InlineKeyboardBuilder()
+    if payment_url:
+        builder.row(
+            InlineKeyboardButton(
+                text="💳 Оплатить картой",
+                url=payment_url,
+            )
+        )
+
     builder.button(
         text="✅ Я оплатил",
         callback_data=SubscriptionCB(
-            action=SubscriptionAction.PAID, months=months, founder=founder
+            action=SubscriptionAction.PAID,
+            months=months,
+            founder=founder,
+            transaction_id=transaction_id
         ),
     )
-    builder.button(text="❌ Отмена", callback_data="sub_cancel")
+    builder.button(text="❌ Отмена", callback_data=SubscriptionCB(action=SubscriptionAction.CANCEL,transaction_id=transaction_id))
+    builder.adjust(1)
     return builder.as_markup()
 
 

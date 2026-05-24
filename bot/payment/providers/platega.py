@@ -12,13 +12,13 @@ from bot.core.config import settings_bot
 
 
 class PlategaProvider:
-    BASE_URL = "https://app.platega.io/"
+    BASE_URL = "https://app.platega.io"
 
     def __init__(
         self,
         merchant_id: str,
         secret_key: str,
-    ):
+    )->None:
         self.merchant_id = merchant_id
         self.secret_key = secret_key
 
@@ -71,9 +71,11 @@ class PlategaProvider:
 
     async def verify_webhook(
         self,
-        merchant_id: str | None,
-        secret: str | None,
+        headers: dict[str, str],
+        body: bytes,
     ) -> bool:
+        merchant_id = headers.get("X-MerchantId")
+        secret = headers.get("X-Secret")
         if not merchant_id or not secret:
             return False
 
@@ -88,16 +90,16 @@ class PlategaProvider:
         provider_status = data["status"]
 
         if provider_status == "CONFIRMED":
-            status = "paid"
+            status = PaymentStatus.PAID
 
         elif provider_status in (
             "CANCELED",
             "CHARGEBACKED",
         ):
-            status = "failed"
+            status = PaymentStatus.FAILED
 
         else:
-            status = "pending"
+            status = PaymentStatus.PENDING
 
         return PaymentWebhookDTO(
             provider_payment_id=data["id"],
@@ -117,8 +119,8 @@ if __name__ == "__main__":
             currency="RUB",
             order_id="rr123rr",
             description="test payment",
-            success_url="https://example.com",
-            failed_url="https://example.com",
+            success_url="https://e9fe-144-31-59-183.ngrok-free.app/bot/payment-webhook",
+            failed_url="https://e9fe-144-31-59-183.ngrok-free.app/bot/payment-webhook",
             payload="payload",
         )
         client = PlategaProvider(

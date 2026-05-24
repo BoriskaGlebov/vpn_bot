@@ -7,11 +7,13 @@ class SubscriptionAction(StrEnum):
     Attributes
         SELECT: Пользователь выбирает тип подписки.
         PAID: Подписка успешно оплачена.
+        CANCEL: Отмена
 
     """
 
     SELECT = "select"
     PAID = "paid"
+    CANCEL = "cancel"
 
 
 class ToggleSubscriptionMode(StrEnum):

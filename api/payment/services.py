@@ -1,4 +1,6 @@
 from datetime import UTC, datetime
+from typing import Any
+from uuid import UUID
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +10,7 @@ from api.app_error.base_error import (
     PaymentTransactionNotFoundError,
 )
 from api.payment.dao import PaymentTransactionDAO
-from api.payment.model import PaymentStatus
+from api.payment.model import PaymentStatus, PaymentSource
 from api.payment.schemas import (
     SCancelInID,
     SCancelPayment,
@@ -19,6 +21,9 @@ from api.payment.schemas import (
     SCreateTransaction,
     SPaymentTransactionResponse,
     SYearIncome,
+    SAttachProviderPayment,
+    SCancelPaymentUpdate,
+    SPaidAt,
 )
 from api.users.models import User
 
@@ -61,7 +66,6 @@ class PaymentService:
         )
         payment_schema = SCreateTransaction(
             user_id=user_auth.id,
-            paid_at=datetime.now(),
             **transaction.model_dump(exclude_unset=True),
         )
         res = await PaymentTransactionDAO.add(
@@ -73,6 +77,84 @@ class PaymentService:
         )
 
         return SPaymentTransactionResponse.model_validate(res)
+    #TODO Новый метод
+    async def attach_provider_payment(
+        self,
+        session: AsyncSession,
+        transaction_id: UUID,
+        gateway_transaction_id: str,
+        gateway_payload:dict[Any, Any] | None,
+    ) -> SPaymentTransactionResponse:
+        """Привязывает платёж провайдера к внутренней транзакции.
+
+        Метод сохраняет идентификатор транзакции платёжного шлюза,
+        что позволяет в дальнейшем сопоставлять webhook-события
+        с внутренними транзакциями системы.
+
+        Args
+            session:
+                Асинхронная SQLAlchemy-сессия.
+
+            transaction_id:
+                UUID внутренней транзакции.
+
+            gateway_transaction_id:
+                ID транзакции во внешнем платёжном шлюзе.
+
+        Returns
+            SPaymentTransactionResponse: Обновлённая транзакция.
+
+        Raises:
+            ValueError:
+                Если транзакция не найдена.
+        """
+        logger.info(
+            "[SERVICE] Привязка provider transaction internal_id=%s gateway_id=%s",
+            transaction_id,
+            gateway_transaction_id,
+        )
+
+        num_row=await PaymentTransactionDAO.update(
+            session=session,
+            filters=SConfirmInID(id=transaction_id),
+            values=SAttachProviderPayment(gateway_transaction_id=gateway_transaction_id,
+                                          gateway_payload=gateway_payload,
+                                          source=PaymentSource.GATEWAY)
+        )
+
+        if not num_row:
+            raise ValueError("Транзакция не найдена")
+        transaction =await PaymentTransactionDAO.find_one_or_none_by_id(data_id=transaction_id,session=session)
+        logger.success(
+            "[SERVICE] Provider transaction успешно привязан "
+            "internal_id=%s gateway_id=%s",
+            transaction_id,
+            gateway_transaction_id,
+        )
+
+        return SPaymentTransactionResponse.model_validate(transaction)
+
+    async def mark_payment_started(
+        self,
+        session: AsyncSession,
+        transaction_id: UUID,
+    ) -> SPaymentTransactionResponse:
+        upd_transaction = await PaymentTransactionDAO.update(
+            session=session,
+            filters=SConfirmInID(id=transaction_id),
+            values=SPaidAt(paid_at=datetime.now())
+        )
+
+        if not upd_transaction:
+            raise PaymentTransactionNotFoundError(
+                transaction_id=str(transaction_id),
+            )
+        transaction=await PaymentTransactionDAO.find_one_or_none_by_id(
+            data_id=transaction_id,session=session
+        )
+        await session.refresh(transaction)
+
+        return SPaymentTransactionResponse.model_validate(transaction)
 
     async def confirm_transaction(
         self, data: SConfirmPayment, session: AsyncSession
@@ -131,6 +213,7 @@ class PaymentService:
                 status=PaymentStatus.PAID,
                 confirmed_by_admin_id=data.admin_id,
                 confirmed_at=datetime.now(),
+                source=PaymentSource.MANUAL,
             ),
         )
         await session.refresh(tx)
@@ -196,10 +279,8 @@ class PaymentService:
         await PaymentTransactionDAO.update(
             session=session,
             filters=SCancelInID(id=data.transaction_id),
-            values=SConfirmPaymentConfirmUpdate(
+            values=SCancelPaymentUpdate(
                 status=PaymentStatus.CANCELED,
-                confirmed_by_admin_id=data.admin_id,
-                confirmed_at=datetime.now(),
             ),
         )
         await session.refresh(tx)

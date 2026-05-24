@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -12,6 +14,7 @@ from api.payment.schemas import (
     SConfirmPaymentResponse,
     SCreateManualPaymentTransaction,
     SPaymentTransactionResponse,
+    SAttachProviderPayment,
 )
 from api.payment.services import PaymentService
 from api.referrals.schemas import GrantReferralBonusResponse
@@ -66,8 +69,45 @@ async def create_transaction(
         session=session, transaction=transaction, user_auth=user_auth
     )
     return res
+#TODO Новый метод
+@router.post(
+    "/transaction/{transaction_id}/provider",
+    response_model=SPaymentTransactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Привязка платежного шлюза к транзакции",
+)
+async def attach_provider_payment(
+    transaction_id: UUID,
+    payload: SAttachProviderPayment,
+    service: PaymentService = Depends(PaymentService),
+    session: AsyncSession = Depends(get_session),
+    user_auth: User = Depends(get_current_user),
+) -> SPaymentTransactionResponse:
+    """Привязывает внешний payment provider к транзакции."""
+    return await service.attach_provider_payment(
+        session=session,
+        transaction_id=transaction_id,
+        gateway_transaction_id=payload.gateway_transaction_id,
+        gateway_payload=payload.gateway_payload
+    )
 
+@router.post(
+    "/transaction/{transaction_id}/paid",
+    response_model=SPaymentTransactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Отметка начала оплаты",
+)
+async def mark_payment_started(
+    transaction_id: UUID,
+    service: PaymentService = Depends(PaymentService),
+    session: AsyncSession = Depends(get_session),
+    user_auth: User = Depends(get_current_user),
+) -> SPaymentTransactionResponse:
 
+    return await service.mark_payment_started(
+        session=session,
+        transaction_id=transaction_id,
+    )
 @router.post(
     "/transaction/confirm",
     response_model=SConfirmPaymentResponse,
@@ -156,7 +196,7 @@ async def confirm_transaction(
 async def cancel_transaction(
     data: SCancelPaymentIn,
     service: PaymentService = Depends(PaymentService),
-    admin_auth: User = Depends(check_admin_role),
+    user_auth: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> SPaymentTransactionResponse:
     """Отмена платежной транзакции.
@@ -171,8 +211,8 @@ async def cancel_transaction(
         service:
             Сервис платежных транзакций.
 
-        admin_auth:
-            Текущий администратор.
+        user_auth:
+            Пользователь.
 
         session:
             Асинхронная SQLAlchemy-сессия.
@@ -183,7 +223,6 @@ async def cancel_transaction(
     """
     cancel_data = SCancelPayment(
         transaction_id=data.transaction_id,
-        admin_id=admin_auth.id,
     )
 
     res = await service.cancel_transaction(

@@ -39,12 +39,13 @@ from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
+
 from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
 
-
 # TODO дать возможность удалять свои конфиг файлы
+# TODO добавлен платежный сервис надо учесть это в логах, тестах и все такое
 
 
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
@@ -105,7 +106,8 @@ class SubscriptionRouter(BaseRouter):
             ),
         )
         self.router.callback_query.register(
-            self.cancel_subscription, F.data == "sub_cancel"
+            self.cancel_subscription,
+            SubscriptionCB.filter(F.action == SubscriptionAction.CANCEL),
         )
         self.router.callback_query.register(
             self.admin_confirm_payment,
@@ -200,6 +202,7 @@ class SubscriptionRouter(BaseRouter):
             await state.set_state(SubscriptionStates.subscription_start)
             await state.update_data({})
 
+    # TODO добавлен платежный сервис
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def subscription_selected(
@@ -225,22 +228,37 @@ class SubscriptionRouter(BaseRouter):
             founder = callback_data.founder
             user_logger.info(f"Выбор периода подписки: {months} мес")
             premium = await state.get_data()
+            is_premium = premium.get("premium", False)
             if months != 7:  # Проверка на триал.
-                price_map = get_correct_price_map(
-                    premium=premium.get("premium", False), founder=founder
-                )
-                sub_type = get_correct_sub_type(
-                    premium=premium.get("premium", False), founder=founder
-                )
+                price_map = get_correct_price_map(premium=is_premium, founder=founder)
+                sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
                 price = price_map[months]
+                try:
+                    transaction_info = (
+                        await self.subscription_service.create_transaction(
+                            amount=price,
+                            subscription_months=months,
+                            is_premium=is_premium,
+                            is_founder=founder,
+                        )
+                    )
+                except APIClientError:
+                    raise
+
                 await query.answer(f"Выбрал {months} месяцев", show_alert=False)
+
                 await msg.edit_text(
                     text=m_subscription.select_period.format(
                         sub_type=sub_type,
                         months=months,
                         price=price,
                     ),
-                    reply_markup=payment_confirm_kb(months, founder),
+                    reply_markup=payment_confirm_kb(
+                        months=months,
+                        founder=founder,
+                        transaction_id=transaction_info.id,
+                        payment_url=transaction_info.payment_url,
+                    ),
                 )
                 await state.set_state(SubscriptionStates.select_period)
             else:
@@ -333,25 +351,18 @@ class SubscriptionRouter(BaseRouter):
             await state.set_state(SubscriptionStates.wait_for_paid)
             months = callback_data.months
             founder = callback_data.founder
+            transaction_id = callback_data.transaction_id
+            if transaction_id is None:
+                raise AppError(message="Отсутствует идентификатор транзакции.")
             premium = (await state.get_data()).get("premium", False)
             price_map = get_correct_price_map(premium=premium, founder=founder)
             price = price_map[months]
             sub_type = get_correct_sub_type(premium=premium, founder=founder)
+            upd_tx=await self.subscription_service.payment_service.mark_payment_started(transaction_id=transaction_id)
+
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             user = query.from_user
-            try:
-                transaction_id = (
-                    await self.subscription_service.payment_adapter.create_transaction(
-                        amount=price,
-                        subscription_months=months,
-                        is_premium=premium,
-                        is_founder=founder,
-                    )
-                )
-            except APIClientError:
-                raise
-
             await msg.edit_text(m_subscription.wait_for_paid.user)
 
             admin_message = m_subscription.wait_for_paid.admin.format(
@@ -372,7 +383,7 @@ class SubscriptionRouter(BaseRouter):
                     user_id=user.id,
                     months=months,
                     premium=premium if premium else False,
-                    transaction_id=transaction_id.id,
+                    transaction_id=transaction_id,
                 ),
                 admin_mess_storage=self.redis_service,
                 telegram_id=user.id,
@@ -380,7 +391,7 @@ class SubscriptionRouter(BaseRouter):
 
     @BaseRouter.log_method
     async def cancel_subscription(
-        self, query: CallbackQuery, state: FSMContext
+        self, query: CallbackQuery, state: FSMContext, callback_data: SubscriptionCB
     ) -> None:
         """Обрабатывает отмену оформления подписки пользователем.
 
@@ -405,6 +416,11 @@ class SubscriptionRouter(BaseRouter):
             user_logger.info(f"Отмена подписки на шаге: {current_state}")
             # Если пользователь на втором шаге → вернуть к выбору периода
             if current_state == SubscriptionStates.select_period.state:
+                transaction_id = callback_data.transaction_id
+                if transaction_id is not None:
+                    await self.subscription_service.cancel_transaction(
+                        transaction_id=transaction_id
+                    )
                 await msg.edit_text(
                     text="Вы вернулись к выбору периода подписки ⏪",
                     reply_markup=subscription_options_kb(),
@@ -453,9 +469,7 @@ class SubscriptionRouter(BaseRouter):
             transaction_id = callback_data.transaction_id
             try:
                 confirm_transaction = (
-                    await self.subscription_service.payment_adapter.confirm_transaction(
-                        transaction_id
-                    )
+                    await self.subscription_service.confirm_transaction(transaction_id)
                 )
             except APIClientError as e:
                 raise e
@@ -569,9 +583,7 @@ class SubscriptionRouter(BaseRouter):
             months = callback_data.months
             transaction_id = callback_data.transaction_id
             try:
-                await self.subscription_service.payment_adapter.cancel_transaction(
-                    transaction_id
-                )
+                await self.subscription_service.cancel_transaction(transaction_id)
             except APIClientError as e:
                 raise e
 

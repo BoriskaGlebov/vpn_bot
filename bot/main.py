@@ -1,5 +1,7 @@
+import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pprint import pprint
 from typing import Any
 
 import uvicorn
@@ -221,7 +223,6 @@ async def webhook(request: Request) -> Response:
 
     """
     body: bytes = await request.body()
-
     if not body:
         logger.debug("Webhook-запрос с пустым телом")
         return Response(
@@ -272,6 +273,39 @@ async def health() -> JSONResponse:
         content={"status": "ok", "message": "FastAPI service is running"},
     )
 
+#TODO Новый роут для приема оплаты
+@app.post(
+    "/payment-webhook",
+    tags=[
+        "webhook",
+    ],
+)
+async def payment_webhook(request: Request) -> Response:
+
+    body: bytes = await request.body()
+    if not body:
+        logger.debug("Webhook-запрос с пустым телом")
+        return Response(
+            content="ok",
+            media_type="text/plain",
+            status_code=200,
+        )
+    inf=json.loads(body)
+    logger.warning("Содержимое ответа от сервера оплаты")
+    pprint(inf)
+    # try:
+    #     update: Update = Update.model_validate_json(
+    #         body,
+    #         context={"bot": bot},
+    #     )
+    # except (ValidationError, ValueError):
+    #     logger.exception("Некорректный payload webhook от Telegram")
+    #     return Response(status_code=500)
+    #
+    # await dp.feed_update(bot, update)
+    #
+    # logger.debug("Webhook-обновление успешно обработано")
+    return Response(status_code=200)
 
 if __name__ == "__main__":
     """

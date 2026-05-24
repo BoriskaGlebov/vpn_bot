@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -6,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.payment.model import PaymentSource, PaymentStatus
 from api.referrals.schemas import GrantReferralBonusResponse
 from api.users.schemas import SUserOut
-
+#TODO Слишком много схем?
 
 class SCreateManualPaymentTransaction(BaseModel):
     """Схема создания ручной платежной транзакции.
@@ -52,15 +53,22 @@ class SCreateTransaction(SCreateManualPaymentTransaction):
         user_id:
             ID пользователя.
 
-        paid_at:
-            Дата и время успешной оплаты.
+
 
     """
 
     user_id: int
-    paid_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SAttachProviderPayment(BaseModel):
+    """Привязка транзакции платёжного провайдера."""
+
+    gateway_transaction_id: str
+    gateway_payload: dict[Any, Any] | None
+
+    source: PaymentSource = PaymentSource.GATEWAY
 
 
 class SPaymentTransactionResponse(BaseModel):
@@ -189,7 +197,7 @@ class SConfirmInID(BaseModel):
 
     id: UUID
 
-
+#TODO Добавил поле
 class SConfirmPaymentConfirmUpdate(BaseModel):
     """Схема обновления подтверждения платежа.
 
@@ -208,9 +216,15 @@ class SConfirmPaymentConfirmUpdate(BaseModel):
     status: PaymentStatus
     confirmed_by_admin_id: int
     confirmed_at: datetime
+    paid_at:datetime=datetime.now(),
+    source: PaymentSource = PaymentSource.MANUAL
     model_config = ConfigDict(from_attributes=True)
 
+class SCancelPaymentUpdate(BaseModel):
+    status: PaymentStatus
 
+class SPaidAt(BaseModel):
+    paid_at:datetime=datetime.now()
 class SConfirmPayment(SConfirmPaymentIn):
     """Схема подтверждения платежа администратором.
 
@@ -259,13 +273,10 @@ class SCancelPayment(BaseModel):
         transaction_id:
             UUID платежной транзакции.
 
-        admin_id:
-            ID администратора, отменившего платеж.
 
     """
 
     transaction_id: UUID
-    admin_id: int
 
 
 class SYearIncome(BaseModel):
