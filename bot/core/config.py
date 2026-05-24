@@ -318,6 +318,19 @@ class BucketSettings(SettingsCommon):
     secret_key: SecretStr
 
 
+class PaymentSettings(SettingsCommon):
+    """Настройки интеграции с платёжным шлюзом.
+
+    Attributes
+        merchant_id (SecretStr): Идентификатор мерчанта,
+            предоставленный платёжной системой.
+        api_key (SecretStr): Секретный API-ключ для
+            аутентификации запросов к платёжному API.
+
+    """
+    merchant_id:SecretStr
+    api_key:SecretStr
+
 class Settings(SettingsCommon):
     """Агрегированная конфигурация приложения.
 
@@ -345,6 +358,8 @@ class Settings(SettingsCommon):
         redis (RedisSettings): Настройки Redis
             (подключение и TTL для FSM/кэша).
 
+        payment (PaymentSettings): Настройки интеграции с сервисом оплаты
+
     Properties
         messages (Box): Тексты диалогов бота.
             Загружаются из `bot.dialogs.dialogs_text` и кэшируются
@@ -369,6 +384,8 @@ class Settings(SettingsCommon):
     bucket: BucketSettings = Field(default_factory=BucketSettings)
 
     redis: RedisSettings = Field(default_factory=RedisSettings)
+
+    payment:PaymentSettings=Field(default_factory=PaymentSettings)
 
     @cached_property
     def messages(self) -> Box:
