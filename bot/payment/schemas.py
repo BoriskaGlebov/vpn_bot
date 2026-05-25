@@ -112,6 +112,7 @@ class SPaymentTransactionResponse(BaseModel):
     id: UUID
 
     user_id: int
+    tg_id:int
 
     amount: int
     currency: str

@@ -157,9 +157,10 @@ class PaymentError(AppError):
 class PaymentTransactionNotFoundError(PaymentError):
     """Транзакция не найдена."""
 
-    def __init__(self, transaction_id: str) -> None:
-        super().__init__(message=f"Транзакция {transaction_id} не найдена.")
+    def __init__(self, transaction_id: str|None,gateway_transaction_id:str|None=None) -> None:
+        super().__init__(message=f"Транзакция {transaction_id or gateway_transaction_id or "undefined_transaction"} не найдена.")
         self.transaction_id = transaction_id
+        self.gateway_transaction_id=gateway_transaction_id
 
 
 class PaymentAlreadyProcessedError(PaymentError):

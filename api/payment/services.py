@@ -24,6 +24,8 @@ from api.payment.schemas import (
     SAttachProviderPayment,
     SCancelPaymentUpdate,
     SPaidAt,
+    SGatewayTransactionFilter,
+    SConfirmPaymentIn,
 )
 from api.users.models import User
 
@@ -77,13 +79,14 @@ class PaymentService:
         )
 
         return SPaymentTransactionResponse.model_validate(res)
-    #TODO Новый метод
+
+    # TODO Новый метод
     async def attach_provider_payment(
         self,
         session: AsyncSession,
         transaction_id: UUID,
         gateway_transaction_id: str,
-        gateway_payload:dict[Any, Any] | None,
+        gateway_payload: dict[Any, Any] | None,
     ) -> SPaymentTransactionResponse:
         """Привязывает платёж провайдера к внутренней транзакции.
 
@@ -114,17 +117,21 @@ class PaymentService:
             gateway_transaction_id,
         )
 
-        num_row=await PaymentTransactionDAO.update(
+        num_row = await PaymentTransactionDAO.update(
             session=session,
             filters=SConfirmInID(id=transaction_id),
-            values=SAttachProviderPayment(gateway_transaction_id=gateway_transaction_id,
-                                          gateway_payload=gateway_payload,
-                                          source=PaymentSource.GATEWAY)
+            values=SAttachProviderPayment(
+                gateway_transaction_id=gateway_transaction_id,
+                gateway_payload=gateway_payload,
+                source=PaymentSource.GATEWAY,
+            ),
         )
 
         if not num_row:
             raise ValueError("Транзакция не найдена")
-        transaction =await PaymentTransactionDAO.find_one_or_none_by_id(data_id=transaction_id,session=session)
+        transaction = await PaymentTransactionDAO.find_one_or_none_by_id(
+            data_id=transaction_id, session=session
+        )
         logger.success(
             "[SERVICE] Provider transaction успешно привязан "
             "internal_id=%s gateway_id=%s",
@@ -142,15 +149,15 @@ class PaymentService:
         upd_transaction = await PaymentTransactionDAO.update(
             session=session,
             filters=SConfirmInID(id=transaction_id),
-            values=SPaidAt(paid_at=datetime.now())
+            values=SPaidAt(paid_at=datetime.now()),
         )
 
         if not upd_transaction:
             raise PaymentTransactionNotFoundError(
                 transaction_id=str(transaction_id),
             )
-        transaction=await PaymentTransactionDAO.find_one_or_none_by_id(
-            data_id=transaction_id,session=session
+        transaction = await PaymentTransactionDAO.find_one_or_none_by_id(
+            data_id=transaction_id, session=session
         )
         await session.refresh(transaction)
 
@@ -193,7 +200,7 @@ class PaymentService:
                 f"[SERVICE] Транзакция не найдена. Transaction ID={data.transaction_id}"
             )
             raise PaymentTransactionNotFoundError(
-                transaction_id=str(data.transaction_id)
+                transaction_id=str(data.transaction_id),
             )
 
         if tx.status != PaymentStatus.PENDING:
@@ -214,6 +221,51 @@ class PaymentService:
                 confirmed_by_admin_id=data.admin_id,
                 confirmed_at=datetime.now(),
                 source=PaymentSource.MANUAL,
+            ),
+        )
+        await session.refresh(tx)
+        logger.success(
+            f"[SERVICE] Транзакция подтверждена. Transaction ID={data.transaction_id}"
+        )
+        return SPaymentTransactionResponse.model_validate(tx)
+    
+    async def webhook_confirm_transaction(
+        self, data: SConfirmPaymentIn, session: AsyncSession
+    ) -> SPaymentTransactionResponse:
+
+        logger.info(
+            f"[SERVICE] Подтверждение платежной транзакции ID={data.transaction_id}"
+        )
+        tx = await PaymentTransactionDAO.find_one_or_none_by_id(
+            session=session, data_id=data.transaction_id
+        )
+
+        if not tx:
+            logger.warning(
+                f"[SERVICE] Транзакция не найдена. Transaction ID={data.transaction_id}"
+            )
+            raise PaymentTransactionNotFoundError(
+                transaction_id=str(data.transaction_id),
+            )
+
+        if tx.status != PaymentStatus.PENDING:
+            logger.warning(
+                f"[SERVICE] Попытка повторной обработки транзакции. "
+                f"Transaction ID={data.transaction_id}. "
+                f"Текущий статус={tx.status.value}"
+            )
+            raise PaymentAlreadyProcessedError(
+                transaction_id=str(data.transaction_id), status=tx.status
+            )
+
+        await PaymentTransactionDAO.update(
+            session=session,
+            filters=SConfirmInID(id=data.transaction_id),
+            values=SConfirmPaymentConfirmUpdate(
+                status=PaymentStatus.PAID,
+                paid_at=datetime.now(),
+                confirmed_at=datetime.now(),
+                source=PaymentSource.GATEWAY,
             ),
         )
         await session.refresh(tx)
@@ -318,3 +370,21 @@ class PaymentService:
         )
         logger.success(f"[SERVICE] Годовой доход успешно получен. Сумма={res}")
         return SYearIncome(year_income=res)
+
+    async def get_by_gateway_id(
+        self,
+        session: AsyncSession,
+        gateway_transaction_id: str,
+    ) -> SPaymentTransactionResponse:
+        tx = await PaymentTransactionDAO.find_one_or_none(
+            session=session,
+            filters=SGatewayTransactionFilter(
+                gateway_transaction_id=gateway_transaction_id
+            ),
+        )
+
+        if not tx:
+            raise PaymentTransactionNotFoundError(transaction_id=None,
+                                                  gateway_transaction_id=gateway_transaction_id)
+
+        return SPaymentTransactionResponse.model_validate(tx)

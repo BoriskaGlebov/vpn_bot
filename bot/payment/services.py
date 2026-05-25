@@ -9,8 +9,18 @@ from bot.payment.schemas import (
     SCreatePayment,
 )
 from bot.payment.providers.payment_client import BasePaymentProvider
-from bot.payment.dto import CreatePaymentDTO, CreatedPaymentDTO
+from bot.payment.dto import (
+    CreatePaymentDTO,
+    CreatedPaymentDTO,
+    PaymentWebhookDTO,
+    PaymentStatus,
+)
 from bot.subscription.enums import ToggleSubscriptionMode
+from typing import TYPE_CHECKING
+
+from bot.notification.services import NotificationService
+if TYPE_CHECKING:
+    from subscription.services import SubscriptionService
 
 
 #TODO  Новый класс не протестирован, нужно логирование, тесты, документация, типы данных
@@ -41,7 +51,7 @@ class PaymentService:
 
         prov_res:CreatedPaymentDTO=await self.provider.create_payment(data=payment_data)
         tx_final=await self.adapter.attach_provider_payment(transaction_id=api_res.id,
-                                                   gateway_transaction_id=payment_data.order_id,
+                                                   gateway_transaction_id=prov_res.provider_payment_id,
                                                    gateway_payload=asdict(prov_res))
 
         return SCreatePayment(payment_url=prov_res.payment_url,**tx_final.model_dump(),)
@@ -55,9 +65,53 @@ class PaymentService:
                                  transaction_id: UUID)-> SConfirmPaymentResponse:
         tx_res=await self.adapter.confirm_transaction(transaction_id=transaction_id)
         return tx_res
+    async def webhook_confirm_transaction(self,
+                                 transaction_id: UUID)-> SConfirmPaymentResponse:
+        tx_res=await self.adapter.webhook_confirm_transaction(transaction_id=transaction_id)
+        print(tx_res)
+        return tx_res
 
     async def mark_payment_started(self,transaction_id: UUID):
         tx_res=await self.adapter.mark_payment_started(transaction_id=transaction_id)
 
         return tx_res
 
+    async def get_by_gateway_id(self,gateway_transaction_id:str):
+        tx_res=await self.adapter.get_by_gateway_id(gateway_transaction_id=gateway_transaction_id)
+        return tx_res
+
+class PaymentWebhookService:
+    def __init__(
+        self,
+        payment_service: PaymentService,
+        subscription_service: "SubscriptionService",
+        notification_service: NotificationService,
+    )->None:
+        self.payment_service = payment_service
+        self.subscription_service = subscription_service
+        self.notification_service = notification_service
+
+    async def handle_event(self, event: PaymentWebhookDTO):
+        tx = await self.payment_service.get_by_gateway_id(gateway_transaction_id=event.provider_payment_id)
+        print("Информация по транзакции")
+        print(tx)
+        if event.status == PaymentStatus.PAID:
+            await self.payment_service.webhook_confirm_transaction(tx.id)
+
+            # sub = await self.subscription_service.activate_paid_subscription(
+            #     user_id=tx.user_id,
+            #     months=tx.subscription_months,
+            #     premium=tx.is_premium,
+            # )
+
+            await self.notification_service.notify_payment_success(
+                user_id=tx.tg_id,
+                amount=tx.amount,
+            )
+
+        elif event.status == PaymentStatus.FAILED:
+            await self.payment_service.cancel_transaction(tx.id)
+
+            await self.notification_service.notify_payment_failed(
+                user_id=tx.tg_id,
+            )

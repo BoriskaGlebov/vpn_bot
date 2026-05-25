@@ -23,9 +23,10 @@ from bot.users.services import UserService
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
-from bot.payment.services import PaymentService
+from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.providers.platega import PlategaProvider
+from bot.notification.services import NotificationService
 
 
 # TODO PaymentService  добавил проверь документацию
@@ -76,6 +77,8 @@ class Container:
         news_service (NewsService)
         scheduler_bot_service (SchedulerBotService)
         payment_service (PaymentService)
+        notification_service (NotificationService)
+        payment_webhook_service (PaymentWebhookService)
 
         redis_admin_mess_storage (RedisAdminMessageStorage)
         redis_embedding_cache (RedisEmbeddingCache)
@@ -119,6 +122,8 @@ class Container:
     news_service: NewsService
     scheduler_bot_service: SchedulerBotService
     payment_service: PaymentService
+    notification_service: NotificationService
+    payment_webhook_service: PaymentWebhookService
 
     redis_admin_mess_storage: RedisAdminMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
@@ -186,13 +191,20 @@ class Container:
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
         # TODO Пока еше не определился с аргументами
-        self.payment_service = PaymentService(adapter=self.payment_adapter,
-                                              provider=self.payment_provider)
-
+        self.payment_service = PaymentService(
+            adapter=self.payment_adapter, provider=self.payment_provider
+        )
         self.subscription_service = SubscriptionService(
             adapter=self.subscription_adapter,
             user_adapter=self.user_adapter,
             payment_service=self.payment_service,
+        )
+        self.notification_service = NotificationService(bot=bot)
+
+        self.payment_webhook_service = PaymentWebhookService(
+            payment_service=self.payment_service,
+            subscription_service=self.subscription_service,
+            notification_service=self.notification_service,
         )
         self.vpn_service = VPNService(
             adapter=self.vpn_adapter,

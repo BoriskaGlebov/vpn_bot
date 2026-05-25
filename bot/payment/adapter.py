@@ -155,6 +155,21 @@ class PaymentAPIAdapter:
             "Транзакция подтверждена, status=%s response=%s", status_code, data
         )
         return SConfirmPaymentResponse.model_validate(data)
+    async def webhook_confirm_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SConfirmPaymentResponse:
+
+        logger.info("Подтверждение прихода денег: %s", transaction_id)
+        payload = SConfirmPaymentIn(transaction_id=transaction_id)
+        data, status_code = await self._client.post(
+            "/payment/transaction/webhook/confirm",
+            json=payload.model_dump(mode="json"),
+        )
+        logger.debug(
+            "Транзакция подтверждена, status=%s response=%s", status_code, data
+        )
+        return SConfirmPaymentResponse.model_validate(data)
 
     async def cancel_transaction(
         self,
@@ -176,4 +191,12 @@ class PaymentAPIAdapter:
             json=payload.model_dump(mode="json"),
         )
         logger.debug("Транзакция отменена, status=%s response=%s", status_code, data)
+        return SPaymentTransactionResponse.model_validate(data)
+
+    async  def get_by_gateway_id(self,gateway_transaction_id:str):
+        data = await self._client.get(
+            "/payment/transaction",
+            params={"gateway_transaction_id": gateway_transaction_id},
+        )
+
         return SPaymentTransactionResponse.model_validate(data)

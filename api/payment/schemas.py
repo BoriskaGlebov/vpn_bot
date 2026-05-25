@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.payment.model import PaymentSource, PaymentStatus
 from api.referrals.schemas import GrantReferralBonusResponse
 from api.users.schemas import SUserOut
-#TODO Слишком много схем?
+# TODO Слишком много схем?
+
 
 class SCreateManualPaymentTransaction(BaseModel):
     """Схема создания ручной платежной транзакции.
@@ -152,6 +153,10 @@ class SPaymentTransactionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SGatewayTransactionFilter(BaseModel):
+    gateway_transaction_id: str
+
+
 class SConfirmPaymentResponse(BaseModel):
     """Результат подтверждения платежа.
 
@@ -197,7 +202,8 @@ class SConfirmInID(BaseModel):
 
     id: UUID
 
-#TODO Добавил поле
+
+# TODO Добавил поле
 class SConfirmPaymentConfirmUpdate(BaseModel):
     """Схема обновления подтверждения платежа.
 
@@ -214,17 +220,21 @@ class SConfirmPaymentConfirmUpdate(BaseModel):
     """
 
     status: PaymentStatus
-    confirmed_by_admin_id: int
+    confirmed_by_admin_id: int|None=None
     confirmed_at: datetime
-    paid_at:datetime=datetime.now(),
+    paid_at: datetime = (datetime.now(),)
     source: PaymentSource = PaymentSource.MANUAL
     model_config = ConfigDict(from_attributes=True)
+
 
 class SCancelPaymentUpdate(BaseModel):
     status: PaymentStatus
 
+
 class SPaidAt(BaseModel):
-    paid_at:datetime=datetime.now()
+    paid_at: datetime = datetime.now()
+
+
 class SConfirmPayment(SConfirmPaymentIn):
     """Схема подтверждения платежа администратором.
 

@@ -184,6 +184,45 @@ async def confirm_transaction(
         ),
     )
 
+@router.post(
+    "/transaction/webhook/confirm",
+    response_model=SConfirmPaymentResponse,
+    status_code=status.HTTP_200_OK,
+
+)
+async def webhook_confirm_transaction(
+    data: SConfirmPaymentIn,
+    service: PaymentService = Depends(PaymentService),
+    sub_service: SubscriptionService = Depends(SubscriptionService),
+    ref_service: ReferralService = Depends(ReferralService),
+    # admin_auth: User = Depends(check_admin_role),
+    session: AsyncSession = Depends(get_session),
+) -> SConfirmPaymentResponse:
+
+    conf_payment = SConfirmPaymentIn(
+        transaction_id=data.transaction_id
+    )
+    tx = await service.webhook_confirm_transaction(session=session, data=conf_payment)
+    sub_res = await sub_service.activate_paid_subscription(
+        session=session,
+        user_id=tx.tg_id,
+        months=tx.subscription_months,
+        premium=tx.is_premium,
+    )
+    ref_res, inviter = await ref_service.grant_referral_bonus(
+        session=session,
+        invited_user=sub_res,
+    )
+    return SConfirmPaymentResponse(
+        transaction_res=tx,
+        subscription_res=sub_res,
+        referral_res=GrantReferralBonusResponse(
+            success=ref_res,
+            inviter_telegram_id=inviter,
+            message="Бонус по реферально программе начислен",
+        ),
+    )
+
 
 @router.post(
     "/transaction/cancel",
@@ -231,3 +270,16 @@ async def cancel_transaction(
     )
 
     return res
+@router.get(
+    "/transaction",
+    response_model=SPaymentTransactionResponse,
+)
+async def get_by_gateway_id(
+    gateway_transaction_id: str,
+    service: PaymentService = Depends(PaymentService),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.get_by_gateway_id(
+        session=session,
+        gateway_transaction_id=gateway_transaction_id,
+    )

@@ -290,21 +290,9 @@ async def payment_webhook(request: Request) -> Response:
             media_type="text/plain",
             status_code=200,
         )
-    inf=json.loads(body)
-    logger.warning("Содержимое ответа от сервера оплаты")
-    pprint(inf)
-    # try:
-    #     update: Update = Update.model_validate_json(
-    #         body,
-    #         context={"bot": bot},
-    #     )
-    # except (ValidationError, ValueError):
-    #     logger.exception("Некорректный payload webhook от Telegram")
-    #     return Response(status_code=500)
-    #
-    # await dp.feed_update(bot, update)
-    #
-    # logger.debug("Webhook-обновление успешно обработано")
+    event = await container.payment_service.provider.parse_webhook(body)
+
+    await container.payment_webhook_service.handle_event(event)
     return Response(status_code=200)
 
 if __name__ == "__main__":

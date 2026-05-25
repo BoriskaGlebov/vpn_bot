@@ -117,6 +117,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filters_clause = cls._build_filters(filter_dict)
         # noinspection PyTypeChecker
         query = select(cls.model).where(filters_clause)
+        if options:
+            for option in options:
+                query = query.options(option)
         result = await session.execute(query)
         record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
         logger.debug(f"[DAO] Найдено: {record!r}")
