@@ -8,6 +8,7 @@ from api.users.dependencies import get_user_service
 from api.users.models import User
 from api.users.schemas import SUser, SUserOut, SUserWithReferralStats
 from api.users.services import UserService
+from api.core.exceptions.schema import APIErrorResponse
 
 router = APIRouter(prefix="/users", tags=["bot", "USERS"])
 
@@ -54,6 +55,10 @@ async def register_user(
     "/{telegram_id}/referrals",
     response_model=SUserWithReferralStats,
     summary="Получает пользователя с реферальной статистикой",
+    responses={
+        404: {"model": APIErrorResponse},
+        403: {"model": APIErrorResponse},
+    },
 )
 async def get_user_referrals(
     telegram_id: int,

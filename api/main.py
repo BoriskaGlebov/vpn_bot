@@ -13,36 +13,21 @@ from starlette.templating import Jinja2Templates
 
 from api.admin.router import router as admin_router
 from api.app_error.api_error import (
-    AdminNotFoundHeaderError,
-    MissingTelegramHeaderError,
-    UserNotFoundHeaderError,
+    APIError,
 )
 from api.app_error.base_error import (
-    ActiveSubscriptionExistsError,
-    PaymentError,
-    ReferralError,
-    SubscriptionNotFoundError,
-    TrialAlreadyUsedError,
-    UserNotFoundError,
-    VPNLimitError,
+    AppError,
 )
 from api.core.config import settings_api
 from api.core.database import engine
 from api.core.exceptions.handlers.business import (
-    active_subscription_exists_handler,
-    payment_exception_handler,
-    referral_exception_handler,
-    subscription_not_found_handler,
-    trial_already_used_handler,
-    user_not_found_handler,
-    vpn_limit_handler,
+    app_error_handler
 )
 from api.core.exceptions.handlers.http import (
     database_exception_handler,
-    missing_telegram_header_handler,
     request_validation_handler,
-    unregistered_user_handler,
-    user_not_admin_handler,
+    api_error_handler,
+    unhandled_exception_handler,
 )
 from api.core.schemas import SHealthResponse
 from api.middleware.auth_middleware import AuthMiddleware
@@ -149,21 +134,26 @@ app.include_router(news_router)
 app.include_router(scheduler_router)
 app.include_router(payment_router)
 
-app.add_exception_handler(UserNotFoundError, user_not_found_handler)
-app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
 
+app.add_exception_handler(APIError,api_error_handler)
 app.add_exception_handler(RequestValidationError, request_validation_handler)  # type: ignore[arg-type]
-app.add_exception_handler(
-    ActiveSubscriptionExistsError, active_subscription_exists_handler
-)
-app.add_exception_handler(TrialAlreadyUsedError, trial_already_used_handler)
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
-app.add_exception_handler(ReferralError, referral_exception_handler)
-app.add_exception_handler(VPNLimitError, vpn_limit_handler)
-app.add_exception_handler(MissingTelegramHeaderError, missing_telegram_header_handler)
-app.add_exception_handler(UserNotFoundHeaderError, unregistered_user_handler)
-app.add_exception_handler(AdminNotFoundHeaderError, user_not_admin_handler)
-app.add_exception_handler(PaymentError, payment_exception_handler)
+app.add_exception_handler(AppError, app_error_handler)
+
+
+# app.add_exception_handler(
+#     ActiveSubscriptionExistsError, active_subscription_exists_handler
+# )
+# app.add_exception_handler(TrialAlreadyUsedError, trial_already_used_handler)
+# app.add_exception_handler(ReferralError, referral_exception_handler)
+# app.add_exception_handler(VPNLimitError, vpn_limit_handler)
+# app.add_exception_handler(PaymentError, payment_exception_handler)
+# app.add_exception_handler(UserNotFoundError, user_not_found_handler)
+# app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
+
+
+app.add_exception_handler(Exception,unhandled_exception_handler)
+
 app.add_middleware(LogContextMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestLoggingMiddleware)

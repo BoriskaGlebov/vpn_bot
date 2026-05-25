@@ -1,76 +1,115 @@
-class APIClientError(Exception):
-    """Базовая ошибка API клиента.
+from typing import Any
 
-    Args:
-        message (str): Описание ошибки.
-        cause (Exception | None): Исходное исключение.
+from loguru import logger
+from starlette import status
 
-    """
+from api.core.exceptions.schema import ErrorEnvelope, ErrorDetail
 
-    def __init__(self, message: str, *, cause: Exception | None = None) -> None:
+
+class APIError(Exception):
+    """Базовая ошибка API."""
+
+    code: str = "api_error"
+    status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+        cause: Exception | None = None,
+    ) -> None:
         super().__init__(message)
+
+        self.message = message
+        self.details = details or {}
         self.cause = cause
 
-    def __str__(self) -> str:
-        """Строковое представление."""
-        base = super().__str__()
-        if self.cause:
-            return f"{base} (cause: {self.cause})"
-        return base
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "error": {
+                "code": self.code,
+                "message": self.message,
+                "details": self.details,
+            }
+        }
+    def to_envelope(self,) -> ErrorEnvelope:
+        return ErrorEnvelope(
+            error=ErrorDetail(
+                code=self.code,
+                message=self.message,
+                details=self.details or {},
+            )
+        )
 
 
-class APIClientHTTPError(APIClientError):
+class APIClientHTTPError(APIError):
     """Ошибка HTTP уровня (4xx, 5xx)."""
 
+    code = "http_error"
+
     def __init__(
         self,
-        status_code: int,
-        detail: str | None = None,
+        message: str="Ошибка API",
         *,
+        status_code: int,
+        details: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
-        message = f"HTTP {status_code}"
-        if detail:
-            message += f": {detail}"
-
-        super().__init__(message, cause=cause)
         self.status_code = status_code
-        self.detail = detail
+        details = details or {}
+        super().__init__(
+            message=f"HTTP {status_code}: {message}",
+            details={"status_code": status_code, **details},
+            cause=cause,
+        )
 
 
-class APIClientConnectionError(APIClientError):
+class APIClientConnectionError(APIError):
     """Ошибка соединения."""
 
+    code = "connection_error"
+
     def __init__(
         self,
-        detail: str = "Ошибка соединения с API",
+        message: str = "Ошибка соединения с API",
         *,
+        status_code: int = 500,
+        details: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
-        super().__init__(detail, cause=cause)
+        self.status_code = status_code
+        super().__init__(message=message,
+                         details=details,
+                         cause=cause)
 
 
-class MissingTelegramHeaderError(APIClientError):
+class MissingTelegramHeaderError(APIError):
     """Ошибка, когда отсутствует обязательный заголовок X-Telegram-Id."""
+
+    code = "missing_telegram_header"
+    status_code = status.HTTP_403_FORBIDDEN
 
     def __init__(self, header_name: str = "X-Telegram-Id") -> None:
         self.header_name = header_name
-        super().__init__(f"Обязательный заголовок {header_name} отсутствует")
+        super().__init__(
+            message=f"Обязательный заголовок {header_name} отсутствует",
+            details={
+                "header": header_name,
+            },
+        )
 
 
-class UserNotFoundHeaderError(APIClientError):
-    """Ошибка, когда tg_id нет в базе."""
-
-    def __init__(self, tg_id: int) -> None:
-        self.tg_id = tg_id
-        super().__init__(f"Отказано в доступе для {tg_id}. Такого нет в базе ")
-
-
-class AdminNotFoundHeaderError(APIClientError):
+class AdminNotFoundHeaderError(APIError):
     """Ошибка, когда tg_id не является админом."""
 
+    code = "admin_access_denied"
+    status_code = status.HTTP_403_FORBIDDEN
+
     def __init__(self, tg_id: int) -> None:
-        self.tg_id = tg_id
         super().__init__(
-            f"Отказано в доступе для tg_id={tg_id}. Пользователь не админ."
+            message=f"Отказано в доступе для tg_id={tg_id}. Пользователь не админ.",
+            details={
+                "tg_id": tg_id,
+            }
         )

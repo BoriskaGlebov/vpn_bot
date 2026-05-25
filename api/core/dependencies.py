@@ -5,9 +5,10 @@ from fastapi import Depends, Request
 from fastapi.security import APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.app_error.api_error import MissingTelegramHeaderError, UserNotFoundHeaderError
+from api.app_error.api_error import MissingTelegramHeaderError
 from api.core.database import async_session
 from api.users.models import User
+from api.app_error.base_error import UserNotFoundError
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -48,6 +49,6 @@ def get_current_user(request: Request, tg_id: int = Depends(api_key_header)) -> 
     user: User | None = getattr(request.state, "user", None)
 
     if user is None:
-        raise UserNotFoundHeaderError(tg_id=tg_id)
+        raise UserNotFoundError(tg_id=tg_id)
 
     return user

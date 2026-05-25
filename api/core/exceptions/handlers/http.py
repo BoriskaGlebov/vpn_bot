@@ -8,10 +8,41 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette import status
 
 from api.app_error.api_error import (
-    AdminNotFoundHeaderError,
-    MissingTelegramHeaderError,
-    UserNotFoundHeaderError,
+    APIError,
 )
+from api.core.exceptions.schema import ErrorEnvelope, ErrorDetail
+
+
+async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    if exc.__cause__:
+        logger.exception(
+            "Исходное исключение exception: {}",
+            repr(exc.__cause__),
+        )
+    if not isinstance(exc, APIError):
+        logger.error("Непредвиденное исключение exception: %s", type(exc))
+        return JSONResponse(
+            status_code=500,
+            content=ErrorEnvelope(
+                error=ErrorDetail(
+                    code="internal_error",
+                    message=f"Internal server error ({str(exc)})",
+                    details={"exc_type": type(exc)},
+                )
+            ).model_dump(),
+        )
+
+    logger.warning(
+        "APIError path={} code={} message={}",
+        request.url.path,
+        exc.code,
+        exc.message,
+    )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_envelope().model_dump(),
+    )
 
 
 async def request_validation_handler(
@@ -31,7 +62,6 @@ async def request_validation_handler(
         JSONResponse: HTTP 422 ответ с деталями ошибок.
 
     """
-    # exc = cast(RequestValidationError, exc)
     logger.warning(
         "RequestValidationError path={} errors={}",
         request.url.path,
@@ -40,10 +70,13 @@ async def request_validation_handler(
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        content={
-            "detail": "Ошибка валидации запроса",
-            "errors": exc.errors(),
-        },
+        content=ErrorEnvelope(
+            error=ErrorDetail(
+                code="validation_error",
+                message=f"Ошибка валидации запроса {repr(exc)}",
+                details={"exc_type": type(exc).__name__, "errors": exc.errors()},
+            )
+        ).model_dump(),
     )
 
 
@@ -77,73 +110,30 @@ async def database_exception_handler(
 
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "detail": "Ошибка работы с базой данных",
-        },
+        content=ErrorEnvelope(
+            error=ErrorDetail(
+                code="database_error",
+                message=f"Ошибка работы с базой данных {str(exc)}",
+                details={"exc_type": type(exc).__name__},
+            )
+        ).model_dump(),
     )
 
 
-async def missing_telegram_header_handler(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """Обрабатывает отсутствие заголовка X-Telegram-Id."""
-    exc = cast(MissingTelegramHeaderError, exc)
-
-    logger.warning(
-        "MissingTelegramHeaderError: path={} header={}",
-        request.url.path,
-        exc.header_name,
-    )
-
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Необработанное исключение при запросе %s", request.url.path)
+    if exc.__cause__:
+        logger.exception(
+            "Исходное исключение exception: {}",
+            repr(exc.__cause__),
+        )
     return JSONResponse(
-        status_code=status.HTTP_401_UNAUTHORIZED,
+        status_code=500,
         content={
-            "detail": str(exc),
-            "error": "missing_telegram_header",
-        },
-    )
-
-
-async def unregistered_user_handler(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """Обрабатывает незарегистрированного пользователя."""
-    exc = cast(UserNotFoundHeaderError, exc)
-
-    logger.warning(
-        "MissingTelegramHeaderError: path={} header={}",
-        request.url.path,
-        exc.tg_id,
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        content={
-            "detail": str(exc),
-            "error": "unregistered_user_handler",
-        },
-    )
-
-
-async def user_not_admin_handler(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """Обрабатывает запрос от не админа."""
-    exc = cast(AdminNotFoundHeaderError, exc)
-
-    logger.warning(
-        "MissingTelegramHeaderError: path={} header={}",
-        request.url.path,
-        exc.tg_id,
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_403_FORBIDDEN,
-        content={
-            "detail": str(exc),
-            "error": "user_not_admin_handler",
+            "error": {
+                "code": "internal_error",
+                "message": "Внутрення ошибка сервера",
+                "details": {"exc_type": type(exc).__name__},
+            }
         },
     )

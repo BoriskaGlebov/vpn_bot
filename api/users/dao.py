@@ -193,7 +193,7 @@ class UserDAO(BaseDAO[User]):
             if subscription.is_active:
                 subscription.extend(months=months)
             else:
-                raise SubscriptionNotFoundError(user_id=user.telegram_id)
+                raise SubscriptionNotFoundError(user_id=user.id,username=user.username)
             return user
 
         except SQLAlchemyError as e:
