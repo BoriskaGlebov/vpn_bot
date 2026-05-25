@@ -1,5 +1,3 @@
-from typing import cast
-
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from loguru import logger
@@ -7,7 +5,7 @@ from loguru import logger
 from api.app_error.base_error import (
     AppError,
 )
-from api.core.exceptions.schema import ErrorEnvelope, ErrorDetail
+from api.core.exceptions.schema import ErrorDetail, ErrorEnvelope
 
 
 async def app_error_handler(
@@ -34,10 +32,12 @@ async def app_error_handler(
         )
 
     if exc.status_code >= 500:
-        logger.exception("{}: path={} details={}",
-        exc.__class__.__name__,
-        request.url.path,
-        exc.details,)
+        logger.exception(
+            "{}: path={} details={}",
+            exc.__class__.__name__,
+            request.url.path,
+            exc.details,
+        )
     else:
         logger.warning(
             "{}: path={} details={}",
@@ -50,7 +50,6 @@ async def app_error_handler(
         status_code=exc.status_code,
         content=exc.to_envelope().model_dump(),
     )
-
 
 
 #

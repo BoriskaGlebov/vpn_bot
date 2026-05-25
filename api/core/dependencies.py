@@ -6,9 +6,9 @@ from fastapi.security import APIKeyHeader
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.api_error import MissingTelegramHeaderError
+from api.app_error.base_error import UserNotFoundError
 from api.core.database import async_session
 from api.users.models import User
-from api.app_error.base_error import UserNotFoundError
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

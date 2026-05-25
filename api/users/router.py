@@ -4,11 +4,11 @@ from starlette import status
 
 from api.app_error.base_error import UserNotFoundError
 from api.core.dependencies import get_current_user, get_session
+from api.core.exceptions.schema import APIErrorResponse
 from api.users.dependencies import get_user_service
 from api.users.models import User
 from api.users.schemas import SUser, SUserOut, SUserWithReferralStats
 from api.users.services import UserService
-from api.core.exceptions.schema import APIErrorResponse
 
 router = APIRouter(prefix="/users", tags=["bot", "USERS"])
 

@@ -20,13 +20,11 @@ from api.app_error.base_error import (
 )
 from api.core.config import settings_api
 from api.core.database import engine
-from api.core.exceptions.handlers.business import (
-    app_error_handler
-)
+from api.core.exceptions.handlers.business import app_error_handler
 from api.core.exceptions.handlers.http import (
+    api_error_handler,
     database_exception_handler,
     request_validation_handler,
-    api_error_handler,
     unhandled_exception_handler,
 )
 from api.core.schemas import SHealthResponse
@@ -135,7 +133,7 @@ app.include_router(scheduler_router)
 app.include_router(payment_router)
 
 
-app.add_exception_handler(APIError,api_error_handler)
+app.add_exception_handler(APIError, api_error_handler)
 app.add_exception_handler(RequestValidationError, request_validation_handler)  # type: ignore[arg-type]
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(AppError, app_error_handler)
@@ -152,7 +150,7 @@ app.add_exception_handler(AppError, app_error_handler)
 # app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
 
 
-app.add_exception_handler(Exception,unhandled_exception_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.add_middleware(LogContextMiddleware)
 app.add_middleware(AuthMiddleware)

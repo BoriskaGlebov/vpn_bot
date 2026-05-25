@@ -1,13 +1,24 @@
 from typing import Any
 
-from loguru import logger
 from starlette import status
 
-from api.core.exceptions.schema import ErrorEnvelope, ErrorDetail
+from api.core.exceptions.schema import ErrorDetail, ErrorEnvelope
 
 
 class APIError(Exception):
-    """Базовая ошибка API."""
+    """Базовое исключение API.
+
+    Используется как корневой класс для всех ошибок клиентского API.
+    Позволяет унифицировать формат ошибок и преобразование в DTO.
+
+    Attributes
+        code: Машиночитаемый код ошибки.
+        status_code: HTTP статус код ответа.
+        message: Человекочитаемое сообщение об ошибке.
+        details: Дополнительные структурированные данные об ошибке.
+        cause: Исходное исключение, вызвавшее данную ошибку.
+
+    """
 
     code: str = "api_error"
     status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -19,6 +30,14 @@ class APIError(Exception):
         details: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
+        """Инициализирует базовую ошибку API.
+
+        Args:
+            message: Текст ошибки для пользователя или логирования.
+            details: Дополнительные данные об ошибке (опционально).
+            cause: Первопричина ошибки (исходное исключение), если есть.
+
+        """
         super().__init__(message)
 
         self.message = message
@@ -26,6 +45,12 @@ class APIError(Exception):
         self.cause = cause
 
     def to_dict(self) -> dict[str, Any]:
+        """Преобразует исключение в словарь.
+
+        Returns
+            Словарь, соответствующий стандартному формату API ошибки.
+
+        """
         return {
             "error": {
                 "code": self.code,
@@ -33,7 +58,16 @@ class APIError(Exception):
                 "details": self.details,
             }
         }
-    def to_envelope(self,) -> ErrorEnvelope:
+
+    def to_envelope(
+        self,
+    ) -> ErrorEnvelope:
+        """Преобразует исключение в Pydantic-обёртку ответа API.
+
+        Returns
+            ErrorEnvelope с заполненными данными ошибки.
+
+        """
         return ErrorEnvelope(
             error=ErrorDetail(
                 code=self.code,
@@ -44,18 +78,30 @@ class APIError(Exception):
 
 
 class APIClientHTTPError(APIError):
-    """Ошибка HTTP уровня (4xx, 5xx)."""
+    """Ошибка HTTP-уровня клиента (4xx / 5xx ответы внешнего API).
+
+    Используется, когда внешний сервис вернул ошибочный HTTP-ответ.
+    """
 
     code = "http_error"
 
     def __init__(
         self,
-        message: str="Ошибка API",
+        message: str = "Ошибка API",
         *,
         status_code: int,
         details: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
+        """Инициализирует HTTP ошибку клиента.
+
+        Args:
+            message: Базовое сообщение об ошибке.
+            status_code: HTTP статус код ответа внешнего сервиса.
+            details: Дополнительные данные (например, тело ответа).
+            cause: Исходное исключение, если есть.
+
+        """
         self.status_code = status_code
         details = details or {}
         super().__init__(
@@ -66,7 +112,10 @@ class APIClientHTTPError(APIError):
 
 
 class APIClientConnectionError(APIError):
-    """Ошибка соединения."""
+    """Ошибка соединения с внешним API.
+
+    Возникает при сетевых сбоях, таймаутах или недоступности сервиса.
+    """
 
     code = "connection_error"
 
@@ -78,19 +127,35 @@ class APIClientConnectionError(APIError):
         details: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
+        """Инициализирует HTTP ошибку клиента.
+
+        Args:
+            message: Базовое сообщение об ошибке.
+            status_code: HTTP статус код ответа внешнего сервиса.
+            details: Дополнительные данные (например, тело ответа).
+            cause: Исходное исключение, если есть.
+
+        """
         self.status_code = status_code
-        super().__init__(message=message,
-                         details=details,
-                         cause=cause)
+        super().__init__(message=message, details=details, cause=cause)
 
 
 class MissingTelegramHeaderError(APIError):
-    """Ошибка, когда отсутствует обязательный заголовок X-Telegram-Id."""
+    """Ошибка отсутствия обязательного HTTP-заголовка Telegram.
+
+    Возникает, если в запросе отсутствует заголовок авторизации Telegram.
+    """
 
     code = "missing_telegram_header"
     status_code = status.HTTP_403_FORBIDDEN
 
     def __init__(self, header_name: str = "X-Telegram-Id") -> None:
+        """Инициализирует ошибку отсутствующего заголовка.
+
+        Args:
+            header_name: Название обязательного HTTP-заголовка.
+
+        """
         self.header_name = header_name
         super().__init__(
             message=f"Обязательный заголовок {header_name} отсутствует",
@@ -101,15 +166,24 @@ class MissingTelegramHeaderError(APIError):
 
 
 class AdminNotFoundHeaderError(APIError):
-    """Ошибка, когда tg_id не является админом."""
+    """Ошибка отсутствия административных прав у пользователя.
+
+    Возникает, когда пользователь с указанным tg_id не является администратором.
+    """
 
     code = "admin_access_denied"
     status_code = status.HTTP_403_FORBIDDEN
 
     def __init__(self, tg_id: int) -> None:
+        """Инициализирует ошибку отсутствия прав администратора.
+
+        Args:
+            tg_id: Telegram ID пользователя, которому отказано в доступе.
+
+        """
         super().__init__(
             message=f"Отказано в доступе для tg_id={tg_id}. Пользователь не админ.",
             details={
                 "tg_id": tg_id,
-            }
+            },
         )

@@ -7,6 +7,7 @@ from starlette import status
 from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_current_user, get_session
 from api.payment.schemas import (
+    SAttachProviderPayment,
     SCancelPayment,
     SCancelPaymentIn,
     SConfirmPayment,
@@ -14,7 +15,6 @@ from api.payment.schemas import (
     SConfirmPaymentResponse,
     SCreateManualPaymentTransaction,
     SPaymentTransactionResponse,
-    SAttachProviderPayment,
 )
 from api.payment.services import PaymentService
 from api.referrals.schemas import GrantReferralBonusResponse
@@ -69,7 +69,9 @@ async def create_transaction(
         session=session, transaction=transaction, user_auth=user_auth
     )
     return res
-#TODO Новый метод
+
+
+# TODO Новый метод
 @router.post(
     "/transaction/{transaction_id}/provider",
     response_model=SPaymentTransactionResponse,
@@ -88,8 +90,9 @@ async def attach_provider_payment(
         session=session,
         transaction_id=transaction_id,
         gateway_transaction_id=payload.gateway_transaction_id,
-        gateway_payload=payload.gateway_payload
+        gateway_payload=payload.gateway_payload,
     )
+
 
 @router.post(
     "/transaction/{transaction_id}/paid",
@@ -103,11 +106,12 @@ async def mark_payment_started(
     session: AsyncSession = Depends(get_session),
     user_auth: User = Depends(get_current_user),
 ) -> SPaymentTransactionResponse:
-
     return await service.mark_payment_started(
         session=session,
         transaction_id=transaction_id,
     )
+
+
 @router.post(
     "/transaction/confirm",
     response_model=SConfirmPaymentResponse,
@@ -184,11 +188,11 @@ async def confirm_transaction(
         ),
     )
 
+
 @router.post(
     "/transaction/webhook/confirm",
     response_model=SConfirmPaymentResponse,
     status_code=status.HTTP_200_OK,
-
 )
 async def webhook_confirm_transaction(
     data: SConfirmPaymentIn,
@@ -198,10 +202,7 @@ async def webhook_confirm_transaction(
     # admin_auth: User = Depends(check_admin_role),
     session: AsyncSession = Depends(get_session),
 ) -> SConfirmPaymentResponse:
-
-    conf_payment = SConfirmPaymentIn(
-        transaction_id=data.transaction_id
-    )
+    conf_payment = SConfirmPaymentIn(transaction_id=data.transaction_id)
     tx = await service.webhook_confirm_transaction(session=session, data=conf_payment)
     sub_res = await sub_service.activate_paid_subscription(
         session=session,
@@ -270,6 +271,8 @@ async def cancel_transaction(
     )
 
     return res
+
+
 @router.get(
     "/transaction",
     response_model=SPaymentTransactionResponse,

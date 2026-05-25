@@ -328,8 +328,10 @@ class PaymentSettings(SettingsCommon):
             аутентификации запросов к платёжному API.
 
     """
-    merchant_id:SecretStr
-    api_key:SecretStr
+
+    merchant_id: SecretStr
+    api_key: SecretStr
+
 
 class Settings(SettingsCommon):
     """Агрегированная конфигурация приложения.
@@ -385,7 +387,7 @@ class Settings(SettingsCommon):
 
     redis: RedisSettings = Field(default_factory=RedisSettings)
 
-    payment:PaymentSettings=Field(default_factory=PaymentSettings)
+    payment: PaymentSettings = Field(default_factory=PaymentSettings)
 
     @cached_property
     def messages(self) -> Box:

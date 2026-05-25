@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.payment.model import PaymentSource, PaymentStatus
 from api.referrals.schemas import GrantReferralBonusResponse
 from api.users.schemas import SUserOut
+
 # TODO Слишком много схем?
 
 
@@ -220,7 +221,7 @@ class SConfirmPaymentConfirmUpdate(BaseModel):
     """
 
     status: PaymentStatus
-    confirmed_by_admin_id: int|None=None
+    confirmed_by_admin_id: int | None = None
     confirmed_at: datetime
     paid_at: datetime = (datetime.now(),)
     source: PaymentSource = PaymentSource.MANUAL

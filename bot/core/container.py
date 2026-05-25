@@ -10,7 +10,11 @@ from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.news.services import NewsService
+from bot.notification.services import NotificationService
 from bot.payment.adapter import PaymentAPIAdapter
+from bot.payment.providers.payment_client import BasePaymentProvider
+from bot.payment.providers.platega import PlategaProvider
+from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.redis_service import RedisAdminMessageStorage, RedisEmbeddingCache
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.referrals.services import ReferralService
@@ -23,10 +27,6 @@ from bot.users.services import UserService
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
-from bot.payment.services import PaymentService, PaymentWebhookService
-from bot.payment.providers.payment_client import BasePaymentProvider
-from bot.payment.providers.platega import PlategaProvider
-from bot.notification.services import NotificationService
 
 
 # TODO PaymentService  добавил проверь документацию

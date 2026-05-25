@@ -1,14 +1,17 @@
 import asyncio
-import hashlib
-import hmac
 import json
 from decimal import Decimal
 from pprint import pprint
 
 import httpx
-from bot.payment.dto import CreatePaymentDTO, CreatedPaymentDTO, PaymentWebhookDTO
-from bot.payment.dto import PaymentStatus
+
 from bot.core.config import settings_bot
+from bot.payment.dto import (
+    CreatedPaymentDTO,
+    CreatePaymentDTO,
+    PaymentStatus,
+    PaymentWebhookDTO,
+)
 
 
 class PlategaProvider:
@@ -18,7 +21,7 @@ class PlategaProvider:
         self,
         merchant_id: str,
         secret_key: str,
-    )->None:
+    ) -> None:
         self.merchant_id = merchant_id
         self.secret_key = secret_key
 

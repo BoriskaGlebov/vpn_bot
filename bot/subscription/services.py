@@ -3,19 +3,18 @@ from uuid import UUID
 
 from bot.app_error.api_error import APIClientError
 from bot.core.config import settings_bot
-from bot.payment.adapter import PaymentAPIAdapter
+from bot.payment.schemas import (
+    SConfirmPaymentResponse,
+    SCreatePayment,
+    SPaymentTransactionResponse,
+)
+from bot.payment.services import PaymentService
 from bot.subscription.adapter import (
     SubscriptionAPIAdapter,
 )
 from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUserOut
-from bot.payment.services import PaymentService
-from bot.payment.schemas import (
-    SPaymentTransactionResponse,
-    SConfirmPaymentResponse,
-    SCreatePayment,
-)
 from shared.enums.admin_enum import RoleEnum
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -235,7 +234,9 @@ class SubscriptionService:
         self,
         transaction_id: UUID,
     ) -> SPaymentTransactionResponse:
-        tx_res = await self.payment_service.cancel_transaction(transaction_id=transaction_id)
+        tx_res = await self.payment_service.cancel_transaction(
+            transaction_id=transaction_id
+        )
         return tx_res
 
     # TODO НОвый метод не протестирован, нужно логирование, тесты, документация, типы данных

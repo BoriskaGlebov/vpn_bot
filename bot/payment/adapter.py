@@ -4,15 +4,15 @@ from uuid import UUID
 from loguru import logger
 
 from bot.integrations.api_client import APIClient
+from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.schemas import (
+    SAttachProviderPaymentIn,
     SCancelPaymentIn,
     SConfirmPaymentIn,
     SConfirmPaymentResponse,
     SCreateManualPaymentTransactionIn,
     SPaymentTransactionResponse,
-    SAttachProviderPaymentIn,
 )
-from bot.payment.providers.payment_client import BasePaymentProvider
 
 
 # TODO ДОкументация тесты типы данных логирование
@@ -26,7 +26,7 @@ class PaymentAPIAdapter:
 
     """
 
-    def __init__(self, client: APIClient,provider:BasePaymentProvider) -> None:
+    def __init__(self, client: APIClient, provider: BasePaymentProvider) -> None:
         """Инициализация адаптера.
 
         Args:
@@ -82,7 +82,7 @@ class PaymentAPIAdapter:
         self,
         transaction_id: UUID,
         gateway_transaction_id: str,
-        gateway_payload:dict[Any, Any] | None
+        gateway_payload: dict[Any, Any] | None,
     ) -> SPaymentTransactionResponse:
         """Привязывает provider transaction к внутренней транзакции.
 
@@ -110,7 +110,7 @@ class PaymentAPIAdapter:
         payload = SAttachProviderPaymentIn(
             # transaction_id=transaction_id,
             gateway_transaction_id=gateway_transaction_id,
-            gateway_payload=gateway_payload
+            gateway_payload=gateway_payload,
         )
 
         data, status_code = await self._client.post(
@@ -155,11 +155,11 @@ class PaymentAPIAdapter:
             "Транзакция подтверждена, status=%s response=%s", status_code, data
         )
         return SConfirmPaymentResponse.model_validate(data)
+
     async def webhook_confirm_transaction(
         self,
         transaction_id: UUID,
     ) -> SConfirmPaymentResponse:
-
         logger.info("Подтверждение прихода денег: %s", transaction_id)
         payload = SConfirmPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
@@ -193,7 +193,7 @@ class PaymentAPIAdapter:
         logger.debug("Транзакция отменена, status=%s response=%s", status_code, data)
         return SPaymentTransactionResponse.model_validate(data)
 
-    async  def get_by_gateway_id(self,gateway_transaction_id:str):
+    async def get_by_gateway_id(self, gateway_transaction_id: str):
         data = await self._client.get(
             "/payment/transaction",
             params={"gateway_transaction_id": gateway_transaction_id},

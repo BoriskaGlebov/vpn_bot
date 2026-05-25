@@ -1,7 +1,5 @@
-import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from pprint import pprint
 from typing import Any
 
 import uvicorn
@@ -273,7 +271,8 @@ async def health() -> JSONResponse:
         content={"status": "ok", "message": "FastAPI service is running"},
     )
 
-#TODO Новый роут для приема оплаты
+
+# TODO Новый роут для приема оплаты
 @app.post(
     "/payment-webhook",
     tags=[
@@ -281,7 +280,6 @@ async def health() -> JSONResponse:
     ],
 )
 async def payment_webhook(request: Request) -> Response:
-
     body: bytes = await request.body()
     if not body:
         logger.debug("Webhook-запрос с пустым телом")
@@ -294,6 +292,7 @@ async def payment_webhook(request: Request) -> Response:
 
     await container.payment_webhook_service.handle_event(event)
     return Response(status_code=200)
+
 
 if __name__ == "__main__":
     """

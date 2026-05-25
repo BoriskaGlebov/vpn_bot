@@ -7,12 +7,8 @@ class NotificationService:
 
     async def notify_payment_success(self, user_id: int, amount: int):
         await self.bot.send_message(
-            chat_id=user_id,
-            text=f"Оплата {amount} прошла успешно"
+            chat_id=user_id, text=f"Оплата {amount} прошла успешно"
         )
 
     async def notify_payment_failed(self, user_id: int):
-        await self.bot.send_message(
-            chat_id=user_id,
-            text="Оплата не прошла"
-        )
+        await self.bot.send_message(chat_id=user_id, text="Оплата не прошла")

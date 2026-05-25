@@ -39,7 +39,6 @@ from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
-
 from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
@@ -358,7 +357,11 @@ class SubscriptionRouter(BaseRouter):
             price_map = get_correct_price_map(premium=premium, founder=founder)
             price = price_map[months]
             sub_type = get_correct_sub_type(premium=premium, founder=founder)
-            upd_tx=await self.subscription_service.payment_service.mark_payment_started(transaction_id=transaction_id)
+            upd_tx = (
+                await self.subscription_service.payment_service.mark_payment_started(
+                    transaction_id=transaction_id
+                )
+            )
 
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")

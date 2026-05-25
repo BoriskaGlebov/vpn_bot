@@ -10,7 +10,7 @@ from starlette import status
 from api.app_error.api_error import (
     APIError,
 )
-from api.core.exceptions.schema import ErrorEnvelope, ErrorDetail
+from api.core.exceptions.schema import ErrorDetail, ErrorEnvelope
 
 
 async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:

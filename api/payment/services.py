@@ -10,22 +10,22 @@ from api.app_error.base_error import (
     PaymentTransactionNotFoundError,
 )
 from api.payment.dao import PaymentTransactionDAO
-from api.payment.model import PaymentStatus, PaymentSource
+from api.payment.model import PaymentSource, PaymentStatus
 from api.payment.schemas import (
+    SAttachProviderPayment,
     SCancelInID,
     SCancelPayment,
+    SCancelPaymentUpdate,
     SConfirmInID,
     SConfirmPayment,
     SConfirmPaymentConfirmUpdate,
+    SConfirmPaymentIn,
     SCreateManualPaymentTransaction,
     SCreateTransaction,
+    SGatewayTransactionFilter,
+    SPaidAt,
     SPaymentTransactionResponse,
     SYearIncome,
-    SAttachProviderPayment,
-    SCancelPaymentUpdate,
-    SPaidAt,
-    SGatewayTransactionFilter,
-    SConfirmPaymentIn,
 )
 from api.users.models import User
 
@@ -228,11 +228,10 @@ class PaymentService:
             f"[SERVICE] Транзакция подтверждена. Transaction ID={data.transaction_id}"
         )
         return SPaymentTransactionResponse.model_validate(tx)
-    
+
     async def webhook_confirm_transaction(
         self, data: SConfirmPaymentIn, session: AsyncSession
     ) -> SPaymentTransactionResponse:
-
         logger.info(
             f"[SERVICE] Подтверждение платежной транзакции ID={data.transaction_id}"
         )
@@ -384,7 +383,8 @@ class PaymentService:
         )
 
         if not tx:
-            raise PaymentTransactionNotFoundError(transaction_id=None,
-                                                  gateway_transaction_id=gateway_transaction_id)
+            raise PaymentTransactionNotFoundError(
+                transaction_id=None, gateway_transaction_id=gateway_transaction_id
+            )
 
         return SPaymentTransactionResponse.model_validate(tx)

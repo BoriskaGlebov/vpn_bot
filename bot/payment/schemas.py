@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -112,7 +112,7 @@ class SPaymentTransactionResponse(BaseModel):
     id: UUID
 
     user_id: int
-    tg_id:int
+    tg_id: int
 
     amount: int
     currency: str
@@ -134,17 +134,18 @@ class SPaymentTransactionResponse(BaseModel):
     confirmed_at: datetime | None
     paid_at: datetime | None
 
-class SCreatePayment(SPaymentTransactionResponse):
 
+class SCreatePayment(SPaymentTransactionResponse):
     payment_url: str | None
+
 
 class SAttachProviderPaymentIn(BaseModel):
     """Схема привязки внешнего provider payment."""
 
     # transaction_id: UUID
     gateway_transaction_id: str
-    gateway_payload:dict[Any, Any] | None
-    
+    gateway_payload: dict[Any, Any] | None
+
 
 class SConfirmPaymentResponse(BaseModel):
     """Ответ API после подтверждения платежа.

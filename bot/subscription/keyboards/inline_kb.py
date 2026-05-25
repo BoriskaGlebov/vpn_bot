@@ -1,8 +1,7 @@
-from typing import Optional
 from uuid import UUID
 
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.subscription.enums import (
@@ -12,7 +11,8 @@ from bot.subscription.enums import (
 )
 from bot.subscription.utils.sub_utils import get_correct_price_map
 
-#TODO тут менял многое по кнопкам
+
+# TODO тут менял многое по кнопкам
 class SubscriptionCB(CallbackData, prefix="sub"):  # type: ignore[misc,call-arg]
     """CallbackData для действий с подпиской пользователя.
 
@@ -34,7 +34,7 @@ class SubscriptionCB(CallbackData, prefix="sub"):  # type: ignore[misc,call-arg]
     months: int = 0
     founder: bool = False
     transaction_id: UUID | None = None
-    payment_url:str|None=None
+    payment_url: str | None = None
 
 
 class ToggleSubscriptionCB(CallbackData, prefix="toggle_sub"):  # type: ignore[misc,call-arg]
@@ -136,7 +136,9 @@ def subscription_options_kb(
             callback_data=ToggleSubscriptionCB(mode=ToggleSubscriptionMode.PREMIUM),
         )
 
-    builder.button(text="❌ Отмена", callback_data=SubscriptionCB(action=SubscriptionAction.CANCEL))
+    builder.button(
+        text="❌ Отмена", callback_data=SubscriptionCB(action=SubscriptionAction.CANCEL)
+    )
     builder.adjust(2, 2, 1, 1)
     return builder.as_markup()
 
@@ -173,10 +175,15 @@ def payment_confirm_kb(
             action=SubscriptionAction.PAID,
             months=months,
             founder=founder,
-            transaction_id=transaction_id
+            transaction_id=transaction_id,
         ),
     )
-    builder.button(text="❌ Отмена", callback_data=SubscriptionCB(action=SubscriptionAction.CANCEL,transaction_id=transaction_id))
+    builder.button(
+        text="❌ Отмена",
+        callback_data=SubscriptionCB(
+            action=SubscriptionAction.CANCEL, transaction_id=transaction_id
+        ),
+    )
     builder.adjust(1)
     return builder.as_markup()
 
