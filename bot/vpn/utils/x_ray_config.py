@@ -12,7 +12,7 @@ from bot.integrations.api_client import APIClient
 from bot.vpn.DTO import Inbound, UserUUID
 from bot.vpn.schemas import S3XuiCredentials, S3XuiUSerSettings
 
-
+#TODO нет корректного продления подписки в панели ,когда пользователь продлевает подписку
 class ThreeXUIAdapter:
     """Адаптер для взаимодействия с панелью 3x-ui.
 
