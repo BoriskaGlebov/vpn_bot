@@ -58,7 +58,7 @@ class PaymentAPIAdapter:
 
         """
         logger.info(
-            "Создаёт платёжную транзакцию: amount=%s months=%s premium=%s founder=%s",
+            "Создаёт платёжную транзакцию: amount={} months={} premium={} founder={}",
             amount,
             subscription_months,
             is_premium,
@@ -75,7 +75,7 @@ class PaymentAPIAdapter:
             "/payment/transaction",
             json=payload.model_dump(),
         )
-        logger.debug("Транзакция создана, status=%s response=%s", status_code, data)
+        logger.debug("Транзакция создана, status={} response={}", status_code, data)
         return SPaymentTransactionResponse.model_validate(data)
 
     async def attach_provider_payment(
@@ -102,7 +102,7 @@ class PaymentAPIAdapter:
                 Ошибка HTTP-клиента или валидации ответа.
         """
         logger.info(
-            "Привязка provider payment: transaction_id=%s gateway_id=%s",
+            "Привязка provider payment: transaction_id={} gateway_id={}",
             transaction_id,
             gateway_transaction_id,
         )
@@ -119,7 +119,7 @@ class PaymentAPIAdapter:
         )
 
         logger.debug(
-            "Provider payment привязан: status=%s response=%s",
+            "Provider payment привязан: status={} response={}",
             status_code,
             data,
         )
@@ -145,14 +145,14 @@ class PaymentAPIAdapter:
             SConfirmPaymentResponse: Результат подтверждения.
 
         """
-        logger.info("Подтверждение прихода денег: %s", transaction_id)
+        logger.info("Подтверждение прихода денег: {}", transaction_id)
         payload = SConfirmPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
             "/payment/transaction/confirm",
             json=payload.model_dump(mode="json"),
         )
         logger.debug(
-            "Транзакция подтверждена, status=%s response=%s", status_code, data
+            "Транзакция подтверждена, status={} response={}", status_code, data
         )
         return SConfirmPaymentResponse.model_validate(data)
 
@@ -160,14 +160,14 @@ class PaymentAPIAdapter:
         self,
         transaction_id: UUID,
     ) -> SConfirmPaymentResponse:
-        logger.info("Подтверждение прихода денег: %s", transaction_id)
+        logger.info("Подтверждение прихода денег: {}", transaction_id)
         payload = SConfirmPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
             "/payment/transaction/webhook/confirm",
             json=payload.model_dump(mode="json"),
         )
         logger.debug(
-            "Транзакция подтверждена, status=%s response=%s", status_code, data
+            "Транзакция подтверждена, status={} response={}", status_code, data
         )
         return SConfirmPaymentResponse.model_validate(data)
 
@@ -184,13 +184,13 @@ class PaymentAPIAdapter:
             SPaymentTransactionResponse: Данные отменённой транзакции.
 
         """
-        logger.info("Процесс отмены созданной транзакции: %s", transaction_id)
+        logger.info("Процесс отмены созданной транзакции: {}", transaction_id)
         payload = SCancelPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
             "/payment/transaction/cancel",
             json=payload.model_dump(mode="json"),
         )
-        logger.debug("Транзакция отменена, status=%s response=%s", status_code, data)
+        logger.debug("Транзакция отменена, status={} response={}", status_code, data)
         return SPaymentTransactionResponse.model_validate(data)
 
     async def get_by_gateway_id(self, gateway_transaction_id: str):

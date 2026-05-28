@@ -241,7 +241,7 @@ class UserDAO(BaseDAO[User]):
             query = query.options(*options)
         result = await session.execute(query)
         record = result.scalar_one_or_none()
-        logger.debug(f"[DAO] Найдено: {record!r}")
+        logger.debug(f"[DAO] Найдено: {record}")
         return record
 
 

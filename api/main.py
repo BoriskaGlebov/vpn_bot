@@ -52,15 +52,43 @@ from api.vpn.router import router as vpn_router
 tags_metadata: list[dict[str, Any]] = [
     {
         "name": "bot",
-        "description": "Методы для взаимодействия с Telegram-ботом (отправка событий, управление состояниями).",
+        "description": "Общий тег для всех эндпоинтов, используемых Telegram-ботом",
     },
     {
-        "name": "llm",
-        "description": "Методы для AI-агента (обработка сообщений, генерация ответов, выполнение действий).",
+        "name": "USERS",
+        "description": "Управление пользователями: регистрация, получение информации, обновление профиля",
+    },
+    {
+        "name": "ADMIN",
+        "description": "Административные функции: управление пользователями, ролями, аналитика доходов",
+    },
+    {
+        "name": "SUBSCRIPTION",
+        "description": "Управление подписками: создание, продление, получение информации о тарифах",
+    },
+    {
+        "name": "VPN",
+        "description": "Управление VPN-конфигурациями: создание, удаление, получение конфигов пользователей",
+    },
+    {
+        "name": "REFERRALS",
+        "description": "Реферальная система: получение реферальных ссылок, статистики, начисление бонусов",
+    },
+    {
+        "name": "PAYMENT",
+        "description": "Платежная система: создание платежей, подтверждение транзакций, история платежей",
+    },
+    {
+        "name": "NEWS",
+        "description": "Управление новостями и уведомлениями для пользователей",
+    },
+    {
+        "name": "SCHEDULER",
+        "description": "Планировщик задач: управление отложенными операциями и периодическими задачами",
     },
     {
         "name": "system",
-        "description": "Служебные методы (health-check, мониторинг).",
+        "description": "Служебные методы: health-check, мониторинг состояния сервиса",
     },
 ]
 
@@ -86,34 +114,80 @@ app: FastAPI = FastAPI(
     title="VPN Boriska API",
     version="1.0.0",
     root_path="/api",
-    summary="API для взаимодействия с ботом и AI-агентом",
+    summary="API для управления VPN-сервисом с интеграцией Telegram-бота",
     description="""
-## 📡 Boriska API
+## 📡 VPN Boriska API
 
-Сервис предоставляет HTTP API для взаимодействия между внутренними компонентами системы.
+Сервис предоставляет HTTP API для управления VPN-подписками через Telegram-бота.
 
-### Основные направления:
+### Основные модули:
 
-### 🤖 Bot API
-Методы для интеграции с Telegram-ботом:
-- отправка событий
-- управление пользователями
-- триггер действий
+#### 👥 Пользователи (`/users`)
+- Регистрация и аутентификация пользователей
+- Управление профилями
+- Получение информации о пользователе
 
-### 🧠 LLM API
-Методы для AI-агента:
-- обработка пользовательских сообщений
-- генерация ответов
-- выполнение команд
+#### 🔐 Администрирование (`/admin`)
+- Управление пользователями и ролями
+- Продление подписок
+- Аналитика доходов
+- Доступ только для администраторов
 
-### ⚙️ System API
-Служебные эндпоинты:
-- проверка состояния сервиса
-- мониторинг
+#### 📅 Подписки (`/subscriptions`)
+- Создание и продление подписок
+- Получение информации о тарифах
+- Управление пробными периодами
+- История подписок пользователя
+
+#### 🌐 VPN (`/vpn`)
+- Создание VPN-конфигураций
+- Удаление конфигов
+- Получение списка активных конфигов
+- Управление лимитами устройств
+
+#### 🎁 Реферальная система (`/referrals`)
+- Генерация реферальных ссылок
+- Отслеживание рефералов
+- Начисление бонусов
+- Статистика по рефералам
+
+#### 💳 Платежи (`/payment`)
+- Создание платежных транзакций
+- Подтверждение оплаты
+- История платежей
+- Интеграция с платежными системами
+
+#### 📰 Новости (`/news`)
+- Публикация новостей и уведомлений
+- Рассылка сообщений пользователям
+
+#### ⏰ Планировщик (`/scheduler`)
+- Управление отложенными задачами
+- Периодические операции
+- Автоматизация процессов
+
+#### ⚙️ Системные эндпоинты
+- `/health` — проверка состояния сервиса
+- Мониторинг и диагностика
 
 ---
 
-Сервис предназначен для использования внутренними компонентами (bot, workers, AI-agent).
+### 🔒 Безопасность
+
+Большинство эндпоинтов требуют аутентификации через Telegram.
+Административные функции доступны только пользователям с ролью `admin` или `founder`.
+
+### 📊 Формат ответов
+
+Все ошибки возвращаются в унифицированном формате:
+```json
+{
+  "error": {
+    "code": "error_code",
+    "message": "Описание ошибки",
+    "details": {}
+  }
+}
     """,
     openapi_tags=tags_metadata,
     contact={
@@ -137,26 +211,12 @@ app.add_exception_handler(APIError, api_error_handler)
 app.add_exception_handler(RequestValidationError, request_validation_handler)  # type: ignore[arg-type]
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(AppError, app_error_handler)
-
-
-# app.add_exception_handler(
-#     ActiveSubscriptionExistsError, active_subscription_exists_handler
-# )
-# app.add_exception_handler(TrialAlreadyUsedError, trial_already_used_handler)
-# app.add_exception_handler(ReferralError, referral_exception_handler)
-# app.add_exception_handler(VPNLimitError, vpn_limit_handler)
-# app.add_exception_handler(PaymentError, payment_exception_handler)
-# app.add_exception_handler(UserNotFoundError, user_not_found_handler)
-# app.add_exception_handler(SubscriptionNotFoundError, subscription_not_found_handler)
-
-
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.add_middleware(LogContextMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(DBSessionMiddleware)
-
 app.add_middleware(ExceptionLoggingMiddleware)
 
 

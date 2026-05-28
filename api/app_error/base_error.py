@@ -141,7 +141,7 @@ class ReferralBonusAlreadyGivenError(ReferralError):
     """Ошибка повторного начисления реферального бонуса."""
 
     code = "referral_bonus_already_given"
-    status_code = status.HTTP_404_NOT_FOUND
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, invited_user_id: int, username: str) -> None:
         """Инициализирует ошибку повторного бонуса.
@@ -243,8 +243,8 @@ class ActiveSubscriptionExistsError(AppError):
 class TrialAlreadyUsedError(AppError):
     """Ошибка повторного использования пробного периода."""
 
-    code = "trial_error"
-    status_code = status.HTTP_404_NOT_FOUND
+    code = "trial_alredy_used_error"
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, user_id: int, username: str) -> None:
         """Инициализирует ошибку пробного периода.
@@ -302,7 +302,7 @@ class PaymentTransactionNotFoundError(PaymentError):
     """Ошибка отсутствия транзакции."""
 
     code = "transaction_not_found"
-    status_code = status.HTTP_400_BAD_REQUEST
+    status_code = status.HTTP_404_NOT_FOUND
 
     def __init__(
         self, transaction_id: str | None, gateway_transaction_id: str | None = None
@@ -315,7 +315,7 @@ class PaymentTransactionNotFoundError(PaymentError):
 
         """
         super().__init__(
-            message=f"Транзакция transaction_id({transaction_id or 'undefined_transaction'})\n"
+            message=f"Транзакция transaction_id({transaction_id or 'undefined_transaction'}) \n "
             f"gateway_id({gateway_transaction_id or 'undefined_transaction'}) \n"
             f"не найдена.",
             details={
@@ -346,11 +346,9 @@ class PaymentAlreadyProcessedError(PaymentError):
             ),
             details={
                 "transaction_id": transaction_id,
-                "status": status,
+                "status": payment_status,
             },
         )
-        self.transaction_id = transaction_id
-        self.status = status
 
 
 class PaymentConfirmationError(PaymentError):

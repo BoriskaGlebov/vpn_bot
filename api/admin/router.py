@@ -28,14 +28,6 @@ router = APIRouter(prefix="/admin", tags=["bot", "ADMIN"])
         200: {
             "description": "Пользователь успешно найден",
         },
-        404: {
-            "description": "Пользователь не найден",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Пользователь с telegram_id=123 не найден"}
-                }
-            },
-        },
     },
 )
 async def get_user(
@@ -314,6 +306,7 @@ async def get_income(
     year: int | None = None,
     service: PaymentService = Depends(get_payment_service),
     session: AsyncSession = Depends(get_session),
+    admin_auth: User = Depends(check_admin_role),
 ) -> SYearIncome:
     """Получает аналитику доходов за год.
 
@@ -327,6 +320,7 @@ async def get_income(
     - возвращает итоговую аналитику
 
     Args:
+        admin_auth: Доступ только админам.
         year (int | None): Год для получения аналитики.
             Если значение не передано, используется текущий год.
         service (PaymentService): Сервис бизнес-логики платежей.

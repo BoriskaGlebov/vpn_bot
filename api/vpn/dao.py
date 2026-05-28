@@ -3,7 +3,11 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
+from api.app_error.base_error import (
+    AppError,
+    SubscriptionNotFoundError,
+    VPNLimitError,
+)
 from api.core.config import settings_api
 from api.core.dao.base import BaseDAO
 from api.subscription.models import DEVICE_LIMITS
@@ -48,7 +52,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             logger.debug(f"[DAO] У пользователя {user_id} конфигов: {count}")
             if not user.current_subscription or not user.current_subscription.is_active:
                 logger.warning("Нет активной подписки.")
-                raise SubscriptionNotFoundError(user_id=user_id)
+                raise SubscriptionNotFoundError(user_id=user_id, username=user.username)
             if user and count == 0:
                 return True
             sub_type = user.current_subscription.type
@@ -91,8 +95,17 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 logger.error(
                     f"[DAO] Создание конфига отклонено — пользователь {user_id} достиг лимита",
                 )
+                user = await UserDAO.find_one_or_none_by_id(
+                    session=session, data_id=user_id
+                )
+                if user is None:
+                    raise AppError(
+                        message=f"Не удалось найти пользователя по внутреннему ID={user_id}"
+                    )
                 raise VPNLimitError(
-                    user_id=user_id, limit=settings_api.core.max_configs_per_user
+                    user_id=user_id,
+                    limit=settings_api.core.max_configs_per_user,
+                    username=user.username if user else "unknown_username",
                 )
 
             config = VPNConfig(user_id=user_id, file_name=file_name, pub_key=pub_key)

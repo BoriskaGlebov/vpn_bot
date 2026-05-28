@@ -123,7 +123,7 @@ class ThreeXUIAdapter:
             )
             logger.info("Успешный выход из 3x-ui")
         except APIClientError as e:
-            logger.info("Logout response обработан как successful: %s", e)
+            logger.info("Logout response обработан как successful: {}", e)
         logger.info("Сессия завершена (logout)")
 
     async def _get_all_inbounds(self) -> list[Inbound]:

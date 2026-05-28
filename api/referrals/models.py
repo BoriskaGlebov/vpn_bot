@@ -62,3 +62,13 @@ class Referral(Base):
         back_populates="invited_by",
     )
     __table_args__ = (UniqueConstraint("invited_id", name="uq_referrals_invited"),)
+
+    def __repr__(self) -> str:
+        """Возвращает строковое представление реферальной записи."""
+        return (
+            f"<Referral "
+            f"id={self.id} "
+            f"inviter_id={self.inviter_id} "
+            f"invited_id={self.invited_id} "
+            f"bonus_given={self.bonus_given}>"
+        )

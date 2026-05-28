@@ -120,7 +120,10 @@ class ReferralService:
             logger.info(
                 f"Бонус за друга уже начислен пользователю {invited_user.telegram_id}"
             )
-            raise ReferralBonusAlreadyGivenError(invited_user.telegram_id)
+            raise ReferralBonusAlreadyGivenError(
+                invited_user_id=invited_user.telegram_id,
+                username=invited_user.username,
+            )
 
         inviter = referral.inviter
         current_sub = inviter.current_subscription

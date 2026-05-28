@@ -10,33 +10,39 @@ from starlette import status
 from api.app_error.api_error import (
     APIError,
 )
+from api.core.exceptions.handlers.business import log_cause, unexpected_exception_loger
 from api.core.exceptions.schema import ErrorDetail, ErrorEnvelope
 
 
 async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    if exc.__cause__:
-        logger.exception(
-            "Исходное исключение exception: {}",
-            repr(exc.__cause__),
-        )
+    """Обрабатывает пользовательские API-исключения приложения.
+
+    Хендлер предназначен для обработки всех исключений,
+    наследующихся от `APIError`, и преобразования их
+    в унифицированный JSON-ответ API.
+
+    Если исключение не относится к типу `APIError`,
+    управление передаётся в обработчик непредвиденных ошибок.
+
+    Args:
+        request: Текущий HTTP-запрос.
+        exc: Обрабатываемое исключение.
+
+    Returns
+        JSONResponse: HTTP-ответ с сериализованной ошибкой API.
+
+    """
+    await log_cause(exc=exc)
     if not isinstance(exc, APIError):
-        logger.error("Непредвиденное исключение exception: %s", type(exc))
-        return JSONResponse(
-            status_code=500,
-            content=ErrorEnvelope(
-                error=ErrorDetail(
-                    code="internal_error",
-                    message=f"Internal server error ({str(exc)})",
-                    details={"exc_type": type(exc)},
-                )
-            ).model_dump(),
-        )
+        return await unexpected_exception_loger(exc=exc)
 
     logger.warning(
-        "APIError path={} code={} message={}",
+        "APIError {} path={} code={} message={} details={}",
+        exc.__class__.__name__,
         request.url.path,
         exc.code,
         exc.message,
+        exc.details,
     )
 
     return JSONResponse(
@@ -49,17 +55,20 @@ async def request_validation_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
-    """Обрабатывает ошибки валидации входящего HTTP запроса.
+    """Обрабатывает ошибки валидации HTTP-запросов.
 
-    Перехватывает ошибки FastAPI валидации (Pydantic / query / body)
-    и приводит их к единому формату API ответа.
+    Перехватывает ошибки валидации FastAPI / Pydantic,
+    возникающие при обработке query-параметров, path-параметров,
+    заголовков и тела запроса.
+
+    Все ошибки приводятся к единому формату API-ответа.
 
     Args:
-        request (Request): HTTP запрос FastAPI.
-        exc (RequestValidationError): Ошибка валидации запроса.
+        request: Текущий HTTP-запрос.
+        exc: Исключение ошибки валидации FastAPI.
 
     Returns
-        JSONResponse: HTTP 422 ответ с деталями ошибок.
+        JSONResponse: HTTP-ответ со статусом 422 и деталями ошибки.
 
     """
     logger.warning(
@@ -84,21 +93,18 @@ async def database_exception_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """Обрабатывает ошибки базы данных и возвращает HTTP-ответ.
+    """Обрабатывает ошибки работы с базой данных.
 
-    Хендлер предназначен для перехвата всех исключений, связанных с работой
-    с базой данных (SQLAlchemy), логирования ошибки и возврата безопасного
-    ответа клиенту без раскрытия внутренних деталей.
+    Перехватывает исключения SQLAlchemy, логирует информацию
+    об ошибке и возвращает безопасный HTTP-ответ без раскрытия
+    внутренних деталей реализации базы данных.
 
     Args:
-        request (Request): Объект входящего HTTP-запроса.
-        exc (SQLAlchemyError): Исключение, возникшее при работе с БД.
+        request: Текущий HTTP-запрос.
+        exc: Исключение, связанное с базой данных.
 
     Returns
-        JSONResponse: HTTP-ответ с кодом 500 и обобщённым сообщением об ошибке.
-
-    HTTP статус-коды:
-        500: Внутренняя ошибка сервера (ошибка БД)
+        JSONResponse: HTTP-ответ со статусом 500.
 
     """
     exc = cast(SQLAlchemyError, exc)
@@ -121,19 +127,23 @@ async def database_exception_handler(
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("Необработанное исключение при запросе %s", request.url.path)
-    if exc.__cause__:
-        logger.exception(
-            "Исходное исключение exception: {}",
-            repr(exc.__cause__),
-        )
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": {
-                "code": "internal_error",
-                "message": "Внутрення ошибка сервера",
-                "details": {"exc_type": type(exc).__name__},
-            }
-        },
-    )
+    """Обрабатывает все необработанные исключения приложения.
+
+    Используется как fallback-хендлер для исключений,
+    которые не были обработаны специализированными
+    exception handlers.
+
+    Логирует traceback и возвращает унифицированный
+    HTTP-ответ с кодом 500.
+
+    Args:
+        request: Текущий HTTP-запрос.
+        exc: Необработанное исключение.
+
+    Returns
+        JSONResponse: HTTP-ответ со статусом 500.
+
+    """
+    logger.exception("Необработанное исключение при запросе {}", request.url.path)
+    await log_cause(exc=exc)
+    return await unexpected_exception_loger(exc=exc)

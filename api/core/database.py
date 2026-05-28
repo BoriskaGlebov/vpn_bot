@@ -114,3 +114,17 @@ class Base(AsyncAttrs, DeclarativeBase):
 
         """
         return {c.name: getattr(self, c.name) for c in self.__mapper__.columns}
+
+    def __repr__(self) -> str:
+        """Возвращает строковое debug-представление модели."""
+        fields = []
+
+        for column in self.__table__.columns:
+            value = getattr(self, column.name)
+            fields.append(f"{column.name}={value!r}")
+
+        return f"<{self.__class__.__name__} {' '.join(fields)}>"
+
+    def __str__(self) -> str:
+        """Возвращает человекочитаемое представление модели."""
+        return self.__repr__()

@@ -30,12 +30,6 @@ router = APIRouter(prefix="/referrals", tags=["bot", "REFERRALS"])
             "description": "Реферал успешно зарегистрирован",
             "model": RegisterReferralResponse,
         },
-        404: {
-            "description": "Приглашённый пользователь не найден",
-        },
-        400: {
-            "description": "Ошибка запроса",
-        },
     },
 )
 async def register_referral(
@@ -98,15 +92,6 @@ async def register_referral(
             "description": "Бонус успешно начислен",
             "model": GrantReferralBonusResponse,
         },
-        404: {
-            "description": "Приглашённый пользователь или реферал не найден",
-        },
-        409: {
-            "description": "Бонус уже был начислен ранее",
-        },
-        400: {
-            "description": "Ошибка запроса",
-        },
     },
 )
 async def grant_bonus(
@@ -156,5 +141,5 @@ async def grant_bonus(
     return GrantReferralBonusResponse(
         success=success,
         inviter_telegram_id=inviter_telegram_id,
-        message="Referral bonus granted successfully",
+        message="Реферальный бонус предоставлен  успешно",
     )

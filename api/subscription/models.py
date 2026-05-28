@@ -107,7 +107,8 @@ class Subscription(Base):
         if sub_type == SubscriptionType.TRIAL:
             if self.user.has_used_trial:
                 raise TrialAlreadyUsedError(
-                    "Пользователь уже использовал триал-подписку"
+                    user_id=self.user.id,
+                    username=self.user.username,
                 )
             self.user.has_used_trial = True
         self.type = sub_type

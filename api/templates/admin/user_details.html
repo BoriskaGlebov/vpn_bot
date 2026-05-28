@@ -140,4 +140,65 @@
     </tbody>
 </table>
 
+<hr>
+
+<h3>💰 Платежи</h3>
+
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Сумма</th>
+        <th>Валюта</th>
+        <th>Статус</th>
+        <th>Источник</th>
+        <th>Подписка (мес)</th>
+        <th>Создан</th>
+        <th>Оплачен</th>
+        <th></th>
+    </tr>
+    </thead>
+
+    <tbody>
+    {% for p in model.payments %}
+    <tr>
+        <td>{{ p.id }}</td>
+
+        <td>{{ p.amount }}</td>
+        <td>{{ p.currency }}</td>
+
+        <td>
+            {% if p.status.value == "PAID" %}
+                <span style="color:green;font-weight:bold">PAID</span>
+            {% elif p.status.value == "PENDING" %}
+                <span style="color:orange">PENDING</span>
+            {% elif p.status.value == "FAILED" %}
+                <span style="color:red">FAILED</span>
+            {% else %}
+                {{ p.status.value }}
+            {% endif %}
+        </td>
+
+        <td>{{ p.source.value if p.source else "-" }}</td>
+
+        <td>{{ p.subscription_months }}</td>
+
+        <td>{{ p.confirmed_at.strftime("%Y-%m-%d %H:%M") if p.confirmed_at else "-" }}</td>
+        <td>{{ p.paid_at.strftime("%Y-%m-%d %H:%M") if p.paid_at else "-" }}</td>
+
+        <td>
+            <a href="/bot/admin/payment-transaction/details/{{ p.id }}"
+               class="btn btn-sm btn-info">
+                👁
+            </a>
+        </td>
+    </tr>
+    {% else %}
+    <tr>
+        <td colspan="9">Нет платежей</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
 {% endblock %}

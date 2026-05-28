@@ -37,11 +37,11 @@ class AdminService:
             SUserOut: Данные пользователя.
 
         """
-        logger.info("Получение пользователя telegram_id=%s", telegram_id)
+        logger.info("Получение пользователя telegram_id={}", telegram_id)
 
         user = await self.api_adapter.get_user_by_telegram_id(telegram_id)
 
-        logger.debug("Пользователь получен telegram_id=%s", telegram_id)
+        logger.debug("Пользователь получен telegram_id={}", telegram_id)
 
         return user
 
@@ -55,11 +55,11 @@ class AdminService:
             list[SUserOut]: Список пользователей.
 
         """
-        logger.info("Получение пользователей по роли=%s", filter_type)
+        logger.info("Получение пользователей по роли={}", filter_type)
 
         users = await self.api_adapter.get_users(filter_type)
 
-        logger.debug("Найдено пользователей: %s", len(users))
+        logger.debug("Найдено пользователей: {}", len(users))
 
         return users
 
@@ -107,7 +107,7 @@ class AdminService:
 
         """
         logger.info(
-            "Изменение роли пользователя telegram_id=%s role=%s",
+            "Изменение роли пользователя telegram_id={} role={}",
             telegram_id,
             role_name,
         )
@@ -120,7 +120,7 @@ class AdminService:
         user = await self.api_adapter.change_user_role(payload)
 
         logger.success(
-            "Роль изменена telegram_id=%s role=%s",
+            "Роль изменена telegram_id={} role={}",
             telegram_id,
             role_name,
         )
@@ -139,7 +139,7 @@ class AdminService:
 
         """
         logger.info(
-            "Продление подписки telegram_id=%s months=%s",
+            "Продление подписки telegram_id={} months={}",
             telegram_id,
             months,
         )
@@ -152,7 +152,7 @@ class AdminService:
         user: SUserOut = await self.api_adapter.extend_subscription(payload)
 
         logger.success(
-            "Подписка продлена telegram_id=%s months=%s",
+            "Подписка продлена telegram_id={} months={}",
             telegram_id,
             months,
         )
@@ -170,6 +170,6 @@ class AdminService:
 
         res = await self.api_adapter.year_income()
 
-        logger.debug("Годовой доход получен: %s", res.year_income)
+        logger.debug("Годовой доход получен: {}", res.year_income)
 
         return res

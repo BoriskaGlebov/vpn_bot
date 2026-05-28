@@ -2,11 +2,12 @@ import traceback
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from starlette.types import ASGIApp
+
+from api.core.exceptions.handlers.business import unexpected_exception_loger
 
 
 class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
@@ -53,8 +54,7 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
             return response
         except Exception as e:
             tb_str = "".join(traceback.format_exception(type(e), e, e.__traceback__))
-            logger.exception(f"Неожиданная ошибка: {e}\n{tb_str}")
-            return JSONResponse(
-                status_code=500,
-                content={"detail": "Internal server error"},
+            logger.exception(
+                f"[ExceptionLoggingMiddleware] Неожиданная ошибка: {e}\n{tb_str}"
             )
+            return await unexpected_exception_loger(exc=e)

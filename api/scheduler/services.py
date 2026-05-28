@@ -1,9 +1,7 @@
 import datetime
 
 from loguru import logger
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from api.scheduler.domain.event import (
     AdminNotifyEvent,
@@ -16,6 +14,7 @@ from api.scheduler.domain.stats import SubscriptionStats
 from api.scheduler.enums import SubscriptionEventType
 from api.scheduler.schemas import DeletedVPNConfigSchema
 from api.subscription.models import DEVICE_LIMITS, Subscription
+from api.users.dao import UserDAO
 from api.users.models import User
 from api.vpn.models import VPNConfig, VPNConfigStatus
 
@@ -370,15 +369,7 @@ class SubscriptionScheduler:
 
         """
         logger.info("Начало проверки всех подписок пользователей")
-        result = await session.execute(
-            select(User).options(
-                selectinload(User.subscriptions),
-                selectinload(User.role),
-                selectinload(User.vpn_configs),
-            )
-        )
-
-        users = result.scalars().all()
+        users = await UserDAO.find_all(session=session, options=UserDAO.base_options)
 
         stats = SubscriptionStats()
         events: list[SubscriptionEvent] = []
@@ -393,8 +384,10 @@ class SubscriptionScheduler:
 
         await session.commit()
         logger.info(
-            f"Проверка завершена. Пользователей обработано: {stats.checked}, "
-            f"истекших подписок: {stats.expired}, действий: {len(events)}, "
+            f"Проверка завершена.\n"
+            f"Пользователей обработано: {stats.checked},\n"
+            f"истекших подписок: {stats.expired},\n"
+            f"действий: {len(events)},\n"
             f"конфигов удалено: {stats.configs_deleted}"
         )
         return stats, events

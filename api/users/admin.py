@@ -1,5 +1,7 @@
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter
+from sqlalchemy import Select, select
+from sqlalchemy.orm import selectinload
 
 from api.users.filters import ActiveSubscriptionFilter
 from api.users.models import Role, User
@@ -26,6 +28,11 @@ def format_files_count(obj: User, name: str) -> int:
     return len(obj.vpn_configs) if obj.vpn_configs else 0
 
 
+def format_payments_count(obj: User, name: str) -> int:
+    """Возвращает количество произведенных оплат."""
+    return len(obj.payments) if obj.payments else 0
+
+
 class UserAdmin(ModelView, model=User):
     """Админка для управления пользователями.
 
@@ -44,6 +51,7 @@ class UserAdmin(ModelView, model=User):
         "has_used_trial",
         "current_subscription",
         "vpn_files_count",
+        "payments_count",
     ]
     column_sortable_list = [
         "id",
@@ -78,6 +86,7 @@ class UserAdmin(ModelView, model=User):
         "role": format_role,  # type: ignore[misc, dict-item]
         "current_subscription": format_current_subscription,  # type: ignore[misc, dict-item]
         "format_files_count": format_files_count,  # type: ignore[misc, dict-item]
+        "payments_count": format_payments_count,  # type: ignore[misc, dict-item]
         User.username: lambda m, a: m.username[:10],  # type: ignore[misc, attr-defined]
     }  # type: ignore[misc, assignment]
     name = "Пользователь"
@@ -94,6 +103,38 @@ class UserAdmin(ModelView, model=User):
         "current_subscription",
         "vpn_files_count",
     ]
+
+    def get_query(self) -> Select[tuple[User]]:
+        """Возвращает базовый SQLAlchemy-запрос с предзагрузкой связанных сущностей.
+
+        Метод расширяет базовый query объекта и добавляет eager loading
+        связанных моделей через ``selectinload`` для уменьшения количества
+        SQL-запросов (решение проблемы N+1).
+
+        Предзагружаются следующие связи пользователя:
+            - payments:
+                Платежные транзакции пользователя.
+
+            - role:
+                Роль пользователя в системе.
+
+            - vpn_configs:
+                VPN-конфигурации пользователя.
+
+            - subscriptions:
+                Подписки пользователя.
+
+        Returns
+            Select:
+                SQLAlchemy-запрос с настроенной предзагрузкой связанных сущностей.
+
+        """
+        return select(User).options(
+            selectinload(User.payments),
+            selectinload(User.role),
+            selectinload(User.vpn_configs),
+            selectinload(User.subscriptions),
+        )
 
 
 def format_users_count(obj: Role, name: str) -> int:

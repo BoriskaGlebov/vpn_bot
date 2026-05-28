@@ -5,6 +5,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base, int_pk, str_null_true, str_uniq
+from api.payment.model import PaymentTransaction
 from api.referrals.models import Referral
 from api.subscription.models import Subscription
 from api.vpn.models import VPNConfig
@@ -79,6 +80,13 @@ class User(Base):
         back_populates="invited",
         uselist=False,
         lazy="selectin",
+    )
+    payments: Mapped[list["PaymentTransaction"]] = relationship(
+        "PaymentTransaction",
+        foreign_keys="PaymentTransaction.user_id",
+        back_populates="user",
+        lazy="selectin",
+        order_by="PaymentTransaction.paid_at.desc()",
     )
 
     def __str__(self) -> str:

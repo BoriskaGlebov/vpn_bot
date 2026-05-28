@@ -52,18 +52,6 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filters = [getattr(cls.model, k) == v for k, v in f.items()]
         return and_(*filters) if filters else true()
 
-    # @staticmethod
-    # @asynccontextmanager
-    # async def transaction(session: AsyncSession) -> AsyncGenerator[AsyncSession, Any]:
-    #     """Универсальный транзакционный менеджер с логированием."""
-    #     try:
-    #         async with session.begin():
-    #             yield session
-    #         logger.debug("[DAO] Транзакция успешно зафиксирована.")
-    #     except SQLAlchemyError as e:
-    #         logger.error(f"[DAO] Ошибка транзакции: {e}")
-    #         raise
-
     @classmethod
     async def find_one_or_none_by_id(
         cls, data_id: int | UUID, session: AsyncSession
@@ -86,7 +74,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
         result = await session.execute(query)
         record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
-        logger.debug(f"[DAO] Результат поиска id={data_id}: {record!r}")
+        logger.debug(f"[DAO] Результат поиска id={data_id}: {record}")
         return record
 
     @classmethod
@@ -122,18 +110,22 @@ class BaseDAO(Generic[T]):  # noqa: UP046
                 query = query.options(option)
         result = await session.execute(query)
         record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
-        logger.debug(f"[DAO] Найдено: {record!r}")
+        logger.debug(f"[DAO] Найдено: {record}")
         return record
 
     @classmethod
     async def find_all(
-        cls, session: AsyncSession, filters: BaseModel | None = None
+        cls,
+        session: AsyncSession,
+        filters: BaseModel | None = None,
+        options: Sequence[ORMOption] | None = None,
     ) -> list[T]:
         """Находит все записи по фильтрам.
 
         Args:
             session (AsyncSession): Сессия для взаимодействия с БД.
             filters (BaseModel): Фильтры для поиска./или без фильтар
+            options: (Sequence|None): Дополнительные опции.
 
         Returns
             List[T]: Список найденных записей.
@@ -148,6 +140,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filters_clause = cls._build_filters(filter_dict)
         # noinspection PyTypeChecker
         query = select(cls.model).where(filters_clause)
+        if options:
+            for option in options:
+                query = query.options(option)
         result = await session.execute(query)
         records = cast(list[T], result.scalars().all())
         logger.debug(f"[DAO] Найдено {len(records)} записей.")

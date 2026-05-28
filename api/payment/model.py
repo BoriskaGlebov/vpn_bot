@@ -30,8 +30,6 @@ class PaymentSource(str, Enum):
     GATEWAY = "GATEWAY"  # платежная система
 
 
-# TODO Документация тесты типы данных
-#  и удалить лишние комментарии
 class PaymentTransaction(Base):
     """Модель платежной транзакции пользователя.
 
@@ -107,7 +105,9 @@ class PaymentTransaction(Base):
         index=True,
         nullable=False,
     )
-    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
+    user: Mapped["User"] = relationship(
+        "User", foreign_keys=[user_id], lazy="selectin", back_populates="payments"
+    )
 
     amount: Mapped[int] = mapped_column(nullable=False)
     currency: Mapped[str] = mapped_column(String(8), default="RUB")
