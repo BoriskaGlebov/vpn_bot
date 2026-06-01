@@ -224,7 +224,7 @@ class ActiveSubscriptionExistsError(AppError):
     """Ошибка наличия активной подписки."""
 
     code = "subscription_error"
-    status_code = status.HTTP_404_NOT_FOUND
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, user_id: int, username: str) -> None:
         """Инициализирует ошибку активной подписки.
@@ -264,7 +264,7 @@ class VPNLimitError(AppError):
     """Ошибка превышения лимита VPN-конфигов."""
 
     code = "vpn_limit_reached"
-    status_code = status.HTTP_403_FORBIDDEN
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(
         self,

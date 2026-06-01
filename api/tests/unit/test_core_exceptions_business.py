@@ -1,6 +1,7 @@
+import json
+
 import pytest
 from fastapi import Request
-from starlette.datastructures import URL
 
 from api.app_error.base_error import (
     ActiveSubscriptionExistsError,
@@ -12,14 +13,7 @@ from api.app_error.base_error import (
     UserNotFoundError,
     VPNLimitError,
 )
-from api.core.exceptions.handlers.business import (
-    active_subscription_exists_handler,
-    referral_exception_handler,
-    subscription_not_found_handler,
-    trial_already_used_handler,
-    user_not_found_handler,
-    vpn_limit_handler,
-)
+from api.core.exceptions.handlers.business import app_error_handler
 
 
 class DummyRequest(Request):
@@ -36,91 +30,48 @@ class DummyRequest(Request):
 
 
 @pytest.mark.asyncio
-async def test_user_not_found_handler():
-    request = DummyRequest("/users")
-    exc = UserNotFoundError(tg_id=123)
+@pytest.mark.parametrize(
+    ("exception", "status_code"),
+    [
+        (UserNotFoundError(tg_id=123), 404),
+        (SubscriptionNotFoundError(user_id=42,username="test"), 404),
+        (ActiveSubscriptionExistsError(user_id=42,username="test"), 409),
+        (TrialAlreadyUsedError(user_id=42,username="test"), 409),
+        (ReferralNotFoundError(invited_user_id=42,username="test"), 404),
+        (ReferralBonusAlreadyGivenError(invited_user_id=42,username="test"), 409),
+        (ReferralError("Generic referral error"), 400),
+        (VPNLimitError(user_id=99, limit=5,username="test"), 409),
+    ],
+)
+async def test_app_error_handler_returns_expected_status(
+    exception,
+    status_code,
+):
+    request = DummyRequest()
 
-    response = await user_not_found_handler(request, exc)
+    response = await app_error_handler(request, exception)
 
-    assert response.status_code == 404
-    assert response.body
-    assert b"telegram_id=123" in response.body
+    assert response.status_code == status_code
 
+    payload = json.loads(response.body)
 
-@pytest.mark.asyncio
-async def test_subscription_not_found_handler():
-    request = DummyRequest("/subscriptions")
-    exc = SubscriptionNotFoundError(user_id=42)
-
-    response = await subscription_not_found_handler(request, exc)
-
-    assert response.status_code == 404
-    assert b"user_id=42" in response.body
-
-
-@pytest.mark.asyncio
-async def test_active_subscription_exists_handler():
-    request = DummyRequest("/subscriptions")
-    exc = ActiveSubscriptionExistsError()
-
-    response = await active_subscription_exists_handler(request, exc)
-
-    assert response.status_code == 409
-    assert "У пользователя уже есть активная подписка" in response.body.decode()
-
+    assert "error" in payload
+    assert payload["error"]["code"] == exception.code
+    assert payload["error"]["message"] == exception.message
 
 @pytest.mark.asyncio
-async def test_trial_already_used_handler():
-    request = DummyRequest("/trial")
-    exc = TrialAlreadyUsedError("Trial already used")
+async def test_app_error_handler_unexpected_exception():
+    request = DummyRequest()
 
-    response = await trial_already_used_handler(request, exc)
+    response = await app_error_handler(
+        request,
+        ValueError("boom"),
+    )
 
-    assert response.status_code == 409
-    assert b"Trial already used" in response.body
+    assert response.status_code == 500
 
+    payload = json.loads(response.body)
 
-@pytest.mark.asyncio
-async def test_referral_not_found_handler():
-    request = DummyRequest("/referral")
-    exc = ReferralNotFoundError("Referral not found")
-
-    response = await referral_exception_handler(request, exc)
-
-    assert response.status_code == 404
-    assert b"Referral not found" in response.body
-
-
-@pytest.mark.asyncio
-async def test_referral_bonus_already_given_handler():
-    request = DummyRequest("/referral")
-    exc = ReferralBonusAlreadyGivenError("Bonus already given")
-
-    response = await referral_exception_handler(request, exc)
-
-    assert response.status_code == 409
-    assert b"Bonus already given" in response.body
-
-
-@pytest.mark.asyncio
-async def test_referral_generic_error_handler():
-    request = DummyRequest("/referral")
-    exc = ReferralError("Generic referral error")
-
-    response = await referral_exception_handler(request, exc)
-
-    assert response.status_code == 400
-    assert b"Generic referral error" in response.body
-
-
-@pytest.mark.asyncio
-async def test_vpn_limit_handler():
-    request = DummyRequest("/vpn")
-    exc = VPNLimitError(user_id=99, limit=5)
-
-    response = await vpn_limit_handler(request, exc)
-
-    assert response.status_code == 409
-    assert b"user_id=99" in response.body
-    assert b"5" in response.body
-    assert b"vpn_limit_reached" in response.body
+    assert payload["error"]["code"] == "internal_error"
+    assert payload["error"]["details"]["exc_type"] == "ValueError"
+    assert "boom" in payload["error"]["message"]

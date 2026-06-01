@@ -22,6 +22,7 @@ def telegram_id():
 def mock_user():
     user = MagicMock()
     user.id = 1
+    user.username="test_user"
     return user
 
 
@@ -109,7 +110,7 @@ async def test_activate_subscription_app_error_propagation(
     session,
 ):
     mock_subscription = MagicMock(spec=Subscription)
-    mock_subscription.activate.side_effect = TrialAlreadyUsedError()
+    mock_subscription.activate.side_effect = TrialAlreadyUsedError(user_id=mock_user.id,username=mock_user.username)
 
     with (
         patch(

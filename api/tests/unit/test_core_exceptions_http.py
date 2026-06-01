@@ -11,16 +11,6 @@ from api.core.exceptions.handlers.http import (
 )
 
 
-def normalize_errors(errors):
-    return [
-        {
-            **err,
-            "loc": list(err["loc"]),
-        }
-        for err in errors
-    ]
-
-
 class DummyRequest(Request):
     """Минимальный ASGI Request для тестов."""
 
@@ -54,8 +44,16 @@ async def test_request_validation_handler():
 
     data = json.loads(response.body)
 
-    assert data["detail"] == "Ошибка валидации запроса"
-    assert data["errors"] == normalize_errors(errors)
+    assert data["error"]["code"] == "validation_error"
+    assert "Ошибка валидации запроса" in data["error"]["message"]
+
+    assert data["error"]["details"]["exc_type"] == "RequestValidationError"
+    assert data["error"]["details"]["errors"] == [
+        {
+            **errors[0],
+            "loc": list(errors[0]["loc"]),
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -83,8 +81,8 @@ async def test_request_validation_handler_multiple_errors():
 
     data = json.loads(response.body)
 
-    assert len(data["errors"]) == 2
-    assert data["errors"] == normalize_errors(errors)
+    assert data["error"]["code"] == "validation_error"
+    assert len(data["error"]["details"]["errors"]) == 2
 
 
 @pytest.mark.asyncio
@@ -100,19 +98,25 @@ async def test_database_exception_handler():
     data = json.loads(response.body)
 
     assert data == {
-        "detail": "Ошибка работы с базой данных",
+        "error": {
+            "code": "database_error",
+            "message": "Внутренняя ошибка базы данных",
+            "details": {
+                "exc_type": "SQLAlchemyError",
+            },
+        }
     }
 
 
 @pytest.mark.asyncio
-async def test_database_exception_handler_does_not_leak_details():
+async def test_database_exception_handler_contains_exception_type():
     request = DummyRequest("/db")
 
-    exc = SQLAlchemyError("sensitive internal error")
+    exc = SQLAlchemyError("some db error")
 
     response = await database_exception_handler(request, exc)
 
     data = json.loads(response.body)
 
-    # убеждаемся, что текст ошибки НЕ попал в ответ
-    assert "sensitive" not in str(data)
+    assert data["error"]["code"] == "database_error"
+    assert data["error"]["details"]["exc_type"] == "SQLAlchemyError"

@@ -17,6 +17,7 @@ from shared.enums.admin_enum import RoleEnum
 @pytest.fixture
 def user():
     user = MagicMock(spec=User)
+    user.username="test_user"
     user.id = 1
     user.telegram_id = 123
     user.role.name = RoleEnum.USER
@@ -94,25 +95,42 @@ async def test_start_trial_already_used(user, session, monkeypatch):
         AsyncMock(return_value=user),
     )
 
-    with pytest.raises(ActiveSubscriptionExistsError):
+    with pytest.raises(TrialAlreadyUsedError):
         await SubscriptionService.start_trial_subscription(session, tg_id=123, days=10)
 
 
 @pytest.mark.asyncio
 async def test_start_trial_create_new(session, monkeypatch):
+    user = MagicMock()
+    user.id = 1
+    user.username = "test"
+    user.current_subscription = None
+    user.has_used_trial = False
+
     monkeypatch.setattr(
         "api.subscription.services.UserDAO.find_one_or_none",
-        AsyncMock(return_value=None),
+        AsyncMock(return_value=user),
     )
+
+    activate_mock = AsyncMock()
 
     monkeypatch.setattr(
         "api.subscription.services.SubscriptionDAO.activate_subscription",
-        AsyncMock(return_value=MagicMock()),
+        activate_mock,
     )
 
-    await SubscriptionService.start_trial_subscription(session, tg_id=123, days=10)
+    await SubscriptionService.start_trial_subscription(
+        session,
+        tg_id=123,
+        days=10,
+    )
 
-    SubscriptionDAO.activate_subscription.assert_awaited_once()
+    activate_mock.assert_awaited_once()
+
+    session.refresh.assert_awaited_once_with(
+        user,
+        attribute_names=["subscriptions", "role", "vpn_configs"],
+    )
 
 
 @pytest.mark.asyncio

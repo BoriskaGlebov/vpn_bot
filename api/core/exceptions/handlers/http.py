@@ -108,10 +108,15 @@ async def database_exception_handler(
 
     """
     exc = cast(SQLAlchemyError, exc)
-    logger.error(
-        "DatabaseException path={} error={}",
+    # logger.error(
+    #     "DatabaseException path={} error={}",
+    #     request.url.path,
+    #     str(exc),
+    # )
+    logger.exception(
+        "DatabaseException path={} exc_type={}",
         request.url.path,
-        str(exc),
+        type(exc).__name__,
     )
 
     return JSONResponse(
@@ -119,7 +124,7 @@ async def database_exception_handler(
         content=ErrorEnvelope(
             error=ErrorDetail(
                 code="database_error",
-                message=f"Ошибка работы с базой данных {str(exc)}",
+                message="Внутренняя ошибка базы данных",
                 details={"exc_type": type(exc).__name__},
             )
         ).model_dump(),

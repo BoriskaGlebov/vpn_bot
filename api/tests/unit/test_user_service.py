@@ -9,6 +9,7 @@ from api.users.schemas import (
     SUserWithReferralStats,
 )
 from api.users.services import UserService
+from api.app_error.base_error import UserNotFoundError
 
 pytestmark = pytest.mark.asyncio
 
@@ -208,12 +209,13 @@ async def test_get_user_with_referrals_not_found(
     service,
     session,
 ):
-    """Пользователь не найден."""
     mock_find_user.return_value = None
 
-    result = await service.get_user_with_referrals(
-        session=session,
-        telegram_id=123,
-    )
+    with pytest.raises(UserNotFoundError) as exc_info:
+        await service.get_user_with_referrals(
+            session=session,
+            telegram_id=123,
+        )
 
-    assert result is None
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "user_not_found"
