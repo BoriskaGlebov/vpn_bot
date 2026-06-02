@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -70,7 +70,7 @@ async def create_transaction(
     response_description="Найденная платежная транзакция.",
 )
 async def get_by_gateway_id(
-    gateway_transaction_id: str,
+    gateway_transaction_id: str = Query(...),
     service: PaymentService = Depends(get_payment_service),
     session: AsyncSession = Depends(get_session),
 ) -> SPaymentTransactionResponse:
