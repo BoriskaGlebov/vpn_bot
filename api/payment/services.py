@@ -529,13 +529,15 @@ class PaymentService:
                 или отсутствует ``admin_id`` для ручного подтверждения.
 
         """
-        if payment_source.GATEWAY:
+        if payment_source == PaymentSource.GATEWAY:
             tx = await self.webhook_confirm_transaction(session=session, data=data)
         elif payment_source.MANUAL and admin_id:
             tx = await self.admin_confirm_transaction(
                 session=session,
                 data=SAdminConfirmPayment(admin_id=admin_id, id=data.id),
             )
+        else:
+            raise ValueError("НЕВЕРНЫЙ payment_source или  пропущен admin_id")
         sub_res = await self.sub_service.activate_paid_subscription(
             session=session,
             user_id=tx.tg_id,
