@@ -34,13 +34,13 @@ class DummyRequest(Request):
     ("exception", "status_code"),
     [
         (UserNotFoundError(tg_id=123), 404),
-        (SubscriptionNotFoundError(user_id=42,username="test"), 404),
-        (ActiveSubscriptionExistsError(user_id=42,username="test"), 409),
-        (TrialAlreadyUsedError(user_id=42,username="test"), 409),
-        (ReferralNotFoundError(invited_user_id=42,username="test"), 404),
-        (ReferralBonusAlreadyGivenError(invited_user_id=42,username="test"), 409),
+        (SubscriptionNotFoundError(user_id=42, username="test"), 404),
+        (ActiveSubscriptionExistsError(user_id=42, username="test"), 409),
+        (TrialAlreadyUsedError(user_id=42, username="test"), 409),
+        (ReferralNotFoundError(invited_user_id=42, username="test"), 404),
+        (ReferralBonusAlreadyGivenError(invited_user_id=42, username="test"), 409),
         (ReferralError("Generic referral error"), 400),
-        (VPNLimitError(user_id=99, limit=5,username="test"), 409),
+        (VPNLimitError(user_id=99, limit=5, username="test"), 409),
     ],
 )
 async def test_app_error_handler_returns_expected_status(
@@ -58,6 +58,7 @@ async def test_app_error_handler_returns_expected_status(
     assert "error" in payload
     assert payload["error"]["code"] == exception.code
     assert payload["error"]["message"] == exception.message
+
 
 @pytest.mark.asyncio
 async def test_app_error_handler_unexpected_exception():

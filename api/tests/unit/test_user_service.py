@@ -3,13 +3,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.app_error.base_error import UserNotFoundError
 from api.users.schemas import (
     SUser,
     SUserOut,
     SUserWithReferralStats,
 )
 from api.users.services import UserService
-from api.app_error.base_error import UserNotFoundError
 
 pytestmark = pytest.mark.asyncio
 

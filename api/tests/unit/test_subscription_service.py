@@ -17,7 +17,7 @@ from shared.enums.admin_enum import RoleEnum
 @pytest.fixture
 def user():
     user = MagicMock(spec=User)
-    user.username="test_user"
+    user.username = "test_user"
     user.id = 1
     user.telegram_id = 123
     user.role.name = RoleEnum.USER
