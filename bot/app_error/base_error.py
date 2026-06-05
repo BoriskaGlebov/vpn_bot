@@ -1,3 +1,6 @@
+from bot.app_error.schema import ErrorDetail
+
+
 class AppError(Exception):
     """Базовое приложение-ориентированное исключение.
 
@@ -7,8 +10,10 @@ class AppError(Exception):
 
     """
 
-    def __init__(self, message: str, *, cause: Exception | None = None) -> None:
-        super().__init__(message)
+    def __init__(self, error: ErrorDetail, *, cause: Exception | None = None) -> None:
+        self.error = error
+
+        super().__init__(f"[{error.code}] {error.message}")
         self.cause = cause
 
     def __str__(self) -> str:
@@ -22,39 +27,64 @@ class AppError(Exception):
 class MessageNotFoundError(AppError):
     """Ошибка сообщения для редактирования не найдено."""
 
-    pass
+    def __init__(self) -> None:
+        super().__init__(
+            ErrorDetail(
+                code="message_not_found",
+                message="Сообщение для редактирования не найдено",
+            )
+        )
 
 
 class UserNotFoundError(AppError):
-    """Пользователь не найден."""
-
     def __init__(self, tg_id: int) -> None:
-        super().__init__(message=f"Пользователь с Telegram ID {tg_id} не найден.")
+        super().__init__(
+            ErrorDetail(
+                code="user_not_found",
+                message=f"Пользователь с Telegram ID {tg_id} не найден",
+                details={
+                    "tg_id": tg_id,
+                },
+            )
+        )
+
         self.tg_id = tg_id
 
 
 class SubscriptionNotFoundError(AppError):
-    """У пользователя нет подписки."""
+    def __init__(self, tg_id: int) -> None:
+        super().__init__(
+            ErrorDetail(
+                code="subscription_not_found",
+                message=f"У пользователя {tg_id} нет активной подписки",
+                details={
+                    "tg_id": tg_id,
+                },
+            )
+        )
 
-    def __init__(self, user_id: int) -> None:
-        super().__init__(f"У пользователя {user_id} нет подписки / не активна.")
-        self.user_id = user_id
+        self.tg_id = tg_id
 
 
 class VPNLimitError(AppError):
-    """Пользователь достиг лимита VPN-конфигов.
-
-    Args:
-        user_id (int): ID пользователя.
-        limit (int): Максимальное количество конфигов.
-
-    """
-
-    def __init__(self, user_id: int, limit: int, username: str = "") -> None:
-        suffix = f"@{username}" if username else ""
+    def __init__(
+        self,
+        tg_id: int,
+        limit: int,
+        username: str = "",
+    ) -> None:
         super().__init__(
-            f"Пользователь {user_id} достиг лимита ({limit}) конфигов.\n{suffix}"
+            ErrorDetail(
+                code="vpn_limit_reached",
+                message=f"Пользователь достиг лимита VPN-конфигов ({limit})",
+                details={
+                    "tg_id": tg_id,
+                    "limit": limit,
+                    "username": username,
+                },
+            )
         )
-        self.user_id = user_id
-        self.username = username
+
+        self.tg_id = tg_id
         self.limit = limit
+        self.username = username

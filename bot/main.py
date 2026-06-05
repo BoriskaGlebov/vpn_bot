@@ -38,6 +38,7 @@ tags_metadata: list[dict[str, Any]] = [
 container = Container(bot=bot)
 
 
+# TODO ПОчемуто бот после резагрузки compose не стартует при перезагрузке сервера странно
 @asynccontextmanager
 @logger.catch  # type: ignore[misc]
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:

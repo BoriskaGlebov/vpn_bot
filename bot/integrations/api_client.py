@@ -124,7 +124,7 @@ class APIClient:
                         response.status_code,
                         response.text,
                     )
-                    raise map_http_error(response.status_code, response.text)
+                    raise map_http_error(response.status_code, response.json())
 
                 return response
 
@@ -140,8 +140,6 @@ class APIClient:
                 )
                 if attempt == self.max_retries:
                     raise APIClientConnectionError(
-                        "Не удалось подключиться к API",
-                        cause=exc,
                     ) from exc
 
                 await asyncio.sleep(self.retry_delay)

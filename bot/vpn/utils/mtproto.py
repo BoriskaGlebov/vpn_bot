@@ -10,6 +10,8 @@ from bot.vpn.utils.amnezia_proxy import AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
 
 
+# TODO Когда долго контейнер поднят он не логирует ключ доступа и невозможно подключиться
+# к контейнеру, надо перезагружать иногда или где-то отдельно хранить ключ доступа или ссылку на подключение
 class HostDockerSSHClient(AsyncDockerSSHClient):
     """Асинхронный SSH-клиент для выполнения команд на Docker-хосте.
 
