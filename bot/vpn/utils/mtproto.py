@@ -166,26 +166,58 @@ class MTProtoProxy:
         """
         return f"tg://proxy?server={self.client.host}&port={self.port}&secret={secret}"
 
-    async def get_secret(self) -> str:
-        """Получает MTProto secret из логов контейнера на хосте.
+    async def _fetch_secret(self) -> str | None:
+        """Получает MTProto secret из логов контейнера.
 
         Returns
-            str: Secret ключ MTProto.
-
-        Raises
-            AmneziaSSHError: Если не удалось получить или распарсить secret.
+            Найденный secret или ``None``, если получить его не удалось.
 
         """
-        cmd = f"docker logs {shlex.quote(self.container)} | grep 'EE-TLS' | awk -F'secret=' '{{print $2}}'"
-        stdout, stderr, code, _ = await self.client.write_single_cmd(cmd)
+        cmd = (
+            f"docker logs {shlex.quote(self.container)} 2>&1 "
+            "| grep 'EE-TLS' "
+            "| awk -F'secret=' '{print $2}'"
+        )
+        stdout, _, code, _ = await self.client.write_single_cmd(cmd)
+
         if code != 0 or not stdout:
-            raise AmneziaSSHError(
-                "Не удалось получить MTProto secret",
-                cmd=cmd,
-                stdout=stdout,
-                stderr=stderr,
-            )
-        return stdout.strip().splitlines()[-1].strip()
+            return None
+
+        secret = stdout.strip().splitlines()[-1].strip()
+        return secret or None
+
+    async def get_secret(self) -> str:
+        """Получает MTProto secret из логов контейнера.
+
+        Если secret отсутствует в логах, контейнер перезапускается и
+        выполняются повторные попытки чтения secret.
+
+        Returns
+            MTProto secret.
+
+        Raises
+            AmneziaSSHError: Если secret не удалось получить даже после
+                перезапуска контейнера.
+
+        """
+        secret = await self._fetch_secret()
+        if secret:
+            return secret
+        restart_cmd = f"docker restart {shlex.quote(self.container)}"
+        await self.client.write_single_cmd(restart_cmd)
+
+        await asyncio.sleep(5)
+
+        for _ in range(10):
+            secret = await self._fetch_secret()
+            if secret:
+                return secret
+            await asyncio.sleep(2)
+
+        raise AmneziaSSHError(
+            "Не удалось получить MTProto secret после перезапуска контейнера",
+            cmd=restart_cmd,
+        )
 
     async def get_proxy_link(self) -> str:
         """Формирует готовую ссылку для подключения MTProto proxy.
