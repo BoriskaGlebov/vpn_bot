@@ -4,18 +4,29 @@ set -euo pipefail
 # Рабочая директория скрипта
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+CONFIG_FILE="${CONFIG_FILE:-app_config.toml}"
 # ===================== LOAD ENV =====================
 
 # Подгружаем .env и .env.local если они существуют
-if [ -f ".env" ]; then
-  # shellcheck disable=SC2046
-  export $(grep -v '^#' .env | xargs)
-fi
+set -a
+[ -f ".env" ] && source .env
+[ -f ".env.local" ] && source .env.local
+set +a
 
-if [ -f ".env.local" ]; then
-  # shellcheck disable=SC2046
-  export $(grep -v '^#' .env.local | xargs)
-fi
+# ===================== LOAD TOML CONFIG =====================
+eval "$(
+python3 - <<PY
+import tomllib
+
+with open("${CONFIG_FILE}", "rb") as f:
+    cfg = tomllib.load(f)["db"]
+
+print(f"DB_HOST={cfg['host']}")
+print(f"DB_PORT={cfg['port']}")
+print(f"DB_USER={cfg['user']}")
+print(f"DB_DATABASE={cfg['database']}")
+PY
+)"
 
 # ===================== CONFIG =====================
 
