@@ -19,12 +19,17 @@ python3 - <<PY
 import tomllib
 
 with open("${CONFIG_FILE}", "rb") as f:
-    cfg = tomllib.load(f)["db"]
+    cfg = tomllib.load(f)
+db = cfg["db"]
+core = cfg["core"]
 
-print(f"DB_HOST={cfg['host']}")
-print(f"DB_PORT={cfg['port']}")
-print(f"DB_USER={cfg['user']}")
-print(f"DB_DATABASE={cfg['database']}")
+#print(f"DB_HOST={db['host']}")
+print(f"DB_PORT={db['port']}")
+print(f"DB_USER={db['user']}")
+print(f"DB_DATABASE={db['database']}")
+
+admins = core.get("admin_ids", [])
+print("ADMIN_IDS=\"" + ",".join(map(str, admins)) + "\"")
 PY
 )"
 
