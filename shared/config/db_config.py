@@ -67,7 +67,7 @@ class RedisSettings(SettingsCommon):
     password: SecretStr
     user: str
     db: int = 0
-    default_expire: int = 3600
+    default_expire: int = 43200
 
     @computed_field
     def url(self) -> str:

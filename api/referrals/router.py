@@ -132,7 +132,7 @@ async def grant_bonus(
 
     suser_res = await UserMapper.to_schema(invited_user)
 
-    success, inviter_telegram_id = await service.grant_referral_bonus(
+    success, inviter_telegram_id, message = await service.grant_referral_bonus(
         session=session,
         invited_user=suser_res,
         months=payload.months,
@@ -141,5 +141,5 @@ async def grant_bonus(
     return GrantReferralBonusResponse(
         success=success,
         inviter_telegram_id=inviter_telegram_id,
-        message="Реферальный бонус предоставлен  успешно",
+        message=message,
     )
