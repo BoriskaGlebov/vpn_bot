@@ -234,7 +234,7 @@ class NewsRouter(BaseRouter):
         try:
             user_id = int(message.text)
         except ValueError:
-            await message.answer("Некорректный user_id")
+            await message.answer("Некорректный user_id, не смог преобразовать из строки в число.")
             return
 
         await state.update_data(target="one", user_id=user_id)
@@ -293,7 +293,7 @@ class NewsRouter(BaseRouter):
         await query.answer("Отправляем!")
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             data = await state.get_data()
-            news = data.get("news")
+            news = data.get("news",{})
             target = data.get("target")
             if not news or "content_type" not in news:
                 self.logger.warning(

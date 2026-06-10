@@ -26,6 +26,10 @@ class APIClientError(Exception):
         if self.cause:
             return f"{base} (cause: {self.cause})"
         return base
+    def to_envelope(self) -> ErrorEnvelope:
+        return ErrorEnvelope(
+            error=self.error
+        )
 
 
 class APIClientHTTPError(APIClientError):
@@ -128,3 +132,19 @@ def map_http_error(
             return APIClientValidationError(status_code, error)
         case _:
             return APIClientHTTPError(status_code, error)
+
+class APIClientInvalidJSONError(APIClientError):
+    """API вернул невалидный JSON."""
+
+    def __init__(
+        self,
+        *,
+        cause: Exception | None = None,
+    ) -> None:
+        super().__init__(
+            ErrorDetail(
+                code="invalid_json_response",
+                message="API вернул некорректный JSON",
+            ),
+            cause=cause,
+        )

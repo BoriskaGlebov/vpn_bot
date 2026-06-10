@@ -357,11 +357,10 @@ class SubscriptionRouter(BaseRouter):
             price_map = get_correct_price_map(premium=premium, founder=founder)
             price = price_map[months]
             sub_type = get_correct_sub_type(premium=premium, founder=founder)
-            upd_tx = (
-                await self.subscription_service.payment_service.mark_payment_started(
+            await self.subscription_service.payment_service.mark_payment_started(
                     transaction_id=transaction_id
                 )
-            )
+
 
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
@@ -399,6 +398,7 @@ class SubscriptionRouter(BaseRouter):
         """Обрабатывает отмену оформления подписки пользователем.
 
         Args:
+            callback_data: Данные кнопки
             query (CallbackQuery): Callback от кнопки "Отмена".
             state (FSMContext): Контекст FSM.
 

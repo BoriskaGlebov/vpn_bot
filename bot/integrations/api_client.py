@@ -5,10 +5,12 @@ from typing import Any
 import httpx
 from loguru import logger
 
+from bot.app_error.schema import ErrorDetail
 from bot.app_error.api_error import (
     APIClientConnectionError,
     APIClientError,
     map_http_error,
+    APIClientInvalidJSONError,
 )
 from shared.config.context import log_context
 
@@ -139,8 +141,7 @@ class APIClient:
                     exc,
                 )
                 if attempt == self.max_retries:
-                    raise APIClientConnectionError(
-                    ) from exc
+                    raise APIClientConnectionError() from exc
 
                 await asyncio.sleep(self.retry_delay)
             except httpx.RequestError as exc:
@@ -150,11 +151,10 @@ class APIClient:
                     url,
                     exc,
                 )
-                raise APIClientConnectionError(
-                    "Ошибка запроса",
-                    cause=exc,
-                ) from exc
-        raise APIClientError("Неизвестная ошибка", cause=last_exc)
+                raise APIClientConnectionError() from exc
+        raise APIClientError(
+            error=ErrorDetail(code="unknown_error", message="Неизвестная ошибка")
+        ) from last_exc
 
     async def _parse_json(self, response: httpx.Response) -> dict[str, Any]:
         """Парсит JSON с обработкой ошибок."""
@@ -167,9 +167,7 @@ class APIClient:
                 response.request.url,
                 response.status_code,
             )
-            raise APIClientError(
-                "Ответ API не является корректным JSON",
-                cause=exc,
+            raise APIClientInvalidJSONError(
             ) from exc
         return data
 

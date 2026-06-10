@@ -8,6 +8,8 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
+from bot.app_error.schema import ErrorDetail
+from bot.app_error.base_error import AppError, TelegramIdNotProvidedError
 from bot.admin.enums import ActionEnum, AdminModeKeys
 from bot.admin.keyboards.inline_kb import (
     AdminCB,
@@ -123,7 +125,7 @@ class AdminRouter(BaseRouter):
                 user_logger.error(
                     "Не передан telegram_id для редактирования пользователя"
                 )
-                raise ValueError("Необходимо передать в запрос telegram_id")
+                raise TelegramIdNotProvidedError()
             user_schema = await self.admin_service.get_user_by_telegram_id(
                 telegram_id=user_id
             )
@@ -187,8 +189,7 @@ class AdminRouter(BaseRouter):
 
             if user_id is None:
                 user_logger.error("Не передан telegram_id для смены роли")
-                raise ValueError("Необходимо передать в запрос telegram_id")
-
+                raise TelegramIdNotProvidedError()
             user_schema = await self.admin_service.change_user_role(
                 telegram_id=user_id,
                 role_name=role_name,
@@ -239,7 +240,7 @@ class AdminRouter(BaseRouter):
 
             if user_id is None or months is None:
                 user_logger.error("Не передан telegram_id или месяц для подписки")
-                raise ValueError("Необходимо передать в запрос telegram_id/month")
+                raise TelegramIdNotProvidedError(message="Необходимо передать в запрос telegram_id/month")
 
             months = int(months)
             try:

@@ -106,19 +106,21 @@ class AsyncSSHClientWG:
             logger.bind(user=self.username).debug(
                 f"AsyncSSH: подключение и shell-сессия установлены к {self.host}"
             )
-        except TimeoutError:
+        except TimeoutError as e:
             logger.bind(user=self.username).error(
                 f"AsyncSSH: таймаут подключения к {self.host}"
             )
             raise AmneziaSSHError(
                 message=f"SSH timeout при подключении к {self.host}:{self.port}"
-            )
+            ) from e
 
         except (OSError, asyncssh.Error) as exc:
             logger.bind(user=self.username).error(
                 f"AsyncSSH: ошибка подключения: {exc}"
             )
-            raise
+            raise AmneziaSSHError(
+                message=f"AsyncSSH: ошибка подключения: {exc}"
+            ) from exc
 
     async def write_single_cmd(self, cmd: str) -> tuple[str, str, int | None, str]:
         """Выполняет одну команду внутри контейнера.
@@ -162,7 +164,7 @@ class AsyncSSHClientWG:
             output = await self._process.stdout.readuntil("\n")
         except asyncio.IncompleteReadError as e:
             if e.partial == b"":
-                raise AmneziaSSHError("AsyncSSH: соединение закрыто при чтении stdout")
+                raise AmneziaSSHError("AsyncSSH: соединение закрыто при чтении stdout") from e
             raise
         while marker not in output:
             output += await self._process.stdout.readuntil("\n")

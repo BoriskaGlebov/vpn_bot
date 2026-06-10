@@ -4,6 +4,8 @@ import time
 import aioboto3
 from aiogram import Bot
 
+from bot.app_error.schema import ErrorDetail
+from bot.app_error.base_error import AppError, DeviceMediaMismatchError
 from bot.core.config import settings_bot
 from bot.help.keyboards.inline_kb import send_link_button
 
@@ -56,9 +58,7 @@ class Device:
         messages = cls.MESSAGES_PATH
         link = cls.LINK_PATH
         if len(media) != len(messages):
-            raise ValueError(
-                f"{cls.__name__}: media ({len(media)}) != messages ({len(messages)})"
-            )
+            raise DeviceMediaMismatchError(device=cls.__name__,media_len=len(media),messages_len=len(messages))
         for file, caption in zip(media, messages):
             await bot.send_photo(
                 chat_id=chat_id,

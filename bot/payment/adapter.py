@@ -76,6 +76,7 @@ class PaymentAPIAdapter:
             json=payload.model_dump(),
         )
         logger.debug("Транзакция создана, status={} response={}", status_code, data)
+
         return SPaymentTransactionResponse.model_validate(data)
 
     async def attach_provider_payment(

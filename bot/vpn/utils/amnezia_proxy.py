@@ -93,13 +93,15 @@ class AsyncDockerSSHClient:
             )
             raise AmneziaSSHError(
                 message=f"SSH timeout при подключении к {self.host}:{self.port}"
-            )
+            ) from TimeoutError
 
         except (OSError, asyncssh.Error) as exc:
             logger.bind(user=self.username).error(
                 f"AsyncSSH: ошибка подключения: {exc}"
             )
-            raise
+            raise AmneziaSSHError(
+                message=f"AsyncSSH: ошибка подключения: {exc}"
+            ) from exc
 
     async def write_single_cmd(self, cmd: str) -> tuple[str, str, int | None, str]:
         """Выполняет одну команду внутри контейнера.
@@ -134,7 +136,7 @@ class AsyncDockerSSHClient:
             )
         if self._process is None:
             raise AmneziaSSHError(
-                "AsyncSSH: shell-сессия не запущена. Вызови connect()"
+                message="AsyncSSH: shell-сессия не запущена. Вызови connect()"
             )
         marker = "__EXIT__"
         self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
@@ -197,7 +199,7 @@ class AsyncDockerSSHClient:
                     cmd=f"restart {self.container}",
                     stdout="",
                     stderr=str(e),
-                )
+                ) from e
         else:
             assert self._conn is not None
             cmd = f"docker restart {self.container}"
@@ -330,13 +332,13 @@ class AmneziaProxy:
         if exit_code == 0:
             try:
                 existing_password = stdout.strip().split(":")[2]
-            except (IndexError, ValueError):
+            except (IndexError, ValueError) as e:
                 raise AmneziaSSHError(
                     message="Некорректный формат строки пользователя",
                     cmd=check_cmd,
                     stdout=stdout,
                     stderr="",
-                )
+                ) from e
 
             logger.info(f"Пользователь {username} уже существует")
             return self._build_tg_link(username, existing_password)

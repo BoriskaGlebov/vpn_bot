@@ -2,6 +2,11 @@ import asyncio
 
 from aiogram import Bot
 
+from bot.app_error.base_error import (
+    DeviceEmptyMessagesError,
+    DeviceEmptyMediaError,
+    DeviceInstructionMismatchError,
+)
 from bot.core.config import settings_bot
 from bot.help.utils.common_device import Device
 
@@ -34,17 +39,13 @@ class HappDevice(Device):
         link = cls.LINK_PATH
 
         if not messages:
-            raise ValueError(f"{cls.__name__}: Пустой список инстуркций")
+            raise DeviceEmptyMessagesError(device=cls.__name__)
 
         if not media:
-            raise ValueError(f"{cls.__name__}: Нет файлов в  S3")
+            raise DeviceEmptyMediaError(device=cls.__name__)
 
         if len(messages) not in {len(media) + 1, len(media) + 2}:
-            raise ValueError(
-                f"{cls.__name__}: несоответствие длин media({len(media)}) "
-                f"и messages({len(messages)}). "
-                "Ожидается: вступление + подписи ко всем фото (+ опционально финал)"
-            )
+            raise DeviceInstructionMismatchError(cls.__name__,media=len(media),messages=len(messages))
 
         await bot.send_message(
             chat_id, messages[0].format(*link), disable_web_page_preview=True

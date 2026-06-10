@@ -82,7 +82,7 @@ async def edit_admin_messages(
                 )
                 continue
     else:
-        raise MessageNotFoundError(message="Ненайдено сообщение для редактирования.")
+        raise MessageNotFoundError()
 
     await admin_mess_storage.clear(user_id)
 

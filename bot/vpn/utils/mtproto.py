@@ -72,13 +72,13 @@ class HostDockerSSHClient(AsyncDockerSSHClient):
             logger.bind(user=self.username).debug(
                 f"AsyncSSH: подключение к {self.host} установлено"
             )
-        except TimeoutError:
+        except TimeoutError as e:
             logger.bind(user=self.username).error(
                 f"AsyncSSH: таймаут подключения к {self.host}"
             )
             raise AmneziaSSHError(
                 f"SSH timeout при подключении к {self.host}:{self.port}"
-            )
+            ) from e
         except (OSError, asyncssh.Error) as exc:
             logger.bind(user=self.username).error(
                 f"AsyncSSH: ошибка подключения: {exc}"

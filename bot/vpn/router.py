@@ -353,7 +353,7 @@ class VPNRouter(BaseRouter):
                     )
 
                     if "Активна" not in info:
-                        raise SubscriptionNotFoundError(user_id=user.id)
+                        raise SubscriptionNotFoundError(tg_id=user.id)
 
                 url_proxy = await self.vpn_service.get_mtproto_url(
                     ssh_client_factory=HostDockerSSHClient,

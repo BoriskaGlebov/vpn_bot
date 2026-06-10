@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -45,7 +46,7 @@ class BaseRouter(ABC):
             F:
 
         """
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             # если функция асинхронная
             @functools.wraps(func)
             async def async_wrapper(self: SelfT, *args: Any, **kwargs: Any) -> Any:
@@ -176,7 +177,7 @@ class BaseRouter(ABC):
             user = message.from_user
             if user is None:
                 self.logger.error("message.from_user is None")
-                return
+                return None
             return await func(self, message, user=user, *args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
@@ -208,10 +209,10 @@ class BaseRouter(ABC):
             msg = query.message
             if msg is None:
                 self.logger.error("CallbackQuery.message is None")
-                return
+                return None
             if isinstance(msg, InaccessibleMessage):
                 self.logger.warning("CallbackQuery.message is InaccessibleMessage")
-                return
+                return None
             return await func(self, query, msg, *args, **kwargs)
 
         return wrapper  # type: ignore[return-value]

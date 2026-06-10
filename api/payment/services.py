@@ -169,8 +169,7 @@ class PaymentService:
         logger.success(
             f"[SERVICE] Платежная транзакция успешно создана. Transaction ID={res.id}"
         )
-
-        return SPaymentTransactionResponse.model_construct(**res.to_dict())
+        return SPaymentTransactionResponse.model_validate(res)
 
     async def get_by_gateway_id(
         self,
@@ -218,8 +217,7 @@ class PaymentService:
             tx.id,
         )
 
-        return SPaymentTransactionResponse.model_construct(**tx.to_dict())
-
+        return SPaymentTransactionResponse.model_validate(tx)
     async def attach_provider_payment(
         self,
         session: AsyncSession,
@@ -275,7 +273,7 @@ class PaymentService:
             f"internal_id={transaction_id} gateway_transaction_id={gateway_info.gateway_transaction_id}"
         )
 
-        return SPaymentTransactionResponse.model_construct(**transaction.to_dict())
+        return SPaymentTransactionResponse.model_validate(transaction)
 
     async def mark_payment_started(
         self,
@@ -323,8 +321,7 @@ class PaymentService:
             f"[SERVICE] Начало обработки платежа зафиксировано "
             f"| transaction_id={transaction_id}"
         )
-        return SPaymentTransactionResponse.model_construct(**transaction.to_dict())
-
+        return SPaymentTransactionResponse.model_validate(transaction)
     async def admin_confirm_transaction(
         self, data: SAdminConfirmPayment, session: AsyncSession
     ) -> SPaymentTransactionResponse:
@@ -366,7 +363,7 @@ class PaymentService:
         logger.success(
             f"[SERVICE] Транзакция подтверждена администратором. Transaction ID={data.id}"
         )
-        return SPaymentTransactionResponse.model_construct(**tx.to_dict())
+        return SPaymentTransactionResponse.model_validate(tx)
 
     async def webhook_confirm_transaction(
         self, data: STransactionIDFilter, session: AsyncSession
@@ -406,7 +403,7 @@ class PaymentService:
         )
         await session.refresh(tx)
         logger.success(f"[SERVICE] Транзакция подтверждена. Transaction ID={data.id}")
-        return SPaymentTransactionResponse.model_construct(**tx.to_dict())
+        return SPaymentTransactionResponse.model_validate(tx)
 
     async def cancel_transaction(
         self,
@@ -444,7 +441,7 @@ class PaymentService:
         )
         await session.refresh(tx)
         logger.success(f"[SERVICE] Транзакция отменена. Transaction ID={data.id}")
-        return SPaymentTransactionResponse.model_construct(**tx.to_dict())
+        return SPaymentTransactionResponse.model_validate(tx)
 
     async def get_year_income(
         self,

@@ -18,7 +18,7 @@ from aiogram.exceptions import (
     TelegramServerError,
     TelegramUnauthorizedError,
 )
-from aiogram.types import CallbackQuery, Message, TelegramObject
+from aiogram.types import CallbackQuery, Message, TelegramObject, User
 from loguru._logger import Logger
 
 from bot.app_error.schema import ErrorEnvelope, ErrorDetail
@@ -44,7 +44,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
         # 1. Уже новый формат (если вдруг прилетает из API слоя)
         if isinstance(exc, AppError | APIClientError):
-            return ErrorEnvelope(error=exc.error)
+            return exc.to_envelope()
         if isinstance(exc, TelegramRetryAfter):
             return ErrorEnvelope(
                 error=ErrorDetail(
@@ -103,10 +103,12 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
         match code:
             case "vpn_limit_reached":
-                return (f"⚠️ Достигнут лимит конфигов ({details.get("limit",0)}/{details.get("limit",0)}).\n\n"
-                        f"🚀 В премиум-подписке доступно больше конфигов и расширенные возможности.\n\n"
-                        f"Подключить премиум или задать вопрос:\n"
-                        f"💬 @BorisisTheBlade")
+                return (
+                    f"⚠️ Достигнут лимит конфигов ({details.get('limit', 0)}/{details.get('limit', 0)}).\n\n"
+                    f"🚀 В премиум-подписке доступно больше конфигов и расширенные возможности.\n\n"
+                    f"Подключить премиум или задать вопрос:\n"
+                    f"💬 @BorisisTheBlade"
+                )
 
             case "subscription_not_found":
                 return "⚠️ Подписка не найдена."
@@ -118,21 +120,23 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             case "telegram_bad_request":
                 return f"⚠️ Неверный запрос: {message}"
 
-
-
             case "unexpected_error":
                 return settings_bot.messages.general.common_error
 
             case _:
                 return message
 
-    def _log_exception(self, event: TelegramObject, envelope: ErrorEnvelope) -> None:
+    def _log_exception(
+        self, event: TelegramObject, envelope: ErrorEnvelope, exc: Exception
+    ) -> None:
         user = getattr(getattr(event, "from_user", None), "id", None)
-
+        cause = exc.__cause__
         self.logger.bind(user=user).error(
             f"\n[code] {envelope.error.code}\n"
             f"[message] {envelope.error.message}\n"
-            f"[details] {envelope.error.details}"
+            f"[details] {envelope.error.details}\n"
+            f"[cause_type] {type(cause).__name__ if cause else 'None'}\n"
+            f"[cause_message] {str(cause) if cause else 'None'}"
         )
 
     async def _safe_send_error(self, event: TelegramObject, text: str) -> None:
@@ -146,14 +150,18 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             self.logger.warning("Не удалось отправить ошибку пользователю")
 
     async def _notify_admins_envelope(
-        self,
-        event: TelegramObject,
-        envelope: ErrorEnvelope,
+        self, event: TelegramObject, envelope: ErrorEnvelope, exc: Exception
     ) -> None:
         try:
             user = getattr(event, "from_user", None)
-            user_info = f"{user.username} ({user.id})" if user else "Unknown user"
 
+            if isinstance(user, User):
+                username = f"@{user.username}" or "UndefinedUsername"
+                user_id = user.id
+                user_info = f"{username} ({user_id})"
+            else:
+                user_info = "Unknown user"
+            cause = exc.__cause__
             msg = (
                 f"⚠️ Возникла ошибка\n"
                 f"user: {user_info}\n"
@@ -161,6 +169,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                 f"message: {envelope.error.message}\n"
                 f"details: {envelope.error.details}"
             )
+            if cause:
+                msg+=(f"\n[ПЕРВОПРИЧИНА]\n"
+                      f"cause_type: {type(cause).__name__ if cause else 'None'}\n"
+                      f"cause_message: {str(cause) if cause else 'None'}")
 
             for admin_id in settings_bot.core.admin_ids:
                 await self.bot.send_message(admin_id, msg)
@@ -183,10 +195,8 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             user_message = self._resolve_user_message(envelope)
             await self._safe_send_error(event, user_message)
 
-            await self._notify_admins_envelope(event, envelope)
+            await self._notify_admins_envelope(event, envelope,exc)
 
-            self._log_exception(event, envelope)
+            self._log_exception(event, envelope, exc)
 
             return None
-
-
