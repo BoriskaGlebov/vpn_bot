@@ -130,7 +130,7 @@ async def confirm_transaction(
         months=tx.subscription_months,
         premium=tx.is_premium,
     )
-    ref_res, inviter = await ref_service.grant_referral_bonus(
+    ref_res, inviter, message = await ref_service.grant_referral_bonus(
         session=session,
         invited_user=sub_res,
     )
@@ -140,7 +140,7 @@ async def confirm_transaction(
         referral_res=GrantReferralBonusResponse(
             success=ref_res,
             inviter_telegram_id=inviter,
-            message="Бонус по реферально программе начислен",
+            message=message,
         ),
     )
 

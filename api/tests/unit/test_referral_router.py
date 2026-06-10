@@ -14,7 +14,13 @@ def mock_referral_service():
     service = MagicMock(spec=ReferralService)
 
     service.register_referral = AsyncMock()
-    service.grant_referral_bonus = AsyncMock(return_value=(True, 123))
+    service.grant_referral_bonus = AsyncMock(
+        return_value=(
+            True,
+            123,
+            "Бонус за подписчика предоставлен",
+        )
+    )
 
     return service
 
@@ -105,6 +111,7 @@ def test_grant_bonus_success(client, mock_referral_service):
         data = response.json()
         assert data["success"] is True
         assert data["inviter_telegram_id"] == 123
+        assert data["message"] == "Бонус за подписчика предоставлен"
 
         mock_referral_service.grant_referral_bonus.assert_awaited_once()
 
