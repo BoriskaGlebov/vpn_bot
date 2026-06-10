@@ -3,9 +3,6 @@ import datetime
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.app_error.base_error import (
-    ReferralBonusAlreadyGivenError,
-)
 from api.referrals.dao import ReferralDAO
 from api.referrals.schemas import SReferralByInvite
 from api.subscription.dao import SubscriptionDAO
@@ -120,7 +117,10 @@ class ReferralService:
             logger.info(
                 f"Бонус за друга уже начислен пользователю {invited_user.telegram_id}"
             )
-            raise ReferralBonusAlreadyGivenError(invited_user.telegram_id)
+
+            # TODO БЫстро фиксил бонус то уже выдан надо корректно отдать ответ боту об этом и все.
+            # raise ReferralBonusAlreadyGivenError(invited_user.telegram_id)
+            return False, invited_user.telegram_id
 
         inviter = referral.inviter
         current_sub = inviter.current_subscription
