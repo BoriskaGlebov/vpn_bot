@@ -167,13 +167,14 @@ async def test_grant_referral_bonus_no_referral(mock_session):
         "api.referrals.services.ReferralDAO.find_one_or_none",
         new=AsyncMock(return_value=None),
     ):
-        result, telegram_id = await service.grant_referral_bonus(
+        result, telegram_id, message = await service.grant_referral_bonus(
             session=mock_session,
             invited_user=invited_user,
         )
 
         assert result is False
         assert telegram_id == invited_user.telegram_id
+        assert message == f"У пользователя не было приглашения {telegram_id}"
 
 
 from api.app_error.base_error import ReferralBonusAlreadyGivenError
@@ -196,18 +197,27 @@ async def test_grant_referral_bonus_already_given(mock_session):
         current_subscription=None,
     )
 
+    inviter = MagicMock()
+    inviter.telegram_id = 111
+
     referral = MagicMock()
     referral.bonus_given = True
+    referral.inviter = inviter
 
     with patch(
         "api.referrals.services.ReferralDAO.find_one_or_none",
         new=AsyncMock(return_value=referral),
     ):
-        with pytest.raises(ReferralBonusAlreadyGivenError):
-            await service.grant_referral_bonus(
-                session=mock_session,
-                invited_user=invited_user,
-            )
+        result, telegram_id, message = await service.grant_referral_bonus(
+            session=mock_session,
+            invited_user=invited_user,
+        )
+
+        assert result is False
+        assert telegram_id == 111
+        assert message == "Бонус за друга уже начислен пользователю 111"
+
+        mock_session.flush.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -245,7 +255,7 @@ async def test_grant_referral_bonus_create_subscription(mock_session):
             new=AsyncMock(),
         ) as mock_activate,
     ):
-        result, telegram_id = await service.grant_referral_bonus(
+        result, telegram_id, message = await service.grant_referral_bonus(
             session=mock_session,
             invited_user=invited_user,
             months=2,
@@ -253,6 +263,10 @@ async def test_grant_referral_bonus_create_subscription(mock_session):
 
         assert result is True
         assert telegram_id == inviter.telegram_id
+        assert (
+            message
+            == "Бонус за подписчика предоставлен: inviter=111, invited=222, months=2"
+        )
         assert referral.bonus_given is True
         assert referral.bonus_given_at is not None
         mock_activate.assert_awaited_once()
@@ -289,7 +303,7 @@ async def test_grant_referral_bonus_extend_subscription(mock_session):
         "api.referrals.services.ReferralDAO.find_one_or_none",
         new=AsyncMock(return_value=referral),
     ):
-        result, telegram_id = await service.grant_referral_bonus(
+        result, telegram_id, message = await service.grant_referral_bonus(
             session=mock_session,
             invited_user=invited_user,
             months=3,
@@ -297,6 +311,10 @@ async def test_grant_referral_bonus_extend_subscription(mock_session):
 
         assert result is True
         assert telegram_id == inviter.telegram_id
+        assert (
+            message
+            == "Бонус за подписчика предоставлен: inviter=111, invited=222, months=3"
+        )
         subscription.extend.assert_called_once_with(months=3)
         assert referral.bonus_given is True
         assert referral.bonus_given_at is not None
