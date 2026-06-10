@@ -5,7 +5,7 @@ from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
-from bot.core.config import settings_bot
+from bot.core.config import bot, settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
@@ -206,3 +206,10 @@ class Container:
         await self.api_client.close()
         for client in self._xray_clients:
             await client.close()
+
+
+if __name__ == "__main__":
+    print("G")
+    c = Container(bot=bot)
+    print(settings_bot.redis.default_expire)
+    print(c.redis_manager.default_expire)
