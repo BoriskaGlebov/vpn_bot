@@ -120,7 +120,7 @@ class ReferralService:
 
             # TODO БЫстро фиксил бонус то уже выдан надо корректно отдать ответ боту об этом и все.
             # raise ReferralBonusAlreadyGivenError(invited_user.telegram_id)
-            return False, invited_user.telegram_id
+            return False, referral.inviter.telegram_id
 
         inviter = referral.inviter
         current_sub = inviter.current_subscription
