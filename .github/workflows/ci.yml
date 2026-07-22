@@ -380,4 +380,5 @@ jobs:
             echo "Restart Docker containers..."
             make compose-down
             make compose-up
+
           EOF
