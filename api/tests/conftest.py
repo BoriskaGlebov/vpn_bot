@@ -1,4 +1,6 @@
 import os
+from contextlib import contextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,6 +17,27 @@ from api.payment.dependencies import get_payment_service
 from api.payment.schemas import SYearIncome
 from api.users.models import User
 from api.users.utils.init_default_roles import init_default_roles_admins
+from shared.enums.admin_enum import RoleEnum
+
+
+def fake_user(role: str = RoleEnum.USER.value) -> SimpleNamespace:
+    """Лёгкая замена get_current_user для роутер-тестов (без похода в БД)."""
+    return SimpleNamespace(
+        id=1,
+        telegram_id=123,
+        username="test",
+        has_used_trial=False,
+        role=SimpleNamespace(name=role),
+    )
+
+
+def fake_admin() -> SimpleNamespace:
+    """Лёгкая замена check_admin_role для роутер-тестов (без похода в БД)."""
+    return SimpleNamespace(
+        id=1,
+        telegram_id=123,
+        role=SimpleNamespace(name=RoleEnum.ADMIN.value),
+    )
 
 
 @pytest.fixture
@@ -118,3 +141,36 @@ def mock_execute_result():
 def mock_session() -> AsyncMock:
     """Мок асинхронной сессии SQLAlchemy."""
     return AsyncMock(spec=AsyncSession)
+
+
+@pytest.fixture
+def make_client():
+    """Фабрика TestClient с настраиваемыми dependency_overrides.
+
+    Убирает дублирование boilerplate (patch init_default_roles_admins +
+    dependency_overrides + очистка) из client-фикстур каждого роутер-теста.
+    Использование:
+
+        @pytest.fixture
+        def client(make_client, mock_service, mock_session):
+            with make_client({
+                get_news_service: lambda: mock_service,
+                get_session: lambda: mock_session,
+            }) as c:
+                yield c
+    """
+
+    @contextmanager
+    def _make_client(overrides: dict):
+        with patch(
+            "api.main.init_default_roles_admins",
+            new=AsyncMock(),
+        ):
+            app.dependency_overrides.update(overrides)
+            try:
+                with TestClient(app) as c:
+                    yield c
+            finally:
+                app.dependency_overrides.clear()
+
+    return _make_client

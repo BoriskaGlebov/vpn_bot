@@ -1,4 +1,13 @@
-from datetime import datetime
+"""Тесты PaymentService — оркестрации платежных транзакций.
+
+Сервис вызывает ``SPaymentTransactionResponse.model_validate(obj)`` на ORM-объекте
+транзакции (``from_attributes=True``), поэтому моки транзакций должны быть
+объектами с реальными значениями атрибутов, а не ``Mock()`` с заглушками —
+иначе pydantic попытается провалидировать сами объекты Mock как поля. Для этого
+используется фабрика ``make_transaction()`` ниже.
+"""
+
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
@@ -24,6 +33,35 @@ from api.payment.schemas import (
 from api.payment.services import PaymentService
 
 
+def make_transaction(**overrides) -> SimpleNamespace:
+    """Строит объект транзакции с полями, валидными для SPaymentTransactionResponse.
+
+    Используется вместо ``Mock(spec=PaymentTransaction)`` там, где сервис
+    вызывает ``model_validate`` напрямую на возвращаемом DAO объекте — pydantic
+    читает атрибуты через ``getattr``, а не через ``to_dict()``.
+    """
+    defaults = {
+        "id": uuid4(),
+        "user_id": 1,
+        "tg_id": 123,
+        "amount": 1000,
+        "currency": "RUB",
+        "status": PaymentStatus.PENDING,
+        "source": PaymentSource.MANUAL,
+        "subscription_months": 1,
+        "is_premium": False,
+        "is_founder": False,
+        "description": None,
+        "created_by_admin_id": None,
+        "confirmed_by_admin_id": None,
+        "gateway_transaction_id": None,
+        "confirmed_at": None,
+        "paid_at": None,
+    }
+    defaults.update(overrides)
+    return SimpleNamespace(**defaults)
+
+
 @pytest.fixture
 def payment_service() -> PaymentService:
     return PaymentService(
@@ -43,6 +81,7 @@ async def test_get_transaction_or_raise_success(
     mock_session,
     mock_transaction,
 ):
+    """Возвращает транзакцию, найденную DAO по ID."""
     transaction_id = uuid4()
 
     with patch.object(
@@ -68,6 +107,7 @@ async def test_get_transaction_or_raise_not_found(
     payment_service,
     mock_session,
 ):
+    """Бросает PaymentTransactionNotFoundError, если DAO вернул None."""
     transaction_id = uuid4()
 
     with patch.object(
@@ -88,14 +128,15 @@ async def test_get_transaction_or_raise_not_found(
 
 
 def test_ensure_pending_ok(payment_service):
+    """Не бросает исключение для транзакции в статусе PENDING."""
     tx = Mock()
     tx.status = PaymentStatus.PENDING
 
-    # не должно падать
     payment_service._ensure_pending(tx)
 
 
 def test_ensure_pending_raises(payment_service):
+    """Бросает PaymentAlreadyProcessedError для уже обработанной транзакции."""
     tx = Mock()
     tx.id = "test-id"
     tx.status = PaymentStatus.PAID  # любой НЕ PENDING
@@ -111,6 +152,7 @@ async def test_create_transaction_success(
     payment_service,
     mock_session,
 ):
+    """Создаёт транзакцию через DAO и возвращает её в виде схемы ответа."""
     user = Mock()
     user.id = 10
 
@@ -124,13 +166,14 @@ async def test_create_transaction_success(
         "description": "test",
     }
 
-    db_result = Mock(spec=PaymentTransaction)
-    db_result.id = uuid4()
-    db_result.to_dict.return_value = {
-        "id": str(db_result.id),
-        "user_id": 10,
-        "amount": 1000,
-    }
+    db_result = make_transaction(
+        user_id=10,
+        amount=1000,
+        currency="RUB",
+        subscription_months=3,
+        is_premium=True,
+        description="test",
+    )
 
     with patch.object(
         PaymentTransactionDAO,
@@ -163,6 +206,7 @@ async def test_create_transaction_success(
 
     # результат
     assert result is not None
+    assert result.id == db_result.id
 
 
 @pytest.mark.asyncio
@@ -170,28 +214,17 @@ async def test_get_by_gateway_id_success(
     payment_service,
     mock_session,
 ):
+    """Находит транзакцию по gateway_transaction_id и возвращает её."""
     gateway_id = "bd3ba8d9-b027-446d-aec1-9cdd118925c7"
 
-    db_tx = Mock(spec=PaymentTransaction)
-    db_tx.id = uuid4()
-    db_tx.to_dict.return_value = {
-        "id": db_tx.id,
-        "user_id": 1,
-        "tg_id": 123,
-        "amount": 100,
-        "currency": "RUB",
-        "status": "PAID",
-        "source": "GATEWAY",
-        "subscription_months": 3,
-        "is_premium": False,
-        "is_founder": False,
-        "description": None,
-        "created_by_admin_id": None,
-        "confirmed_by_admin_id": None,
-        "gateway_transaction_id": gateway_id,
-        "confirmed_at": None,
-        "paid_at": None,
-    }
+    db_tx = make_transaction(
+        tg_id=123,
+        amount=100,
+        status=PaymentStatus.PAID,
+        source=PaymentSource.GATEWAY,
+        subscription_months=3,
+        gateway_transaction_id=gateway_id,
+    )
 
     with patch.object(
         PaymentTransactionDAO,
@@ -223,6 +256,7 @@ async def test_get_by_gateway_id_not_found(
     payment_service,
     mock_session,
 ):
+    """Бросает PaymentTransactionNotFoundError, если транзакция не найдена."""
     gateway_id = "bd3ba8d9-b027-446d-aec1-9cdd118925c7"
 
     with patch.object(
@@ -247,6 +281,7 @@ async def test_attach_provider_payment_success(
     payment_service,
     mock_session,
 ):
+    """Привязывает данные провайдера к транзакции и возвращает обновлённую запись."""
     transaction_id = uuid4()
 
     gateway_info = Mock()
@@ -254,25 +289,11 @@ async def test_attach_provider_payment_success(
     gateway_info.gateway_payload = {"key": "value"}
     gateway_info.source = "GATEWAY"
 
-    updated_tx = Mock(spec=PaymentTransaction)
-    updated_tx.to_dict.return_value = {
-        "id": str(transaction_id),
-        "gateway_transaction_id": "gw_123",
-        "user_id": 1,
-        "tg_id": 123,
-        "amount": 100,
-        "currency": "RUB",
-        "status": "PENDING",
-        "source": "GATEWAY",
-        "subscription_months": 1,
-        "is_premium": False,
-        "is_founder": False,
-        "description": None,
-        "created_by_admin_id": None,
-        "confirmed_by_admin_id": None,
-        "confirmed_at": None,
-        "paid_at": None,
-    }
+    updated_tx = make_transaction(
+        id=transaction_id,
+        gateway_transaction_id="gw_123",
+        source=PaymentSource.GATEWAY,
+    )
 
     with (
         patch.object(
@@ -317,6 +338,7 @@ async def test_attach_provider_payment_not_found(
     payment_service,
     mock_session,
 ):
+    """Бросает PaymentTransactionNotFoundError и не идёт за fetch при неудачном update."""
     transaction_id = uuid4()
 
     gateway_info = Mock()
@@ -358,24 +380,15 @@ async def test_mark_payment_started_success(
     payment_service,
     mock_session,
 ):
+    """Фиксирует paid_at фиксированным временем и возвращает обновлённую транзакцию."""
     transaction_id = uuid4()
     fixed_time = datetime(2024, 1, 1, 12, 0, 0)
 
-    updated_tx = Mock(spec=PaymentTransaction)
-    updated_tx.to_dict.return_value = {
-        "id": transaction_id,
-        "paid_at": fixed_time.isoformat(),
-        "status": "PENDING",
-        "user_id": 1,
-        "tg_id": 123,
-        "amount": 100,
-        "currency": "RUB",
-        "subscription_months": 1,
-        "is_premium": False,
-        "is_founder": False,
-        "description": None,
-        "source": "GATEWAY",
-    }
+    updated_tx = make_transaction(
+        id=transaction_id,
+        paid_at=fixed_time,
+        source=PaymentSource.GATEWAY,
+    )
 
     with (
         patch.object(
@@ -420,6 +433,7 @@ async def test_mark_payment_started_not_found(
     payment_service,
     mock_session,
 ):
+    """Бросает PaymentTransactionNotFoundError и не идёт за fetch при неудачном update."""
     transaction_id = uuid4()
 
     with (
@@ -452,19 +466,14 @@ async def test_admin_confirm_transaction_success(
     payment_service,
     mock_session,
 ):
+    """Переводит транзакцию в PAID с указанием подтвердившего администратора."""
     transaction_id = uuid4()
 
     data = Mock()
     data.id = transaction_id
     data.admin_id = 99
 
-    tx = Mock(spec=PaymentTransaction)
-    tx.status = PaymentStatus.PENDING
-    tx.to_dict.return_value = {
-        "id": str(transaction_id),
-        "status": "PAID",
-        "confirmed_by_admin_id": 99,
-    }
+    tx = make_transaction(id=transaction_id, confirmed_by_admin_id=99)
 
     with (
         patch.object(
@@ -520,6 +529,7 @@ async def test_admin_confirm_transaction_not_found(
     payment_service,
     mock_session,
 ):
+    """Не трогает статус и не обновляет БД, если транзакция не найдена."""
     data = Mock()
     data.id = uuid4()
     data.admin_id = 1
@@ -561,6 +571,7 @@ async def test_admin_confirm_transaction_not_pending(
     payment_service,
     mock_session,
 ):
+    """Не обновляет БД, если транзакция уже была обработана ранее."""
     data = Mock()
     data.id = uuid4()
     data.admin_id = 1
@@ -604,18 +615,13 @@ async def test_webhook_confirm_transaction_success(
     payment_service,
     mock_session,
 ):
+    """Переводит транзакцию в PAID по данным webhook платёжного провайдера."""
     transaction_id = uuid4()
 
     data = Mock()
     data.id = transaction_id
 
-    tx = Mock(spec=PaymentTransaction)
-    tx.status = PaymentStatus.PENDING
-    tx.to_dict.return_value = {
-        "id": str(transaction_id),
-        "status": "PAID",
-        "source": "GATEWAY",
-    }
+    tx = make_transaction(id=transaction_id, source=PaymentSource.GATEWAY)
 
     with (
         patch.object(
@@ -679,6 +685,7 @@ async def test_webhook_confirm_transaction_not_found(
     payment_service,
     mock_session,
 ):
+    """Не трогает статус и не обновляет БД, если транзакция не найдена."""
     data = Mock()
     data.id = uuid4()
 
@@ -719,6 +726,7 @@ async def test_webhook_confirm_transaction_not_pending(
     payment_service,
     mock_session,
 ):
+    """Не обновляет БД, если транзакция уже была обработана ранее."""
     data = Mock()
     data.id = uuid4()
 
@@ -761,17 +769,13 @@ async def test_cancel_transaction_success(
     payment_service,
     mock_session,
 ):
+    """Переводит транзакцию в CANCELED."""
     transaction_id = uuid4()
 
     data = Mock()
     data.id = transaction_id
 
-    tx = Mock(spec=PaymentTransaction)
-    tx.status = PaymentStatus.PENDING
-    tx.to_dict.return_value = {
-        "id": str(transaction_id),
-        "status": "CANCELED",
-    }
+    tx = make_transaction(id=transaction_id, status=PaymentStatus.CANCELED)
 
     with (
         patch.object(
@@ -823,6 +827,7 @@ async def test_cancel_transaction_not_found(
     payment_service,
     mock_session,
 ):
+    """Не трогает статус и не обновляет БД, если транзакция не найдена."""
     data = Mock()
     data.id = uuid4()
 
@@ -863,6 +868,7 @@ async def test_cancel_transaction_not_pending(
     payment_service,
     mock_session,
 ):
+    """Не обновляет БД, если транзакция уже была обработана ранее."""
     data = Mock()
     data.id = uuid4()
 
@@ -905,6 +911,7 @@ async def test_get_year_income_with_year(
     payment_service,
     mock_session,
 ):
+    """Запрашивает у DAO доход за конкретно указанный год."""
     year = 2024
     dao_result = 123456
 
@@ -933,6 +940,7 @@ async def test_get_year_income_default_year(
     payment_service,
     mock_session,
 ):
+    """Не указывает год явно — DAO сам подставляет текущий."""
     dao_result = 999
 
     with patch.object(
@@ -955,27 +963,9 @@ async def test_get_year_income_default_year(
     assert result.year_income == dao_result
 
 
-class DummyTx:
-    def __init__(self):
-        self.id = uuid4()
-        self.tg_id = 123
-        self.user_id = 456
-        self.subscription_months = 3
-        self.is_premium = True
-        self.is_founder = False
-        self.description = None
-        self.created_by_admin_id = None
-        self.confirmed_by_admin_id = None
-        self.gateway_transaction_id = "gw_123"
-        self.confirmed_at = datetime.utcnow()
-        self.paid_at = datetime.utcnow()
-        self.amount = 1000
-        self.currency = "RUB"
-        self.status = PaymentStatus.PAID
-        self.source = PaymentSource.GATEWAY
-
-
 class DummyUser:
+    """Минимальный объект пользователя для orchestration-тестов confirm_payment_flow."""
+
     def __init__(self):
         self.id = 1
         self.telegram_id = 123
@@ -989,23 +979,25 @@ class DummyUser:
         self.current_subscription = None
 
 
-class DummyReferral:
-    def __init__(self):
-        self.success = True
-        self.inviter_telegram_id = 999
-        self.message = "ok"
-
-
 @pytest.mark.asyncio
 async def test_confirm_payment_flow_gateway_success(
     payment_service,
     mock_session,
 ):
+    """GATEWAY-источник: подтверждение через webhook, активация подписки и бонус."""
     data = STransactionIDFilter(id=uuid4())
 
-    tx = DummyTx()
+    tx = make_transaction(
+        subscription_months=3,
+        is_premium=True,
+        source=PaymentSource.GATEWAY,
+        status=PaymentStatus.PAID,
+        gateway_transaction_id="gw_123",
+        confirmed_at=datetime.now(UTC),
+        paid_at=datetime.now(UTC),
+    )
     sub_res = DummyUser()
-    referral = (True, 999)
+    referral = (True, 999, "Бонус за подписчика предоставлен")
 
     with (
         patch.object(
@@ -1042,16 +1034,18 @@ async def test_confirm_payment_flow_manual_success(
     payment_service,
     mock_session,
 ):
+    """MANUAL-источник: подтверждение администратором, без реферального бонуса."""
     data = SimpleNamespace(id=uuid4())
 
-    tx = DummyTx()
-    tx.tg_id = 111
-    tx.subscription_months = 1
-    tx.is_premium = False
-
+    tx = make_transaction(
+        tg_id=111,
+        subscription_months=1,
+        is_premium=False,
+        source=PaymentSource.MANUAL,
+        status=PaymentStatus.PAID,
+    )
     sub_res = DummyUser()
-
-    referral_result = (False, None)
+    referral_result = (False, None, "нет приглашения")
 
     with (
         patch.object(
@@ -1096,9 +1090,16 @@ async def test_confirm_payment_flow_referral_already_given(
     payment_service,
     mock_session,
 ):
+    """Реферальный бонус уже был начислен ранее — flow не падает, просто не выдаёт бонус повторно."""
     data = SimpleNamespace(id=uuid4())
 
-    tx = DummyTx()
+    tx = make_transaction(
+        subscription_months=3,
+        is_premium=True,
+        source=PaymentSource.GATEWAY,
+        status=PaymentStatus.PAID,
+        gateway_transaction_id="gw_123",
+    )
     sub_res = DummyUser()
 
     with (
@@ -1138,11 +1139,11 @@ async def test_confirm_payment_flow_referral_already_given(
 
 
 @pytest.mark.asyncio
-@pytest.mark.asyncio
 async def test_confirm_payment_flow_manual_missing_admin(
     payment_service,
     mock_session,
 ):
+    """MANUAL-источник без admin_id — недопустимая комбинация, бросает ValueError."""
     data = STransactionIDFilter(id=uuid4())
 
     with pytest.raises(ValueError):
