@@ -1,6 +1,11 @@
+from markupsafe import Markup
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter
+from sqlalchemy import Select, select
+from sqlalchemy.orm import selectinload
+from starlette.requests import Request
 
+from api.admin.badges import SUBSCRIPTION_BADGE_COLORS, badge
 from api.subscription.models import Subscription
 from api.users.models import User
 
@@ -11,14 +16,16 @@ def fmt_remaining_days(m: Subscription, _: str) -> str:
     return "∞" if value is None else str(value)
 
 
-def fmt_type(m: Subscription, _: str) -> str:
-    """Форматер для типа подписки."""
-    return m.type.value.upper() if m.type else "-"
+def fmt_type(m: Subscription, _: str) -> Markup:
+    """Форматер для типа подписки цветным бейджем."""
+    if not m.type:
+        return Markup("-")
+    return badge(m.type.name, SUBSCRIPTION_BADGE_COLORS.get(m.type.value, "secondary"))
 
 
-def fmt_active(m: Subscription, _: str) -> str:
+def fmt_active(m: Subscription, _: str) -> Markup:
     """Форматер для статуса подписки."""
-    return "🟢 АКТИВНА" if m.is_active else "🔴 НЕТ"
+    return badge("активна", "success") if m.is_active else badge("нет", "secondary")
 
 
 def fmt_user(m: Subscription, _: str) -> str:
@@ -113,3 +120,29 @@ class SubscriptionAdmin(ModelView, model=Subscription):
     can_delete = False
     can_view_details = True
     details_template = "admin/subscription_details.html"
+
+    def _with_eager_options(
+        self, stmt: Select[tuple[Subscription]]
+    ) -> Select[tuple[Subscription]]:
+        """Добавляет к запросу предзагрузку пользователя.
+
+        sqladmin открывает и закрывает свою сессию на каждый запрос
+        (``ModelView._run_query``); без явного eager loading здесь
+        обращение к ``Subscription.user`` в шаблоне/форматтере ``fmt_user``
+        падает с ``DetachedInstanceError``/``MissingGreenlet``.
+        """
+        return stmt.options(selectinload(Subscription.user))
+
+    def list_query(self, request: Request) -> Select[tuple[Subscription]]:
+        """Запрос для списка подписок (все строки, без фильтра по pk)."""
+        return self._with_eager_options(select(Subscription))
+
+    def details_query(self, request: Request) -> Select[tuple[Subscription]]:
+        """Запрос для страницы деталей — конкретная подписка по pk из URL.
+
+        Важно: без ``self._stmt_by_identifier(...)`` запрос вернёт все строки
+        таблицы, и sqladmin возьмёт первую попавшуюся (``rows[0]``) — то есть
+        всегда одну и ту же подписку независимо от pk в адресе.
+        """
+        stmt = self._stmt_by_identifier(request.path_params["pk"])
+        return self._with_eager_options(stmt)

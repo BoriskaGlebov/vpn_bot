@@ -138,7 +138,9 @@ class Container:
             default_expire=settings_bot.redis.default_expire,
         )
         self.api_client = APIClient(
-            base_url=settings_bot.api.url, port=settings_bot.api.port
+            base_url=settings_bot.api.url,
+            port=settings_bot.api.port,
+            internal_secret=settings_bot.api.secret.get_secret_value(),
         )
         # 2. ADAPTERS API (обычные)
         self.user_adapter = UsersAPIAdapter(client=self.api_client)

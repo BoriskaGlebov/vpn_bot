@@ -75,11 +75,18 @@ class ApiSettings(SettingsCommon):
     Attributes
         url (str): Хост или путь API.
         port (int): Порт API.
+        secret (SecretStr): Общий секрет для подписи запросов бота к api/
+            (заголовок X-Internal-Secret). Должен совпадать со значением
+            INTERNAL_API_SECRET на стороне api/.
 
     """
 
     url: str = "api"
     port: int = 8089
+    secret: SecretStr = Field(
+        default=SecretStr("secret"),
+        validation_alias="INTERNAL_API_SECRET",
+    )
 
     model_config = SettingsConfigDict(env_prefix="API_")
 

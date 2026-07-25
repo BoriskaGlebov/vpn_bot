@@ -78,7 +78,7 @@ class Subscription(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    user: Mapped["User"] = relationship(back_populates="subscriptions")
+    user: Mapped["User"] = relationship(back_populates="subscriptions", lazy="selectin")
 
     def __str__(self) -> str:
         """Строковое представление."""

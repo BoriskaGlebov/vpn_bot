@@ -11,6 +11,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.responses import JSONResponse
 from starlette.templating import Jinja2Templates
 
+from api.admin.badges import (
+    PAYMENT_BADGE_COLORS,
+    ROLE_BADGE_COLORS,
+    SUBSCRIPTION_BADGE_COLORS,
+)
+from api.admin.dashboard import DashboardView
 from api.admin.router import router as admin_router
 from api.app_error.api_error import (
     APIError,
@@ -232,6 +238,10 @@ admin = Admin(
     templates_dir="api/templates",
     authentication_backend=authentication_backend,
 )
+admin.templates.env.globals["role_badge_colors"] = ROLE_BADGE_COLORS
+admin.templates.env.globals["subscription_badge_colors"] = SUBSCRIPTION_BADGE_COLORS
+admin.templates.env.globals["payment_badge_colors"] = PAYMENT_BADGE_COLORS
+admin.add_base_view(DashboardView)
 admin.add_view(UserAdmin)
 admin.add_view(RoleAdmin)
 admin.add_view(SubscriptionAdmin)
@@ -282,11 +292,3 @@ if __name__ == "__main__":
         proxy_headers=True,
         forwarded_allow_ips="*",
     )
-
-# TODO проблема перезапуска бота он не может корректно стартовать изза того что в контейнер ключи от  ssh агента не получает
-# TODO подтверждение при оплате надо доавить когда делает админ а когнда нет
-# TODO отдельного пользвателя на Xray
-# TODO пользователь без подписки не может получить бесплатнывй прокси? пока не работает надо удалить?
-# TODO Почему то founder получает цену не как founder а как standard
-# При переходе между оплатными  стадиями у премиумов проблемы с ценами
-# Нало этот проработать плюс цвета founder в админке поменяй

@@ -1,9 +1,11 @@
+import secrets
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from api.core.config import settings_api
 from api.users.dao import UserDAO
 from api.users.schemas import SUserTelegramID
 
@@ -15,7 +17,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
     выполняет поиск пользователя в базе данных и сохраняет результат
     в ``request.state.user``.
 
+    Заголовок ``X-Telegram-Id`` сам по себе ничего не подтверждает — его
+    может прислать кто угодно. Поэтому запрос дополнительно должен нести
+    заголовок ``X-Internal-Secret``, совпадающий с ``settings_api.internal_api_secret``
+    (его проставляет только наш bot/, см. ``bot/integrations/api_client.py``).
+    Без верного секрета ``X-Telegram-Id`` игнорируется.
+
     Ожидаемые заголовки:
+        - X-Internal-Secret (str): общий секрет bot/ <-> api/
         - X-Telegram-Id (str): Telegram ID пользователя
         - X-Telegram-Username (str, optional): Username пользователя
 
@@ -23,8 +32,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         - Middleware работы с БД (устанавливающий ``request.state.db``)
           должен быть подключён ранее.
 
-    Если заголовок ``X-Telegram-Id`` отсутствует или некорректен,
-    пользователь не будет найден, и ``request.state.user`` останется ``None``.
+    Если секрет неверный/отсутствует, либо заголовок ``X-Telegram-Id``
+    отсутствует или некорректен, пользователь не будет найден, и
+    ``request.state.user`` останется ``None``.
 
     """
 
@@ -43,6 +53,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
             Response: HTTP-ответ.
 
         """
+        internal_secret = request.headers.get("X-Internal-Secret", "")
+        expected_secret = settings_api.internal_api_secret.get_secret_value()
+
+        if not secrets.compare_digest(internal_secret, expected_secret):
+            logger.warning(
+                "[AuthMiddleware]: неверный или отсутствующий X-Internal-Secret path={}",
+                request.url.path,
+            )
+            request.state.user = None
+            return await call_next(request)
+
         tg_id_raw = request.headers.get("X-Telegram-Id")
 
         logger.debug(

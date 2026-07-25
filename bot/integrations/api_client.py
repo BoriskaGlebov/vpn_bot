@@ -34,8 +34,16 @@ class APIClient:
         max_retries: int = 3,
         retry_delay: float = 0.5,
         scheme: str = "http",
+        internal_secret: str | None = None,
     ) -> None:
-        """Инициализация класса Клиента."""
+        """Инициализация класса Клиента.
+
+        Args:
+            internal_secret: Секрет для заголовка X-Internal-Secret. Задаётся
+                только для клиента нашего api/ — сторонним хостам (например,
+                панелям XRay) он передаваться не должен.
+
+        """
         base_url = base_url.rstrip("/")
 
         # если вдруг передали уже с http/https — убираем
@@ -45,6 +53,7 @@ class APIClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self._internal_secret = internal_secret
 
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
@@ -61,6 +70,9 @@ class APIClient:
         self, headers: Mapping[str, str] | None = None
     ) -> dict[str, str]:
         result = dict(headers or {})
+
+        if self._internal_secret:
+            result["X-Internal-Secret"] = self._internal_secret
 
         ctx = log_context.get()
 

@@ -165,6 +165,27 @@ class MissingTelegramHeaderError(APIError):
         )
 
 
+class InvalidInternalSecretError(APIError):
+    """Ошибка неверного/отсутствующего внутреннего секрета bot/ <-> api/.
+
+    Возникает, если заголовок ``X-Internal-Secret`` отсутствует или не
+    совпадает с ``settings_api.internal_api_secret``. В обычной работе это
+    выставляет только ``AuthMiddleware`` (запрос даже не доходит до роута
+    с валидным пользователем), но эта ошибка нужна, чтобы то же самое было
+    видно и проверяемо через Swagger — там заголовок можно ввести вручную
+    через кнопку Authorize.
+    """
+
+    code = "invalid_internal_secret"
+    status_code = status.HTTP_401_UNAUTHORIZED
+
+    def __init__(self) -> None:
+        """Инициализирует ошибку неверного внутреннего секрета."""
+        super().__init__(
+            message="Заголовок X-Internal-Secret отсутствует или неверен",
+        )
+
+
 class AdminNotFoundHeaderError(APIError):
     """Ошибка отсутствия административных прав у пользователя.
 

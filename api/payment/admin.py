@@ -3,32 +3,23 @@ from datetime import datetime
 from markupsafe import Markup
 from sqladmin import ModelView
 
+from api.admin.badges import PAYMENT_BADGE_COLORS, badge
 from api.payment.model import PaymentTransaction
 
 
-def format_status(obj: PaymentTransaction, name: str) -> str:
-    """Форматирует статус платежа с цветовым выделением.
+def format_status(obj: PaymentTransaction, name: str) -> Markup:
+    """Форматирует статус платежа цветным бейджем.
 
     Args:
         obj: Экземпляр PaymentTransaction.
         name: Имя поля (требуется sqladmin, не используется).
 
     Returns
-        HTML-строка с цветным статусом.
+        Markup с цветным бейджем статуса.
 
     """
     status = obj.status.value
-
-    colors: dict[str, str] = {
-        "PAID": "green",
-        "PENDING": "orange",
-        "FAILED": "red",
-        "CANCELED": "gray",
-    }
-
-    color = colors.get(status, "black")
-
-    return Markup(f'<span style="color:{color}; font-weight:600">{status}</span>')
+    return badge(status, PAYMENT_BADGE_COLORS.get(status, "dark"))
 
 
 def format_source(obj: PaymentTransaction, name: str) -> str:

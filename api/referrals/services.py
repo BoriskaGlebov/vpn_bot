@@ -115,17 +115,27 @@ class ReferralService:
             message = f"У пользователя не было приглашения {invited_user.telegram_id}"
             return False, invited_user.telegram_id, message
 
+        inviter = referral.inviter
+        if inviter is None:
+            logger.warning(
+                "Пригласивший пользователь удалён, бонус не начислен: "
+                "referral_id={} invited_telegram_id={}",
+                referral.id,
+                invited_user.telegram_id,
+            )
+            message = (
+                "Пригласивший пользователь больше не существует, бонус не начислен"
+            )
+            return False, None, message
+
         if referral.bonus_given:
             logger.info(
-                f"Бонус за друга уже начислен пользователю {referral.inviter.telegram_id}"
+                f"Бонус за друга уже начислен пользователю {inviter.telegram_id}"
             )
 
-            # TODO БЫстро фиксил бонус то уже выдан надо корректно отдать ответ боту об этом и все.
-            # raise ReferralBonusAlreadyGivenError(invited_user.telegram_id)
-            message = f"Бонус за друга уже начислен пользователю {referral.inviter.telegram_id}"
-            return False, referral.inviter.telegram_id, message
+            message = f"Бонус за друга уже начислен пользователю {inviter.telegram_id}"
+            return False, inviter.telegram_id, message
 
-        inviter = referral.inviter
         current_sub = inviter.current_subscription
         if current_sub is None or (current_sub.type is None):
             logger.info(

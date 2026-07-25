@@ -1,26 +1,31 @@
+from markupsafe import Markup
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter
 from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
+from starlette.requests import Request
 
+from api.admin.badges import ROLE_BADGE_COLORS, SUBSCRIPTION_BADGE_COLORS, badge
+from api.referrals.models import Referral
 from api.users.filters import ActiveSubscriptionFilter
 from api.users.models import Role, User
 
 
-def format_role(obj: User, name: str) -> str:
-    """Возвращает название роли пользователя."""
-    return obj.role.name if obj.role else "-"
+def format_role(obj: User, name: str) -> Markup:
+    """Возвращает роль пользователя цветным бейджем."""
+    if not obj.role:
+        return Markup("-")
+    return badge(obj.role.name, ROLE_BADGE_COLORS.get(obj.role.name, "secondary"))
 
 
-def format_current_subscription(obj: User, name: str) -> str:
-    """Форматирует текущую подписку пользователя."""
+def format_current_subscription(obj: User, name: str) -> Markup:
+    """Форматирует текущую подписку пользователя цветным бейджем."""
     sub = obj.current_subscription
-    if sub:
-        return (
-            f"{sub.type.name if sub.type else 'Без подписки'} "
-            f"до {sub.end_date.strftime('%Y-%m-%d') if sub.end_date else '∞'}"
-        )
-    return "-"
+    if not sub or not sub.type:
+        return Markup('<span class="text-muted">-</span>')
+    color = SUBSCRIPTION_BADGE_COLORS.get(sub.type.value, "secondary")
+    until = sub.end_date.strftime("%Y-%m-%d") if sub.end_date else "∞"
+    return Markup(f"{badge(sub.type.name, color)} до {until}")
 
 
 def format_files_count(obj: User, name: str) -> int:
@@ -85,7 +90,7 @@ class UserAdmin(ModelView, model=User):
     column_formatters = {
         "role": format_role,  # type: ignore[misc, dict-item]
         "current_subscription": format_current_subscription,  # type: ignore[misc, dict-item]
-        "format_files_count": format_files_count,  # type: ignore[misc, dict-item]
+        "vpn_files_count": format_files_count,  # type: ignore[misc, dict-item]
         "payments_count": format_payments_count,  # type: ignore[misc, dict-item]
         User.username: lambda m, a: m.username[:10],  # type: ignore[misc, attr-defined]
     }  # type: ignore[misc, assignment]
@@ -104,37 +109,44 @@ class UserAdmin(ModelView, model=User):
         "vpn_files_count",
     ]
 
-    def get_query(self) -> Select[tuple[User]]:
-        """Возвращает базовый SQLAlchemy-запрос с предзагрузкой связанных сущностей.
+    def _with_eager_options(self, stmt: Select[tuple[User]]) -> Select[tuple[User]]:
+        """Добавляет к запросу предзагрузку связанных сущностей пользователя.
 
-        Метод расширяет базовый query объекта и добавляет eager loading
-        связанных моделей через ``selectinload`` для уменьшения количества
-        SQL-запросов (решение проблемы N+1).
-
-        Предзагружаются следующие связи пользователя:
-            - payments:
-                Платежные транзакции пользователя.
-
-            - role:
-                Роль пользователя в системе.
-
-            - vpn_configs:
-                VPN-конфигурации пользователя.
-
-            - subscriptions:
-                Подписки пользователя.
+        Каждый запрос sqladmin для списка/деталей открывает и закрывает
+        собственную короткоживущую сессию (``ModelView._run_query``), поэтому
+        всё, что читает кастомный шаблон, должно быть eager-loaded здесь —
+        иначе обращение к связи после закрытия сессии падает с
+        ``DetachedInstanceError``. Предзагружаются:
+            - payments, role, vpn_configs, subscriptions;
+            - invited_users/invited_by вместе с вложенными
+              invited/inviter (реферальный блок в user_details.html).
 
         Returns
-            Select:
-                SQLAlchemy-запрос с настроенной предзагрузкой связанных сущностей.
+            Select: тот же запрос с настроенной предзагрузкой.
 
         """
-        return select(User).options(
+        return stmt.options(
             selectinload(User.payments),
             selectinload(User.role),
             selectinload(User.vpn_configs),
             selectinload(User.subscriptions),
+            selectinload(User.invited_users).selectinload(Referral.invited),
+            selectinload(User.invited_by).selectinload(Referral.inviter),
         )
+
+    def list_query(self, request: Request) -> Select[tuple[User]]:
+        """Запрос для списка пользователей (все строки, без фильтра по pk)."""
+        return self._with_eager_options(select(User))
+
+    def details_query(self, request: Request) -> Select[tuple[User]]:
+        """Запрос для страницы деталей — конкретный пользователь по pk из URL.
+
+        Важно: без ``self._stmt_by_identifier(...)`` запрос вернёт все строки
+        таблицы, и sqladmin возьмёт первую попавшуюся (``rows[0]``) — то есть
+        всегда одного и того же пользователя независимо от pk в адресе.
+        """
+        stmt = self._stmt_by_identifier(request.path_params["pk"])
+        return self._with_eager_options(stmt)
 
 
 def format_users_count(obj: Role, name: str) -> int:

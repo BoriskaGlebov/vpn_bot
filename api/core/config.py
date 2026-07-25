@@ -36,7 +36,10 @@ class SettingsAPI(SettingsCommon):
         session_secret (SecretStr):
             Секретный ключ для подписи сессий (например, cookies или JWT).
 
-
+        internal_api_secret (SecretStr):
+            Общий секрет, которым бот подписывает запросы к api/
+            (заголовок X-Internal-Secret). Без него X-Telegram-Id
+            не принимается во внимание — см. AuthMiddleware.
 
     """
 
@@ -46,6 +49,7 @@ class SettingsAPI(SettingsCommon):
     # db: PostgresSettings
 
     session_secret: SecretStr = SecretStr("secret")
+    internal_api_secret: SecretStr = SecretStr("secret")
 
 
 load_dotenv(BASE_DIR / ".env.local")

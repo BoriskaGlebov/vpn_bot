@@ -100,13 +100,17 @@ class PaymentTransaction(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
     # USER
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
         index=True,
-        nullable=False,
+        nullable=True,
     )
-    user: Mapped["User"] = relationship(
-        "User", foreign_keys=[user_id], lazy="selectin", back_populates="payments"
+    user: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[user_id],
+        lazy="selectin",
+        back_populates="payments",
+        passive_deletes=True,
     )
 
     amount: Mapped[int] = mapped_column(nullable=False)
