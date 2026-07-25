@@ -27,9 +27,6 @@ class DashboardView(BaseView):
     @expose("/dashboard", methods=["GET"], identity="dashboard")
     async def dashboard(self, request: Request) -> _TemplateResponse:
         """Собирает метрики и рендерит страницу дашборда."""
-        # Subscription.start_date/end_date хранятся как TIMESTAMPTZ (aware),
-        # а User.created_at и PaymentTransaction.paid_at — как TIMESTAMP
-        # WITHOUT TIME ZONE (naive), поэтому для сравнения нужны обе версии.
         now = datetime.now(UTC)
         now_naive = now.replace(tzinfo=None)
         week_ago_naive = now_naive - timedelta(days=7)

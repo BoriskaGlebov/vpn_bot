@@ -62,6 +62,7 @@ class SubscriptionAdmin(ModelView, model=Subscription):
 
     name = "Подписка"
     name_plural = "Подписки"
+    icon = "fa-solid fa-calendar-check"
 
     column_list = [
         "id",

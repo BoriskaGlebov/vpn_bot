@@ -147,3 +147,4 @@ class PaymentTransactionAdmin(ModelView, model=PaymentTransaction):
     can_view_details = True
     name = "Платеж"
     name_plural = "Платежи"
+    icon = "fa-solid fa-credit-card"

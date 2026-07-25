@@ -31,6 +31,7 @@ class ReferralAdmin(ModelView, model=Referral):
 
     name = "Реферал"
     name_plural = "Рефералы"
+    icon = "fa-solid fa-user-group"
 
     column_list = [
         "id",

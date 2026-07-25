@@ -45,7 +45,7 @@ class UserAdmin(ModelView, model=User):
     - Редактируются только поля пользователя;
     - Связанные объекты (подписки, VPN конфиги) только для просмотра.
     """
-
+    icon = "fa-solid fa-users"
     column_list = [
         "id",
         "telegram_id",
@@ -214,4 +214,5 @@ class RoleAdmin(ModelView, model=Role):
     }
     name = "Роль"
     name_plural = "Роли"
+    icon = "fa-solid fa-user-shield"
     form_columns = ["name", "description", "users"]
