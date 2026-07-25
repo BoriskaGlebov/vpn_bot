@@ -252,7 +252,7 @@ pytest -q
 ```
 
 
-## Важнаые настройки AmneziaWG, которые позволяют генерировать больше конфиг файлов, по умолчанию только 256.
+## Важные настройки AmneziaWG, которые позволяют генерировать больше конфиг файлов, по умолчанию только 256.
 ```bash
   Address = 10.8.0.1/16
   # перезапуск wg
@@ -285,7 +285,7 @@ proxy_user:CL:j88WSiGkjVdbLWxZ
 users $/usr/local/3proxy/conf/users.txt
 
 ```
-Там нестандартная утснаовка Pytorch
+Там нестандартная установка pytorch
 ```aiignore
   poetry run pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
