@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_session
+from api.core.openapi_responses import ADMIN_RESPONSES
 from api.scheduler.dependencies import (
     get_subscription_scheduler_service,
 )
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/scheduler", tags=["bot", "SCHEDULER"])
         "Статистика обработки и список событий для последующей обработки "
         "(уведомления пользователей, удаление конфигураций и т.д.)"
     ),
+    responses=ADMIN_RESPONSES,
 )
 async def check_all(
     session: AsyncSession = Depends(get_session),

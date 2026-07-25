@@ -6,6 +6,7 @@ from starlette import status
 
 from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_current_user, get_session
+from api.core.openapi_responses import ADMIN_RESPONSES, AUTH_RESPONSES
 from api.payment.dependencies import get_payment_service
 from api.payment.model import PaymentSource
 from api.payment.schemas import (
@@ -20,7 +21,21 @@ from api.users.models import User
 
 router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
 
-
+#TODO 3. Нашёл серьёзную дыру, пока не трогал — при составлении карты
+# эндпоинтов выяснилось,
+# что GET /payment/transaction
+# (поиск транзакции по gateway_transaction_id) и
+# POST /payment/transaction/webhook/confirm (подтверждение платежа)
+# вообще без Depends(get_current_user)/check_admin_role — то есть
+# без секрета и без Telegram ID. Это тот же класс уязвимости,
+# что мы закрывали в начале сессии, только на другом эндпоинте:
+# кто угодно, зная/подобрав transaction_id, может прочитать
+# чужую транзакцию или подтвердить оплату бесплатно.
+# В документации я их честно оставил без 401/403
+# (иначе документация была бы неправдой),
+# но добавлять Depends тут не стал — это не «поправить доки»,
+# а отдельный фикс безопасности. Хотите, чтобы я закрыл это сейчас?
+# Возможная проблема
 #
 @router.post(
     "/transaction",
@@ -31,6 +46,7 @@ router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
         "Создает новую платежную транзакцию для текущего авторизованного пользователя."
     ),
     response_description="Созданная платежная транзакция.",
+    responses=AUTH_RESPONSES,
 )
 async def create_transaction(
     transaction: SCreateManualPaymentTransaction,
@@ -118,6 +134,7 @@ async def get_by_gateway_id(
         "синхронизации статусов оплаты."
     ),
     response_description="Обновлённая платежная транзакция с привязанным провайдером.",
+    responses=AUTH_RESPONSES,
 )
 async def attach_provider_payment(
     transaction_id: UUID,
@@ -173,6 +190,7 @@ async def attach_provider_payment(
     status_code=status.HTTP_200_OK,
     summary="Отметка начала обработки платежа",
     description="Фиксирует начало обработки платежа по транзакции.",
+    responses=AUTH_RESPONSES,
 )
 async def mark_payment_started(
     transaction_id: UUID,
@@ -210,6 +228,7 @@ async def mark_payment_started(
         "и начисляет реферальный бонус при наличии реферальной связи."
     ),
     response_description="Результат обработки платежа, подписки и реферального бонуса.",
+    responses=ADMIN_RESPONSES,
 )
 async def admin_confirm_transaction(
     data: STransactionIDFilter,
@@ -310,6 +329,7 @@ async def webhook_confirm_transaction(
     summary="Отмена платежной транзакции",
     description="Отменяет платежную транзакцию и переводит её в статус ``CANCELED``.",
     response_description="Обновлённая платежная транзакция.",
+    responses=AUTH_RESPONSES,
 )
 async def cancel_transaction(
     data: STransactionIDFilter,

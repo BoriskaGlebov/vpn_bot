@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.core.dependencies import get_current_user, get_session
-from api.core.exceptions.schema import APIErrorResponse
+from api.core.openapi_responses import AUTH_RESPONSES
 from api.users.dependencies import get_user_service
 from api.users.models import User
 from api.users.schemas import SUser, SUserOut, SUserWithReferralStats
@@ -54,10 +54,7 @@ async def register_user(
     "/{telegram_id}/referrals",
     response_model=SUserWithReferralStats,
     summary="Получает пользователя с реферальной статистикой",
-    responses={
-        404: {"model": APIErrorResponse},
-        403: {"model": APIErrorResponse},
-    },
+    responses=AUTH_RESPONSES,
 )
 async def get_user_referrals(
     telegram_id: int,

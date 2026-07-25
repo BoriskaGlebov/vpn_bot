@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.app_error.base_error import UserNotFoundError
 from api.core.dependencies import get_current_user, get_session
 from api.core.mapper.user_mapper import UserMapper
+from api.core.openapi_responses import AUTH_RESPONSES
 from api.referrals.dependencies import get_referral_service
 from api.referrals.schemas import (
     GrantReferralBonusRequest,
@@ -26,6 +27,7 @@ router = APIRouter(prefix="/referrals", tags=["bot", "REFERRALS"])
     summary="Регистрация реферала",
     description="Регистрирует связь между пригласившим и приглашённым пользователем.",
     responses={
+        **AUTH_RESPONSES,
         201: {
             "description": "Реферал успешно зарегистрирован",
             "model": RegisterReferralResponse,
@@ -88,6 +90,7 @@ async def register_referral(
     summary="Начисление бонуса за реферала",
     description="Начисляет бонус пригласителю за приглашённого пользователя.",
     responses={
+        **AUTH_RESPONSES,
         200: {
             "description": "Бонус успешно начислен",
             "model": GrantReferralBonusResponse,

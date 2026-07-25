@@ -4,6 +4,7 @@ from starlette import status
 
 from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_current_user, get_session
+from api.core.openapi_responses import ADMIN_RESPONSES, AUTH_RESPONSES
 from api.subscription.dependencies import get_subscription_service
 from api.subscription.schemas import (
     ActivateSubscriptionRequest,
@@ -24,6 +25,7 @@ router = APIRouter(prefix="/subscriptions", tags=["bot", "SUBSCRIPTION"])
     "/check/premium",
     response_model=SSubscriptionCheck,
     summary="Проверяет наличие премиум-подписки",
+    responses=AUTH_RESPONSES,
 )
 async def check_premium(
     tg_id: int,
@@ -58,6 +60,7 @@ async def check_premium(
     status_code=status.HTTP_201_CREATED,
     response_model=STrialActivateResponse,
     summary="Активация пробного периода подписки",
+    responses=AUTH_RESPONSES,
 )
 async def start_trial(
     data: STrialActivate,
@@ -96,6 +99,7 @@ async def start_trial(
     response_model=SUserOut,
     status_code=status.HTTP_200_OK,
     summary="Активация платной подписки",
+    responses=ADMIN_RESPONSES,
 )
 async def activate_subscription(
     data: ActivateSubscriptionRequest,
@@ -127,6 +131,7 @@ async def activate_subscription(
     "/info",
     response_model=SSubscriptionInfo,
     summary="Информация о подписке и VPN конфигурациях",
+    responses=AUTH_RESPONSES,
 )
 async def get_subscription_info(
     tg_id: int,
