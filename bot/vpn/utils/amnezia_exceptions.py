@@ -1,6 +1,6 @@
 from typing import Any
 
-from bot.app_error.schema import ErrorEnvelope, ErrorDetail
+from bot.app_error.schema import ErrorDetail, ErrorEnvelope
 
 
 class AmneziaError(Exception):
@@ -14,7 +14,13 @@ class AmneziaError(Exception):
 
     code: str = "amnezia_error"
 
-    def __init__(self, message: str, *, details: dict[str, Any] | None = None, cause: Exception | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+        cause: Exception | None = None,
+    ) -> None:
         super().__init__(message)
 
         self.message = message
@@ -29,7 +35,6 @@ class AmneziaError(Exception):
                 details=self.details,
             )
         )
-
 
 
 class AmneziaSSHError(AmneziaError):
@@ -68,6 +73,7 @@ class AmneziaSSHError(AmneziaError):
         self.cmd = cmd
         self.stdout = stdout
         self.stderr = stderr
+
 
 class AmneziaConfigError(AmneziaError):
     """Ошибка работы с конфигурацией WireGuard или clientsTable.

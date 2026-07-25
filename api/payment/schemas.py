@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from api.payment.model import PaymentSource, PaymentStatus
 from api.referrals.schemas import GrantReferralBonusResponse
@@ -117,7 +117,7 @@ class SAttachProviderPayment(BaseModel):
 class STransactionIDFilter(BaseModel):
     """Фильтр по идентификатору транзакции."""
 
-    id: UUID
+    id: UUID = Field(validation_alias=AliasChoices("id", "transaction_id"))
 
 
 class SGatewayTransactionFilter(BaseModel):

@@ -3,8 +3,8 @@ import asyncio
 from aiogram import Bot
 
 from bot.app_error.base_error import (
-    DeviceEmptyMessagesError,
     DeviceEmptyMediaError,
+    DeviceEmptyMessagesError,
     DeviceInstructionMismatchError,
 )
 from bot.core.config import settings_bot
@@ -45,7 +45,9 @@ class HappDevice(Device):
             raise DeviceEmptyMediaError(device=cls.__name__)
 
         if len(messages) not in {len(media) + 1, len(media) + 2}:
-            raise DeviceInstructionMismatchError(cls.__name__,media=len(media),messages=len(messages))
+            raise DeviceInstructionMismatchError(
+                cls.__name__, media=len(media), messages=len(messages)
+            )
 
         await bot.send_message(
             chat_id, messages[0].format(*link), disable_web_page_preview=True

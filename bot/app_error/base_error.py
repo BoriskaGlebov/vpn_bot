@@ -4,7 +4,25 @@ from bot.app_error.schema import ErrorDetail, ErrorEnvelope
 
 
 class AppError(Exception):
-    """Базовое доменное исключение."""
+    """Базовое доменное исключение.
+
+    Все пользовательские исключения приложения должны наследоваться
+    от этого класса. Предоставляет единый формат представления ошибки
+    и возможность преобразования в :class:`ErrorEnvelope`.
+
+    Attributes
+        code: Машиночитаемый код ошибки.
+        status_code: HTTP-статус, соответствующий ошибке.
+        message: Человекочитаемое описание ошибки.
+        details: Дополнительная диагностическая информация.
+        cause: Исходное исключение, если оно известно.
+
+    Args:
+        message: Описание ошибки.
+        details: Дополнительные данные об ошибке.
+        cause: Исходное исключение.
+
+    """
 
     code: str = "app_error"
     status_code: int = 500
@@ -23,6 +41,12 @@ class AppError(Exception):
         self.cause = cause
 
     def to_envelope(self) -> ErrorEnvelope:
+        """Преобразует исключение в стандартную структуру ошибки API.
+
+        Returns
+            Объект ``ErrorEnvelope`` с информацией о текущей ошибке.
+
+        """
         return ErrorEnvelope(
             error=ErrorDetail(
                 code=self.code,
@@ -43,6 +67,8 @@ class MessageNotFoundError(AppError):
 
 
 class UserNotFoundError(AppError):
+    """Пользователь не найден."""
+
     code = "user_not_found"
     status_code = 404
 
@@ -55,6 +81,8 @@ class UserNotFoundError(AppError):
 
 
 class SubscriptionNotFoundError(AppError):
+    """Данные о подписке не найдены."""
+
     code = "subscription_not_found"
     status_code = 404
 
@@ -67,6 +95,8 @@ class SubscriptionNotFoundError(AppError):
 
 
 class VPNLimitError(AppError):
+    """Пользователь достиг лимита по количеству конфиг файлов."""
+
     code = "vpn_limit_reached"
     status_code = 429
 
@@ -86,15 +116,18 @@ class VPNLimitError(AppError):
 
 
 class TelegramIdNotProvidedError(AppError):
+    """Ошибка отсутствия TelegramID в callback."""
     code = "telegram_id_not_provided"
     status_code = 400
 
-    def __init__(self, message: str | None=None) -> None:
+    def __init__(self, message: str | None = None) -> None:
         super().__init__(
             message=message or "В callback отсутствует telegram_id",
         )
 
+
 class DeviceMediaMismatchError(AppError):
+    """Ошибка несоответствия медиафайлов и фраз в инструкции."""
     code = "device_media_mismatch"
     status_code = 500
 
@@ -107,7 +140,10 @@ class DeviceMediaMismatchError(AppError):
             },
         )
 
+
 class DeviceEmptyMessagesError(AppError):
+    """Ошибка пустой список инструкций."""
+
     code = "device_empty_messages"
     status_code = 500
 
@@ -117,7 +153,9 @@ class DeviceEmptyMessagesError(AppError):
             details={"device": device},
         )
 
+
 class DeviceEmptyMediaError(AppError):
+    """Ошибка пустой медиа к инструкции."""
     code = "device_empty_media"
     status_code = 500
 
@@ -126,6 +164,7 @@ class DeviceEmptyMediaError(AppError):
             message=f"{device}: нет файлов в S3",
             details={"device": device},
         )
+
 
 class DeviceInstructionMismatchError(AppError):
     code = "device_instruction_mismatch"

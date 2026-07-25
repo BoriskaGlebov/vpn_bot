@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any
 
 from aiogram import BaseMiddleware, Bot
 from aiogram.exceptions import (
@@ -21,11 +21,11 @@ from aiogram.exceptions import (
 from aiogram.types import CallbackQuery, Message, TelegramObject, User
 from loguru._logger import Logger
 
-from bot.app_error.schema import ErrorEnvelope, ErrorDetail
 from bot.app_error.api_error import (
     APIClientError,
 )
-from bot.app_error.base_error import SubscriptionNotFoundError, VPNLimitError, AppError
+from bot.app_error.base_error import AppError
+from bot.app_error.schema import ErrorDetail, ErrorEnvelope
 from bot.core.config import settings_bot
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
@@ -170,9 +170,11 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                 f"details: {envelope.error.details}"
             )
             if cause:
-                msg+=(f"\n[ПЕРВОПРИЧИНА]\n"
-                      f"cause_type: {type(cause).__name__ if cause else 'None'}\n"
-                      f"cause_message: {str(cause) if cause else 'None'}")
+                msg += (
+                    f"\n[ПЕРВОПРИЧИНА]\n"
+                    f"cause_type: {type(cause).__name__ if cause else 'None'}\n"
+                    f"cause_message: {str(cause) if cause else 'None'}"
+                )
 
             for admin_id in settings_bot.core.admin_ids:
                 await self.bot.send_message(admin_id, msg)
@@ -195,7 +197,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             user_message = self._resolve_user_message(envelope)
             await self._safe_send_error(event, user_message)
 
-            await self._notify_admins_envelope(event, envelope,exc)
+            await self._notify_admins_envelope(event, envelope, exc)
 
             self._log_exception(event, envelope, exc)
 

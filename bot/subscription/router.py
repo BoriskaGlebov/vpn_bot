@@ -358,9 +358,8 @@ class SubscriptionRouter(BaseRouter):
             price = price_map[months]
             sub_type = get_correct_sub_type(premium=premium, founder=founder)
             await self.subscription_service.payment_service.mark_payment_started(
-                    transaction_id=transaction_id
-                )
-
+                transaction_id=transaction_id
+            )
 
             user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
@@ -526,6 +525,7 @@ class SubscriptionRouter(BaseRouter):
                 else:
                     raise
             try:
+                ref_inf = referral_result.message
                 await edit_admin_messages(
                     bot=self.bot,
                     user_id=user_id,
@@ -533,6 +533,7 @@ class SubscriptionRouter(BaseRouter):
                         user_id=user_id,
                         sub_type=sub_type,
                         username=user_schema.username,
+                        info=ref_inf,
                     ),
                     admin_mess_storage=self.redis_service,
                 )

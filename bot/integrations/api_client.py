@@ -5,13 +5,13 @@ from typing import Any
 import httpx
 from loguru import logger
 
-from bot.app_error.schema import ErrorDetail
 from bot.app_error.api_error import (
     APIClientConnectionError,
     APIClientError,
-    map_http_error,
     APIClientInvalidJSONError,
+    map_http_error,
 )
+from bot.app_error.schema import ErrorDetail
 from shared.config.context import log_context
 
 
@@ -167,8 +167,7 @@ class APIClient:
                 response.request.url,
                 response.status_code,
             )
-            raise APIClientInvalidJSONError(
-            ) from exc
+            raise APIClientInvalidJSONError() from exc
         return data
 
     async def get(self, url: str, **kwargs: Any) -> dict[str, Any]:

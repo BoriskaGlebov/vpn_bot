@@ -218,6 +218,7 @@ class PaymentService:
         )
 
         return SPaymentTransactionResponse.model_validate(tx)
+
     async def attach_provider_payment(
         self,
         session: AsyncSession,
@@ -322,6 +323,7 @@ class PaymentService:
             f"| transaction_id={transaction_id}"
         )
         return SPaymentTransactionResponse.model_validate(transaction)
+
     async def admin_confirm_transaction(
         self, data: SAdminConfirmPayment, session: AsyncSession
     ) -> SPaymentTransactionResponse:
@@ -543,7 +545,7 @@ class PaymentService:
         )
         ref_mes = "Бонус по реферально программе начислен"
         try:
-            ref_res, inviter = await self.ref_service.grant_referral_bonus(
+            ref_res, inviter, ref_mes = await self.ref_service.grant_referral_bonus(
                 session=session,
                 invited_user=sub_res,
             )

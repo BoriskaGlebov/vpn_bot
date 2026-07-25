@@ -29,7 +29,9 @@ class SUser(SUserTelegramID):
 
     """
 
-    username: str | None = Field(default=None, description="Имя пользователя в Telegram")
+    username: str | None = Field(
+        default=None, description="Имя пользователя в Telegram"
+    )
     first_name: str | None = Field(default=None, description="Имя пользователя")
     last_name: str | None = Field(default=None, description="Фамилия пользователя")
 

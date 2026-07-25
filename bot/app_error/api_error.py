@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 from pydantic import ValidationError
@@ -7,11 +6,19 @@ from bot.app_error.schema import ErrorDetail, ErrorEnvelope
 
 
 class APIClientError(Exception):
-    """Базовая ошибка API клиента.
+    """Базовая ошибка API-клиента.
+
+    Используется для представления ошибок, возвращаемых API.
+    Содержит объект с деталями ошибки и, при необходимости,
+    исходное исключение, вызвавшее ошибку.
+
+    Attributes
+        error: Детальная информация об ошибке API.
+        cause: Исходное исключение, если оно доступно.
 
     Args:
-        message (str): Описание ошибки.
-        cause (Exception | None): Исходное исключение.
+        error: Детальная информация об ошибке API.
+        cause: Исходное исключение, вызвавшее ошибку.
 
     """
 
@@ -26,10 +33,16 @@ class APIClientError(Exception):
         if self.cause:
             return f"{base} (cause: {self.cause})"
         return base
+
     def to_envelope(self) -> ErrorEnvelope:
-        return ErrorEnvelope(
-            error=self.error
-        )
+        """Преобразует ошибку в стандартную оболочку ответа API.
+
+        Returns
+            Экземпляр ``ErrorEnvelope``, содержащий информацию
+            о текущей ошибке.
+
+        """
+        return ErrorEnvelope(error=self.error)
 
 
 class APIClientHTTPError(APIClientError):
@@ -44,7 +57,7 @@ class APIClientHTTPError(APIClientError):
     ) -> None:
         self.status_code = status_code
 
-        super().__init__(error,cause=cause)
+        super().__init__(error, cause=cause)
 
 
 class APIClientConnectionError(APIClientError):
@@ -55,10 +68,13 @@ class APIClientConnectionError(APIClientError):
         *,
         cause: Exception | None = None,
     ) -> None:
-        super().__init__(error= ErrorDetail(
+        super().__init__(
+            error=ErrorDetail(
                 code="connection_error",
                 message="⚠️ Не удалось подключиться к API",
-            ), cause=cause)
+            ),
+            cause=cause,
+        )
 
 
 class APIClientUnauthorizedError(APIClientHTTPError):
@@ -90,14 +106,15 @@ class APIClientConflictError(APIClientHTTPError):
 
     pass
 
-def parse_api_error(body: dict[str, Any]  )-> ErrorDetail:
 
-
+def parse_api_error(body: dict[str, Any]) -> ErrorDetail:
+    """Проверка/валидация ответа API."""
     try:
         envelope = ErrorEnvelope.model_validate(body)
         return envelope.error
     except ValidationError:
         raise
+
 
 def map_http_error(
     status_code: int,
@@ -132,6 +149,7 @@ def map_http_error(
             return APIClientValidationError(status_code, error)
         case _:
             return APIClientHTTPError(status_code, error)
+
 
 class APIClientInvalidJSONError(APIClientError):
     """API вернул невалидный JSON."""

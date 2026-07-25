@@ -1,7 +1,6 @@
 from loguru import logger
 
 from bot.app_error.base_error import AppError
-from bot.app_error.api_error import APIClientError
 from bot.integrations.api_client import APIClient
 
 
@@ -36,8 +35,12 @@ class NewsAPIAdapter:
                 "Некорректный формат ответа /news/recipients: {}",
                 data,
             )
-            raise AppError(message="Некорректный формат ответа API",
-                           details={"expectation":"Ожидается список пользователей, но он не пришел."})
+            raise AppError(
+                message="Некорректный формат ответа API",
+                details={
+                    "expectation": "Ожидается список пользователей, но он не пришел."
+                },
+            )
 
         try:
             recipients = [int(user_id) for user_id in data]

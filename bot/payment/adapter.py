@@ -149,7 +149,7 @@ class PaymentAPIAdapter:
         logger.info("Подтверждение прихода денег: {}", transaction_id)
         payload = SConfirmPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
-            "/payment/transaction/confirm",
+            "/payment/transaction/admin/confirm",
             json=payload.model_dump(mode="json"),
         )
         logger.debug(

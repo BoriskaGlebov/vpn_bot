@@ -164,7 +164,9 @@ class AsyncSSHClientWG:
             output = await self._process.stdout.readuntil("\n")
         except asyncio.IncompleteReadError as e:
             if e.partial == b"":
-                raise AmneziaSSHError("AsyncSSH: соединение закрыто при чтении stdout") from e
+                raise AmneziaSSHError(
+                    "AsyncSSH: соединение закрыто при чтении stdout"
+                ) from e
             raise
         while marker not in output:
             output += await self._process.stdout.readuntil("\n")
