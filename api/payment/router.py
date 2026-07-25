@@ -308,7 +308,7 @@ async def webhook_confirm_transaction(
     response_model=SPaymentTransactionResponse,
     status_code=status.HTTP_200_OK,
     summary="Отмена платежной транзакции",
-    description=("Отменяет платежную транзакцию и переводит её в статус ``CANCELED``."),
+    description="Отменяет платежную транзакцию и переводит её в статус ``CANCELED``.",
     response_description="Обновлённая платежная транзакция.",
 )
 async def cancel_transaction(

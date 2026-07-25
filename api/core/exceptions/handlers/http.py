@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from starlette import status
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.app_error.api_error import (
     APIError,
@@ -89,6 +90,46 @@ async def request_validation_handler(
     )
 
 
+async def http_exception_handler(
+    request: Request,
+    exc: StarletteHTTPException,
+) -> JSONResponse:
+    """Обрабатывает HTTPException, поднимаемые самим Starlette/FastAPI.
+
+    Без этого хендлера 404 (несуществующий путь), 405 (неверный метод) и
+    другие ошибки маршрутизации, которые framework поднимает сам — до того,
+    как запрос доходит до кода приложения — возвращались бы в формате
+    Starlette по умолчанию (``{"detail": "..."}``), а не в едином формате
+    API (``{"error": {...}}``).
+
+    Args:
+        request: Текущий HTTP-запрос.
+        exc: HTTPException, поднятое Starlette/FastAPI.
+
+    Returns
+        JSONResponse: HTTP-ответ с тем же статус-кодом в едином формате.
+
+    """
+    logger.warning(
+        "HTTPException path={} status_code={} detail={}",
+        request.url.path,
+        exc.status_code,
+        exc.detail,
+    )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorEnvelope(
+            error=ErrorDetail(
+                code="http_exception",
+                message=str(exc.detail),
+                details={"status_code": exc.status_code},
+            )
+        ).model_dump(),
+        headers=exc.headers,
+    )
+
+
 async def database_exception_handler(
     request: Request,
     exc: Exception,
@@ -108,11 +149,6 @@ async def database_exception_handler(
 
     """
     exc = cast(SQLAlchemyError, exc)
-    # logger.error(
-    #     "DatabaseException path={} error={}",
-    #     request.url.path,
-    #     str(exc),
-    # )
     logger.exception(
         "DatabaseException path={} exc_type={}",
         request.url.path,

@@ -304,7 +304,6 @@ class SubscriptionScheduler:
             for c in deleted_configs
         ]
 
-        # единый формат события (как у тебя в expired)
         events.append(
             DeleteVPNConfigsEvent(
                 type=SubscriptionEventType.DELETE_VPN_CONFIGS,

@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from loguru import logger
 from sqladmin import Admin
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse
 from starlette.templating import Jinja2Templates
 
@@ -30,6 +31,7 @@ from api.core.exceptions.handlers.business import app_error_handler
 from api.core.exceptions.handlers.http import (
     api_error_handler,
     database_exception_handler,
+    http_exception_handler,
     request_validation_handler,
     unhandled_exception_handler,
 )
@@ -215,6 +217,7 @@ app.include_router(payment_router)
 
 app.add_exception_handler(APIError, api_error_handler)
 app.add_exception_handler(RequestValidationError, request_validation_handler)  # type: ignore[arg-type]
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
