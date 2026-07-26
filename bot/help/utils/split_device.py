@@ -1,12 +1,5 @@
-import asyncio
-
 from aiogram import Bot
 
-from bot.app_error.base_error import (
-    DeviceEmptyMediaError,
-    DeviceEmptyMessagesError,
-    DeviceInstructionMismatchError,
-)
 from bot.core.config import settings_bot
 from bot.help.utils.common_device import Device
 
@@ -17,51 +10,33 @@ class SplitDevice(Device):
     PREFIX = f"{settings_bot.bucket.prefix}amnezia_split/"
     MESSAGES_PATH = settings_bot.messages.modes.help.instructions.split
     LINK_PATH = settings_bot.messages.modes.help.instructions.links.split
+    CAPTION_SLEEP = 1.2
 
     @classmethod
     async def send_message(cls, bot: Bot, chat_id: int) -> None:
-        """Отправляет сообщение в указанный чат.
+        """Отправляет инструкции по раздельному туннелированию.
 
-        Этот метод должен быть реализован в подклассах для отправки
-        определённого типа сообщения (текста, фото, видео и т.д.) с помощью
-        экземпляра бота Aiogram.
+        Формат: вступительное сообщение со ссылкой на приложение
+        (`{link}` в тексте), затем серия фото-инструкций с подписями
+        (тоже могут содержать `{link}`), финальное сообщение без ссылки.
 
         Args:
-            bot (Bot): Экземпляр бота Aiogram, используемый для отправки сообщения.
-            chat_id (int): Идентификатор чата Telegram, куда будет отправлено сообщение.
+            bot (Bot): Экземпляр бота Aiogram.
+            chat_id (int): Telegram chat_id пользователя.
 
         Raises
-            TelegramAPIError: Если при взаимодействии с Telegram API возникает ошибка.
+            DeviceEmptyMessagesError: если для устройства не заданы подписи.
+            DeviceEmptyMediaError: если в S3 не найдено ни одного файла.
+            DeviceInstructionMismatchError: если количество подписей не
+                соответствует количеству файлов.
+            TelegramAPIError: при ошибке отправки сообщения в Telegram.
 
         """
-        media = await cls._list_files()
-        messages = cls.MESSAGES_PATH
         link = cls.LINK_PATH
-
-        if not messages:
-            raise DeviceEmptyMessagesError(device=cls.__name__)
-
-        if not media:
-            raise DeviceEmptyMediaError(device=cls.__name__)
-
-        if len(messages) not in {len(media) + 1, len(media) + 2}:
-            raise DeviceInstructionMismatchError(
-                cls.__name__, media=len(media), messages=len(messages)
-            )
-
-        await bot.send_message(
-            chat_id, messages[0].format(link=link), disable_web_page_preview=True
+        await cls._send_intro_media_final(
+            bot,
+            chat_id,
+            intro_formatter=lambda text: text.format(link=link),
+            caption_formatter=lambda text: text.format(link=link),
+            final_formatter=lambda text: text,
         )
-        has_final = len(messages) == len(media) + 2
-        captions = messages[1:-1] if has_final else messages[1:]
-        for file, caption in zip(media, captions):
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=file,
-                caption=caption.format(link=link),
-                parse_mode="HTML",
-            )
-            await asyncio.sleep(1.2)
-
-        if has_final:
-            await bot.send_message(chat_id, messages[-1], disable_web_page_preview=True)

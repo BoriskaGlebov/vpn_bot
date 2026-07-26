@@ -170,6 +170,8 @@ class DeviceEmptyMediaError(AppError):
 
 
 class DeviceInstructionMismatchError(AppError):
+    """Ошибка несоответствия количества инструкций и медиафайлов устройства."""
+
     code = "device_instruction_mismatch"
     status_code = 500
 
@@ -226,3 +228,16 @@ class ProxyNotConfiguredError(AppError):
             details={"host": host},
         )
         self.host = host
+
+
+class NewsRecipientsFetchError(AppError):
+    """Не удалось получить список получателей новостной рассылки."""
+
+    code = "news_recipients_fetch_error"
+    status_code = 502
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(
+            message=f"Не удалось получить список получателей рассылки: {reason}",
+            details={"reason": reason},
+        )

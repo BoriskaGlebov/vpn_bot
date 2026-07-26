@@ -1,6 +1,6 @@
 from loguru import logger
 
-from bot.app_error.base_error import AppError
+from bot.app_error.base_error import NewsRecipientsFetchError
 from bot.integrations.api_client import APIClient
 
 
@@ -26,6 +26,7 @@ class NewsAPIAdapter:
 
         Raises
             APIClientError: Если API вернул некорректный ответ.
+            NewsRecipientsFetchError: Если ответ API имеет неожиданный формат.
 
         """
         data = await self.client.get("/news/recipients")
@@ -35,18 +36,17 @@ class NewsAPIAdapter:
                 "Некорректный формат ответа /news/recipients: {}",
                 data,
             )
-            raise AppError(
-                message="Некорректный формат ответа API",
-                details={
-                    "expectation": "Ожидается список пользователей, но он не пришел."
-                },
+            raise NewsRecipientsFetchError(
+                reason="Ожидается список пользователей, но он не пришёл"
             )
 
         try:
             recipients = [int(user_id) for user_id in data]
         except (TypeError, ValueError) as exc:
             logger.error("Ошибка приведения ID: {}", data)
-            raise AppError(message="Некорректные данные пользователей") from exc
+            raise NewsRecipientsFetchError(
+                reason="Некорректные данные пользователей"
+            ) from exc
 
         logger.info("Получено {} получателей рассылки", len(recipients))
 

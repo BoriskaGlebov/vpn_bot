@@ -2,6 +2,7 @@ import httpx
 import pytest
 
 from bot.app_error.api_error import APIClientError
+from bot.app_error.base_error import NewsRecipientsFetchError
 from bot.news.adapter import NewsAPIAdapter
 
 
@@ -29,7 +30,7 @@ async def test_get_recipients_success(api_client) -> None:
 async def test_get_recipients_not_list(api_client) -> None:
     """Тест обработки некорректного формата ответа API.
 
-    Проверяет, что если API вернул не список, метод выбрасывает APIClientError.
+    Проверяет, что если API вернул не список, метод выбрасывает NewsRecipientsFetchError.
     """
 
     async def handler(request):
@@ -38,7 +39,7 @@ async def test_get_recipients_not_list(api_client) -> None:
     client = await api_client(handler)
     adapter = NewsAPIAdapter(client)
 
-    with pytest.raises(APIClientError, match="Некорректный формат"):
+    with pytest.raises(NewsRecipientsFetchError, match="не пришёл"):
         await adapter.get_recipients()
 
 
@@ -47,7 +48,7 @@ async def test_get_recipients_invalid_ids(api_client) -> None:
     """Тест обработки некорректных ID получателей.
 
     Проверяет, что если в списке есть элементы, которые не приводятся к int,
-    метод выбрасывает APIClientError.
+    метод выбрасывает NewsRecipientsFetchError.
     """
 
     async def handler(request):
@@ -56,7 +57,7 @@ async def test_get_recipients_invalid_ids(api_client) -> None:
     client = await api_client(handler)
     adapter = NewsAPIAdapter(client)
 
-    with pytest.raises(APIClientError, match="Некорректные данные"):
+    with pytest.raises(NewsRecipientsFetchError, match="Некорректные данные"):
         await adapter.get_recipients()
 
 
