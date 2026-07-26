@@ -34,7 +34,9 @@ class MainMenuText(str, Enum):
 
     """
 
+    # FIXME  убираю кнопку с прокси, что б людей не путать
     AMNEZIA_PROXY = "📦 AmneziaProxy"
+    #FIXME  убираю кнопку с прокси, что б людей не путать
     FREE_AMNEZIA_PROXY = "📦 Free AmneziaProxy TG"
     RENEW_SUBSCRIPTION = "💎 Продлить VPN-Boriska"
     CHOOSE_SUBSCRIPTION = "💰 Выбрать подписку VPN-Boriska"

@@ -42,14 +42,15 @@ def main_kb(
                 )
             builder.add(*buttons)
         builder.adjust(1, 2)
-
-        builder.row(
-            KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value),
-        )
+        # FIXME  убираю кнопку с прокси, что б людей не путать
+        # builder.row(
+        #     KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value),
+        # )
         builder.row(KeyboardButton(text=MainMenuText.RENEW_SUBSCRIPTION.value))
     else:
         builder.row(KeyboardButton(text=MainMenuText.CHOOSE_SUBSCRIPTION.value))
-        builder.row(KeyboardButton(text=MainMenuText.FREE_AMNEZIA_PROXY.value))
+        # FIXME  убираю кнопку с прокси, что б людей не путать
+        # builder.row(KeyboardButton(text=MainMenuText.FREE_AMNEZIA_PROXY.value))
     builder.row(
         KeyboardButton(text=MainMenuText.CHECK_STATUS.value),
         KeyboardButton(text=MainMenuText.HELP.value),
