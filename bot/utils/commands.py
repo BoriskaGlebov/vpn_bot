@@ -59,8 +59,15 @@ async def set_bot_commands() -> None:
         cmds = await bot.get_my_commands(scope=scope)
         logger.info(f"{scope.__class__.__name__}: {[c.command for c in cmds]}")
 
-    await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
-    await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
+    try:
+        await bot.set_my_commands(user_commands, scope=BotCommandScopeAllPrivateChats())
+    except TelegramBadRequest as e:
+        logger.error(f"Не удалось установить команды для пользователей: {e}")
+
+    try:
+        await bot.set_my_commands(group_commands, scope=BotCommandScopeAllGroupChats())
+    except TelegramBadRequest as e:
+        logger.error(f"Не удалось установить команды для групп: {e}")
 
     for admin_id in settings_bot.core.admin_ids:
         try:

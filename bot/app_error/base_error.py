@@ -117,6 +117,7 @@ class VPNLimitError(AppError):
 
 class TelegramIdNotProvidedError(AppError):
     """Ошибка отсутствия TelegramID в callback."""
+
     code = "telegram_id_not_provided"
     status_code = 400
 
@@ -128,6 +129,7 @@ class TelegramIdNotProvidedError(AppError):
 
 class DeviceMediaMismatchError(AppError):
     """Ошибка несоответствия медиафайлов и фраз в инструкции."""
+
     code = "device_media_mismatch"
     status_code = 500
 
@@ -156,6 +158,7 @@ class DeviceEmptyMessagesError(AppError):
 
 class DeviceEmptyMediaError(AppError):
     """Ошибка пустой медиа к инструкции."""
+
     code = "device_empty_media"
     status_code = 500
 
@@ -181,3 +184,45 @@ class DeviceInstructionMismatchError(AppError):
                 "messages": messages,
             },
         )
+
+
+class VPNNodeNotFoundError(AppError):
+    """VPN-нода с указанным именем отсутствует в настройках."""
+
+    code = "vpn_node_not_found"
+    status_code = 404
+
+    def __init__(self, name: str) -> None:
+        super().__init__(
+            message=f"VPN node '{name}' не найден в настройках.",
+            details={"name": name},
+        )
+        self.name = name
+
+
+class XRayNotConfiguredError(AppError):
+    """Для VPN-ноды не настроен XRay."""
+
+    code = "xray_not_configured"
+    status_code = 503
+
+    def __init__(self, host: str) -> None:
+        super().__init__(
+            message=f"XRay не настроен для {host}",
+            details={"host": host},
+        )
+        self.host = host
+
+
+class ProxyNotConfiguredError(AppError):
+    """Для VPN-ноды не настроен Proxy."""
+
+    code = "proxy_not_configured"
+    status_code = 503
+
+    def __init__(self, host: str) -> None:
+        super().__init__(
+            message=f"Proxy не настроен для {host}",
+            details={"host": host},
+        )
+        self.host = host

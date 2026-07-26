@@ -17,6 +17,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
 from bot.core.config import settings_bot
+from bot.utils.formatting import format_username
 
 T = TypeVar("T")
 F = TypeVar("F", bound=Callable[..., Any])
@@ -136,15 +137,7 @@ class BaseRouter(ABC):
             if counter >= 2:
                 await state.clear()
 
-                user = message.from_user
-                if user:
-                    username = (
-                        f"@{user.username}"
-                        if user.username
-                        else user.full_name or f"Гость_{user.id}"
-                    )
-                else:
-                    username = "Гость"
+                username = format_username(message.from_user)
 
                 answer_text = m_error.help_limit_reached.format(username=username)
 

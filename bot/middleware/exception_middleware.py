@@ -27,6 +27,8 @@ from bot.app_error.api_error import (
 from bot.app_error.base_error import AppError
 from bot.app_error.schema import ErrorDetail, ErrorEnvelope
 from bot.core.config import settings_bot
+from bot.utils.formatting import format_username
+from bot.utils.start_stop_bot import send_to_admins
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
@@ -156,9 +158,7 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             user = getattr(event, "from_user", None)
 
             if isinstance(user, User):
-                username = f"@{user.username}" or "UndefinedUsername"
-                user_id = user.id
-                user_info = f"{username} ({user_id})"
+                user_info = f"{format_username(user)} ({user.id})"
             else:
                 user_info = "Unknown user"
             cause = exc.__cause__
@@ -172,12 +172,11 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             if cause:
                 msg += (
                     f"\n[ПЕРВОПРИЧИНА]\n"
-                    f"cause_type: {type(cause).__name__ if cause else 'None'}\n"
-                    f"cause_message: {str(cause) if cause else 'None'}"
+                    f"cause_type: {type(cause).__name__}\n"
+                    f"cause_message: {cause}"
                 )
 
-            for admin_id in settings_bot.core.admin_ids:
-                await self.bot.send_message(admin_id, msg)
+            await send_to_admins(bot=self.bot, message_text=msg)
 
         except Exception:
             self.logger.warning("Ошибка при попытке уведомить админа")

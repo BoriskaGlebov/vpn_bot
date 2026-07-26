@@ -12,7 +12,11 @@ from loguru import logger
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 from pydantic_settings import SettingsConfigDict
 
-from bot.app_error.base_error import AppError
+from bot.app_error.base_error import (
+    ProxyNotConfiguredError,
+    VPNNodeNotFoundError,
+    XRayNotConfiguredError,
+)
 from shared.config.app_config import SettingsApp, SettingsCommon, load_toml_config
 from shared.config.db_config import RedisSettings
 from shared.config.logger_config import LoggerConfig
@@ -206,11 +210,11 @@ class VPNNode(SettingsCommon):
             XRaySettings: Настройки XRay.
 
         Raises
-            AppError: Если XRay не настроен.
+            XRayNotConfiguredError: Если XRay не настроен.
 
         """
         if self.xray is None:
-            raise AppError(f"XRay не настроен для {self.host}")
+            raise XRayNotConfiguredError(self.host)
         return self.xray
 
     def require_proxy(self) -> ProxySettings:
@@ -220,11 +224,11 @@ class VPNNode(SettingsCommon):
             ProxySettings: Настройки Proxy.
 
         Raises
-            AppError: Если Proxy не настроен.
+            ProxyNotConfiguredError: Если Proxy не настроен.
 
         """
         if self.proxy is None:
-            raise AppError(f"Proxy не настроен для {self.host}")
+            raise ProxyNotConfiguredError(self.host)
         return self.proxy
 
 
@@ -248,13 +252,13 @@ class VPNRegistry(SettingsCommon):
             VPNNode: Найденная нода.
 
         Raises
-            ValueError: Если нода не найдена.
+            VPNNodeNotFoundError: Если нода не найдена.
 
         """
         try:
             return self.nodes[name]
         except KeyError as exc:
-            raise ValueError(f"VPN node '{name}' не найден в настройках.") from exc
+            raise VPNNodeNotFoundError(name) from exc
 
     @property
     def main(self) -> VPNNode:
@@ -437,8 +441,3 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
-
-
-if __name__ == "__main__":
-    s = settings_bot.vpn.get("main")
-    print(s.xray)
