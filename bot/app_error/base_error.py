@@ -241,3 +241,27 @@ class NewsRecipientsFetchError(AppError):
             message=f"Не удалось получить список получателей рассылки: {reason}",
             details={"reason": reason},
         )
+
+
+class TransactionIdMissingError(AppError):
+    """В callback-данных отсутствует идентификатор платёжной транзакции."""
+
+    code = "transaction_id_missing"
+    status_code = 400
+
+    def __init__(self) -> None:
+        super().__init__(message="Отсутствует идентификатор транзакции.")
+
+
+class SubscriptionActivationFailedError(AppError):
+    """После подтверждения оплаты не удалось получить активную подписку пользователя."""
+
+    code = "subscription_activation_failed"
+    status_code = 502
+
+    def __init__(self, tg_id: int, reason: str) -> None:
+        super().__init__(
+            message=f"Не удалось активировать подписку пользователя {tg_id}: {reason}",
+            details={"tg_id": tg_id, "reason": reason},
+        )
+        self.tg_id = tg_id
