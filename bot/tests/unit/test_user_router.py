@@ -141,8 +141,8 @@ async def test_admin_start_non_admin_monkeypatch(
 
     Проверяется:
         - состояние не устанавливается;
-        - пользователю отправляется сообщение об ошибке;
-        - бот уведомляет пользователя.
+        - пользователю отправляется единственное сообщение об ошибке доступа;
+        - бот не отправляет дополнительных сообщений через send_message.
     """
 
     fake_message = make_fake_message(user_id=999)
@@ -164,8 +164,8 @@ async def test_admin_start_non_admin_monkeypatch(
     await router.admin_start(message=fake_message, state=fake_state)
 
     fake_state.set_state.assert_not_awaited()
-    fake_message.answer.assert_awaited()
-    fake_bot.send_message.assert_awaited()
+    fake_message.answer.assert_awaited_once()
+    fake_bot.send_message.assert_not_awaited()
 
 
 @pytest.mark.asyncio

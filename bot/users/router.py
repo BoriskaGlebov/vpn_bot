@@ -35,6 +35,7 @@ from bot.users.schemas import SUserOut
 from bot.users.services import UserService
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
+from bot.utils.formatting import format_username
 from bot.utils.start_stop_bot import send_to_admins
 from shared.enums.admin_enum import RoleEnum
 
@@ -207,19 +208,15 @@ class UserRouter(BaseRouter):
             None
 
         """
-        assert message.from_user is not None
         # TODO Возможно будут жалобы?
         try:
-            user_id = message.from_user.id
-            if user_id not in settings_bot.core.admin_ids:
+            if user.id not in settings_bot.core.admin_ids:
                 await self.bot.delete_my_commands(
-                    scope=BotCommandScopeChat(chat_id=message.from_user.id)
+                    scope=BotCommandScopeChat(chat_id=user.id)
                 )
-                self.logger.info(
-                    f"Очищены личные команды для пользователя {message.from_user.id}"
-                )
-        except Exception:
-            pass
+                self.logger.info(f"Очищены личные команды для пользователя {user.id}")
+        except Exception as e:
+            self.logger.warning(f"Не удалось очистить личные команды {user.id}: {e}")
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
             if message.chat.type != ChatType.PRIVATE:
@@ -233,7 +230,7 @@ class UserRouter(BaseRouter):
             )
             welcome_messages = m_start.welcome
 
-            username = user.username or f"Гость_{user.id}"
+            username = format_username(user)
             full_name = user.full_name or username
             if not is_new:
                 self.logger.bind(user=username).info("Пользователь вернулся в бота")
@@ -264,7 +261,7 @@ class UserRouter(BaseRouter):
                     ),
                 )
             else:
-                self.logger.bind(user=user.username or user.id).info(
+                self.logger.bind(user=format_username(user)).info(
                     f"Новый пользователь зарегистрирован: {user.id} ({username})"
                 )
                 await self._process_referral(command=command, invited_user=user_info)
@@ -291,7 +288,11 @@ class UserRouter(BaseRouter):
                         username=user_info.username or "undefined",
                         telegram_id=user_info.telegram_id,
                         roles=str(user_info.role),
-                        subscription=str(user_info.current_subscription),
+                        subscription=(
+                            str(user_info.current_subscription)
+                            if user_info.current_subscription
+                            else "-"
+                        ),
                         config_files="",
                     )
                     await send_to_admins(
@@ -330,20 +331,15 @@ class UserRouter(BaseRouter):
             await state.clear()
 
             if user.id not in settings_bot.core.admin_ids:
-                self.logger.bind(user=user.username or user.id).warning(
+                self.logger.bind(user=format_username(user)).warning(
                     f"Попытка доступа к админ-панели не админом: {user.id}"
                 )
                 await message.answer(
-                    text=m_admin.off,
-                    reply_markup=ReplyKeyboardRemove(),
-                )
-                await self.bot.send_message(
                     text=m_error.admin_only,
                     reply_markup=ReplyKeyboardRemove(),
-                    chat_id=message.chat.id,
                 )
                 return
-            self.logger.bind(user=user.username or user.id).info(
+            self.logger.bind(user=format_username(user)).info(
                 f"Админ {user.id} вошёл в панель администратора"
             )
             await self.bot.send_message(

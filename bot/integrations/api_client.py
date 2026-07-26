@@ -20,9 +20,13 @@ class APIClient:
 
     Args:
         base_url (str): Базовый URL API.
+        port (int): Порт API.
         timeout (float): Таймаут запроса.
         max_retries (int): Количество попыток.
         retry_delay (float): Задержка между попытками.
+        scheme (str): Схема подключения ("http"/"https").
+        internal_secret (str | None): Секрет для заголовка X-Internal-Secret
+            (только для клиента нашего api/).
 
     """
 
@@ -138,7 +142,17 @@ class APIClient:
                         response.status_code,
                         response.text,
                     )
-                    raise map_http_error(response.status_code, response.json())
+                    try:
+                        error_body = response.json()
+                    except ValueError as exc:
+                        logger.error(
+                            "Невалидный JSON в ответе с ошибкой: {} {} {}",
+                            method,
+                            url,
+                            response.status_code,
+                        )
+                        raise APIClientInvalidJSONError() from exc
+                    raise map_http_error(response.status_code, error_body)
 
                 return response
 

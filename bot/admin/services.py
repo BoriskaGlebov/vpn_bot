@@ -3,11 +3,13 @@ from loguru import logger
 from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.enums import AdminModeKeys
 from bot.admin.schemas import SChangeRole, SExtendSubscription, SYearIncome
-from bot.users.router import m_admin
+from bot.core.config import settings_bot
 from bot.users.schemas import (
     SUserOut,
 )
 from shared.enums.admin_enum import RoleEnum
+
+m_admin = settings_bot.messages.modes.admin
 
 
 class AdminService:
@@ -87,7 +89,9 @@ class AdminService:
             username=suser.username or "-",
             telegram_id=suser.telegram_id or "-",
             roles=str(suser.role),
-            subscription=str(suser.current_subscription) or "-",
+            subscription=(
+                str(suser.current_subscription) if suser.current_subscription else "-"
+            ),
             config_files=(
                 f"📜 <b>Пользовательские конфиги:</b>\n {config_str}"
                 if suser.vpn_configs

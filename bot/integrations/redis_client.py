@@ -36,16 +36,19 @@ class RedisClient(RedisClientProtocol):
             Redis: Клиент Redis.
 
         Raises
-            Exception: Если соединение не удалось установить.
+            RedisError: Если соединение не удалось установить.
 
         """
         if self.client is None:
-            self.client = Redis.from_url(self.url, decode_responses=False)
+            client = Redis.from_url(self.url, decode_responses=False)
             try:
-                await self.client.ping()
-                logger.info("✅ Подключение к Redis установлено успешно")
+                await client.ping()
             except RedisError as e:
                 logger.error(f"❌ Ошибка подключения к Redis: {e}")
+                await client.close()
+                raise
+            logger.info("✅ Подключение к Redis установлено успешно")
+            self.client = client
         return self.client
 
     async def disconnect(self) -> None:
@@ -60,7 +63,8 @@ class RedisClient(RedisClientProtocol):
         if self.client is None:
             logger.warning("Redis-клиент не инициализирован, переподключение...")
             await self.connect()
-        assert self.client is not None
+        if self.client is None:
+            raise RedisError("Не удалось установить соединение с Redis")
         return self.client
 
     async def get(self, key: str) -> Any:
