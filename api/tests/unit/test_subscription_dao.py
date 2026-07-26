@@ -4,7 +4,6 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from api.app_error.base_error import (
-    AppError,
     TrialAlreadyUsedError,
     UserNotFoundError,
 )
@@ -48,6 +47,7 @@ async def test_activate_subscription_success(
     mock_subscription,
     session,
 ):
+    """Пользователь найден -> подписка создаётся и activate() вызывается с нужными параметрами."""
     with (
         patch(
             "api.subscription.dao.UserDAO.find_one_or_none",
@@ -88,6 +88,7 @@ async def test_activate_subscription_user_not_found(
     telegram_id,
     session,
 ):
+    """Пользователь не найден -> UserNotFoundError."""
     with patch(
         "api.subscription.dao.UserDAO.find_one_or_none",
         new=AsyncMock(return_value=None),
@@ -109,6 +110,7 @@ async def test_activate_subscription_app_error_propagation(
     mock_user,
     session,
 ):
+    """Доменная ошибка из Subscription.activate() (например, триал уже использован) не глушится."""
     mock_subscription = MagicMock(spec=Subscription)
     mock_subscription.activate.side_effect = TrialAlreadyUsedError(
         user_id=mock_user.id, username=mock_user.username
@@ -142,6 +144,7 @@ async def test_activate_subscription_sqlalchemy_error(
     mock_user,
     session,
 ):
+    """Ошибка БД при добавлении подписки пробрасывается наружу."""
     mock_subscription = MagicMock(spec=Subscription)
     mock_subscription.activate.return_value = None
 

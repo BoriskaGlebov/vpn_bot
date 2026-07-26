@@ -1,12 +1,9 @@
-import json
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
-from starlette.testclient import TestClient
 
 from api.core.dependencies import get_current_user, get_session
-from api.main import app
-from api.tests.unit.test_subscription_router import fake_user  # у тебя уже есть
+from api.tests.conftest import fake_user
 from api.vpn.dependencies import get_vpn_service
 from api.vpn.services import VPNService
 
@@ -17,22 +14,20 @@ def service_mock():
 
 
 @pytest.fixture
-def client(service_mock):
-    with patch(
-        "api.main.init_default_roles_admins",
-        new=AsyncMock(),
-    ):
-        app.dependency_overrides[get_vpn_service] = lambda: service_mock
-        app.dependency_overrides[get_session] = lambda: AsyncMock()
-        app.dependency_overrides[get_current_user] = fake_user
-
-        with TestClient(app) as c:
-            yield c
-
-        app.dependency_overrides.clear()
+def client(make_client, service_mock):
+    """TestClient с переопределёнными зависимостями роутера VPN."""
+    with make_client(
+        {
+            get_vpn_service: lambda: service_mock,
+            get_session: lambda: AsyncMock(),
+            get_current_user: fake_user,
+        }
+    ) as c:
+        yield c
 
 
 def test_vpn_check_limit_success(client, service_mock):
+    """Лимит устройств не исчерпан -> can_add=True."""
     service_mock.check_limit.return_value = {
         "can_add": True,
         "limit": 5,
@@ -51,6 +46,7 @@ def test_vpn_check_limit_success(client, service_mock):
 
 
 def test_vpn_add_config_success(client, service_mock):
+    """Добавление VPN-конфига возвращает 201 с данными конфига."""
     service_mock.add_config.return_value = {
         "file_name": "test.conf",
         "pub_key": "key",
@@ -76,6 +72,7 @@ def test_vpn_add_config_success(client, service_mock):
 
 
 def test_vpn_delete_config_success(client, service_mock):
+    """Удаление VPN-конфига возвращает количество удалённых записей."""
     service_mock.delete_config.return_value = 1
 
     payload = {
@@ -100,6 +97,7 @@ def test_vpn_delete_config_success(client, service_mock):
 
 
 def test_vpn_check_limit_false(client, service_mock):
+    """Лимит устройств исчерпан -> can_add=False."""
     service_mock.check_limit.return_value = {
         "can_add": False,
         "limit": 1,

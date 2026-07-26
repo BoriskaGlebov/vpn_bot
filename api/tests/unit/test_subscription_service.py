@@ -3,11 +3,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from api.app_error.base_error import (
-    ActiveSubscriptionExistsError,
     TrialAlreadyUsedError,
     UserNotFoundError,
 )
-from api.subscription.dao import SubscriptionDAO
 from api.subscription.models import Subscription, SubscriptionType
 from api.subscription.services import SubscriptionService
 from api.users.models import User
@@ -51,6 +49,7 @@ def mock_subscription_dao():
 
 @pytest.mark.asyncio
 async def test_check_premium_true(user, session, monkeypatch):
+    """STANDARD-подписка -> premium=False, но роль пользователя присутствует в ответе."""
     monkeypatch.setattr(
         "api.subscription.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=user),
@@ -64,6 +63,7 @@ async def test_check_premium_true(user, session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_check_premium_user_not_found(session, monkeypatch):
+    """Пользователь не найден -> UserNotFoundError."""
     monkeypatch.setattr(
         "api.subscription.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=None),
@@ -75,6 +75,7 @@ async def test_check_premium_user_not_found(session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_start_trial_extend(user, session, monkeypatch):
+    """У пользователя уже есть подписка -> триал продлевает её и ставит has_used_trial."""
     monkeypatch.setattr(
         "api.subscription.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=user),
@@ -88,6 +89,7 @@ async def test_start_trial_extend(user, session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_start_trial_already_used(user, session, monkeypatch):
+    """Триал уже был использован -> TrialAlreadyUsedError."""
     user.has_used_trial = True
 
     monkeypatch.setattr(
@@ -101,6 +103,7 @@ async def test_start_trial_already_used(user, session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_start_trial_create_new(session, monkeypatch):
+    """У пользователя ещё нет подписки -> триал создаёт новую через activate_subscription."""
     user = MagicMock()
     user.id = 1
     user.username = "test"
@@ -135,6 +138,7 @@ async def test_start_trial_create_new(session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_activate_paid_extend(user, session, monkeypatch):
+    """Есть активная подписка -> платная активация продлевает её."""
     monkeypatch.setattr(
         "api.subscription.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=user),
@@ -152,6 +156,7 @@ async def test_activate_paid_extend(user, session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_activate_paid_founder(user, session, monkeypatch):
+    """FOUNDER-роль допускает платную активацию так же, как обычный пользователь."""
     user.role.name = RoleEnum.FOUNDER
 
     monkeypatch.setattr(
@@ -168,6 +173,7 @@ async def test_activate_paid_founder(user, session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_activate_paid_create(session, monkeypatch):
+    """У пользователя нет подписки -> платная активация создаёт новую через DAO."""
     user = MagicMock()
     user.subscriptions = []
     user.role.name = RoleEnum.USER
@@ -199,6 +205,7 @@ async def test_activate_paid_create(session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_subscription_info(user, session, monkeypatch):
+    """Пользователь с активной подпиской -> status='active'."""
     monkeypatch.setattr(
         "api.subscription.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=user),
@@ -212,6 +219,7 @@ async def test_get_subscription_info(user, session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_get_subscription_info_empty(session, monkeypatch):
+    """Пользователь без подписки -> status='no_subscription'."""
     user = MagicMock()
     user.current_subscription = None
     user.vpn_configs = []

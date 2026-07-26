@@ -45,16 +45,6 @@ def mock_change_role():
 
 
 @pytest.fixture
-def mock_user_dao_find_none():
-    with patch(
-        "api.admin.services.UserDAO.find_one_or_none",
-        new_callable=AsyncMock,
-    ) as mock:
-        mock.return_value = None
-        yield mock
-
-
-@pytest.fixture
 def mock_extend_subscription():
     with patch(
         "api.admin.services.UserDAO.extend_subscription", new_callable=AsyncMock
@@ -76,6 +66,7 @@ async def test_get_user_by_telegram_id_success(
     mock_user_dao_find,
     mock_user_mapper,
 ):
+    """Пользователь найден -> сервис возвращает его схему."""
     fake_user = object()
     fake_schema = object()
 
@@ -94,6 +85,7 @@ async def test_get_user_by_telegram_id_not_found(
     session,
     mock_user_dao_find,
 ):
+    """DAO вернул None -> UserNotFoundError."""
     mock_user_dao_find.return_value = None
 
     with pytest.raises(UserNotFoundError):
@@ -106,6 +98,7 @@ async def test_get_users_by_filter(
     mock_get_users_by_roles,
     mock_user_mapper,
 ):
+    """Каждый пользователь из DAO мапится в свою схему по отдельности."""
     fake_users = [object(), object()]
     fake_schemas = ["u1", "u2"]
 
@@ -130,6 +123,7 @@ async def test_change_user_role_success(
     mock_change_role,
     mock_user_mapper,
 ):
+    """Пользователь и роль найдены -> роль меняется, возвращается схема."""
     fake_user = object()
     fake_role = object()
     changed_user = object()
@@ -160,6 +154,7 @@ async def test_change_user_role_user_not_found(
     mock_user_dao_find,
     mock_role_dao_find,
 ):
+    """Пользователь не найден -> UserNotFoundError, роль не проверяется дальше."""
     mock_user_dao_find.return_value = None
     mock_role_dao_find.return_value = object()
 
@@ -175,6 +170,7 @@ async def test_change_user_role_role_not_found(
     mock_user_dao_find,
     mock_role_dao_find,
 ):
+    """Пользователь найден, но искомой роли нет -> RoleNotFoundError."""
     mock_user_dao_find.return_value = object()
     mock_role_dao_find.return_value = None
 
@@ -189,6 +185,7 @@ async def test_extend_user_subscription_success(
     mock_extend_subscription,
     mock_user_mapper,
 ):
+    """Продление подписки существующему пользователю."""
     fake_user = object()
     changed_user = object()
     fake_schema = object()
@@ -216,6 +213,7 @@ async def test_extend_user_subscription_user_not_found(
     session,
     mock_user_dao_find,
 ):
+    """Пользователь не найден -> UserNotFoundError."""
     mock_user_dao_find.return_value = None
 
     with pytest.raises(UserNotFoundError):

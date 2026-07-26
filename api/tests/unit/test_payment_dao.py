@@ -8,6 +8,7 @@ from api.payment.dao import PaymentTransactionDAO
 
 @pytest.mark.asyncio
 async def test_get_year_income(mock_session):
+    """Суммирует доход за явно переданный год."""
     expected_income = 15000
 
     result_mock = Mock()
@@ -26,6 +27,7 @@ async def test_get_year_income(mock_session):
 
 @pytest.mark.asyncio
 async def test_get_year_income_current_year(mocker, mock_session):
+    """Год не передан -> DAO подставляет текущий год (UTC now)."""
     mocked_now = datetime(2026, 5, 10, tzinfo=UTC)
 
     datetime_mock = Mock()
@@ -52,6 +54,7 @@ async def test_get_year_income_current_year(mocker, mock_session):
 
 @pytest.mark.asyncio
 async def test_get_year_income_builds_query(mock_session):
+    """Собранный SQL реально суммирует amount и фильтрует по paid_at (не просто заглушка)."""
     result_mock = Mock()()
     result_mock.scalar_one.return_value = 100
 

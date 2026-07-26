@@ -1,10 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from starlette.testclient import TestClient
 
 from api.core.dependencies import get_current_user, get_session
-from api.main import app
 from api.referrals.dependencies import get_referral_service
 from api.referrals.services import ReferralService
 
@@ -26,22 +24,20 @@ def mock_referral_service():
 
 
 @pytest.fixture
-def client(mock_referral_service, session, mock_admin):
-    with patch(
-        "api.main.init_default_roles_admins",
-        new=AsyncMock(),
-    ):
-        app.dependency_overrides[get_session] = lambda: session
-        app.dependency_overrides[get_current_user] = lambda: mock_admin
-        app.dependency_overrides[get_referral_service] = lambda: mock_referral_service
-
-        with TestClient(app) as c:
-            yield c
-
-    app.dependency_overrides.clear()
+def client(make_client, mock_referral_service, session, mock_admin):
+    """TestClient с переопределёнными зависимостями роутера рефералов."""
+    with make_client(
+        {
+            get_session: lambda: session,
+            get_current_user: lambda: mock_admin,
+            get_referral_service: lambda: mock_referral_service,
+        }
+    ) as c:
+        yield c
 
 
 def test_register_referral_success(client, mock_referral_service):
+    """Регистрация реферала для существующего приглашённого пользователя -> 201."""
     payload = {
         "inviter_telegram_id": 111,
         "invited_user_id": 222,
@@ -69,6 +65,7 @@ def test_register_referral_success(client, mock_referral_service):
 
 
 def test_register_referral_user_not_found(client):
+    """Приглашённый пользователь не найден в БД -> 404."""
     payload = {
         "inviter_telegram_id": 111,
         "invited_user_id": 999,
@@ -84,6 +81,7 @@ def test_register_referral_user_not_found(client):
 
 
 def test_grant_bonus_success(client, mock_referral_service):
+    """Начисление реферального бонуса -> 200 с деталями начисления."""
     payload = {
         "invited_user_id": 222,
         "months": 2,
@@ -117,6 +115,7 @@ def test_grant_bonus_success(client, mock_referral_service):
 
 
 def test_grant_bonus_user_not_found(client):
+    """Приглашённый пользователь не найден в БД -> 404."""
     payload = {
         "invited_user_id": 999,
         "months": 1,

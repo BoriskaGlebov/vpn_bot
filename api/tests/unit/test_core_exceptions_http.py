@@ -26,6 +26,7 @@ class DummyRequest(Request):
 
 @pytest.mark.asyncio
 async def test_request_validation_handler():
+    """Ошибка валидации pydantic оборачивается в единый JSON-формат ошибки."""
     request = DummyRequest("/users")
 
     errors = [
@@ -58,6 +59,7 @@ async def test_request_validation_handler():
 
 @pytest.mark.asyncio
 async def test_request_validation_handler_multiple_errors():
+    """Несколько ошибок валидации попадают в details.errors списком."""
     request = DummyRequest("/users")
 
     errors = [
@@ -87,6 +89,7 @@ async def test_request_validation_handler_multiple_errors():
 
 @pytest.mark.asyncio
 async def test_database_exception_handler():
+    """SQLAlchemyError не протекает наружу, а даёт единый 500-формат без деталей БД."""
     request = DummyRequest("/db")
 
     exc = SQLAlchemyError("DB connection failed")
@@ -110,6 +113,7 @@ async def test_database_exception_handler():
 
 @pytest.mark.asyncio
 async def test_database_exception_handler_contains_exception_type():
+    """Ответ содержит исходный тип исключения в details.exc_type для диагностики."""
     request = DummyRequest("/db")
 
     exc = SQLAlchemyError("some db error")

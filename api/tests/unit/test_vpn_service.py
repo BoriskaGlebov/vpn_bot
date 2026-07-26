@@ -30,6 +30,7 @@ def user():
 
 @pytest.mark.asyncio
 async def test_check_limit_ok(service, session, monkeypatch, user):
+    """Возвращает can_add/limit/current, посчитанные по лимиту типа подписки."""
     monkeypatch.setattr(
         "api.vpn.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=user),
@@ -54,6 +55,7 @@ async def test_check_limit_ok(service, session, monkeypatch, user):
 
 @pytest.mark.asyncio
 async def test_check_limit_user_not_found(service, session, monkeypatch):
+    """Пользователь не найден -> UserNotFoundError."""
     monkeypatch.setattr(
         "api.vpn.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=None),
@@ -65,6 +67,7 @@ async def test_check_limit_user_not_found(service, session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_add_config_ok(service, session, monkeypatch, user):
+    """Добавляет VPN-конфиг существующему пользователю и возвращает его данные."""
     monkeypatch.setattr(
         "api.vpn.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=user),
@@ -91,6 +94,7 @@ async def test_add_config_ok(service, session, monkeypatch, user):
 
 @pytest.mark.asyncio
 async def test_add_config_user_not_found(service, session, monkeypatch):
+    """Пользователь не найден -> UserNotFoundError, конфиг не создаётся."""
     monkeypatch.setattr(
         "api.vpn.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=None),
@@ -107,6 +111,7 @@ async def test_add_config_user_not_found(service, session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_delete_config(service, session, monkeypatch):
+    """Удаление конфига делегируется DAO и возвращает число удалённых записей."""
     delete_mock = AsyncMock(return_value=1)
 
     monkeypatch.setattr(

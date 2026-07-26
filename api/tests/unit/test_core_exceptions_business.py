@@ -47,6 +47,7 @@ async def test_app_error_handler_returns_expected_status(
     exception,
     status_code,
 ):
+    """Каждый доменный AppError мапится в свой HTTP-статус и тело ошибки."""
     request = DummyRequest()
 
     response = await app_error_handler(request, exception)
@@ -62,6 +63,7 @@ async def test_app_error_handler_returns_expected_status(
 
 @pytest.mark.asyncio
 async def test_app_error_handler_unexpected_exception():
+    """Исключение, не являющееся AppError, всё равно даёт корректный 500-ответ."""
     request = DummyRequest()
 
     response = await app_error_handler(

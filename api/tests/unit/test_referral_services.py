@@ -1,16 +1,17 @@
+"""Тесты ReferralService: регистрация реферала и начисление бонуса пригласившему."""
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from api.referrals.services import ReferralService
-from api.users.schemas import SRoleOut, SUserOut
+from api.subscription.models import SubscriptionType
+from api.users.schemas import SRoleOut, SUserOut, SUserTelegramID
 
 
-@pytest.mark.asyncio
-async def test_register_referral_success(mock_session):
-    service = ReferralService()
-
-    invited_user = SUserOut(
+def make_invited_user(**overrides) -> SUserOut:
+    """SUserOut приглашённого пользователя с полями по умолчанию."""
+    defaults = dict(
         id=2,
         telegram_id=222,
         has_used_trial=False,
@@ -22,6 +23,15 @@ async def test_register_referral_success(mock_session):
         vpn_configs=[],
         current_subscription=None,
     )
+    defaults.update(overrides)
+    return SUserOut(**defaults)
+
+
+@pytest.mark.asyncio
+async def test_register_referral_success(mock_session):
+    """Инвайтер найден по telegram_id -> запись Referral создаётся с его id."""
+    service = ReferralService()
+    invited_user = make_invited_user()
 
     inviter_model = MagicMock()
     inviter_model.id = 1
@@ -52,20 +62,9 @@ async def test_register_referral_success(mock_session):
 
 @pytest.mark.asyncio
 async def test_register_referral_no_inviter(mock_session):
+    """inviter_telegram_id не передан -> реферал не регистрируется."""
     service = ReferralService()
-
-    invited_user = SUserOut(
-        id=2,
-        telegram_id=222,
-        has_used_trial=False,
-        username="test",
-        first_name="Test",
-        last_name="User",
-        role=SRoleOut(id=1, name="user", description=None),
-        subscriptions=[],
-        vpn_configs=[],
-        current_subscription=None,
-    )
+    invited_user = make_invited_user()
 
     with patch(
         "api.referrals.services.ReferralDAO.add_referral",
@@ -82,20 +81,9 @@ async def test_register_referral_no_inviter(mock_session):
 
 @pytest.mark.asyncio
 async def test_register_referral_user_used_trial(mock_session):
+    """Приглашённый уже использовал триал -> реферал не регистрируется повторно."""
     service = ReferralService()
-
-    invited_user = SUserOut(
-        id=2,
-        telegram_id=222,
-        has_used_trial=True,
-        username="test",
-        first_name="Test",
-        last_name="User",
-        role=SRoleOut(id=1, name="user", description=None),
-        subscriptions=[],
-        vpn_configs=[],
-        current_subscription=None,
-    )
+    invited_user = make_invited_user(has_used_trial=True)
 
     with patch(
         "api.referrals.services.ReferralDAO.add_referral",
@@ -112,20 +100,9 @@ async def test_register_referral_user_used_trial(mock_session):
 
 @pytest.mark.asyncio
 async def test_register_referral_inviter_not_found(mock_session):
+    """Инвайтер с указанным telegram_id не найден -> реферал не регистрируется."""
     service = ReferralService()
-
-    invited_user = SUserOut(
-        id=2,
-        telegram_id=222,
-        has_used_trial=False,
-        username="test",
-        first_name="Test",
-        last_name="User",
-        role=SRoleOut(id=1, name="user", description=None),
-        subscriptions=[],
-        vpn_configs=[],
-        current_subscription=None,
-    )
+    invited_user = make_invited_user()
 
     with (
         patch(
@@ -148,20 +125,9 @@ async def test_register_referral_inviter_not_found(mock_session):
 
 @pytest.mark.asyncio
 async def test_grant_referral_bonus_no_referral(mock_session):
+    """Для приглашённого нет записи Referral -> бонус не начисляется."""
     service = ReferralService()
-
-    invited_user = SUserOut(
-        id=2,
-        telegram_id=222,
-        has_used_trial=False,
-        username="test",
-        first_name="Test",
-        last_name="User",
-        role=SRoleOut(id=1, name="user", description=None),
-        subscriptions=[],
-        vpn_configs=[],
-        current_subscription=None,
-    )
+    invited_user = make_invited_user()
 
     with patch(
         "api.referrals.services.ReferralDAO.find_one_or_none",
@@ -177,25 +143,11 @@ async def test_grant_referral_bonus_no_referral(mock_session):
         assert message == f"У пользователя не было приглашения {telegram_id}"
 
 
-from api.app_error.base_error import ReferralBonusAlreadyGivenError
-
-
 @pytest.mark.asyncio
 async def test_grant_referral_bonus_already_given(mock_session):
+    """Бонус за этого приглашённого уже был начислен ранее -> повторно не начисляется."""
     service = ReferralService()
-
-    invited_user = SUserOut(
-        id=2,
-        telegram_id=222,
-        has_used_trial=False,
-        username="test",
-        first_name="Test",
-        last_name="User",
-        role=SRoleOut(id=1, name="user", description=None),
-        subscriptions=[],
-        vpn_configs=[],
-        current_subscription=None,
-    )
+    invited_user = make_invited_user()
 
     inviter = MagicMock()
     inviter.telegram_id = 111
@@ -222,20 +174,9 @@ async def test_grant_referral_bonus_already_given(mock_session):
 
 @pytest.mark.asyncio
 async def test_grant_referral_bonus_create_subscription(mock_session):
+    """У инвайтера нет активной подписки -> создаётся новая через activate_subscription."""
     service = ReferralService()
-
-    invited_user = SUserOut(
-        id=2,
-        telegram_id=222,
-        has_used_trial=False,
-        username="test",
-        first_name="Test",
-        last_name="User",
-        role=SRoleOut(id=1, name="user", description=None),
-        subscriptions=[],
-        vpn_configs=[],
-        current_subscription=None,
-    )
+    invited_user = make_invited_user()
 
     inviter = MagicMock()
     inviter.telegram_id = 111
@@ -275,20 +216,9 @@ async def test_grant_referral_bonus_create_subscription(mock_session):
 
 @pytest.mark.asyncio
 async def test_grant_referral_bonus_extend_subscription(mock_session):
+    """У инвайтера уже есть подписка -> она продлевается, а не создаётся новая."""
     service = ReferralService()
-
-    invited_user = SUserOut(
-        id=2,
-        telegram_id=222,
-        has_used_trial=False,
-        username="test",
-        first_name="Test",
-        last_name="User",
-        role=SRoleOut(id=1, name="user", description=None),
-        subscriptions=[],
-        vpn_configs=[],
-        current_subscription=None,
-    )
+    invited_user = make_invited_user()
 
     subscription = MagicMock()
     inviter = MagicMock()
@@ -321,26 +251,11 @@ async def test_grant_referral_bonus_extend_subscription(mock_session):
         assert mock_session.flush.await_count >= 1
 
 
-from api.subscription.models import SubscriptionType
-from api.users.schemas import SUserTelegramID
-
-
 @pytest.mark.asyncio
 async def test_grant_referral_bonus_activate_subscription_params(mock_session):
+    """Новая подписка инвайтеру создаётся с правильным типом (STANDARD) и сроком."""
     service = ReferralService()
-
-    invited_user = SUserOut(
-        id=2,
-        telegram_id=222,
-        has_used_trial=False,
-        username="test",
-        first_name="Test",
-        last_name="User",
-        role=SRoleOut(id=1, name="user", description=None),
-        subscriptions=[],
-        vpn_configs=[],
-        current_subscription=None,
-    )
+    invited_user = make_invited_user()
 
     inviter = MagicMock()
     inviter.telegram_id = 111

@@ -93,6 +93,7 @@ def vpn_config():
 async def test_handle_expired_subscription(
     scheduler, session, user, expired_subscription, vpn_config
 ):
+    """Истёкшая подписка: конфиги помечаются на удаление, шлются user/admin-уведомления."""
     user.current_subscription = expired_subscription
     user.vpn_configs = [vpn_config]
 
@@ -114,6 +115,7 @@ async def test_handle_expired_subscription(
 
 @pytest.mark.asyncio
 async def test_handle_expiring_soon(scheduler, user, active_subscription):
+    """Подписка истекает через 2 дня -> шлётся ровно одно предупреждающее уведомление."""
     active_subscription.remaining_days = lambda: 2
     user.current_subscription = active_subscription
 
@@ -129,6 +131,7 @@ async def test_handle_expiring_soon(scheduler, user, active_subscription):
 async def test_handle_active_limit_exceeded(
     scheduler, session, user, active_subscription
 ):
+    """Превышен лимит устройств -> лишние конфиги удаляются по FIFO."""
     user.current_subscription = active_subscription
 
     # Устанавливаем лимит
@@ -160,6 +163,7 @@ async def test_handle_active_limit_exceeded(
 
 @pytest.mark.asyncio
 async def test_process_user_without_subscription(scheduler, session, user):
+    """У пользователя нет подписки -> обработка не даёт ни статистики, ни событий."""
     user.current_subscription = None
 
     stats, events = await scheduler._process_user(session, user)
@@ -171,6 +175,7 @@ async def test_process_user_without_subscription(scheduler, session, user):
 
 @pytest.mark.asyncio
 async def test_check_all_subscriptions(scheduler, session, user, expired_subscription):
+    """Сквозной прогон по всем пользователям: агрегирует статистику и коммитит сессию."""
     user.current_subscription = expired_subscription
     user.vpn_configs = []
 

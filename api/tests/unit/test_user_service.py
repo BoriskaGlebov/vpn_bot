@@ -35,6 +35,7 @@ async def test_register_or_get_user_existing(
     service,
     session,
 ):
+    """Пользователь уже существует -> возвращается без создания, created=False."""
     fake_user = MagicMock()
     mock_find_user.return_value = fake_user
 
@@ -209,6 +210,7 @@ async def test_get_user_with_referrals_not_found(
     service,
     session,
 ):
+    """Пользователь не найден -> UserNotFoundError (404)."""
     mock_find_user.return_value = None
 
     with pytest.raises(UserNotFoundError) as exc_info:

@@ -1,9 +1,7 @@
-# tests/api/test_scheduler_router.py
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi import HTTPException, status
 
 from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_session
@@ -12,42 +10,29 @@ from api.scheduler.dependencies import get_subscription_scheduler_service
 from api.scheduler.domain.event import UserNotifyEvent
 from api.scheduler.domain.stats import SubscriptionStats
 from api.scheduler.enums import SubscriptionEventType
-from shared.enums.admin_enum import RoleEnum
-
-
-def fake_admin():
-    return SimpleNamespace(
-        id=1,
-        telegram_id=123,
-        role=SimpleNamespace(name=RoleEnum.ADMIN.value),
-    )
+from api.tests.conftest import fake_admin
 
 
 @pytest.fixture
 def mock_scheduler_service():
-    service = AsyncMock()
-    return service
+    return AsyncMock()
 
 
 @pytest.fixture
-def client(mock_scheduler_service):
-    with patch("api.main.init_default_roles_admins", new=AsyncMock()):
-        app.dependency_overrides.clear()
-
-        app.dependency_overrides[get_subscription_scheduler_service] = (
-            lambda: mock_scheduler_service
-        )
-        app.dependency_overrides[get_session] = lambda: AsyncMock()
-        app.dependency_overrides[check_admin_role] = fake_admin
-
-        with TestClient(app) as test_client:
-            yield test_client
-
-        app.dependency_overrides.clear()
+def client(make_client, mock_scheduler_service):
+    """TestClient с переопределёнными зависимостями роутера планировщика."""
+    with make_client(
+        {
+            get_subscription_scheduler_service: lambda: mock_scheduler_service,
+            get_session: lambda: AsyncMock(),
+            check_admin_role: fake_admin,
+        }
+    ) as c:
+        yield c
 
 
 def test_check_all_subscriptions_success(client, mock_scheduler_service):
-    # Подготовка статистики
+    """Полная проверка подписок: статистика и события корректно сериализуются."""
     stats = SubscriptionStats()
     stats.checked = 1
     stats.expired = 1
@@ -95,6 +80,7 @@ def test_check_all_subscriptions_success(client, mock_scheduler_service):
 
 
 def test_check_all_subscriptions_no_events(client, mock_scheduler_service):
+    """Проверка без затронутых подписок -> пустой список событий."""
     stats = SubscriptionStats()
     stats.checked = 0
 
@@ -112,10 +98,8 @@ def test_check_all_subscriptions_no_events(client, mock_scheduler_service):
     assert data["events"] == []
 
 
-from fastapi import HTTPException, status
-
-
 def fake_non_admin():
+    """Имитирует check_admin_role для не-администратора (403)."""
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Not enough permissions",
@@ -123,9 +107,7 @@ def fake_non_admin():
 
 
 def test_check_all_subscriptions_forbidden(client, mock_scheduler_service):
-    from api.admin.dependencies import check_admin_role
-    from api.main import app
-
+    """Пользователь без прав администратора получает 403."""
     app.dependency_overrides[check_admin_role] = fake_non_admin
 
     response = client.post("/scheduler/check-all")
