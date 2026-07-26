@@ -42,19 +42,15 @@ def main_kb(
                 )
             builder.add(*buttons)
         builder.adjust(1, 2)
-        # FIXME  убираю кнопку с прокси, что б людей не путать
-        # builder.row(
-        #     KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value),
-        # )
-        builder.row(KeyboardButton(text=MainMenuText.RENEW_SUBSCRIPTION.value))
-    else:
-        builder.row(KeyboardButton(text=MainMenuText.CHOOSE_SUBSCRIPTION.value))
-        # FIXME  убираю кнопку с прокси, что б людей не путать
-        # builder.row(KeyboardButton(text=MainMenuText.FREE_AMNEZIA_PROXY.value))
-    builder.row(
-        KeyboardButton(text=MainMenuText.CHECK_STATUS.value),
-        KeyboardButton(text=MainMenuText.HELP.value),
-    )
+    # FIXME  убираю кнопку с прокси, что б людей не путать
+    # builder.row(KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value))
+    # FIXME  убираю кнопку с прокси, что б людей не путать
+    # builder.row(KeyboardButton(text=MainMenuText.FREE_AMNEZIA_PROXY.value))
+    # "Продлить"/"Выбрать" + "Проверить статус" сведены в одно подменю
+    # "Моя подписка" (bot/subscription/router.py: my_subscription_menu) —
+    # чтобы не плодить кнопки в главном меню.
+    builder.row(KeyboardButton(text=MainMenuText.MY_SUBSCRIPTION.value))
+    # builder.row(KeyboardButton(text=MainMenuText.HELP.value))
     if user_telegram_id in settings_bot.core.admin_ids:
         builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL.value))
     return builder.as_markup(

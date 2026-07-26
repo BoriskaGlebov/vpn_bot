@@ -1,6 +1,6 @@
 from aiogram import Bot, F
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import StateFilter, and_f, or_f
+from aiogram.filters import Command, StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -16,6 +16,7 @@ from loguru._logger import Logger
 from bot.app_error.api_error import APIClientError
 from bot.app_error.base_error import (
     MessageNotFoundError,
+    PaymentLinkMissingError,
     SubscriptionActivationFailedError,
     TransactionIdMissingError,
 )
@@ -26,16 +27,21 @@ from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
     AdminPaymentAction,
+    MySubscriptionAction,
     SubscriptionAction,
     ToggleSubscriptionMode,
 )
 from bot.subscription.keyboards.inline_kb import (
     AdminPaymentCB,
+    MySubscriptionCB,
     SubscriptionCB,
     ToggleSubscriptionCB,
     admin_payment_kb,
-    payment_confirm_kb,
+    card_payment_kb,
+    my_subscription_menu_kb,
+    payment_method_kb,
     subscription_options_kb,
+    transfer_payment_kb,
 )
 from bot.subscription.services import SubscriptionService
 from bot.subscription.utils.sub_utils import get_correct_price_map, get_correct_sub_type
@@ -53,10 +59,24 @@ m_subscription = settings_bot.messages.modes.subscription
 
 
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
-    """Состояния FSM для процесса оформления подписки."""
+    """Состояния FSM для процесса оформления подписки.
+
+    Attributes
+        subscription_start: Пользователь выбирает период/тариф подписки.
+        select_payment_method: Транзакция создана, пользователь выбирает
+            способ оплаты — картой (автоматически) или переводом (вручную).
+        confirm_payment: Показан выбранный способ оплаты (ссылка на оплату
+            картой либо реквизиты для перевода) — ждём отмену, "Я оплатил"
+            (только перевод) или автоматическое подтверждение по вебхуку
+            (только карта).
+        wait_for_paid: Перевод отправлен, пользователь нажал "Я оплатил" —
+            ждём проверки администратором.
+
+    """
 
     subscription_start: State = State()
-    select_period: State = State()
+    select_payment_method: State = State()
+    confirm_payment: State = State()
     wait_for_paid: State = State()
 
 
@@ -81,11 +101,15 @@ class SubscriptionRouter(BaseRouter):
     def _register_handlers(self) -> None:
         is_admin = IsAdmin()
         self.router.message.register(
-            self.start_subscription,
+            self.my_subscription_menu,
             or_f(
-                F.text == MainMenuText.CHOOSE_SUBSCRIPTION,
-                F.text == MainMenuText.RENEW_SUBSCRIPTION,
+                F.text == MainMenuText.MY_SUBSCRIPTION.value,
+                Command("subscription"),
             ),
+        )
+        self.router.callback_query.register(
+            self.renew_subscription_selected,
+            MySubscriptionCB.filter(F.action == MySubscriptionAction.RENEW),
         )
         self.router.callback_query.register(
             self.subscription_selected,
@@ -101,11 +125,21 @@ class SubscriptionRouter(BaseRouter):
                 ToggleSubscriptionCB.filter(),
             ),
         )
-
+        self.router.callback_query.register(
+            self.payment_method_selected,
+            and_f(
+                StateFilter(SubscriptionStates.select_payment_method),
+                SubscriptionCB.filter(
+                    F.action.in_(
+                        {SubscriptionAction.PAY_CARD, SubscriptionAction.PAY_TRANSFER}
+                    )
+                ),
+            ),
+        )
         self.router.callback_query.register(
             self.user_paid,
             and_f(
-                StateFilter(SubscriptionStates.select_period),
+                StateFilter(SubscriptionStates.confirm_payment),
                 SubscriptionCB.filter(F.action == SubscriptionAction.PAID),
             ),
         )
@@ -128,41 +162,86 @@ class SubscriptionRouter(BaseRouter):
             and_f(
                 or_f(
                     StateFilter(SubscriptionStates.subscription_start),
-                    StateFilter(SubscriptionStates.select_period),
+                    StateFilter(SubscriptionStates.select_payment_method),
+                    StateFilter(SubscriptionStates.confirm_payment),
                     StateFilter(SubscriptionStates.wait_for_paid),
                 ),
                 ~F.text.startswith("/"),
             ),
         )
-        self.router.message.register(
-            self.check_subscription,
-            F.text == MainMenuText.CHECK_STATUS.value,
-        )
 
     @BaseRouter.log_method
     @BaseRouter.require_user
-    async def start_subscription(
+    async def my_subscription_menu(
         self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
-        """Обрабатывает начало оформления подписки.
+        """Показывает информацию о подписке и кнопку "Оформить/продлить".
+
+        Единая точка входа вместо трёх разрозненных кнопок в главном меню
+        ("Выбрать"/"Продлить подписку" + "Проверить статус"); доступна и по
+        кнопке меню, и по команде /subscription — независимо от /start.
 
         Args:
+            message (Message): Сообщение пользователя.
             user (TgUser): Пользователь Телеграм из сообщения.
-            message (Message): Сообщение пользователя, инициировавшего подписку.
+            state (FSMContext): Контекст FSM для управления состояниями.
+
+        """
+        await state.clear()
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            info_text = (
+                await self.subscription_service.get_subscription_and_referral_info(
+                    tg_id=user.id
+                )
+            )
+            await message.answer(
+                text=info_text,
+                reply_markup=my_subscription_menu_kb(),
+            )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def renew_subscription_selected(
+        self, query: CallbackQuery, msg: Message, state: FSMContext
+    ) -> None:
+        """Обрабатывает выбор "Оформить/продлить подписку" в подменю "Моя подписка".
+
+        Args:
+            query (CallbackQuery): Callback от кнопки подменю.
+            msg (Message): Сообщение подменю, которое будет удалено.
+            state (FSMContext): Контекст FSM.
+
+        """
+        await query.answer()
+        await msg.delete()
+        await self._show_subscription_options(
+            chat_id=msg.chat.id, user=query.from_user, state=state
+        )
+
+    async def _show_subscription_options(
+        self, chat_id: int, user: TgUser, state: FSMContext
+    ) -> None:
+        """Отправляет варианты подписки/тарифов, подходящие текущему пользователю.
+
+        Args:
+            chat_id (int): Telegram chat_id, куда отправлять сообщения.
+            user (TgUser): Пользователь Телеграм, оформляющий подписку.
             state (FSMContext): Контекст FSM для управления состояниями.
 
         """
         user_logger = self.logger.bind(user=format_username(user))
         user_logger.info("Начало оформления подписки")
-        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+        async with ChatActionSender.typing(bot=self.bot, chat_id=chat_id):
             (
                 is_premium,
                 role,
                 is_active_sbscr,
                 used_trial,
             ) = await self.subscription_service.check_premium(tg_id=user.id)
-            await message.answer(
-                text="Начнем оформление подписки", reply_markup=ReplyKeyboardRemove()
+            await self.bot.send_message(
+                chat_id=chat_id,
+                text="Начнем оформление подписки",
+                reply_markup=ReplyKeyboardRemove(),
             )
             founder = role == FilterTypeEnum.FOUNDER
             if founder:
@@ -205,10 +284,7 @@ class SubscriptionRouter(BaseRouter):
             await state.update_data(
                 premium=is_premium, founder=founder, used_trial=used_trial
             )
-            await message.answer(
-                text=text,
-                reply_markup=kb,
-            )
+            await self.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
             await state.set_state(SubscriptionStates.subscription_start)
 
     # TODO добавлен платежный сервис
@@ -251,20 +327,27 @@ class SubscriptionRouter(BaseRouter):
 
                 await query.answer(f"Выбрал {months} месяцев", show_alert=False)
 
+                # payment_url не кладём в callback_data кнопок — это реальная
+                # ссылка на оплату, а не короткий идентификатор, и в payload
+                # инлайн-кнопки (лимит Telegram — 64 байта) она не влезет.
+                # Поэтому сохраняем её в FSM-состоянии до шага выбора способа
+                # оплаты (payment_method_selected).
+                await state.update_data(payment_url=transaction_info.payment_url)
+
                 await msg.edit_text(
-                    text=m_subscription.select_period.format(
+                    text=m_subscription.choose_payment_method.format(
                         sub_type=sub_type,
                         months=months,
                         price=price,
                     ),
-                    reply_markup=payment_confirm_kb(
+                    reply_markup=payment_method_kb(
                         months=months,
                         founder=founder,
                         transaction_id=transaction_info.id,
-                        payment_url=transaction_info.payment_url,
+                        has_card_option=bool(transaction_info.payment_url),
                     ),
                 )
-                await state.set_state(SubscriptionStates.select_period)
+                await state.set_state(SubscriptionStates.select_payment_method)
             else:
                 days = months  # для триала количество дней
                 try:
@@ -280,7 +363,85 @@ class SubscriptionRouter(BaseRouter):
                     )
                     await state.clear()
                 except APIClientError as e:
+                    user_logger.warning(
+                        f"Не удалось активировать пробный период: {e.error.message}"
+                    )
                     await query.answer(e.error.message, show_alert=True)
+                    await send_to_admins(
+                        bot=self.bot,
+                        message_text=(
+                            f"⚠️ Пользователь {format_username(query.from_user)} "
+                            f"({query.from_user.id}) не смог активировать пробный "
+                            f"период: {e.error.message}"
+                        ),
+                    )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def payment_method_selected(
+        self,
+        query: CallbackQuery,
+        msg: Message,
+        state: FSMContext,
+        callback_data: SubscriptionCB,
+    ) -> None:
+        """Обрабатывает выбор способа оплаты — картой или переводом.
+
+        Картой: показывает ссылку на оплату через платёжный шлюз, подтверждение
+        подписки происходит автоматически по вебхуку — кнопки "Я оплатил" тут нет.
+
+        Переводом: показывает реквизиты для перевода и кнопку "Я оплатил",
+        по нажатию на которую администратор получает уведомление и подтверждает
+        оплату вручную (см. `user_paid`, `admin_confirm_payment`).
+
+        Args:
+            query (CallbackQuery): Callback от кнопки выбора способа оплаты.
+            msg (Message): Сообщение с выбором способа оплаты для редактирования.
+            state (FSMContext): Контекст FSM.
+            callback_data (SubscriptionCB): Данные кнопки (способ оплаты, транзакция).
+
+        """
+        months = callback_data.months
+        founder = callback_data.founder
+        transaction_id = callback_data.transaction_id
+        if transaction_id is None:
+            raise TransactionIdMissingError()
+
+        data = await state.get_data()
+        is_premium = data.get("premium", False)
+        price_map = get_correct_price_map(premium=is_premium, founder=founder)
+        sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
+        price = price_map[months]
+
+        async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
+            if callback_data.action == SubscriptionAction.PAY_CARD:
+                payment_url = data.get("payment_url")
+                if not payment_url:
+                    raise PaymentLinkMissingError(transaction_id)
+                await query.answer("Оплата картой", show_alert=False)
+                await msg.edit_text(
+                    text=m_subscription.pay_by_card,
+                    reply_markup=card_payment_kb(
+                        transaction_id=transaction_id,
+                        payment_url=payment_url,
+                        founder=founder,
+                    ),
+                )
+            else:  # SubscriptionAction.PAY_TRANSFER
+                await query.answer("Оплата переводом", show_alert=False)
+                await msg.edit_text(
+                    text=m_subscription.select_period.format(
+                        sub_type=sub_type,
+                        months=months,
+                        price=price,
+                    ),
+                    reply_markup=transfer_payment_kb(
+                        months=months,
+                        founder=founder,
+                        transaction_id=transaction_id,
+                    ),
+                )
+            await state.set_state(SubscriptionStates.confirm_payment)
 
     @BaseRouter.log_method
     async def toggle_subscription_mode(
@@ -417,8 +578,13 @@ class SubscriptionRouter(BaseRouter):
             current_state = await state.get_state()
             await query.answer("Отменено ❌", show_alert=False)
             user_logger.info(f"Отмена подписки на шаге: {current_state}")
-            # Если пользователь на втором шаге → вернуть к выбору периода
-            if current_state == SubscriptionStates.select_period.state:
+            # Если пользователь уже выбрал период (способ оплаты или экран
+            # оплаты) → вернуть к выбору периода, а не выходить из подписки
+            back_to_period_states = {
+                SubscriptionStates.select_payment_method.state,
+                SubscriptionStates.confirm_payment.state,
+            }
+            if current_state in back_to_period_states:
                 transaction_id = callback_data.transaction_id
                 if transaction_id is not None:
                     await self.subscription_service.cancel_transaction(
@@ -598,23 +764,3 @@ class SubscriptionRouter(BaseRouter):
                 new_text=m_subscription.decline_paid.admin.format(user_id=user_id),
                 admin_mess_storage=self.redis_service,
             )
-
-    @BaseRouter.log_method
-    @BaseRouter.require_user
-    async def check_subscription(
-        self, message: Message, user: TgUser, state: FSMContext
-    ) -> None:
-        """Проверка статуса подписки пользователя."""
-        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            info_text = (
-                await self.subscription_service.get_subscription_and_referral_info(
-                    tg_id=user.id
-                )
-            )
-
-            await message.answer(
-                text=m_subscription.check_subscription,
-                reply_markup=ReplyKeyboardRemove(),
-            )
-            await self.bot.send_message(chat_id=user.id, text=info_text)
-            await state.clear()

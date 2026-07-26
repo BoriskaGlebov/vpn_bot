@@ -23,9 +23,7 @@ class MainMenuText(str, Enum):
     Attributes
         AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм.
         FREE_AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм бесплатно.
-        RENEW_SUBSCRIPTION: Кнопка продления активной подписки.
-        CHOOSE_SUBSCRIPTION: Кнопка выбора и оформления подписки.
-        CHECK_STATUS: Кнопка проверки статуса текущей подписки.
+        MY_SUBSCRIPTION: Кнопка входа в подменю подписки (оформить/продлить + проверить статус).
         HELP: Кнопка вызова справки и помощи по настройке VPN.
         ADMIN_PANEL: Кнопка перехода в административную панель (доступна администраторам).
         PREMIUM: Возможности премиум пользователей.
@@ -36,11 +34,9 @@ class MainMenuText(str, Enum):
 
     # FIXME  убираю кнопку с прокси, что б людей не путать
     AMNEZIA_PROXY = "📦 AmneziaProxy"
-    #FIXME  убираю кнопку с прокси, что б людей не путать
+    # FIXME  убираю кнопку с прокси, что б людей не путать
     FREE_AMNEZIA_PROXY = "📦 Free AmneziaProxy TG"
-    RENEW_SUBSCRIPTION = "💎 Продлить VPN-Boriska"
-    CHOOSE_SUBSCRIPTION = "💰 Выбрать подписку VPN-Boriska"
-    CHECK_STATUS = "📈 Проверить статус подписки"
+    MY_SUBSCRIPTION = "💳 Моя подписка"
     HELP = "❓ Помощь в настройке VPN"
     ADMIN_PANEL = "⚙️ Панель администратора"
     PREMIUM = "💎 Премиум возможности 💎"

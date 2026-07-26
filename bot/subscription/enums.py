@@ -6,12 +6,16 @@ class SubscriptionAction(StrEnum):
 
     Attributes
         SELECT: Пользователь выбирает тип подписки.
-        PAID: Подписка успешно оплачена.
+        PAY_CARD: Пользователь выбрал оплату картой (автоматически, через платёжный шлюз).
+        PAY_TRANSFER: Пользователь выбрал оплату переводом (вручную, с проверкой администратором).
+        PAID: Пользователь подтвердил перевод ("Я оплатил") — ждём проверки администратором.
         CANCEL: Отмена
 
     """
 
     SELECT = "select"
+    PAY_CARD = "pay_card"
+    PAY_TRANSFER = "pay_transfer"
     PAID = "paid"
     CANCEL = "cancel"
 
@@ -44,3 +48,14 @@ class AdminPaymentAction(StrEnum):
 
     CONFIRM = "confirm"
     DECLINE = "decline"
+
+
+class MySubscriptionAction(StrEnum):
+    """Действия под карточкой "Моя подписка" главного меню.
+
+    Attributes
+        RENEW: Оформить новую или продлить текущую подписку.
+
+    """
+
+    RENEW = "renew"

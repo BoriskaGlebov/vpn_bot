@@ -52,12 +52,10 @@ location_buttons_text = [
     for protocol in VPNProtocol
 ]
 INVALID_FOR_USER = [
-    MainMenuText.CHOOSE_SUBSCRIPTION.value,
+    MainMenuText.MY_SUBSCRIPTION.value,
     MainMenuText.AMNEZIA_PROXY.value,
     MainMenuText.FREE_AMNEZIA_PROXY.value,
-    MainMenuText.CHECK_STATUS.value,
     MainMenuText.HELP.value,
-    MainMenuText.RENEW_SUBSCRIPTION.value,
     MainMenuText.PREMIUM.value,
     MainMenuText.BACK.value,
 ]

@@ -265,3 +265,20 @@ class SubscriptionActivationFailedError(AppError):
             details={"tg_id": tg_id, "reason": reason},
         )
         self.tg_id = tg_id
+
+
+class PaymentLinkMissingError(AppError):
+    """Пользователь выбрал оплату картой, но ссылка на оплату отсутствует.
+
+    Не должно происходить в норме: кнопка "Оплата картой" показывается
+    только когда платёжный шлюз вернул ссылку при создании транзакции.
+    """
+
+    code = "payment_link_missing"
+    status_code = 502
+
+    def __init__(self, transaction_id: object) -> None:
+        super().__init__(
+            message=f"Отсутствует ссылка на оплату картой для транзакции {transaction_id}",
+            details={"transaction_id": str(transaction_id)},
+        )
