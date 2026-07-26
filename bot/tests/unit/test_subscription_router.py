@@ -171,8 +171,13 @@ async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
         query=query_mock, state=state_mock, callback_data=callback_data
     )
 
-    query_mock.answer.assert_any_call("Пробный период уже использован", show_alert=True)
+    # answer() у callback можно вызвать только один раз — регрессия на баг,
+    # когда из-за повторного answer() пользователь не видел alert с ошибкой.
+    query_mock.answer.assert_called_once_with(
+        "Пробный период уже использован", show_alert=True
+    )
     send_to_admins_mock.assert_awaited_once()
+    msg_mock.delete.assert_not_awaited()
 
 
 @pytest.mark.asyncio

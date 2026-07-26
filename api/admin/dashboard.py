@@ -36,9 +36,7 @@ class DashboardView(BaseView):
             users_total = await session.scalar(select(func.count(User.id))) or 0
             users_new_7d = (
                 await session.scalar(
-                    select(func.count(User.id)).where(
-                        User.created_at >= week_ago_naive
-                    )
+                    select(func.count(User.id)).where(User.created_at >= week_ago_naive)
                 )
                 or 0
             )

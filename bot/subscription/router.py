@@ -350,18 +350,13 @@ class SubscriptionRouter(BaseRouter):
                 await state.set_state(SubscriptionStates.select_payment_method)
             else:
                 days = months  # для триала количество дней
+                # callback можно "ответить" только один раз — поэтому answer()
+                # вызываем один раз, уже зная результат (успех/ошибка), а не
+                # оптимистично до попытки активации.
                 try:
-                    await query.answer("Выбрал пробный период", show_alert=False)
                     await self.subscription_service.start_trial_subscription(
                         tg_id=query.from_user.id, days=days
                     )
-                    await msg.delete()
-                    await self.bot.send_message(
-                        chat_id=query.from_user.id,
-                        text=m_subscription.trial_period,
-                        reply_markup=main_kb(active_subscription=True),
-                    )
-                    await state.clear()
                 except APIClientError as e:
                     user_logger.warning(
                         f"Не удалось активировать пробный период: {e.error.message}"
@@ -375,6 +370,15 @@ class SubscriptionRouter(BaseRouter):
                             f"период: {e.error.message}"
                         ),
                     )
+                else:
+                    await query.answer("Выбрал пробный период", show_alert=False)
+                    await msg.delete()
+                    await self.bot.send_message(
+                        chat_id=query.from_user.id,
+                        text=m_subscription.trial_period,
+                        reply_markup=main_kb(active_subscription=True),
+                    )
+                    await state.clear()
 
     @BaseRouter.log_method
     @BaseRouter.require_message

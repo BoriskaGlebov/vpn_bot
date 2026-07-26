@@ -45,6 +45,7 @@ class UserAdmin(ModelView, model=User):
     - Редактируются только поля пользователя;
     - Связанные объекты (подписки, VPN конфиги) только для просмотра.
     """
+
     icon = "fa-solid fa-users"
     column_list = [
         "id",

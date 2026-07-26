@@ -21,7 +21,8 @@ from api.users.models import User
 
 router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
 
-#TODO 3. Нашёл серьёзную дыру, пока не трогал — при составлении карты
+
+# TODO 3. Нашёл серьёзную дыру, пока не трогал — при составлении карты
 # эндпоинтов выяснилось,
 # что GET /payment/transaction
 # (поиск транзакции по gateway_transaction_id) и
