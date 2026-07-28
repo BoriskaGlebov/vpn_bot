@@ -169,6 +169,24 @@ class SubscriptionService:
             conversion=f"{conversion:.2f}",
         )
 
+    async def is_subscription_active(self, tg_id: int) -> bool:
+        """Проверяет активность подписки пользователя.
+
+        В отличие от `get_subscription_info`, возвращает булево значение
+        напрямую из структурированного статуса API, а не текст для показа
+        пользователю — не стоит парсить человекочитаемый текст на признак
+        активности (текст может измениться и молча сломать проверку).
+
+        Args:
+            tg_id (int): ID Telegram-пользователя.
+
+        Returns
+            bool: True, если подписка активна.
+
+        """
+        data = await self.api_adapter.get_subscription_info(tg_id=tg_id)
+        return data.status == "active"
+
     async def get_subscription_info(self, tg_id: int) -> str:
         """Возвращает информацию о подписке пользователя и его VPN-конфигах.
 

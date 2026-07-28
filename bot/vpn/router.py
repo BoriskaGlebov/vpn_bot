@@ -14,7 +14,10 @@ from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.app_error.base_error import AppError, SubscriptionNotFoundError
+from bot.app_error.base_error import (
+    SubscriptionNotFoundError,
+    VPNLocationNotDeterminedError,
+)
 from bot.core.config import VPNNode, settings_bot
 from bot.core.filters import IsPremium
 from bot.integrations.redis_client import RedisClient
@@ -25,7 +28,7 @@ from bot.users.adapter import UsersAPIAdapter
 from bot.users.enums import Location, MainMenuText, PremiumLocation, VPNProtocol
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
-from bot.vpn.keyboards.inline_kb import proxy_url_button, xray_urk_kb
+from bot.vpn.keyboards.inline_kb import proxy_url_button, xray_url_kb
 from bot.vpn.keyboards.markup_kb import premium_locations_kb
 from bot.vpn.services import SSHClientFactory, VPNService
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG2
@@ -83,11 +86,9 @@ class VPNRouter(BaseRouter):
                 F.text == vpn_button_text(VPNProtocol.XRAY, location),
                 flags={"location": location},
             )
-        (
-            self.router.message.register(
-                self.create_proxy_url,
-                F.text == MainMenuText.AMNEZIA_PROXY.value,
-            ),
+        self.router.message.register(
+            self.create_proxy_url,
+            F.text == MainMenuText.AMNEZIA_PROXY.value,
         )
         self.router.message.register(
             self.create_free_proxy_url,
@@ -114,12 +115,6 @@ class VPNRouter(BaseRouter):
                 is_premium,
                 flags={"location": prem_location},
             )
-        (
-            self.router.message.register(
-                self.create_proxy_url,
-                F.text == MainMenuText.AMNEZIA_PROXY.value,
-            ),
-        )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
         """Проверка от повторного создания конфиг файла."""
@@ -145,13 +140,11 @@ class VPNRouter(BaseRouter):
             str | None: имя сервера, если найдено совпадение, иначе None.
 
         Raises
-            AppError: если message.text отсутствует.
+            VPNLocationNotDeterminedError: если message.text отсутствует.
 
         """
         if message.text is None:
-            raise AppError(
-                "Почему-то кнопка не передала текст при выборе локации сервера."
-            )
+            raise VPNLocationNotDeterminedError(reason="message.text is None")
         location = message.text.lower()
         for loc in settings_bot.vpn.nodes:
             is_loc_pref_in = loc in location
@@ -209,66 +202,24 @@ class VPNRouter(BaseRouter):
                     server_info=server_info,
                 )
 
-                await status_msg.answer(text=m_vpn.config_ready)
+                try:
+                    await status_msg.answer(text=m_vpn.config_ready)
 
-                await message.answer_media_group(
-                    media=[
-                        InputMediaDocument(media=FSInputFile(file_path1)),
-                        InputMediaDocument(media=FSInputFile(file_path2)),
-                    ]
-                )
-
-                file_path1.unlink(missing_ok=True)
-                file_path2.unlink(missing_ok=True)
+                    await message.answer_media_group(
+                        media=[
+                            InputMediaDocument(media=FSInputFile(file_path1)),
+                            InputMediaDocument(media=FSInputFile(file_path2)),
+                        ]
+                    )
+                finally:
+                    # Файлы с приватными ключами не должны оставаться на диске,
+                    # даже если отправка пользователю не удалась.
+                    file_path1.unlink(missing_ok=True)
+                    file_path2.unlink(missing_ok=True)
 
             finally:
                 await state.clear()
                 await self.redis.delete(redis_key)
-
-    # @BaseRouter.log_method
-    # @BaseRouter.require_user
-    # async def get_config_amnezia_vpn(
-    #     self,
-    #     message: Message,
-    #     user: TgUser,
-    #     state: FSMContext,
-    # ) -> None:
-    #     """Генерация конфигурации AmneziaVPN для пользователя.
-    #
-    #     Flow:
-    #         1. Определяет сервер по локации
-    #         2. Проверяет блокировку генерации (Redis)
-    #         3. Генерирует VPN конфиг
-    #         4. Отправляет файл пользователю
-    #
-    #     Args:
-    #         message (Message): входящее сообщение.
-    #         user (TgUser): пользователь Telegram.
-    #         state (FSMContext): FSM контекст.
-    #
-    #     Returns
-    #         None
-    #
-    #     """
-    #     location = await self._get_location_server(message=message)
-    #     if location is None:
-    #         raise AppError("Не определил локацию сервера.")
-    #     server_info = settings_bot.vpn.get(name=location)
-    #
-    #     redis_key = f"vpn:config:{user.id}:amnezia_vpn"
-    #     acquired_check = await self._check_acquired(redis_key, message)
-    #     if not acquired_check:
-    #         return
-    #
-    #     await self._handle_vpn_config(
-    #         message=message,
-    #         user=user,
-    #         state=state,
-    #         ssh_client_factory=AsyncSSHClientVPN2,
-    #         server_info=server_info,
-    #         redis_key=redis_key,
-    #         start_text=m_vpn.amnezia_vpn,
-    #     )
 
     @BaseRouter.log_method
     @BaseRouter.require_user
@@ -294,7 +245,9 @@ class VPNRouter(BaseRouter):
         """
         location = await self._get_location_server(message=message)
         if location is None:
-            raise AppError("Не определил локацию сервера.")
+            raise VPNLocationNotDeterminedError(
+                reason="кнопка вызова AmneziaWG-конфига не содержит известную локацию"
+            )
         server_info = settings_bot.vpn.get(name=location)
 
         redis_key = f"vpn:config:{user.id}:amnezia_wg"
@@ -348,11 +301,10 @@ class VPNRouter(BaseRouter):
 
             try:
                 if not use_free:
-                    info = await self.subscription_service.get_subscription_info(
+                    is_active = await self.subscription_service.is_subscription_active(
                         tg_id=user.id
                     )
-
-                    if "Активна" not in info:
+                    if not is_active:
                         raise SubscriptionNotFoundError(tg_id=user.id)
 
                 url_proxy = await self.vpn_service.get_mtproto_url(
@@ -480,17 +432,27 @@ class VPNRouter(BaseRouter):
             await state.clear()
             xray_location = await self._get_location_server(message=message)
             if xray_location is None:
-                raise AppError("Не предалась локация на кнопке вызова Xray конфига")
-            await message.answer(
-                x_ray_messages.start_generate, reply_markup=ReplyKeyboardRemove()
-            )
-            url = await self.vpn_service.generate_xray_subscription(
-                tg_user=user, location=xray_location
-            )
+                raise VPNLocationNotDeterminedError(
+                    reason="кнопка вызова XRay-конфига не содержит известную локацию"
+                )
 
-            await message.answer(
-                text=x_ray_messages.ready_config, reply_markup=xray_urk_kb(url=url)
-            )
+            redis_key = f"vpn:config:{user.id}:xray:{xray_location}"
+            if not await self._check_acquired(redis_key, message):
+                return
+
+            try:
+                await message.answer(
+                    x_ray_messages.start_generate, reply_markup=ReplyKeyboardRemove()
+                )
+                url = await self.vpn_service.generate_xray_subscription(
+                    tg_user=user, location=xray_location
+                )
+
+                await message.answer(
+                    text=x_ray_messages.ready_config, reply_markup=xray_url_kb(url=url)
+                )
+            finally:
+                await self.redis.delete(redis_key)
 
     @BaseRouter.log_method
     @BaseRouter.require_user

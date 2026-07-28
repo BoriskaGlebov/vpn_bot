@@ -138,3 +138,41 @@ async def test_get_subscription_info_inactive_no_end_date(mocker):
 
     assert "🔒 Неактивна" in result
     assert "Бесконечность не предел" in result
+
+
+@pytest.mark.asyncio
+async def test_is_subscription_active_true(mocker):
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    payment_adapter = mocker.AsyncMock()
+
+    api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
+        status="active",
+        subscription_type="premium",
+        remaining="10 дней",
+        configs=[],
+        end_date=datetime(2026, 1, 1),
+    )
+
+    service = SubscriptionService(api_adapter, user_adapter, payment_adapter)
+
+    assert await service.is_subscription_active(123) is True
+
+
+@pytest.mark.asyncio
+async def test_is_subscription_active_false(mocker):
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    payment_adapter = mocker.AsyncMock()
+
+    api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
+        status="inactive",
+        subscription_type=None,
+        remaining="0",
+        configs=[],
+        end_date=None,
+    )
+
+    service = SubscriptionService(api_adapter, user_adapter, payment_adapter)
+
+    assert await service.is_subscription_active(123) is False

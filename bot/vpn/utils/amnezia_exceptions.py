@@ -1,10 +1,12 @@
-from typing import Any
-
-from bot.app_error.schema import ErrorDetail, ErrorEnvelope
+from bot.app_error.base_error import AppError
 
 
-class AmneziaError(Exception):
+class AmneziaError(AppError):
     """Базовый класс для всех ошибок Amnezia.
+
+    Наследуется от `AppError`, чтобы попадать в общий `ErrorHandlerMiddleware`
+    (который распознаёт только `AppError`/`APIClientError`) и корректно
+    превращаться в `ErrorEnvelope` вместо generic "unexpected_error".
 
     Args:
         message (str): Описание ошибки.
@@ -13,28 +15,7 @@ class AmneziaError(Exception):
     """
 
     code: str = "amnezia_error"
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        details: dict[str, Any] | None = None,
-        cause: Exception | None = None,
-    ) -> None:
-        super().__init__(message)
-
-        self.message = message
-        self.details = details or {}
-        self.cause = cause
-
-    def to_envelope(self) -> ErrorEnvelope:
-        return ErrorEnvelope(
-            error=ErrorDetail(
-                code=self.code,
-                message=self.message,
-                details=self.details,
-            )
-        )
+    status_code: int = 502
 
 
 class AmneziaSSHError(AmneziaError):

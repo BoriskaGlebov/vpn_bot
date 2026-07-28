@@ -600,7 +600,7 @@ async def test_add_to_clients_table_bad_json(ssh_client):
         return_value=("невалидный JSON", "", 0, f"cat {ssh_client.WG_CLIENTS_TABLE}")
     )
 
-    with pytest.raises(json.JSONDecodeError):
+    with pytest.raises(AmneziaConfigError):
         await ssh_client._add_to_clients_table("PUB_KEY", "Test Client")
 
 

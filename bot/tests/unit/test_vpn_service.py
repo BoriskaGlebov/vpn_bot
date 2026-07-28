@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from bot.app_error.api_error import APIClientError
-from bot.app_error.base_error import VPNLimitError
+from bot.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
 from bot.users.schemas import SUser
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
@@ -198,157 +198,6 @@ async def test_generate_xray_subscription_success(mocker, tg_user):
     user_adapter = mocker.AsyncMock()
 
     xray_adapter = mocker.AsyncMock()
-
-    xray_registry = mocker.Mock()
-    xray_registry.get.return_value = xray_adapter
-
-    service = VPNService(
-        adapter=api_adapter,
-        user_adapter=user_adapter,
-        xray_registry=xray_registry,
-    )
-
-    user = mocker.Mock()
-    user.telegram_id = 123
-    user.current_subscription = None
-
-    mocker.patch.object(
-        service,
-        "_limit_and_user_inf",
-        return_value=user,
-    )
-
-    xray_adapter.add_new_config.return_value = (
-        {
-            "sub_ids": ["sub123"],
-            "config_ids": ["cfg1", "cfg2"],
-        },
-        "http://sub.url",
-    )
-
-    url = await service.generate_xray_subscription(
-        tg_user=tg_user,
-        location="ru",
-    )
-
-    assert url == "http://sub.url"
-
-    xray_registry.get.assert_called_once_with(name="ru")
-
-    api_adapter.add_config.assert_awaited_once_with(
-        tg_id=123,
-        file_name="sub123",
-        pub_key='["cfg1", "cfg2"]',
-    )
-
-
-@pytest.mark.asyncio
-async def test_generate_xray_subscription_empty_sub_ids(mocker):
-    api_adapter = mocker.AsyncMock()
-    user_adapter = mocker.AsyncMock()
-
-    xray_adapter = mocker.AsyncMock()
-
-    xray_registry = mocker.Mock()
-    xray_registry.get.return_value = xray_adapter
-
-    tg_user = SimpleNamespace(id=123)
-
-    service = VPNService(
-        adapter=api_adapter,
-        user_adapter=user_adapter,
-        xray_registry=xray_registry,
-    )
-
-    user = mocker.Mock()
-    user.telegram_id = 123
-    user.current_subscription = None
-
-    mocker.patch.object(
-        service,
-        "_limit_and_user_inf",
-        return_value=user,
-    )
-
-    xray_adapter.add_new_config.return_value = (
-        {"sub_ids": [], "config_ids": []},
-        "http://sub.url",
-    )
-
-    with pytest.raises(RuntimeError):
-        await service.generate_xray_subscription(
-            tg_user=tg_user,
-            location="ru",
-        )
-
-    api_adapter.add_config.assert_not_called()
-
-    xray_registry.get.assert_called_once_with(name="ru")
-
-
-@pytest.mark.asyncio
-async def test_generate_xray_subscription_db_error_rollback(mocker):
-    api_adapter = mocker.AsyncMock()
-    user_adapter = mocker.AsyncMock()
-
-    xray_adapter = mocker.AsyncMock()
-
-    xray_registry = mocker.Mock()
-    xray_registry.get.return_value = xray_adapter
-
-    tg_user = SimpleNamespace(id=123)
-
-    service = VPNService(
-        adapter=api_adapter,
-        user_adapter=user_adapter,
-        xray_registry=xray_registry,
-    )
-
-    user = mocker.Mock()
-    user.telegram_id = 123
-    user.current_subscription = None
-
-    mocker.patch.object(
-        service,
-        "_limit_and_user_inf",
-        return_value=user,
-    )
-
-    xray_adapter.add_new_config.return_value = (
-        {
-            "sub_ids": ["sub123"],
-            "config_ids": ["cfg1", "cfg2"],
-        },
-        "http://sub.url",
-    )
-
-    api_adapter.add_config.side_effect = APIClientError("DB error")
-
-    with pytest.raises(APIClientError):
-        await service.generate_xray_subscription(
-            tg_user=tg_user,
-            location="ru",
-        )
-
-    xray_registry.get.assert_called_once_with(name="ru")
-
-    xray_adapter.delete_config.assert_any_await(
-        config_id="cfg1",
-    )
-
-    xray_adapter.delete_config.assert_any_await(
-        config_id="cfg2",
-    )
-
-    assert xray_adapter.delete_config.await_count == 2
-
-
-@pytest.mark.asyncio
-async def test_generate_xray_subscription_success(mocker, tg_user):
-    api_adapter = mocker.AsyncMock()
-    user_adapter = mocker.AsyncMock()
-
-    xray_adapter = mocker.AsyncMock()
     xray_registry = mocker.Mock()
     xray_registry.get.return_value = xray_adapter
 
@@ -356,7 +205,7 @@ async def test_generate_xray_subscription_success(mocker, tg_user):
 
     user = mocker.Mock()
     user.telegram_id = 123
-    user.current_subscription = None
+    user.current_subscription = SimpleNamespace(is_active=True, end_date=None)
 
     mocker.patch.object(
         service,
@@ -386,6 +235,37 @@ async def test_generate_xray_subscription_success(mocker, tg_user):
 
 
 @pytest.mark.asyncio
+async def test_generate_xray_subscription_no_active_subscription_rejected(
+    mocker, tg_user
+):
+    """Без активной подписки XRay-конфиг не выдаётся.
+
+    Регрессия на баг: 3x-ui трактует expiryTime=0 как "бессрочно", поэтому
+    отсутствие активной подписки должно явно отклоняться, а не молча
+    приводить к days_left=0 и бессрочному доступу.
+    """
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    xray_registry.get.return_value = xray_adapter
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = mocker.Mock()
+    user.telegram_id = 123
+    user.current_subscription = None
+
+    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await service.generate_xray_subscription(tg_user=tg_user, location="ru")
+
+    xray_adapter.add_new_config.assert_not_called()
+    api_adapter.add_config.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_generate_xray_subscription_empty_sub_ids(mocker):
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
@@ -400,7 +280,7 @@ async def test_generate_xray_subscription_empty_sub_ids(mocker):
 
     user = mocker.Mock()
     user.telegram_id = 123
-    user.current_subscription = None
+    user.current_subscription = SimpleNamespace(is_active=True, end_date=None)
 
     mocker.patch.object(
         service,
@@ -437,7 +317,7 @@ async def test_generate_xray_subscription_db_error_rollback(mocker):
 
     user = mocker.Mock()
     user.telegram_id = 123
-    user.current_subscription = None
+    user.current_subscription = SimpleNamespace(is_active=True, end_date=None)
 
     mocker.patch.object(
         service,
@@ -486,7 +366,7 @@ async def test_generate_xray_subscription_days_calculation(mocker):
 
     user = mocker.Mock()
     user.telegram_id = 123
-    user.current_subscription = SimpleNamespace(end_date=future_date)
+    user.current_subscription = SimpleNamespace(is_active=True, end_date=future_date)
 
     mocker.patch.object(
         service,

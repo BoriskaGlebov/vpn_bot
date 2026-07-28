@@ -282,3 +282,28 @@ class PaymentLinkMissingError(AppError):
             message=f"Отсутствует ссылка на оплату картой для транзакции {transaction_id}",
             details={"transaction_id": str(transaction_id)},
         )
+
+
+class VPNLocationNotDeterminedError(AppError):
+    """Не удалось определить VPN-локацию по нажатой кнопке главного меню."""
+
+    code = "vpn_location_not_determined"
+    status_code = 400
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(
+            message="Не удалось определить локацию сервера, попробуйте ещё раз.",
+            details={"reason": reason},
+        )
+
+
+class NoAdminConfiguredError(AppError):
+    """В конфигурации бота не указан ни один администратор (admin_ids пуст)."""
+
+    code = "no_admin_configured"
+    status_code = 500
+
+    def __init__(self) -> None:
+        super().__init__(
+            message="Не настроен ни один администратор в конфигурации бота."
+        )

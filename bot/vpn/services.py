@@ -8,7 +8,7 @@ from aiogram.types import User as TGUser
 from loguru import logger
 
 from bot.app_error.api_error import APIClientError
-from bot.app_error.base_error import AppError, VPNLimitError
+from bot.app_error.base_error import AppError, SubscriptionNotFoundError, VPNLimitError
 from bot.core.config import VPNNode
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut
@@ -227,6 +227,7 @@ class VPNService:
 
         Raises
             VPNLimitError: Если превышен лимит конфигураций.
+            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
             APIClientError: При ошибке сохранения конфигурации в БД.
             RuntimeError: Если адаптер не вернул subscription ID.
 
@@ -236,9 +237,13 @@ class VPNService:
         user: SUserOut = await self._limit_and_user_inf(tg_user)
 
         sub = user.current_subscription
-        now = datetime.now(UTC)
+        if sub is None or not sub.is_active:
+            # 0 дней 3x-ui трактует как "бессрочно" — нельзя допустить, чтобы
+            # пользователь без активной подписки получил такой конфиг.
+            raise SubscriptionNotFoundError(tg_id=tg_user.id)
 
-        end = sub.end_date if sub else None
+        now = datetime.now(UTC)
+        end = sub.end_date
         if end and end.tzinfo is None:
             end = end.replace(tzinfo=UTC)
 
