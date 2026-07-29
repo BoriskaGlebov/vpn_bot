@@ -1288,26 +1288,3 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
         for key, value in peer_data.items():
             lines.append(f"{key} = {value}")
         return "\n".join(lines)
-
-
-# if __name__ == "__main__":
-#     """Пример использования AsyncSSHClient."""
-#     key_path = Path().home() / ".ssh" / "test_vpn"
-#
-#     async def main() -> None:
-#         """Пример использования AsyncSSHClient."""
-#         async with AsyncSSHClientWG2(
-#             host="vpn-boriska.ru",
-#             username="prod_server",
-#             known_hosts=None,  # Отключить проверку known_hosts
-#             container="amnezia-awg2",
-#         ) as ssh_client:
-#             await ssh_client.connect()
-#             res = await ssh_client.write_single_cmd(cmd="whoami")
-#             print(res)
-#             # await ssh_client.add_new_user_gen_config("boris_blade")
-#             # await ssh_client.full_delete_user(
-#             #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-#             # )
-#
-#     asyncio.run(main())

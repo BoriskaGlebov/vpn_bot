@@ -120,7 +120,6 @@ class VPNRouter(BaseRouter):
         """Проверка от повторного создания конфиг файла."""
         acquired = await self.redis.set(redis_key, "1", 60, True)
         if not acquired:
-            # Уже обрабатывается или уже обработано
             await message.answer(
                 "⏳ Генерация вашего конфига уже в процессе, подождите немного."
             )

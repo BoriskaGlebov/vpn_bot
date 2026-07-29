@@ -46,7 +46,12 @@ def main_kb(
     # builder.row(KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value))
     # FIXME  убираю кнопку с прокси, что б людей не путать
     # builder.row(KeyboardButton(text=MainMenuText.FREE_AMNEZIA_PROXY.value))
-    builder.row(KeyboardButton(text=MainMenuText.MY_SUBSCRIPTION.value))
+    subscription_button_text = (
+        MainMenuText.MY_SUBSCRIPTION.value
+        if active_subscription
+        else MainMenuText.GET_SUBSCRIPTION.value
+    )
+    builder.row(KeyboardButton(text=subscription_button_text))
     # builder.row(KeyboardButton(text=MainMenuText.HELP.value))
     if user_telegram_id in settings_bot.core.admin_ids:
         builder.row(KeyboardButton(text=MainMenuText.ADMIN_PANEL.value))

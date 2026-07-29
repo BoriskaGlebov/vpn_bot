@@ -5,6 +5,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.subscription.enums import (
+    TRIAL_PERIOD_SENTINEL,
     AdminPaymentAction,
     MySubscriptionAction,
     SubscriptionAction,
@@ -120,14 +121,14 @@ def subscription_options_kb(
             ),
         )
 
-    # добавляем кнопку "Бесплатно" только для обычного режима
     if not premium and not founder and not trial:
         builder.button(
             text="🎁 7 дней — Бесплатно",
-            callback_data=SubscriptionCB(action=SubscriptionAction.SELECT, months=7),
+            callback_data=SubscriptionCB(
+                action=SubscriptionAction.SELECT, months=TRIAL_PERIOD_SENTINEL
+            ),
         )
 
-    # кнопка переключения режима
     if premium:
         builder.button(
             text="⬅️ Вернуться к стандартной подписке",

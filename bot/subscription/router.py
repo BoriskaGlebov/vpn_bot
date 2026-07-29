@@ -28,6 +28,7 @@ from bot.redis_service import RedisAdminMessageStorage
 from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
+    TRIAL_PERIOD_SENTINEL,
     AdminPaymentAction,
     MySubscriptionAction,
     SubscriptionAction,
@@ -116,6 +117,10 @@ class SubscriptionRouter(BaseRouter):
                 F.text == MainMenuText.MY_SUBSCRIPTION.value,
                 Command("subscription"),
             ),
+        )
+        self.router.message.register(
+            self.get_subscription_menu,
+            F.text == MainMenuText.GET_SUBSCRIPTION.value,
         )
         self.router.callback_query.register(
             self.renew_subscription_selected,
@@ -214,6 +219,27 @@ class SubscriptionRouter(BaseRouter):
             info_text, keyboard = await self._build_my_subscription_view(user.id)
             await message.answer(text=info_text, reply_markup=keyboard)
 
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def get_subscription_menu(
+        self, message: Message, user: TgUser, state: FSMContext
+    ) -> None:
+        """Сразу открывает выбор тарифа — для пользователей без активной подписки.
+
+        В отличие от `my_subscription_menu`, не показывает промежуточный экран
+        "Моя подписка" с дополнительной кнопкой: кнопка "Оформить подписку"
+        в главном меню обещает переход к оформлению, а не к статусу.
+
+        Args:
+            message (Message): Сообщение пользователя.
+            user (TgUser): Пользователь Телеграм из сообщения.
+            state (FSMContext): Контекст FSM для управления состояниями.
+
+        """
+        await self._show_subscription_options(
+            chat_id=message.chat.id, user=user, state=state
+        )
+
     async def _build_my_subscription_view(
         self, tg_id: int
     ) -> tuple[str, InlineKeyboardMarkup]:
@@ -265,10 +291,8 @@ class SubscriptionRouter(BaseRouter):
             raise VPNConfigNotFoundError(config_id=callback_data.config_id)
 
         await msg.edit_text(
-            text=(
-                f"❗ Удалить конфиг «{config.file_name}»?\n\n"
-                f"Вы потеряете доступ к VPN по этому файлу. Отменить это "
-                f"действие будет нельзя."
+            text=m_subscription.config_delete.confirm.format(
+                file_name=config.file_name
             ),
             reply_markup=confirm_delete_config_kb(config_id=config.id),
         )
@@ -289,7 +313,7 @@ class SubscriptionRouter(BaseRouter):
             callback_data (ConfigDeleteCB): Данные кнопки (id конфига).
 
         """
-        await query.answer("Удаляю…")
+        await query.answer(m_subscription.config_delete.deleting)
         tg_id = query.from_user.id
         configs = await self.subscription_service.get_user_vpn_configs(tg_id=tg_id)
         config = next((c for c in configs if c.id == callback_data.config_id), None)
@@ -302,8 +326,11 @@ class SubscriptionRouter(BaseRouter):
         await self.vpn_service.delete_user_config(tg_id=tg_id, config=config)
 
         info_text, keyboard = await self._build_my_subscription_view(tg_id)
+        success_text = m_subscription.config_delete.success.format(
+            file_name=config.file_name
+        )
         await msg.edit_text(
-            text=f"✅ Конфиг «{config.file_name}» удалён.\n\n{info_text}",
+            text=f"{success_text}\n\n{info_text}",
             reply_markup=keyboard,
         )
 
@@ -321,7 +348,7 @@ class SubscriptionRouter(BaseRouter):
             msg (Message): Сообщение с подтверждением для редактирования.
 
         """
-        await query.answer("Отменено")
+        await query.answer(m_subscription.config_delete.cancelled)
         info_text, keyboard = await self._build_my_subscription_view(query.from_user.id)
         await msg.edit_text(text=info_text, reply_markup=keyboard)
 
@@ -378,11 +405,9 @@ class SubscriptionRouter(BaseRouter):
                     half_year=self.price_map.price_map_founder.get(6, 0),
                     year=self.price_map.price_map_founder.get(12, 0),
                 )
-                kb = subscription_options_kb(
-                    premium=False,
-                    trial=True,  # нечего им смотреть на триал, помечаю что использовал.
-                    founder=True,
-                )
+                # Founder-статус даёт доступ выше пробного периода, поэтому кнопка
+                # триала скрывается — trial=True значит здесь "уже использован".
+                kb = subscription_options_kb(premium=False, trial=True, founder=True)
             elif not is_premium:
                 text = m_subscription.start.format(
                     device_limit=settings_bot.core.max_configs_per_user,
@@ -410,7 +435,6 @@ class SubscriptionRouter(BaseRouter):
             await self.bot.send_message(chat_id=chat_id, text=text, reply_markup=kb)
             await state.set_state(SubscriptionStates.subscription_start)
 
-    # TODO добавлен платежный сервис
     @BaseRouter.log_method
     @BaseRouter.require_message
     async def subscription_selected(
@@ -437,7 +461,7 @@ class SubscriptionRouter(BaseRouter):
             user_logger.info(f"Выбор периода подписки: {months} мес")
             data = await state.get_data()
             is_premium = data.get("premium", False)
-            if months != 7:  # Проверка на триал.
+            if months != TRIAL_PERIOD_SENTINEL:
                 price_map = get_correct_price_map(premium=is_premium, founder=founder)
                 sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
                 price = price_map[months]
@@ -467,10 +491,9 @@ class SubscriptionRouter(BaseRouter):
                 )
                 await state.set_state(SubscriptionStates.select_payment_method)
             else:
-                days = months  # для триала количество дней
                 try:
                     await self.subscription_service.start_trial_subscription(
-                        tg_id=query.from_user.id, days=days
+                        tg_id=query.from_user.id, days=TRIAL_PERIOD_SENTINEL
                     )
                 except APIClientError as e:
                     user_logger.warning(
@@ -780,7 +803,6 @@ class SubscriptionRouter(BaseRouter):
                         months=months,
                         sub_type=sub_type,
                     ),
-                    # reply_markup=main_kb(active_subscription=True),
                 )
                 referral_result: GrantReferralBonusResponse = (
                     confirm_transaction.referral_res

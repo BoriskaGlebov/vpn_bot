@@ -53,6 +53,7 @@ location_buttons_text = [
 ]
 INVALID_FOR_USER = [
     MainMenuText.MY_SUBSCRIPTION.value,
+    MainMenuText.GET_SUBSCRIPTION.value,
     MainMenuText.AMNEZIA_PROXY.value,
     MainMenuText.FREE_AMNEZIA_PROXY.value,
     MainMenuText.HELP.value,
@@ -233,7 +234,6 @@ class UserRouter(BaseRouter):
             if not is_new:
                 self.logger.bind(user=username).info("Пользователь вернулся в бота")
                 response_message = welcome_messages.again[0].format(username=full_name)
-                follow_up_message = welcome_messages.again[1]
 
                 bot_inf = await self.bot.get_me()
                 await message.answer(
@@ -249,6 +249,11 @@ class UserRouter(BaseRouter):
                 subscription_type = subscription.type if subscription else None
                 check_premium = subscription_type == ToggleSubscriptionMode.PREMIUM
                 founder_role = user_info.role.name == RoleEnum.FOUNDER
+                follow_up_message = (
+                    welcome_messages.again[1]
+                    if is_active
+                    else welcome_messages.again_get_subscription
+                )
 
                 await message.answer(
                     follow_up_message,
@@ -264,18 +269,23 @@ class UserRouter(BaseRouter):
                 )
                 await self._process_referral(command=command, invited_user=user_info)
                 response_message = welcome_messages.first[0].format(username=full_name)
-                follow_up_message = welcome_messages.first[1]
+                is_active = (
+                    user_info.current_subscription.is_active
+                    if user_info.current_subscription
+                    else False
+                )
+                follow_up_message = (
+                    welcome_messages.first[1]
+                    if is_active
+                    else welcome_messages.first_get_subscription
+                )
                 await message.answer(
                     response_message, reply_markup=ReplyKeyboardRemove()
                 )
                 await message.answer(
                     follow_up_message,
                     reply_markup=main_kb(
-                        active_subscription=(
-                            user_info.current_subscription.is_active
-                            if user_info.current_subscription
-                            else False
-                        ),
+                        active_subscription=is_active,
                         user_telegram_id=user.id,
                     ),
                 )
