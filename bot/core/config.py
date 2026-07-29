@@ -73,6 +73,31 @@ class BotSettings(SettingsCommon):
     model_config = SettingsConfigDict(env_prefix="BOT_")
 
 
+class SchedulerSettings(SettingsCommon):
+    """Настройки расписания плановой проверки подписок.
+
+    Позволяет переключать проверку между быстрым интервалом (для локальной
+    отладки) и боевым cron-расписанием без ручной правки кода — выбор
+    зависит только от того, что задано в `app_config.{toml,develop.toml}`
+    для текущей `STAGE`.
+
+    Attributes
+        interval_seconds (int | None): Если задано — джоба запускается через
+            фиксированный интервал в секундах (используется в dev/local).
+            Если не задано (None) — используется cron-расписание
+            (`cron_hour`:`cron_minute`), как в проде.
+        cron_hour (int): Час запуска по cron-расписанию.
+        cron_minute (int): Минута запуска по cron-расписанию.
+
+    """
+
+    interval_seconds: int | None = None
+    cron_hour: int = 8
+    cron_minute: int = 0
+
+    model_config = SettingsConfigDict(env_prefix="SCHEDULER_")
+
+
 class ApiSettings(SettingsCommon):
     """Настройки API-сервиса.
 
@@ -357,6 +382,9 @@ class Settings(SettingsCommon):
         bot (BotSettings): Настройки Telegram-бота
             (токен, администраторы, webhook/polling).
 
+        scheduler (SchedulerSettings): Расписание плановой проверки подписок
+            (интервал для dev или cron-время для прода).
+
         api (ApiSettings): Конфигурация API-сервиса
             (хост, порт).
 
@@ -388,6 +416,7 @@ class Settings(SettingsCommon):
     core: SettingsApp = Field(default_factory=SettingsApp)
 
     bot: BotSettings = Field(default_factory=BotSettings)
+    scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
 
     vpn: VPNRegistry = Field(default_factory=VPNRegistry)

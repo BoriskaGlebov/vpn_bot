@@ -4,6 +4,7 @@ from typing import Any
 
 import uvicorn
 from aiogram.types import Update
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import ValidationError
@@ -119,10 +120,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # dp.include_router(ai_router.router)
 
     await start_bot(bot=bot)
+
+    scheduler_settings = settings_bot.scheduler
+    if scheduler_settings.interval_seconds is not None:
+        # Задаётся через app_config.develop.toml / app_config.local.toml —
+        # используется для отладки, в проде interval_seconds не задан.
+        trigger: IntervalTrigger | CronTrigger = IntervalTrigger(
+            seconds=scheduler_settings.interval_seconds
+        )
+        schedule_description = f"каждые {scheduler_settings.interval_seconds} сек."
+    else:
+        trigger = CronTrigger(
+            hour=scheduler_settings.cron_hour, minute=scheduler_settings.cron_minute
+        )
+        schedule_description = (
+            f"каждый день в {scheduler_settings.cron_hour:02d}:"
+            f"{scheduler_settings.cron_minute:02d}"
+        )
+
     scheduler.add_job(
         scheduled_check,
-        trigger=IntervalTrigger(seconds=30, minutes=0),
-        # trigger=CronTrigger(hour=8, minute=0),
+        trigger=trigger,
         kwargs={"service": container.scheduler_bot_service},
         id="scheduled_check",
         max_instances=1,  # Запрещаем параллельное выполнение
@@ -131,7 +149,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         replace_existing=True,  # Заменить, если задача с таким id уже есть
     )
     scheduler.start()
-    logger.info("🕒 Планировщик запущен — проверка каждый день в 8:00")
+    logger.info("🕒 Планировщик запущен — проверка {}", schedule_description)
     if settings_bot.bot.use_polling:
         await bot.delete_webhook(drop_pending_updates=True)
 
