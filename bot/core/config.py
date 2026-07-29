@@ -1,6 +1,7 @@
 import json
 from functools import cached_property
 from pathlib import Path
+from pprint import pprint
 from typing import Any
 
 from aiogram import Bot, Dispatcher

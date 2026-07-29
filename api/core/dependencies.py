@@ -30,9 +30,6 @@ api_key_header = APIKeyHeader(
     name="X-Telegram-Id", scheme_name="TelegramIdHeader", auto_error=False
 )
 
-# scheme_name отдельный от api_key_header — иначе оба APIKeyHeader() без явного
-# имени схемы регистрируются в OpenAPI под одним и тем же именем класса
-# ("APIKeyHeader") и Swagger показывает/принимает только один из двух.
 secret_key_header = APIKeyHeader(
     name="X-Internal-Secret", scheme_name="InternalSecretHeader", auto_error=False
 )

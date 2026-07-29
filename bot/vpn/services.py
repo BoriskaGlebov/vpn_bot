@@ -8,11 +8,17 @@ from aiogram.types import User as TGUser
 from loguru import logger
 
 from bot.app_error.api_error import APIClientError
-from bot.app_error.base_error import AppError, SubscriptionNotFoundError, VPNLimitError
-from bot.core.config import VPNNode
+from bot.app_error.base_error import (
+    AppError,
+    SubscriptionNotFoundError,
+    VPNConfigDeletionFailedError,
+    VPNLimitError,
+)
+from bot.core.config import VPNNode, settings_bot
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.schemas import SUser, SUserOut
+from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from bot.vpn.adapter import VPNAPIAdapter
+from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN, AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
@@ -282,3 +288,158 @@ class VPNService:
             raise
 
         return sub_url
+
+    async def _delete_from_ssh_nodes(
+        self, pub_key: str, file_name: str
+    ) -> tuple[bool, bool]:
+        """Пытается удалить конфиг WireGuard на всех Amnezia-нодах.
+
+        Для каждой ноды пробует только те версии контейнера, которые для
+        неё реально настроены в `settings_bot.vpn.nodes` (`container` —
+        всегда, `container_old` — только если задан), а не обе версии
+        вслепую по умолчанию классов. Раньше код всегда пробовал оба
+        клиента (`AsyncSSHClientWG`/`AsyncSSHClientWG2`) с их именами
+        контейнеров "по умолчанию" — из-за этого на нодах без старого
+        контейнера (например, там, где `container_old` не задан) попытка
+        гарантированно проваливалась ошибкой подключения к
+        несуществующему контейнеру, и это ошибочно считалось реальным
+        сбоем, блокируя сценарий "конфига уже нигде нет — можно чистить БД".
+
+        Args:
+            pub_key: Публичный ключ WireGuard-клиента.
+            file_name: Имя файла — только для логирования.
+
+        Returns
+            tuple[bool, bool]: (найден_и_удалён, была_ошибка_соединения).
+
+        """
+        had_error = False
+        for server_info in settings_bot.vpn.nodes.values():
+            attempts: list[tuple[type[AsyncSSHClientWG], str]] = [
+                (AsyncSSHClientWG2, server_info.container)
+            ]
+            if server_info.container_old:
+                attempts.append((AsyncSSHClientWG, server_info.container_old))
+
+            for client_cls, container in attempts:
+                try:
+                    async with client_cls(
+                        host=server_info.host,
+                        username=server_info.username,
+                        container=container,
+                        use_local=server_info.use_local,
+                        location_prefix=server_info.location_prefix,
+                    ) as ssh_client:
+                        if await ssh_client.full_delete_user(public_key=pub_key):
+                            logger.info(
+                                "Конфиг {} удалён через {} ({}) на {}",
+                                file_name,
+                                client_cls.__name__,
+                                container,
+                                server_info.host,
+                            )
+                            return True, False
+                except (AmneziaError, BrokenPipeError) as e:
+                    logger.warning(
+                        "Не удалось удалить {} через {} ({}) на {}: {}",
+                        file_name,
+                        client_cls.__name__,
+                        container,
+                        server_info.host,
+                        e,
+                    )
+                    had_error = True
+        return False, had_error
+
+    async def _delete_from_xray(
+        self, pub_key: str, file_name: str
+    ) -> tuple[bool, bool]:
+        """Пытается удалить конфиг XRay на всех зарегистрированных нодах 3x-ui.
+
+        `pub_key` для XRay-конфигов — это JSON-список `config_id` (по одному
+        на каждый inbound); если он не парсится как JSON, значит это не
+        XRay-конфиг вовсе (WireGuard хранит там сырой публичный ключ).
+
+        Args:
+            pub_key: Публичный ключ (для XRay — JSON-список config_id).
+            file_name: Имя файла — только для логирования.
+
+        Returns
+            tuple[bool, bool]: (найден_и_удалён, была_ошибка_запроса).
+
+        """
+        try:
+            config_ids = json.loads(pub_key)
+        except json.JSONDecodeError:
+            return False, False
+
+        deleted_any = False
+        had_error = False
+        for adapter in self.xray_registry.all():
+            for config_id in config_ids:
+                try:
+                    if await adapter.delete_config(config_id=config_id):
+                        deleted_any = True
+                except APIClientError as e:
+                    logger.warning(
+                        "Ошибка удаления config_id={} в {}: {}",
+                        config_id,
+                        adapter,
+                        e,
+                    )
+                    had_error = True
+        if deleted_any:
+            logger.info("Конфиг {} удалён через 3x-ui", file_name)
+        return deleted_any, had_error
+
+    async def delete_user_config(self, tg_id: int, config: SVPNConfigOut) -> bool:
+        """Удаляет конфиг пользователя из внешнего сервиса и из БД.
+
+        Пробует удалить конфиг сначала как WireGuard (Amnezia, по SSH, все
+        ноды и обе версии контейнера), затем, если не найден — как XRay
+        (3x-ui, по всем зарегистрированным нодам). Если конфиг не найден
+        нигде, но и ошибок соединения не было — считаем его уже отсутствующим
+        и всё равно удаляем запись из БД. Если были реальные ошибки — запись
+        в БД не трогаем, чтобы не потерять её без фактического удаления.
+
+        Args:
+            tg_id: Telegram ID владельца конфига (для атрибуции в API).
+            config: Конфиг для удаления.
+
+        Returns
+            bool: True, если конфиг был реально найден и удалён на внешнем
+            сервисе; False, если он нигде не был найден (но запись в БД
+            всё равно удалена).
+
+        Raises
+            VPNConfigDeletionFailedError: Если при удалении произошла ошибка
+                соединения и небезопасно удалять запись из БД.
+
+        """
+        async with ssh_lock:
+            deleted, had_error = await self._delete_from_ssh_nodes(
+                config.pub_key, config.file_name
+            )
+
+        if not deleted:
+            async with xray_lock:
+                deleted, xray_error = await self._delete_from_xray(
+                    config.pub_key, config.file_name
+                )
+                had_error = had_error or xray_error
+
+        if not deleted and had_error:
+            raise VPNConfigDeletionFailedError(file_name=config.file_name)
+
+        if not deleted:
+            logger.warning(
+                "Конфиг {} не найден ни в Amnezia, ни в 3x-ui — удаляю только из БД",
+                config.file_name,
+            )
+
+        await self.api_adapter.delete_config(
+            file_name=config.file_name,
+            pub_key=config.pub_key,
+            tg_id=tg_id,
+        )
+        return deleted

@@ -5,8 +5,12 @@ from types import SimpleNamespace
 import pytest
 
 from bot.app_error.api_error import APIClientError
-from bot.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
-from bot.users.schemas import SUser
+from bot.app_error.base_error import (
+    SubscriptionNotFoundError,
+    VPNConfigDeletionFailedError,
+    VPNLimitError,
+)
+from bot.users.schemas import SVPNConfigOut
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
 )
@@ -388,3 +392,182 @@ async def test_generate_xray_subscription_days_calculation(mocker):
 
     assert args["tg_id"] == 123
     assert args["days"] > 300
+
+
+@pytest.mark.asyncio
+async def test_delete_from_ssh_nodes_broken_pipe_is_recoverable(mocker):
+    """BrokenPipeError не должен прерывать перебор нод/версий контейнера.
+
+    Регрессия: на проде `docker exec` в контейнер несуществующей версии
+    (нода реально запускает только одну из старой/новой версии) рвёт
+    shell-сессию раньше, чем команда успевает уйти — `full_delete_user`
+    падает с `BrokenPipeError`, а не доменной `AmneziaError`. До фикса это
+    исключение не ловилось и улетало пользователю как "unexpected_error".
+    """
+    from bot.core.config import settings_bot
+
+    fake_node = SimpleNamespace(
+        host="example.com",
+        username="root",
+        use_local=True,
+        location_prefix="ru_",
+        container="amnezia-awg2",
+        container_old="amnezia-awg",
+    )
+    mocker.patch.object(settings_bot.vpn, "nodes", {"main": fake_node})
+
+    ssh_instance = mocker.AsyncMock()
+    ssh_instance.full_delete_user = mocker.AsyncMock(
+        side_effect=BrokenPipeError("Channel not open for sending")
+    )
+    ssh_client_cls_mock = mocker.Mock(__name__="AsyncSSHClientWG")
+    ssh_client_cls_mock.return_value.__aenter__ = mocker.AsyncMock(
+        return_value=ssh_instance
+    )
+    ssh_client_cls_mock.return_value.__aexit__ = mocker.AsyncMock(return_value=False)
+
+    mocker.patch("bot.vpn.services.AsyncSSHClientWG", ssh_client_cls_mock)
+    mocker.patch("bot.vpn.services.AsyncSSHClientWG2", ssh_client_cls_mock)
+
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    deleted, had_error = await service._delete_from_ssh_nodes("PUBKEY", "conf1.conf")
+
+    assert deleted is False
+    assert had_error is True
+    # Обе версии клиента должны быть опробованы, а не только первая.
+    assert ssh_instance.full_delete_user.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_from_ssh_nodes_skips_old_container_when_not_configured(mocker):
+    """Нода без `container_old` не должна давать гарантированный "промах".
+
+    Регрессия: конфиг был реально удалён на внешних сервисах, но метод
+    всё равно возвращал `had_error=True` и блокировал очистку записи в БД
+    — код вслепую пробовал старую версию контейнера (`AsyncSSHClientWG`)
+    даже на нодах, где `container_old` не задан и такого контейнера
+    никогда не было. Теперь такая нода пробуется только один раз — только
+    новым клиентом с реально настроенным именем контейнера.
+    """
+    from bot.core.config import settings_bot
+
+    fake_node = SimpleNamespace(
+        host="example.com",
+        username="root",
+        use_local=True,
+        location_prefix="fi_",
+        container="amnezia-awg2",
+        container_old=None,
+    )
+    mocker.patch.object(settings_bot.vpn, "nodes", {"fi": fake_node})
+
+    ssh_instance = mocker.AsyncMock()
+    ssh_instance.full_delete_user = mocker.AsyncMock(return_value=False)
+    ssh_client_cls_mock = mocker.Mock(__name__="AsyncSSHClientWG2")
+    ssh_client_cls_mock.return_value.__aenter__ = mocker.AsyncMock(
+        return_value=ssh_instance
+    )
+    ssh_client_cls_mock.return_value.__aexit__ = mocker.AsyncMock(return_value=False)
+
+    mocker.patch("bot.vpn.services.AsyncSSHClientWG2", ssh_client_cls_mock)
+
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    deleted, had_error = await service._delete_from_ssh_nodes("PUBKEY", "conf1.conf")
+
+    assert deleted is False
+    assert had_error is False
+    ssh_client_cls_mock.assert_called_once_with(
+        host="example.com",
+        username="root",
+        container="amnezia-awg2",
+        use_local=True,
+        location_prefix="fi_",
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_user_config_found_via_ssh(mocker):
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+    mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(True, False))
+    delete_xray_mock = mocker.patch.object(service, "_delete_from_xray")
+
+    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY")
+
+    result = await service.delete_user_config(tg_id=123, config=config)
+
+    assert result is True
+    delete_xray_mock.assert_not_called()
+    api_adapter.delete_config.assert_awaited_once_with(
+        file_name="conf1.conf", pub_key="PUBKEY", tg_id=123
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_user_config_found_via_xray_fallback(mocker):
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+    mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(False, False))
+    mocker.patch.object(service, "_delete_from_xray", return_value=(True, False))
+
+    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key='["cfg1"]')
+
+    result = await service.delete_user_config(tg_id=123, config=config)
+
+    assert result is True
+    api_adapter.delete_config.assert_awaited_once_with(
+        file_name="conf1.conf", pub_key='["cfg1"]', tg_id=123
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_user_config_not_found_anywhere_still_cleans_db(mocker):
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+    mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(False, False))
+    mocker.patch.object(service, "_delete_from_xray", return_value=(False, False))
+
+    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY")
+
+    result = await service.delete_user_config(tg_id=123, config=config)
+
+    assert result is False
+    api_adapter.delete_config.assert_awaited_once_with(
+        file_name="conf1.conf", pub_key="PUBKEY", tg_id=123
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_user_config_raises_on_connection_error(mocker):
+    """Если было реальное сетевое/API-соединение — не трогаем БД, поднимаем ошибку."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+    mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(False, True))
+    mocker.patch.object(service, "_delete_from_xray", return_value=(False, False))
+
+    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY")
+
+    with pytest.raises(VPNConfigDeletionFailedError):
+        await service.delete_user_config(tg_id=123, config=config)
+
+    api_adapter.delete_config.assert_not_called()

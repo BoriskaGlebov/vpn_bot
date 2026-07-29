@@ -307,3 +307,38 @@ class NoAdminConfiguredError(AppError):
         super().__init__(
             message="Не настроен ни один администратор в конфигурации бота."
         )
+
+
+class VPNConfigDeletionFailedError(AppError):
+    """Не удалось удалить VPN-конфиг на внешнем сервисе (SSH/3x-ui).
+
+    Запись в БД намеренно не трогается в этом случае — конфиг может
+    реально существовать на сервере, удалять его из БД раньше времени
+    означало бы потерять о нём всякую информацию.
+    """
+
+    code = "vpn_config_deletion_failed"
+    status_code = 502
+
+    def __init__(self, file_name: str) -> None:
+        super().__init__(
+            message=f"Не удалось удалить конфиг «{file_name}», попробуйте ещё раз позже.",
+            details={"file_name": file_name},
+        )
+
+
+class VPNConfigNotFoundError(AppError):
+    """Указанный VPN-конфиг не найден среди конфигов пользователя.
+
+    Например, если конфиг уже был удалён (планировщиком или повторным
+    нажатием) между показом списка и подтверждением удаления.
+    """
+
+    code = "vpn_config_not_found"
+    status_code = 404
+
+    def __init__(self, config_id: int) -> None:
+        super().__init__(
+            message="Этот конфиг уже удалён или не найден.",
+            details={"config_id": config_id},
+        )

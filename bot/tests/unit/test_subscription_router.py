@@ -4,7 +4,9 @@ from uuid import UUID
 import pytest
 from aiogram.types import ReplyKeyboardRemove
 
+from bot.app_error.base_error import VPNConfigNotFoundError
 from bot.subscription.router import SubscriptionRouter, SubscriptionStates
+from bot.users.schemas import SVPNConfigOut
 from shared.enums.admin_enum import FilterTypeEnum
 
 
@@ -27,6 +29,7 @@ async def test_show_subscription_options_premium_user(
         subscription_service=service_mock,
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
     )
 
     await router._show_subscription_options(chat_id=123, user=user, state=state_mock)
@@ -51,6 +54,10 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
 
     service_mock = mocker.AsyncMock()
     service_mock.get_subscription_and_referral_info.return_value = "info text"
+    service_mock.get_user_vpn_configs.return_value = [
+        SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1"),
+        SVPNConfigOut(id=2, file_name="conf2.conf", pub_key="PUBKEY2"),
+    ]
 
     router = SubscriptionRouter(
         bot=fake_bot,
@@ -58,6 +65,7 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
         subscription_service=service_mock,
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
     )
 
     await router.my_subscription_menu(message=message_mock, state=fake_state)
@@ -71,6 +79,129 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
     assert kwargs["text"] == "info text"
     buttons = [b for row in kwargs["reply_markup"].inline_keyboard for b in row]
     assert any(b.text == "🔄 Оформить / продлить подписку" for b in buttons)
+    assert any(b.text == "🗑 conf1.conf" for b in buttons)
+    assert any(b.text == "🗑 conf2.conf" for b in buttons)
+
+
+@pytest.mark.asyncio
+async def test_config_delete_confirm_shows_confirmation(mocker):
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    query_mock.from_user = Mock(id=123, username="user")
+
+    service_mock = mocker.AsyncMock()
+    service_mock.get_user_vpn_configs.return_value = [
+        SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1"),
+    ]
+
+    router = SubscriptionRouter(
+        bot=mocker.AsyncMock(),
+        logger=mocker.Mock(),
+        subscription_service=service_mock,
+        referral_service=mocker.Mock(),
+        redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
+    )
+
+    callback_data = Mock(config_id=1)
+    await router.config_delete_confirm(query=query_mock, callback_data=callback_data)
+
+    query_mock.answer.assert_awaited()
+    msg_mock.edit_text.assert_awaited_once()
+    _, kwargs = msg_mock.edit_text.await_args
+    assert "conf1.conf" in kwargs["text"]
+    buttons = [b for row in kwargs["reply_markup"].inline_keyboard for b in row]
+    assert any(b.text == "✅ Да, удалить" for b in buttons)
+
+
+@pytest.mark.asyncio
+async def test_config_delete_confirm_not_found(mocker):
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    query_mock.from_user = Mock(id=123, username="user")
+
+    service_mock = mocker.AsyncMock()
+    service_mock.get_user_vpn_configs.return_value = []
+
+    router = SubscriptionRouter(
+        bot=mocker.AsyncMock(),
+        logger=mocker.Mock(),
+        subscription_service=service_mock,
+        referral_service=mocker.Mock(),
+        redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
+    )
+
+    callback_data = Mock(config_id=999)
+    with pytest.raises(VPNConfigNotFoundError):
+        await router.config_delete_confirm(
+            query=query_mock, callback_data=callback_data
+        )
+
+
+@pytest.mark.asyncio
+async def test_config_delete_execute_deletes_and_refreshes(mocker):
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    query_mock.from_user = Mock(id=123, username="user")
+
+    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1")
+    service_mock = mocker.AsyncMock()
+    service_mock.get_user_vpn_configs.return_value = [config]
+    service_mock.get_subscription_and_referral_info.return_value = "info text"
+
+    vpn_service_mock = mocker.AsyncMock()
+
+    router = SubscriptionRouter(
+        bot=mocker.AsyncMock(),
+        logger=mocker.Mock(),
+        subscription_service=service_mock,
+        referral_service=mocker.Mock(),
+        redis_service=mocker.Mock(),
+        vpn_service=vpn_service_mock,
+    )
+
+    callback_data = Mock(config_id=1)
+    await router.config_delete_execute(query=query_mock, callback_data=callback_data)
+
+    vpn_service_mock.delete_user_config.assert_awaited_once_with(
+        tg_id=123, config=config
+    )
+    msg_mock.edit_text.assert_awaited_once()
+    _, kwargs = msg_mock.edit_text.await_args
+    assert "conf1.conf" in kwargs["text"]
+    assert "info text" in kwargs["text"]
+
+
+@pytest.mark.asyncio
+async def test_config_delete_cancel_returns_to_menu(mocker):
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    query_mock.from_user = Mock(id=123, username="user")
+
+    service_mock = mocker.AsyncMock()
+    service_mock.get_user_vpn_configs.return_value = []
+    service_mock.get_subscription_and_referral_info.return_value = "info text"
+
+    router = SubscriptionRouter(
+        bot=mocker.AsyncMock(),
+        logger=mocker.Mock(),
+        subscription_service=service_mock,
+        referral_service=mocker.Mock(),
+        redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
+    )
+
+    await router.config_delete_cancel(query=query_mock)
+
+    query_mock.answer.assert_awaited()
+    msg_mock.edit_text.assert_awaited_once()
+    _, kwargs = msg_mock.edit_text.await_args
+    assert kwargs["text"] == "info text"
 
 
 @pytest.mark.asyncio
@@ -88,6 +219,7 @@ async def test_renew_subscription_selected_deletes_menu_and_shows_options(mocker
         subscription_service=service_mock,
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
     )
 
     await router.renew_subscription_selected(query=query_mock, state=mocker.AsyncMock())
@@ -119,6 +251,7 @@ async def test_subscription_selected_paid(mocker):
         subscription_service=subscription_service_mock,
         referral_service=mocker.AsyncMock(),
         redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
     )
 
     await router.subscription_selected(
@@ -164,6 +297,7 @@ async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
         subscription_service=subscription_service_mock,
         referral_service=mocker.AsyncMock(),
         redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
     )
     send_to_admins_mock = mocker.patch("bot.subscription.router.send_to_admins")
 
@@ -202,6 +336,7 @@ async def test_payment_method_selected_card(mocker):
         subscription_service=mocker.AsyncMock(),
         referral_service=mocker.AsyncMock(),
         redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
     )
 
     await router.payment_method_selected(
@@ -235,6 +370,7 @@ async def test_payment_method_selected_transfer(mocker):
         subscription_service=mocker.AsyncMock(),
         referral_service=mocker.AsyncMock(),
         redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
     )
 
     await router.payment_method_selected(
@@ -284,6 +420,7 @@ async def test_user_paid_calls_admins(
         subscription_service=subscription_service,
         referral_service=mocker.AsyncMock(),
         redis_service=fake_redis_service,
+        vpn_service=mocker.AsyncMock(),
     )
 
     send_to_admins_mock = mocker.patch("bot.subscription.router.send_to_admins")
@@ -369,6 +506,7 @@ async def test_admin_confirm_payment(mocker):
         subscription_service=subscription_service_mock,
         referral_service=referral_service_mock,
         redis_service=redis_mock,
+        vpn_service=AsyncMock(),
     )
 
     # --- run ---

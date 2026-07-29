@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Завершение работы api сервиса VPN Boriska...")
 
 
-# Метаданные для OpenAPI
+
 app: FastAPI = FastAPI(
     debug=settings_api.core.debug_fast_api,
     title="VPN Boriska API",

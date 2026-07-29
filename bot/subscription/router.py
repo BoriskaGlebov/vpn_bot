@@ -6,6 +6,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     CallbackQuery,
     InaccessibleMessage,
+    InlineKeyboardMarkup,
     Message,
     ReplyKeyboardRemove,
 )
@@ -19,6 +20,7 @@ from bot.app_error.base_error import (
     PaymentLinkMissingError,
     SubscriptionActivationFailedError,
     TransactionIdMissingError,
+    VPNConfigNotFoundError,
 )
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
@@ -50,11 +52,17 @@ from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.formatting import format_username
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
+from bot.vpn.keyboards.inline_kb import (
+    ConfigDeleteAction,
+    ConfigDeleteCB,
+    confirm_delete_config_kb,
+    my_configs_kb,
+)
+from bot.vpn.services import VPNService
 from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
 
-# TODO дать возможность удалять свои конфиг файлы
 # TODO добавлен платежный сервис надо учесть это в логах, тестах и все такое
 
 
@@ -92,11 +100,13 @@ class SubscriptionRouter(BaseRouter):
         subscription_service: SubscriptionService,
         referral_service: ReferralService,
         redis_service: RedisAdminMessageStorage,
+        vpn_service: VPNService,
     ) -> None:
         super().__init__(bot, logger)
         self.subscription_service = subscription_service
         self.referral_service = referral_service
         self.redis_service = redis_service
+        self.vpn_service = vpn_service
 
     def _register_handlers(self) -> None:
         is_admin = IsAdmin()
@@ -110,6 +120,18 @@ class SubscriptionRouter(BaseRouter):
         self.router.callback_query.register(
             self.renew_subscription_selected,
             MySubscriptionCB.filter(F.action == MySubscriptionAction.RENEW),
+        )
+        self.router.callback_query.register(
+            self.config_delete_confirm,
+            ConfigDeleteCB.filter(F.action == ConfigDeleteAction.CONFIRM),
+        )
+        self.router.callback_query.register(
+            self.config_delete_execute,
+            ConfigDeleteCB.filter(F.action == ConfigDeleteAction.EXECUTE),
+        )
+        self.router.callback_query.register(
+            self.config_delete_cancel,
+            ConfigDeleteCB.filter(F.action == ConfigDeleteAction.CANCEL),
         )
         self.router.callback_query.register(
             self.subscription_selected,
@@ -175,7 +197,7 @@ class SubscriptionRouter(BaseRouter):
     async def my_subscription_menu(
         self, message: Message, user: TgUser, state: FSMContext
     ) -> None:
-        """Показывает информацию о подписке и кнопку "Оформить/продлить".
+        """Показывает информацию о подписке, кнопки удаления конфигов и продления.
 
         Единая точка входа вместо трёх разрозненных кнопок в главном меню
         ("Выбрать"/"Продлить подписку" + "Проверить статус"); доступна и по
@@ -189,15 +211,119 @@ class SubscriptionRouter(BaseRouter):
         """
         await state.clear()
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            info_text = (
-                await self.subscription_service.get_subscription_and_referral_info(
-                    tg_id=user.id
-                )
-            )
-            await message.answer(
-                text=info_text,
-                reply_markup=my_subscription_menu_kb(),
-            )
+            info_text, keyboard = await self._build_my_subscription_view(user.id)
+            await message.answer(text=info_text, reply_markup=keyboard)
+
+    async def _build_my_subscription_view(
+        self, tg_id: int
+    ) -> tuple[str, InlineKeyboardMarkup]:
+        """Собирает текст и клавиатуру экрана "Моя подписка".
+
+        Клавиатура — это кнопки удаления по одной на каждый VPN-конфиг
+        пользователя плюс кнопка "Оформить/продлить подписку".
+
+        Args:
+            tg_id (int): Telegram ID пользователя.
+
+        Returns
+            tuple[str, InlineKeyboardMarkup]: Текст сообщения и клавиатура.
+
+        """
+        info_text = await self.subscription_service.get_subscription_and_referral_info(
+            tg_id=tg_id
+        )
+        configs = await self.subscription_service.get_user_vpn_configs(tg_id=tg_id)
+        configs_kb = my_configs_kb(configs)
+        renew_kb = my_subscription_menu_kb()
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[*configs_kb.inline_keyboard, *renew_kb.inline_keyboard]
+        )
+        return info_text, keyboard
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def config_delete_confirm(
+        self,
+        query: CallbackQuery,
+        msg: Message,
+        callback_data: ConfigDeleteCB,
+    ) -> None:
+        """Запрашивает подтверждение удаления выбранного пользователем конфига.
+
+        Args:
+            query (CallbackQuery): Callback от кнопки конфига в списке.
+            msg (Message): Сообщение экрана "Моя подписка" для редактирования.
+            callback_data (ConfigDeleteCB): Данные кнопки (id конфига).
+
+        """
+        await query.answer()
+        configs = await self.subscription_service.get_user_vpn_configs(
+            tg_id=query.from_user.id
+        )
+        config = next((c for c in configs if c.id == callback_data.config_id), None)
+        if config is None:
+            raise VPNConfigNotFoundError(config_id=callback_data.config_id)
+
+        await msg.edit_text(
+            text=(
+                f"❗ Удалить конфиг «{config.file_name}»?\n\n"
+                f"Вы потеряете доступ к VPN по этому файлу. Отменить это "
+                f"действие будет нельзя."
+            ),
+            reply_markup=confirm_delete_config_kb(config_id=config.id),
+        )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def config_delete_execute(
+        self,
+        query: CallbackQuery,
+        msg: Message,
+        callback_data: ConfigDeleteCB,
+    ) -> None:
+        """Удаляет подтверждённый пользователем конфиг и обновляет экран.
+
+        Args:
+            query (CallbackQuery): Callback от кнопки подтверждения удаления.
+            msg (Message): Сообщение с подтверждением для редактирования.
+            callback_data (ConfigDeleteCB): Данные кнопки (id конфига).
+
+        """
+        await query.answer("Удаляю…")
+        tg_id = query.from_user.id
+        configs = await self.subscription_service.get_user_vpn_configs(tg_id=tg_id)
+        config = next((c for c in configs if c.id == callback_data.config_id), None)
+        if config is None:
+            raise VPNConfigNotFoundError(config_id=callback_data.config_id)
+
+        self.logger.bind(user=format_username(query.from_user)).info(
+            f"Пользователь удаляет свой конфиг {config.file_name}"
+        )
+        await self.vpn_service.delete_user_config(tg_id=tg_id, config=config)
+
+        info_text, keyboard = await self._build_my_subscription_view(tg_id)
+        await msg.edit_text(
+            text=f"✅ Конфиг «{config.file_name}» удалён.\n\n{info_text}",
+            reply_markup=keyboard,
+        )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def config_delete_cancel(
+        self,
+        query: CallbackQuery,
+        msg: Message,
+    ) -> None:
+        """Отменяет удаление конфига и возвращает экран "Моя подписка" без изменений.
+
+        Args:
+            query (CallbackQuery): Callback от кнопки "Отмена".
+            msg (Message): Сообщение с подтверждением для редактирования.
+
+        """
+        await query.answer("Отменено")
+        info_text, keyboard = await self._build_my_subscription_view(query.from_user.id)
+        await msg.edit_text(text=info_text, reply_markup=keyboard)
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -278,9 +404,6 @@ class SubscriptionRouter(BaseRouter):
                     year=self.price_map.price_map_premium.get(12, 0),
                 )
                 kb = subscription_options_kb(premium=is_premium, trial=used_trial)
-            # Сохраняем контекст сессии оформления подписки целиком (не только
-            # premium) — иначе при возврате назад с экрана оплаты (cancel_subscription)
-            # founder/used_trial теряются и пользователю показываются чужие цены.
             await state.update_data(
                 premium=is_premium, founder=founder, used_trial=used_trial
             )
@@ -327,11 +450,6 @@ class SubscriptionRouter(BaseRouter):
 
                 await query.answer(f"Выбрал {months} месяцев", show_alert=False)
 
-                # payment_url не кладём в callback_data кнопок — это реальная
-                # ссылка на оплату, а не короткий идентификатор, и в payload
-                # инлайн-кнопки (лимит Telegram — 64 байта) она не влезет.
-                # Поэтому сохраняем её в FSM-состоянии до шага выбора способа
-                # оплаты (payment_method_selected).
                 await state.update_data(payment_url=transaction_info.payment_url)
 
                 await msg.edit_text(
@@ -350,9 +468,6 @@ class SubscriptionRouter(BaseRouter):
                 await state.set_state(SubscriptionStates.select_payment_method)
             else:
                 days = months  # для триала количество дней
-                # callback можно "ответить" только один раз — поэтому answer()
-                # вызываем один раз, уже зная результат (успех/ошибка), а не
-                # оптимистично до попытки активации.
                 try:
                     await self.subscription_service.start_trial_subscription(
                         tg_id=query.from_user.id, days=days
@@ -582,8 +697,6 @@ class SubscriptionRouter(BaseRouter):
             current_state = await state.get_state()
             await query.answer("Отменено ❌", show_alert=False)
             user_logger.info(f"Отмена подписки на шаге: {current_state}")
-            # Если пользователь уже выбрал период (способ оплаты или экран
-            # оплаты) → вернуть к выбору периода, а не выходить из подписки
             back_to_period_states = {
                 SubscriptionStates.select_payment_method.state,
                 SubscriptionStates.confirm_payment.state,
@@ -594,9 +707,6 @@ class SubscriptionRouter(BaseRouter):
                     await self.subscription_service.cancel_transaction(
                         transaction_id=transaction_id
                     )
-                # Восстанавливаем founder/premium/used_trial из состояния, а не
-                # из дефолтов — иначе founder/premium при возврате назад видят
-                # клавиатуру обычного пользователя (см. subscription_start).
                 data = await state.get_data()
                 premium = data.get("premium", False)
                 founder = data.get("founder", False)
@@ -612,8 +722,6 @@ class SubscriptionRouter(BaseRouter):
                 await state.set_state(SubscriptionStates.subscription_start)
                 return
 
-            # Если пользователь на первом шаге или нет состояния → выйти в главное меню
-            # if msg is not None and not isinstance(msg, InaccessibleMessage):
             await msg.delete()
             await self.bot.send_message(
                 chat_id=query.from_user.id,

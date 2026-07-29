@@ -136,7 +136,8 @@ class AsyncSSHClientWG:
                 - cmd (str): Выполненная команда.
 
         Raises
-            RuntimeError: Если shell-сессия не запущена.
+            AmneziaSSHError: Если shell-сессия не запущена, либо соединение
+                оборвалось во время чтения вывода команды.
 
         """
         if self.use_local:
@@ -162,14 +163,14 @@ class AsyncSSHClientWG:
         await self._process.stdin.drain()
         try:
             output = await self._process.stdout.readuntil("\n")
+            while marker not in output:
+                output += await self._process.stdout.readuntil("\n")
         except asyncio.IncompleteReadError as e:
-            if e.partial == b"":
+            if not e.partial:
                 raise AmneziaSSHError(
                     "AsyncSSH: соединение закрыто при чтении stdout"
                 ) from e
             raise
-        while marker not in output:
-            output += await self._process.stdout.readuntil("\n")
         stdout, _, exit_info = output.rpartition("__EXIT__")
         try:
             exit_code = int(exit_info.split(":")[-1])
@@ -1096,10 +1097,23 @@ class AsyncSSHClientWG:
             ) from e
 
     async def close(self) -> None:
-        """Закрывает shell-сессию и соединение."""
+        """Закрывает shell-сессию и соединение.
+
+        Соединение к этому моменту может быть уже разорвано (например,
+        `docker exec` в несуществующий контейнер завершил процесс раньше,
+        чем мы попытались что-то в него записать) — попытка вежливо выйти
+        командой `exit` в мёртвый канал сама кидает `BrokenPipeError`.
+        Это ожидаемо при закрытии и не должно ни маскировать исходную
+        ошибку, ни мешать закрыть соединение (`self._conn`) следом.
+        """
         if self._process is not None:
-            self._process.stdin.write("exit\n")
-            await self._process.stdin.drain()
+            try:
+                self._process.stdin.write("exit\n")
+                await self._process.stdin.drain()
+            except (BrokenPipeError, ConnectionError) as e:
+                logger.bind(user=self.username).debug(
+                    f"AsyncSSH: shell-сессия уже была разорвана при закрытии: {e}"
+                )
             self._process = None
 
         if self._conn is not None:

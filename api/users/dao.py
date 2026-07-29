@@ -28,7 +28,7 @@ class UserDAO(BaseDAO[User]):
 
     """
 
-    model = User  # Модель для работы с данными пользователя
+    model = User
     base_options = [
         selectinload(User.role),
         selectinload(User.subscriptions),
@@ -72,7 +72,7 @@ class UserDAO(BaseDAO[User]):
             session.add(new_user)
             await session.flush()
             subscription = Subscription(
-                user_id=new_user.id  # Убрал создание сразу стандартной подписки, так как некорректно потом удаляется конфиги у пользователей.
+                user_id=new_user.id
             )
             new_user.role = role
             if role.name == FilterTypeEnum.ADMIN:

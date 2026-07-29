@@ -14,7 +14,7 @@ from bot.subscription.adapter import (
 )
 from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.schemas import SUserOut
+from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from shared.enums.admin_enum import RoleEnum
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -186,6 +186,23 @@ class SubscriptionService:
         """
         data = await self.api_adapter.get_subscription_info(tg_id=tg_id)
         return data.status == "active"
+
+    async def get_user_vpn_configs(self, tg_id: int) -> list[SVPNConfigOut]:
+        """Возвращает список VPN-конфигов пользователя.
+
+        Используется для самостоятельного удаления конфигов пользователем —
+        в отличие от `get_subscription_info` (текст для показа), возвращает
+        структурированные данные с `id`/`pub_key`, достаточные для удаления.
+
+        Args:
+            tg_id (int): ID Telegram-пользователя.
+
+        Returns
+            list[SVPNConfigOut]: Список конфигов пользователя.
+
+        """
+        user, _ = await self.user_adapter.register(SUser(telegram_id=tg_id))
+        return user.vpn_configs
 
     async def get_subscription_info(self, tg_id: int) -> str:
         """Возвращает информацию о подписке пользователя и его VPN-конфигах.
