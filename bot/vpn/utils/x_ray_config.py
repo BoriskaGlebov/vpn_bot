@@ -12,10 +12,12 @@ from bot.integrations.api_client import APIClient
 from bot.vpn.DTO import Inbound, UserUUID
 from bot.vpn.schemas import S3XuiCredentials, S3XuiUSerSettings
 
-# TODO Мне кажется не хвататет отдельного типа ошибок на 3XUI
+# TODO Мне кажется не хватает отдельного типа ошибок на 3XUI,
+#  потому что сейчас используются ошибки из слоя api для БД
 
 
-# TODO нет корректного продления подписки в панели ,когда пользователь продлевает подписку
+# TODO нет корректного продления подписки в панели ,
+#  когда пользователь продлевает подписку его конфиги в панели остаются со старым сроком, надо это учесть
 class ThreeXUIAdapter:
     """Адаптер для взаимодействия с панелью 3x-ui.
 

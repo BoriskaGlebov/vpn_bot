@@ -207,7 +207,6 @@ class UserRouter(BaseRouter):
             None
 
         """
-        # TODO Возможно будут жалобы?
         try:
             if user.id not in settings_bot.core.admin_ids:
                 await self.bot.delete_my_commands(
@@ -355,7 +354,7 @@ class UserRouter(BaseRouter):
                 text=m_admin.on[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
-            # TODO вот этот момент выглядит как костыль, годовые расходы жестко зашиты в код.
+            # FIXME вот этот момент выглядит как костыль, годовые расходы жестко зашиты в код.
             income = await self.admin_service.year_income()
             expense = 28358
             profit = income.year_income - expense
