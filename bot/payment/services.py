@@ -23,15 +23,35 @@ if TYPE_CHECKING:
     from subscription.services import SubscriptionService
 
 
-# TODO  Новый класс не протестирован, нужно логирование, тесты, документация, типы данных
+# TODO  Новый класс не протестирован, нужно логирование, тесты
 class PaymentService:
-    def __init__(self, adapter: PaymentAPIAdapter, provider: BasePaymentProvider):
+    """Сервис платежей — оркестрирует создание/подтверждение/отмену транзакций.
+
+    Связывает внутренний Payment API (через `PaymentAPIAdapter`) с внешним
+    платёжным шлюзом (через `BasePaymentProvider`).
+    """
+
+    def __init__(
+        self, adapter: PaymentAPIAdapter, provider: BasePaymentProvider
+    ) -> None:
         self.adapter = adapter
         self.provider = provider
 
     async def create_transaction(
         self, amount: int, subscription_months: int, is_premium: bool, is_founder: bool
     ) -> SCreatePayment:
+        """Создаёт транзакцию во внутреннем API и платёж у провайдера.
+
+        Args:
+            amount: Сумма платежа в минимальных единицах.
+            subscription_months: Количество месяцев подписки.
+            is_premium: Флаг премиум-подписки.
+            is_founder: Флаг пользователя-основателя.
+
+        Returns
+            SCreatePayment: Ссылка на оплату и данные созданной транзакции.
+
+        """
         api_res = await self.adapter.create_transaction(
             amount=amount,
             subscription_months=subscription_months,
@@ -68,30 +88,79 @@ class PaymentService:
     async def cancel_transaction(
         self, transaction_id: UUID
     ) -> SPaymentTransactionResponse:
+        """Отменяет платёжную транзакцию.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Данные отменённой транзакции.
+
+        """
         tx_res = await self.adapter.cancel_transaction(transaction_id=transaction_id)
         return tx_res
 
     async def confirm_transaction(
         self, transaction_id: UUID
     ) -> SConfirmPaymentResponse:
+        """Подтверждает платёжную транзакцию (администратором).
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SConfirmPaymentResponse: Результат подтверждения.
+
+        """
         tx_res = await self.adapter.confirm_transaction(transaction_id=transaction_id)
         return tx_res
 
     async def webhook_confirm_transaction(
         self, transaction_id: UUID
     ) -> SConfirmPaymentResponse:
+        """Подтверждает платёжную транзакцию по вебхуку платёжного провайдера.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SConfirmPaymentResponse: Результат подтверждения.
+
+        """
         tx_res = await self.adapter.webhook_confirm_transaction(
             transaction_id=transaction_id
         )
         print(tx_res)
         return tx_res
 
-    async def mark_payment_started(self, transaction_id: UUID):
+    async def mark_payment_started(
+        self, transaction_id: UUID
+    ) -> SPaymentTransactionResponse:
+        """Помечает транзакцию как оплаченную пользователем (ожидает подтверждения).
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Обновлённая транзакция.
+
+        """
         tx_res = await self.adapter.mark_payment_started(transaction_id=transaction_id)
 
         return tx_res
 
-    async def get_by_gateway_id(self, gateway_transaction_id: str):
+    async def get_by_gateway_id(
+        self, gateway_transaction_id: str
+    ) -> SPaymentTransactionResponse:
+        """Находит транзакцию по ID платежа во внешнем шлюзе.
+
+        Args:
+            gateway_transaction_id: ID транзакции внешнего платёжного шлюза.
+
+        Returns
+            SPaymentTransactionResponse: Найденная транзакция.
+
+        """
         tx_res = await self.adapter.get_by_gateway_id(
             gateway_transaction_id=gateway_transaction_id
         )
@@ -99,6 +168,8 @@ class PaymentService:
 
 
 class PaymentWebhookService:
+    """Обрабатывает входящие события вебхука платёжного провайдера."""
+
     def __init__(
         self,
         payment_service: PaymentService,
@@ -109,7 +180,13 @@ class PaymentWebhookService:
         self.subscription_service = subscription_service
         self.notification_service = notification_service
 
-    async def handle_event(self, event: PaymentWebhookDTO):
+    async def handle_event(self, event: PaymentWebhookDTO) -> None:
+        """Обрабатывает событие вебхука и уведомляет пользователя о результате.
+
+        Args:
+            event: Данные события вебхука (статус платежа и ID транзакции).
+
+        """
         tx = await self.payment_service.get_by_gateway_id(
             gateway_transaction_id=event.provider_payment_id
         )

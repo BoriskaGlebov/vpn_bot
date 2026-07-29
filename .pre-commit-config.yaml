@@ -50,34 +50,12 @@ repos:
         args: [ "--ignore=D100,D104,D107,D213,D203,D407" ]
         files: '^(?!(bot/tests/|bot/migrations/|api/migrations/|api/tests/)).*\.py$'
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.17.1
+  - repo: local
     hooks:
       - id: mypy
-#        stages: [pre-push]
-        additional_dependencies:
-          - types-atomicwrites
-          - types-tabulate
-          - types-freezegun
-          - types-pyyaml
-          - pydantic>=2.8
-          - pydantic-settings
-          - sqlalchemy
-          - tokenize-rt
-          - types-python-dateutil
-          - types-aiofiles
-        args: [ --strict,
-                --ignore-missing-imports,
-                --no-warn-unused-ignores
-        ]
-        exclude: |
-          (?x)^(
-            venv/|
-            bot/tests/|
-            build/|
-            dist/|
-            \.venv/|
-            bot/migrations/|
-            api/migrations/|
-            api/tests/|
-          )
+        name: mypy
+        entry: poetry run mypy .
+        language: system
+        types: [ python ]
+        pass_filenames: false
+        require_serial: true

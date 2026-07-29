@@ -4,7 +4,6 @@ from typing import Any
 
 import uvicorn
 from aiogram.types import Update
-from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import ValidationError
@@ -283,6 +282,15 @@ async def health() -> JSONResponse:
     ],
 )
 async def payment_webhook(request: Request) -> Response:
+    """Принимает вебхук платёжного провайдера и передаёт его на обработку.
+
+    Args:
+        request (Request): Входящий HTTP-запрос с телом вебхука.
+
+    Returns
+        Response: Пустой ответ 200, подтверждающий получение вебхука.
+
+    """
     body: bytes = await request.body()
     if not body:
         logger.debug("Webhook-запрос с пустым телом")

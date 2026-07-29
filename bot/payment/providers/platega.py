@@ -15,6 +15,8 @@ from bot.payment.dto import (
 
 
 class PlategaProvider:
+    """Платёжный провайдер Platega (`BasePaymentProvider`)."""
+
     BASE_URL = "https://app.platega.io"
 
     def __init__(
@@ -39,6 +41,15 @@ class PlategaProvider:
         self,
         data: CreatePaymentDTO,
     ) -> CreatedPaymentDTO:
+        """Создаёт платёж в Platega и возвращает ссылку на оплату.
+
+        Args:
+            data: Данные для создания платежа.
+
+        Returns
+            CreatedPaymentDTO: Ссылка на оплату и статус платежа.
+
+        """
         payload = {
             # "paymentMethod": 11,
             "paymentDetails": {
@@ -77,6 +88,16 @@ class PlategaProvider:
         headers: dict[str, str],
         body: bytes,
     ) -> bool:
+        """Проверяет подлинность вебхука по merchant ID и секретному ключу в заголовках.
+
+        Args:
+            headers: Заголовки входящего HTTP-запроса.
+            body: Тело запроса (не используется — подпись Platega живёт в заголовках).
+
+        Returns
+            bool: True, если merchant ID и секрет совпадают с настроенными.
+
+        """
         merchant_id = headers.get("X-MerchantId")
         secret = headers.get("X-Secret")
         if not merchant_id or not secret:
@@ -88,6 +109,15 @@ class PlategaProvider:
         self,
         body: bytes,
     ) -> PaymentWebhookDTO:
+        """Разбирает тело вебхука Platega в доменное событие.
+
+        Args:
+            body: Тело вебхука (JSON).
+
+        Returns
+            PaymentWebhookDTO: Разобранное событие с нормализованным статусом.
+
+        """
         data = json.loads(body)
 
         provider_status = data["status"]
@@ -111,12 +141,14 @@ class PlategaProvider:
         )
 
     async def close(self) -> None:
+        """Закрывает HTTP-клиент провайдера."""
         await self.client.aclose()
 
 
 if __name__ == "__main__":
 
-    async def main():
+    async def main() -> None:
+        """Пример ручного вызова `PlategaProvider.create_payment` для отладки."""
         cr_payment = CreatePaymentDTO(
             amount=Decimal(10),
             currency="RUB",

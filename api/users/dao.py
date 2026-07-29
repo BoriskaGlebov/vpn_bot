@@ -71,9 +71,7 @@ class UserDAO(BaseDAO[User]):
             new_user = cls.model(**user_dict)
             session.add(new_user)
             await session.flush()
-            subscription = Subscription(
-                user_id=new_user.id
-            )
+            subscription = Subscription(user_id=new_user.id)
             new_user.role = role
             if role.name == FilterTypeEnum.ADMIN:
                 subscription.is_active = True

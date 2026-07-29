@@ -34,16 +34,15 @@ Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
 
 class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
+    """Перехватывает исключения хендлеров, нормализует их и уведомляет админов."""
+
     def __init__(self, logger: Logger, bot: Bot) -> None:
         super().__init__()
         self.logger = logger
         self.bot = bot
 
     def _normalize_exception(self, exc: Exception) -> ErrorEnvelope:
-        """
-        Приводит любое исключение к ErrorEnvelope.
-        """
-
+        """Приводит любое исключение к ErrorEnvelope."""
         # 1. Уже новый формат (если вдруг прилетает из API слоя)
         if isinstance(exc, AppError | APIClientError):
             return exc.to_envelope()
@@ -187,6 +186,17 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
+        """Оборачивает вызов хендлера, перехватывая и обрабатывая исключения.
+
+        Args:
+            handler: Следующий хендлер/мидлварь в цепочке aiogram.
+            event: Входящее Telegram-событие.
+            data: Контекстные данные aiogram, передаваемые хендлеру.
+
+        Returns
+            Any: Результат хендлера, либо None при перехваченном исключении.
+
+        """
         try:
             return await handler(event, data)
 

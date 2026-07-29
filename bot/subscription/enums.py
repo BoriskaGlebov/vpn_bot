@@ -1,8 +1,8 @@
 from enum import StrEnum
 from typing import Final
 
+# Значение `months` в `SubscriptionCB`, обозначающее выбор пробного периода (7 дней), а не платной подписки.
 TRIAL_PERIOD_SENTINEL: Final = 7
-"""Значение `months` в `SubscriptionCB`, обозначающее выбор пробного периода (7 дней), а не платной подписки."""
 
 
 class SubscriptionAction(StrEnum):

@@ -31,6 +31,8 @@ class PaymentAPIAdapter:
 
         Args:
             client: HTTP клиент для взаимодействия с внешним API.
+            provider: Платёжный провайдер (не используется адаптером напрямую,
+                хранится для совместимости с местом вызова).
 
         """
         self._client = client
@@ -88,19 +90,16 @@ class PaymentAPIAdapter:
         """Привязывает provider transaction к внутренней транзакции.
 
         Args:
-            transaction_id:
-                UUID внутренней транзакции.
+            transaction_id: UUID внутренней транзакции.
+            gateway_transaction_id: ID транзакции внешнего платёжного шлюза.
+            gateway_payload: Сырые данные платежа от шлюза.
 
-            gateway_transaction_id:
-                ID транзакции внешнего платёжного шлюза.
+        Returns
+            SPaymentTransactionResponse: Обновлённая транзакция.
 
-        Returns:
-            SPaymentTransactionResponse:
-                Обновлённая транзакция.
+        Raises
+            Exception: Ошибка HTTP-клиента или валидации ответа.
 
-        Raises:
-            Exception:
-                Ошибка HTTP-клиента или валидации ответа.
         """
         logger.info(
             "Привязка provider payment: transaction_id={} gateway_id={}",
@@ -127,7 +126,18 @@ class PaymentAPIAdapter:
 
         return SPaymentTransactionResponse.model_validate(data)
 
-    async def mark_payment_started(self, transaction_id: UUID):
+    async def mark_payment_started(
+        self, transaction_id: UUID
+    ) -> SPaymentTransactionResponse:
+        """Помечает транзакцию как оплаченную пользователем (ожидает подтверждения).
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Обновлённая транзакция.
+
+        """
         data, _ = await self._client.post(
             f"/payment/transaction/{transaction_id}/paid", json={}
         )
@@ -161,6 +171,15 @@ class PaymentAPIAdapter:
         self,
         transaction_id: UUID,
     ) -> SConfirmPaymentResponse:
+        """Подтверждает платёжную транзакцию по вебхуку платёжного провайдера.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SConfirmPaymentResponse: Результат подтверждения.
+
+        """
         logger.info("Подтверждение прихода денег: {}", transaction_id)
         payload = SConfirmPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
@@ -194,7 +213,18 @@ class PaymentAPIAdapter:
         logger.debug("Транзакция отменена, status={} response={}", status_code, data)
         return SPaymentTransactionResponse.model_validate(data)
 
-    async def get_by_gateway_id(self, gateway_transaction_id: str):
+    async def get_by_gateway_id(
+        self, gateway_transaction_id: str
+    ) -> SPaymentTransactionResponse:
+        """Находит транзакцию по ID платежа во внешнем шлюзе.
+
+        Args:
+            gateway_transaction_id: ID транзакции внешнего платёжного шлюза.
+
+        Returns
+            SPaymentTransactionResponse: Найденная транзакция.
+
+        """
         data = await self._client.get(
             "/payment/transaction",
             params={"gateway_transaction_id": gateway_transaction_id},

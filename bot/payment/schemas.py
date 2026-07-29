@@ -136,6 +136,8 @@ class SPaymentTransactionResponse(BaseModel):
 
 
 class SCreatePayment(SPaymentTransactionResponse):
+    """Ответ на создание транзакции со ссылкой на оплату."""
+
     payment_url: str | None
 
 

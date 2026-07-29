@@ -4,18 +4,26 @@ from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookD
 
 
 class BasePaymentProvider(Protocol):
+    """Интерфейс платёжного провайдера (например, Platega)."""
+
     async def create_payment(
         self,
         data: CreatePaymentDTO,
-    ) -> CreatedPaymentDTO: ...
+    ) -> CreatedPaymentDTO:
+        """Создаёт платёж у провайдера и возвращает ссылку на оплату."""
+        ...
 
     async def verify_webhook(
         self,
         headers: dict[str, str],
         body: bytes,
-    ) -> bool: ...
+    ) -> bool:
+        """Проверяет подлинность входящего вебхука провайдера."""
+        ...
 
     async def parse_webhook(
         self,
         body: bytes,
-    ) -> PaymentWebhookDTO: ...
+    ) -> PaymentWebhookDTO:
+        """Разбирает тело вебхука провайдера в доменное событие."""
+        ...

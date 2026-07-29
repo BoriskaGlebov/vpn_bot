@@ -252,10 +252,22 @@ class SubscriptionService:
         referral_info = await self._get_referral_info(tg_id)
         return f"{subscription_info}\n\n{referral_info}"
 
-    # TODO НОвый метод не протестирован, нужно логирование, тесты, документация, типы данных
+    # TODO НОвый метод не протестирован, нужно логирование, тесты
     async def create_transaction(
         self, amount: int, subscription_months: int, is_premium: bool, is_founder: bool
     ) -> SCreatePayment:
+        """Создаёт платёжную транзакцию для оформления/продления подписки.
+
+        Args:
+            amount: Сумма платежа в минимальных единицах.
+            subscription_months: Количество месяцев подписки.
+            is_premium: Флаг премиум-подписки.
+            is_founder: Флаг пользователя-основателя.
+
+        Returns
+            SCreatePayment: Ссылка на оплату и данные созданной транзакции.
+
+        """
         tx_res = await self.payment_service.create_transaction(
             amount=amount,
             subscription_months=subscription_months,
@@ -264,21 +276,39 @@ class SubscriptionService:
         )
         return tx_res
 
-    # TODO НОвый метод не протестирован, нужно логирование, тесты, документация, типы данных
+    # TODO НОвый метод не протестирован, нужно логирование, тесты
     async def cancel_transaction(
         self,
         transaction_id: UUID,
     ) -> SPaymentTransactionResponse:
+        """Отменяет платёжную транзакцию.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Данные отменённой транзакции.
+
+        """
         tx_res = await self.payment_service.cancel_transaction(
             transaction_id=transaction_id
         )
         return tx_res
 
-    # TODO НОвый метод не протестирован, нужно логирование, тесты, документация, типы данных
+    # TODO НОвый метод не протестирован, нужно логирование, тесты
     async def confirm_transaction(
         self,
         transaction_id: UUID,
     ) -> SConfirmPaymentResponse:
+        """Подтверждает платёжную транзакцию (администратором).
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SConfirmPaymentResponse: Результат подтверждения.
+
+        """
         tx_res = await self.payment_service.confirm_transaction(
             transaction_id=transaction_id
         )
