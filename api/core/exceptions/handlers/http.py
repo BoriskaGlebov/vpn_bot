@@ -11,7 +11,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from api.app_error.api_error import (
     APIError,
 )
-from api.core.exceptions.handlers.business import log_cause, unexpected_exception_loger
+from api.core.exceptions.handlers.business import log_cause, unexpected_exception_logger
 from api.core.exceptions.schema import ErrorDetail, ErrorEnvelope
 
 
@@ -35,7 +35,7 @@ async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     await log_cause(exc=exc)
     if not isinstance(exc, APIError):
-        return await unexpected_exception_loger(exc=exc)
+        return await unexpected_exception_logger(exc=exc)
 
     logger.warning(
         "APIError {} path={} code={} message={} details={}",
@@ -174,7 +174,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     которые не были обработаны специализированными
     exception handlers.
 
-    Traceback и путь запроса логируются внутри `unexpected_exception_loger` —
+    Traceback и путь запроса логируются внутри `unexpected_exception_logger` —
     здесь их логировать повторно не нужно (иначе на одно исключение в
     error.log попадали бы две записи).
 
@@ -187,4 +187,4 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
     """
     await log_cause(exc=exc)
-    return await unexpected_exception_loger(exc=exc, path=request.url.path)
+    return await unexpected_exception_logger(exc=exc, path=request.url.path)

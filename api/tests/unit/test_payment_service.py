@@ -238,15 +238,9 @@ async def test_create_transaction_cancels_previous_pending(
         "description": "test",
     }
 
-    stale_tx = make_transaction(id=uuid4(), user_id=10, status=PaymentStatus.PENDING)
     db_result = make_transaction(user_id=10)
 
     with (
-        patch.object(
-            PaymentTransactionDAO,
-            "find_all",
-            new=AsyncMock(return_value=[stale_tx]),
-        ) as mock_find_all,
         patch.object(
             PaymentTransactionDAO,
             "update",
@@ -264,15 +258,12 @@ async def test_create_transaction_cancels_previous_pending(
             user_auth=user,
         )
 
-    find_filters = mock_find_all.call_args.kwargs["filters"]
-    assert isinstance(find_filters, SUserPendingTransactionsFilter)
-    assert find_filters.user_id == 10
-    assert find_filters.status == PaymentStatus.PENDING
-
     mock_update.assert_awaited_once()
     update_filters = mock_update.call_args.kwargs["filters"]
     update_values = mock_update.call_args.kwargs["values"]
-    assert update_filters.id == stale_tx.id
+    assert isinstance(update_filters, SUserPendingTransactionsFilter)
+    assert update_filters.user_id == 10
+    assert update_filters.status == PaymentStatus.PENDING
     assert update_values.status == PaymentStatus.CANCELED
     # DAO.update сериализует values через model_dump(exclude_unset=True) —
     # поле должно быть явно передано в конструктор, а не взято из дефолта

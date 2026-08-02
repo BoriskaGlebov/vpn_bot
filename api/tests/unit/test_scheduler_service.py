@@ -175,7 +175,11 @@ async def test_process_user_without_subscription(scheduler, session, user):
 
 @pytest.mark.asyncio
 async def test_check_all_subscriptions(scheduler, session, user, expired_subscription):
-    """Сквозной прогон по всем пользователям: агрегирует статистику и коммитит сессию."""
+    """Сквозной прогон по всем пользователям: агрегирует статистику.
+
+    Коммит сессии — забота внешней границы транзакции (`get_session()`),
+    сервис его больше не вызывает сам (см. api/scheduler/services.py).
+    """
     user.current_subscription = expired_subscription
     user.vpn_configs = []
 
@@ -188,5 +192,5 @@ async def test_check_all_subscriptions(scheduler, session, user, expired_subscri
 
     assert stats.checked == 1
     assert stats.expired == 1
-    session.commit.assert_awaited_once()
+    session.commit.assert_not_awaited()
     assert isinstance(events, list)

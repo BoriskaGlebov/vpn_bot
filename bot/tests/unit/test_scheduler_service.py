@@ -6,6 +6,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
 
 from bot.app_error.api_error import APIClientError
+from bot.app_error.schema import ErrorDetail
 from bot.integrations.api_client import APIClient
 from bot.scheduler.adapter import SchedulerAPIAdapter
 from bot.scheduler.enums import DeleteStatus, SubscriptionEventType
@@ -144,7 +145,9 @@ async def test_run_check_all_success(service):
 
 @pytest.mark.asyncio
 async def test_run_check_all_error(service, monkeypatch):
-    service.api_adapter.check_all.side_effect = APIClientError("boom")
+    service.api_adapter.check_all.side_effect = APIClientError(
+        ErrorDetail(code="boom", message="boom")
+    )
 
     send_mock = AsyncMock()
     monkeypatch.setattr("bot.scheduler.services.send_to_admins", send_mock)

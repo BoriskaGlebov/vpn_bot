@@ -64,8 +64,6 @@ from shared.enums.admin_enum import FilterTypeEnum
 
 m_subscription = settings_bot.messages.modes.subscription
 
-# TODO добавлен платежный сервис надо учесть это в логах, тестах и все такое
-
 
 class SubscriptionStates(StatesGroup):  # type: ignore[misc]
     """Состояния FSM для процесса оформления подписки.
@@ -670,7 +668,7 @@ class SubscriptionRouter(BaseRouter):
             price_map = get_correct_price_map(premium=premium, founder=founder)
             price = price_map[months]
             sub_type = get_correct_sub_type(premium=premium, founder=founder)
-            await self.subscription_service.payment_service.mark_payment_started(
+            await self.subscription_service.mark_payment_started(
                 transaction_id=transaction_id
             )
 

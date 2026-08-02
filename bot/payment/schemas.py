@@ -15,7 +15,7 @@ class SCreateManualPaymentTransactionIn(BaseModel):
     Используется для формирования запроса на создание платежа через API.
 
     Attributes
-        amount (int): Сумма платежа в минимальных единицах (например, копейки). Должна быть > 0.
+        amount (int): Сумма платежа в рублях (целое число, не копейки). Должна быть > 0.
         currency (Literal): Валюта платежа (например, RUB).
         subscription_months (int): Количество месяцев подписки. Должно быть > 0.
         is_premium (bool): Признак премиум-подписки.
@@ -79,7 +79,6 @@ class SCancelPaymentIn(BaseModel):
     transaction_id: UUID
 
 
-# TODO Можно укоротить
 class SPaymentTransactionResponse(BaseModel):
     """Ответ API с данными платежной транзакции.
 

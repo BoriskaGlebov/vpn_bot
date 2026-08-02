@@ -487,19 +487,20 @@ async def test_admin_confirm_payment(mocker):
 
     confirm_transaction_mock = Mock(
         subscription_res=user_schema,
+        transaction_res=Mock(amount=1000),
         referral_res=Mock(
             success=False,
             inviter_telegram_id=None,
         ),
     )
 
-    # --- payment adapter ---
-    payment_adapter_mock = AsyncMock()
-    payment_adapter_mock.confirm_transaction.return_value = confirm_transaction_mock
-
     # --- subscription service ---
+    # Роутер зовёт self.subscription_service.confirm_transaction(...) напрямую
+    # (обёртка над PaymentService/adapter уже внутри SubscriptionService).
     subscription_service_mock = AsyncMock()
-    subscription_service_mock.payment_adapter = payment_adapter_mock
+    subscription_service_mock.confirm_transaction.return_value = (
+        confirm_transaction_mock
+    )
 
     # --- referral service ---
     referral_service_mock = AsyncMock()
@@ -531,7 +532,7 @@ async def test_admin_confirm_payment(mocker):
 
     # --- asserts ---
 
-    payment_adapter_mock.confirm_transaction.assert_awaited_once_with(
+    subscription_service_mock.confirm_transaction.assert_awaited_once_with(
         callback_data.transaction_id
     )
 

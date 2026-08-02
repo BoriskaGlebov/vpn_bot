@@ -20,7 +20,7 @@ class SCreateManualPaymentTransaction(BaseModel):
     """Схема создания ручной платежной транзакции.
 
     Attributes
-        amount: Сумма платежа в минимальных единицах валюты.
+        amount: Сумма платежа в рублях (целое число, не копейки).
         currency: Код валюты по ISO 4217.
         subscription_months: Количество месяцев подписки.
         is_premium: Флаг премиум-подписки.
@@ -118,6 +118,19 @@ class STransactionIDFilter(BaseModel):
     """Фильтр по идентификатору транзакции."""
 
     id: UUID = Field(validation_alias=AliasChoices("id", "transaction_id"))
+
+
+class STransactionPendingFilter(STransactionIDFilter):
+    """Фильтр по ID транзакции, дополнительно требующий статус ``PENDING``.
+
+    Используется в UPDATE-запросах подтверждения/отмены платежа, чтобы
+    проверка статуса и сама запись выполнялись атомарно на уровне БД
+    (``WHERE id = ... AND status = 'PENDING'``), а не отдельным
+    check-then-act в Python — иначе два параллельных вебхука могут оба
+    пройти проверку статуса до того, как первый из них закоммитится.
+    """
+
+    status: PaymentStatus = PaymentStatus.PENDING
 
 
 class SGatewayTransactionFilter(BaseModel):

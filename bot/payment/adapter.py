@@ -15,7 +15,6 @@ from bot.payment.schemas import (
 )
 
 
-# TODO ДОкументация тесты типы данных логирование
 class PaymentAPIAdapter:
     """Адаптер для работы с Payment API.
 
@@ -47,7 +46,7 @@ class PaymentAPIAdapter:
         """Создаёт платёжную транзакцию.
 
         Args:
-            amount: Сумма платежа в минимальных единицах (например, копейки).
+            amount: Сумма платежа в рублях (целое число).
             subscription_months: Количество месяцев подписки.
             is_premium: Флаг премиум-подписки.
             is_founder: Флаг пользователя-основателя.

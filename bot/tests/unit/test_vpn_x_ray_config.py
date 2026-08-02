@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from bot.app_error.api_error import APIClientError
+from bot.app_error.schema import ErrorDetail
 from bot.vpn.DTO import UserUUID
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
 
@@ -65,7 +66,9 @@ async def test_logout_success(adapter):
 
 @pytest.mark.asyncio
 async def test_logout_error_ignored(adapter):
-    adapter.api.get = AsyncMock(side_effect=APIClientError("fail"))
+    adapter.api.get = AsyncMock(
+        side_effect=APIClientError(ErrorDetail(code="fail", message="fail"))
+    )
 
     await adapter._logout()
 
@@ -113,7 +116,6 @@ class FakeInboundCfg:
     name: str
 
 
-@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_get_inbound_success(adapter):
     adapter._get_all_inbounds = AsyncMock(

@@ -63,7 +63,6 @@ class SubscriptionStats:
         self.configs_deleted += other.configs_deleted
 
 
-# TODO Нужен отдельный payment_service который уже пусть все дергают
 class SubscriptionService:
     """Сервис для бизнес-логики подписки."""
 
@@ -291,7 +290,6 @@ class SubscriptionService:
         referral_info = await self._get_referral_info(tg_id)
         return f"{subscription_info}\n\n{referral_info}"
 
-    # TODO НОвый метод не протестирован, нужно логирование, тесты
     async def create_transaction(
         self, amount: int, subscription_months: int, is_premium: bool, is_founder: bool
     ) -> SCreatePayment:
@@ -315,7 +313,24 @@ class SubscriptionService:
         )
         return tx_res
 
-    # TODO НОвый метод не протестирован, нужно логирование, тесты
+    async def mark_payment_started(
+        self,
+        transaction_id: UUID,
+    ) -> SPaymentTransactionResponse:
+        """Помечает начало обработки платежа.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Обновлённая транзакция.
+
+        """
+        tx_res = await self.payment_service.mark_payment_started(
+            transaction_id=transaction_id
+        )
+        return tx_res
+
     async def cancel_transaction(
         self,
         transaction_id: UUID,
@@ -334,7 +349,6 @@ class SubscriptionService:
         )
         return tx_res
 
-    # TODO НОвый метод не протестирован, нужно логирование, тесты
     async def confirm_transaction(
         self,
         transaction_id: UUID,
@@ -358,7 +372,6 @@ class SubscriptionService:
         await self._extend_xray_after_payment(user=tx_res.subscription_res)
         return tx_res
 
-    # TODO НОвый метод не протестирован, нужно логирование, тесты
     async def webhook_confirm_transaction(
         self,
         transaction_id: UUID,

@@ -36,11 +36,10 @@ async def test_connect_failure(ssh_client, mock_asyncssh_connect):
     mock_connect, _, _ = mock_asyncssh_connect
     mock_connect.side_effect = OSError("connection error")
 
-    with pytest.raises(OSError):
+    with pytest.raises(AmneziaSSHError):
         await ssh_client.connect()
 
 
-@pytest.mark.vpn
 @pytest.mark.vpn
 async def test_write_single_cmd_success(ssh_client):
     process_mock = AsyncMock()

@@ -12,9 +12,10 @@ from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 @pytest.mark.middleware
 async def test_middleware_handles_message_exception(monkeypatch, fake_logger, fake_bot):
     mw = ErrorHandlerMiddleware(logger=fake_logger, bot=fake_bot)
+    exc = TelegramBadRequest(method=MagicMock(), message="invalid request")
 
     async def fake_handler(event, data):
-        raise TelegramBadRequest("invalid request")
+        raise exc
 
     # Мокаем Message и from_user
     fake_from_user = MagicMock()
@@ -26,7 +27,9 @@ async def test_middleware_handles_message_exception(monkeypatch, fake_logger, fa
     await mw(fake_handler, fake_message, {})
     fake_message.reply.assert_awaited_once()
     sent_text = fake_message.reply.call_args[0][0]
-    assert mw.default_user_message in sent_text
+
+    expected_text = mw._resolve_user_message(mw._normalize_exception(exc))
+    assert sent_text == expected_text
 
 
 @pytest.mark.asyncio
@@ -35,9 +38,12 @@ async def test_middleware_handles_callback_query_exception(
     monkeypatch, fake_logger, fake_bot
 ):
     mw = ErrorHandlerMiddleware(logger=fake_logger, bot=fake_bot)
+    exc = TelegramRetryAfter(
+        method=MagicMock(), message="Too Many Requests", retry_after=10
+    )
 
     async def fake_handler(event, data):
-        raise TelegramRetryAfter(retry_after=10)
+        raise exc
 
     fake_from_user = MagicMock()
     fake_from_user.id = 456
@@ -52,7 +58,9 @@ async def test_middleware_handles_callback_query_exception(
 
     fake_message.answer.assert_awaited_once()
     sent_text = fake_message.answer.call_args[0][0]
-    assert mw.default_user_message in sent_text
+
+    expected_text = mw._resolve_user_message(mw._normalize_exception(exc))
+    assert sent_text == expected_text
 
 
 @pytest.mark.asyncio
@@ -75,7 +83,7 @@ async def test_middleware_logs_exception(monkeypatch, fake_logger, fake_bot):
 
     fake_message.reply.assert_awaited_once()
     fake_logger.bind.assert_called_with(user=789)
-    fake_logger.bind().exception.assert_called()
+    fake_logger.bind().error.assert_called()
 
 
 @pytest.mark.asyncio

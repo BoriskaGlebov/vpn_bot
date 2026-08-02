@@ -433,36 +433,3 @@ class PaymentFailedError(PaymentError):
                 "transaction_id": transaction_id,
             },
         )
-
-
-class InvalidPaymentStatusTransitionError(PaymentError):
-    """Ошибка недопустимого перехода статуса платежа."""
-
-    code = "invalid_payment_status_transition"
-    status_code = status.HTTP_409_CONFLICT
-
-    def __init__(
-        self,
-        transaction_id: str,
-        from_status: str,
-        to_status: str,
-    ) -> None:
-        """Инициализирует ошибку перехода статуса.
-
-        Args:
-            transaction_id: ID транзакции.
-            from_status: Исходный статус.
-            to_status: Новый статус.
-
-        """
-        super().__init__(
-            message=(
-                f"Недопустимый переход статуса транзакции "
-                f"{transaction_id}: {from_status} -> {to_status}."
-            ),
-            details={
-                "transaction_id": transaction_id,
-                "from_status": from_status,
-                "to_status": to_status,
-            },
-        )

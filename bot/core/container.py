@@ -33,7 +33,6 @@ from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 
-# TODO PaymentService  добавил проверь документацию
 class Container:
     """DI-контейнер приложения.
 
@@ -201,7 +200,6 @@ class Container:
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
-        # TODO Пока еше не определился с аргументами
         self.payment_service = PaymentService(
             adapter=self.payment_adapter, provider=self.payment_provider
         )

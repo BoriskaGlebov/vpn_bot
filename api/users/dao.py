@@ -1,20 +1,17 @@
 import datetime
-from collections.abc import Sequence
 
 from loguru import logger
-from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.orm.interfaces import ORMOption
 
 from api.app_error.base_error import SubscriptionNotFoundError
 from api.core.dao.base import BaseDAO
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.models import Role, User
 from api.users.schemas import SRole, SUser
-from shared.enums.admin_enum import FilterTypeEnum
+from shared.enums.admin_enum import FilterTypeEnum, RoleEnum
 
 
 class UserDAO(BaseDAO[User]):
@@ -120,6 +117,38 @@ class UserDAO(BaseDAO[User]):
             raise e
 
     @classmethod
+    async def get_telegram_ids_excluding_role(
+        cls, session: AsyncSession, role_name: RoleEnum
+    ) -> list[int]:
+        """Возвращает Telegram ID всех пользователей, кроме указанной роли.
+
+        В отличие от `get_users_by_roles` (фильтрация по совпадению роли,
+        полные объекты `User`), здесь — фильтрация по исключению роли и
+        проекция сразу на `telegram_id` (используется для рассылок, где
+        полные объекты пользователей не нужны).
+
+        Args:
+            session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
+            role_name (RoleEnum): Имя роли, пользователей с которой нужно исключить.
+
+        Returns
+            list[int]: Telegram ID пользователей, не имеющих указанную роль.
+
+        Raises
+            SQLAlchemyError: Ошибка выполнения запроса или работы транзакции.
+
+        """
+        try:
+            stmt = (
+                select(User.telegram_id).join(User.role).where(Role.name != role_name)
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+        except SQLAlchemyError as e:
+            logger.error(f"[DAO] Ошибка получения записи: {e}")
+            raise e
+
+    @classmethod
     async def change_role(
         cls,
         session: AsyncSession,
@@ -197,50 +226,6 @@ class UserDAO(BaseDAO[User]):
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при продлении подписки пользователя: {e}")
             raise e
-
-    @classmethod
-    async def find_one_or_none(
-        cls,
-        session: AsyncSession,
-        filters: BaseModel,
-        options: Sequence[ORMOption] | None = None,
-    ) -> User | None:
-        """Находит одну запись по фильтрам.
-
-        Args:
-            options (Sequence | None): Опция подгрузки связанных моделей.
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            filters (BaseModel): Фильтры для поиска.
-
-        Returns
-            Optional[T]: Найденная запись или None.
-
-        """
-        filter_dict = cls._to_dict(filters=filters)
-        # noinspection PyTypeChecker
-        logger.info(
-            f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: {filter_dict}"
-        )
-        logger.debug(f"[DAO] Фильтры → условия: {cls._build_filters(filter_dict)}")
-
-        filters_clause = cls._build_filters(filter_dict)
-        # noinspection PyTypeChecker
-        # query = (
-        #     select(cls.model)
-        #     .where(filters_clause)
-        #     .options(
-        #         selectinload(cls.model.role),
-        #         selectinload(cls.model.subscriptions),
-        #         selectinload(cls.model.vpn_configs),
-        #     )
-        # )
-        query = select(cls.model).where(filters_clause)
-        if options:
-            query = query.options(*options)
-        result = await session.execute(query)
-        record = result.scalar_one_or_none()
-        logger.debug(f"[DAO] Найдено: {record}")
-        return record
 
 
 class RoleDAO(BaseDAO[Role]):

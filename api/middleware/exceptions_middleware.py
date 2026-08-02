@@ -5,7 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-from api.core.exceptions.handlers.business import unexpected_exception_loger
+from api.core.exceptions.handlers.business import unexpected_exception_logger
 
 
 class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
@@ -53,4 +53,4 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
         except Exception as e:
-            return await unexpected_exception_loger(exc=e, path=request.url.path)
+            return await unexpected_exception_logger(exc=e, path=request.url.path)

@@ -10,6 +10,7 @@ from bot.app_error.base_error import (
     VPNConfigDeletionFailedError,
     VPNLimitError,
 )
+from bot.app_error.schema import ErrorDetail
 from bot.users.schemas import SVPNConfigOut
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
@@ -130,7 +131,7 @@ async def test_generate_user_config_limit_reached(mocker, user_out):
 
     err = exc.value
 
-    assert err.user_id == 123456
+    assert err.tg_id == 123456
     assert err.limit == 1
 
     ssh_factory.assert_not_called()
@@ -170,7 +171,9 @@ async def test_generate_user_config_db_error_rollback(mocker, user_out):
 
     ssh_factory.return_value.__aexit__ = mocker.AsyncMock(return_value=None)
 
-    api_adapter.add_config.side_effect = APIClientError("DB error")
+    api_adapter.add_config.side_effect = APIClientError(
+        ErrorDetail(code="db_error", message="DB error")
+    )
 
     service = VPNService(
         adapter=api_adapter,
@@ -334,7 +337,9 @@ async def test_generate_xray_subscription_db_error_rollback(mocker):
         "http://sub.url",
     )
 
-    api_adapter.add_config.side_effect = APIClientError("DB error")
+    api_adapter.add_config.side_effect = APIClientError(
+        ErrorDetail(code="db_error", message="DB error")
+    )
 
     with pytest.raises(APIClientError):
         await service.generate_xray_subscription(

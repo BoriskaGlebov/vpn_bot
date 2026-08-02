@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from functools import wraps
-from typing import Annotated, Any, TypeVar, cast
+from typing import Annotated, Any, Literal, TypeVar, cast
 
 from sqlalchemy import func, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,7 +22,10 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
 
 
-def connection(isolation_level: str | None = None) -> Callable[[F], F]:
+IsolationLevel = Literal["READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE"]
+
+
+def connection(isolation_level: IsolationLevel | None = None) -> Callable[[F], F]:
     """Декоратор для автоматического управления асинхронной сессией базы данных и транзакцией.
 
     Этот декоратор создаёт сессию `AsyncSession`, оборачивает выполнение функции в транзакцию,

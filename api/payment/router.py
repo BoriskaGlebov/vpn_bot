@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.admin.dependencies import check_admin_role
-from api.core.dependencies import get_current_user, get_session
+from api.core.dependencies import get_current_user, get_session, verify_internal_secret
 from api.core.openapi_responses import ADMIN_RESPONSES, AUTH_RESPONSES
 from api.payment.dependencies import get_payment_service
 from api.payment.model import PaymentSource
@@ -22,28 +22,6 @@ from api.users.models import User
 router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
 
 
-# TODO 3. Нашёл серьёзную дыру, пока не трогал — при составлении карты
-# эндпоинтов выяснилось,
-# что GET /payment/transaction
-# (поиск транзакции по gateway_transaction_id),
-# POST /payment/transaction/webhook/confirm (подтверждение платежа) и
-# POST /payment/transaction/webhook/cancel (отмена платежа, добавлен позже
-# по той же причине — см. ниже)
-# вообще без Depends(get_current_user)/check_admin_role — то есть
-# без секрета и без Telegram ID. Это тот же класс уязвимости,
-# что мы закрывали в начале сессии, только на другом эндпоинте:
-# кто угодно, зная/подобрав transaction_id, может прочитать
-# чужую транзакцию, подтвердить или отменить оплату бесплатно.
-# В документации я их честно оставил без 401/403
-# (иначе документация была бы неправдой),
-# но добавлять Depends тут не стал — это не «поправить доки»,
-# а отдельный фикс безопасности. Хотите, чтобы я закрыл это сейчас?
-# webhook/cancel не может требовать Telegram ID в принципе — вебхук от
-# платёжного шлюза приходит не от имени пользователя бота, X-Telegram-Id
-# взять неоткуда (см. PaymentWebhookService.handle_event) — но это не
-# отменяет вопрос защиты самого эндпоинта (например, отдельным секретом).
-# Возможная проблема
-#
 @router.post(
     "/transaction",
     response_model=SPaymentTransactionResponse,
@@ -91,11 +69,13 @@ async def create_transaction(
         "платежей с внешними провайдерами."
     ),
     response_description="Найденная платежная транзакция.",
+    responses=AUTH_RESPONSES,
 )
 async def get_by_gateway_id(
     gateway_transaction_id: str = Query(...),
     service: PaymentService = Depends(get_payment_service),
     session: AsyncSession = Depends(get_session),
+    _: None = Depends(verify_internal_secret),
 ) -> SPaymentTransactionResponse:
     """Получение платежной транзакции по идентификатору платежного шлюза.
 
@@ -113,6 +93,9 @@ async def get_by_gateway_id(
 
         session:
             Асинхронная SQLAlchemy-сессия для доступа к базе данных.
+
+        _:
+            Проверка X-Internal-Secret (см. verify_internal_secret).
 
     Returns
         SPaymentTransactionResponse:
@@ -283,11 +266,13 @@ async def admin_confirm_transaction(
         "Результат подтверждения платежа, активации подписки "
         "и обработки реферального бонуса."
     ),
+    responses=AUTH_RESPONSES,
 )
 async def webhook_confirm_transaction(
     data: STransactionIDFilter,
     service: PaymentService = Depends(get_payment_service),
     session: AsyncSession = Depends(get_session),
+    _: None = Depends(verify_internal_secret),
 ) -> SConfirmPaymentResponse:
     """Подтверждает платежную транзакцию через webhook.
 
@@ -308,6 +293,9 @@ async def webhook_confirm_transaction(
 
         session:
             Асинхронная SQLAlchemy-сессия.
+
+        _:
+            Проверка X-Internal-Secret (см. verify_internal_secret).
 
     Returns
         SConfirmPaymentResponse:
@@ -398,11 +386,13 @@ async def cancel_transaction(
         "(требует `X-Telegram-Id`) для этого случая не подходит."
     ),
     response_description="Обновлённая платежная транзакция.",
+    responses=AUTH_RESPONSES,
 )
 async def webhook_cancel_transaction(
     data: STransactionIDFilter,
     service: PaymentService = Depends(get_payment_service),
     session: AsyncSession = Depends(get_session),
+    _: None = Depends(verify_internal_secret),
 ) -> SPaymentTransactionResponse:
     """Отменяет платежную транзакцию по вебхуку платёжного провайдера.
 
@@ -419,6 +409,9 @@ async def webhook_cancel_transaction(
 
         session:
             Асинхронная SQLAlchemy-сессия.
+
+        _:
+            Проверка X-Internal-Secret (см. verify_internal_secret).
 
     Returns
         SPaymentTransactionResponse:

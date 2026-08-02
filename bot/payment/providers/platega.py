@@ -1,4 +1,5 @@
 import json
+import secrets
 from collections.abc import Mapping
 
 import httpx
@@ -10,6 +11,7 @@ from bot.payment.dto import (
     PaymentStatus,
     PaymentWebhookDTO,
 )
+from bot.payment.exceptions import PaymentProviderError
 
 
 class PlategaProvider:
@@ -48,7 +50,7 @@ class PlategaProvider:
             CreatedPaymentDTO: Ссылка на оплату и статус платежа.
 
         Raises
-            httpx.HTTPError: При ошибке запроса к Platega (сеть, статус >= 400).
+            PaymentProviderError: При ошибке запроса к Platega (сеть, статус >= 400).
 
         """
         payload = {
@@ -69,13 +71,16 @@ class PlategaProvider:
                 json=payload,
             )
             response.raise_for_status()
-        except httpx.HTTPError:
+        except httpx.HTTPError as e:
             logger.exception(
                 "Ошибка создания платежа в Platega: order_id={} amount={}",
                 data.order_id,
                 data.amount,
             )
-            raise
+            raise PaymentProviderError(
+                message=f"Ошибка создания платежа в Platega (order_id={data.order_id})",
+                cause=e,
+            ) from e
 
         response_data = response.json()
         status = (
@@ -120,7 +125,9 @@ class PlategaProvider:
             )
             return False
 
-        if merchant_id != self.merchant_id or secret != self.secret_key:
+        if not secrets.compare_digest(
+            merchant_id, self.merchant_id
+        ) or not secrets.compare_digest(secret, self.secret_key):
             logger.warning(
                 "Вебхук Platega с неверной подписью (merchant_id={}) — отклонён",
                 merchant_id,

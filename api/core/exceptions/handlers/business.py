@@ -29,7 +29,7 @@ async def log_cause(exc: Exception) -> None:
         )
 
 
-async def unexpected_exception_loger(
+async def unexpected_exception_logger(
     exc: Exception, path: str | None = None
 ) -> JSONResponse:
     """Обрабатывает непредвиденные исключения приложения.
@@ -98,7 +98,7 @@ async def app_error_handler(
     """
     await log_cause(exc=exc)
     if not isinstance(exc, AppError):
-        return await unexpected_exception_loger(exc=exc, path=request.url.path)
+        return await unexpected_exception_logger(exc=exc, path=request.url.path)
 
     if exc.status_code >= 500:
         logger.exception(

@@ -387,7 +387,6 @@ class SubscriptionScheduler:
             stats.add(s)
             events.extend(e)
 
-        await session.commit()
         logger.info(
             f"Проверка завершена.\n"
             f"Пользователей обработано: {stats.checked},\n"

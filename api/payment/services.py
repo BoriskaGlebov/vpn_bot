@@ -23,6 +23,7 @@ from api.payment.schemas import (
     SPaymentStatusUpdate,
     SPaymentTransactionResponse,
     STransactionIDFilter,
+    STransactionPendingFilter,
     SUserPendingTransactionsFilter,
     SYearIncome,
 )
@@ -155,30 +156,19 @@ class PaymentService:
             user_id: ID пользователя, для которого создаётся новая транзакция.
 
         """
-        pending = await PaymentTransactionDAO.find_all(
+        rowcount = await PaymentTransactionDAO.update(
             session=session,
             filters=SUserPendingTransactionsFilter(
                 user_id=user_id, status=PaymentStatus.PENDING
             ),
+            values=SPaymentStatusCancel(status=PaymentStatus.CANCELED),
         )
         logger.info(
-            "[SERVICE] Найдено {} незавершённых транзакций для user_id={} "
+            "[SERVICE] Отменено {} незавершённых транзакций для user_id={} "
             "перед созданием новой",
-            len(pending),
+            rowcount,
             user_id,
         )
-        for tx in pending:
-            await PaymentTransactionDAO.update(
-                session=session,
-                filters=STransactionIDFilter(id=tx.id),
-                values=SPaymentStatusCancel(status=PaymentStatus.CANCELED),
-            )
-            logger.info(
-                "[SERVICE] Отменена незавершённая транзакция id={} "
-                "перед созданием новой для user_id={}",
-                tx.id,
-                user_id,
-            )
 
     async def create_transaction(
         self,
@@ -398,9 +388,9 @@ class PaymentService:
         )
         self._ensure_pending(tx=tx)
 
-        await PaymentTransactionDAO.update(
+        rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionIDFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id),
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
                 confirmed_by_admin_id=data.admin_id,
@@ -409,6 +399,13 @@ class PaymentService:
                 source=PaymentSource.MANUAL,
             ),
         )
+        if not rowcount:
+            # Гонка: статус успел смениться между _ensure_pending и UPDATE
+            # (WHERE ... AND status='PENDING' не задел ни одной строки).
+            tx = await self._get_transaction_or_raise(
+                session=session, transaction_id=data.id
+            )
+            self._ensure_pending(tx=tx)
         await session.refresh(tx)
         logger.success(
             f"[SERVICE] Транзакция подтверждена администратором. Transaction ID={data.id}"
@@ -441,9 +438,9 @@ class PaymentService:
         )
         self._ensure_pending(tx=tx)
 
-        await PaymentTransactionDAO.update(
+        rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionIDFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id),
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
                 paid_at=datetime.now(),
@@ -451,6 +448,13 @@ class PaymentService:
                 source=PaymentSource.GATEWAY,
             ),
         )
+        if not rowcount:
+            # Гонка: статус успел смениться между _ensure_pending и UPDATE
+            # (WHERE ... AND status='PENDING' не задел ни одной строки).
+            tx = await self._get_transaction_or_raise(
+                session=session, transaction_id=data.id
+            )
+            self._ensure_pending(tx=tx)
         await session.refresh(tx)
         logger.success(f"[SERVICE] Транзакция подтверждена. Transaction ID={data.id}")
         return SPaymentTransactionResponse.model_validate(tx)
@@ -482,13 +486,20 @@ class PaymentService:
         )
         self._ensure_pending(tx=tx)
 
-        await PaymentTransactionDAO.update(
+        rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionIDFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id),
             values=SPaymentStatusCancel(
                 status=PaymentStatus.CANCELED,
             ),
         )
+        if not rowcount:
+            # Гонка: статус успел смениться между _ensure_pending и UPDATE
+            # (WHERE ... AND status='PENDING' не задел ни одной строки).
+            tx = await self._get_transaction_or_raise(
+                session=session, transaction_id=data.id
+            )
+            self._ensure_pending(tx=tx)
         await session.refresh(tx)
         logger.success(f"[SERVICE] Транзакция отменена. Transaction ID={data.id}")
         return SPaymentTransactionResponse.model_validate(tx)
@@ -578,7 +589,7 @@ class PaymentService:
         """
         if payment_source == PaymentSource.GATEWAY:
             tx = await self.webhook_confirm_transaction(session=session, data=data)
-        elif payment_source.MANUAL and admin_id:
+        elif payment_source == PaymentSource.MANUAL and admin_id:
             tx = await self.admin_confirm_transaction(
                 session=session,
                 data=SAdminConfirmPayment(admin_id=admin_id, id=data.id),

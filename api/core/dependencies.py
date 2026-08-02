@@ -84,3 +84,28 @@ def get_current_user(
         raise UserNotFoundError(tg_id=tg_id)
 
     return user
+
+
+def verify_internal_secret(secret_key: str = Depends(secret_key_header)) -> None:
+    """Проверяет только ``X-Internal-Secret``, без привязки к Telegram-пользователю.
+
+    Для эндпоинтов, которые вызывает исключительно bot/ сервер-к-серверу
+    (например, вебхуки платёжного провайдера, ретранслируемые ботом), но
+    у которых нет и не может быть Telegram-контекста конкретного
+    пользователя — `get_current_user` для них не подходит, так как
+    дополнительно требует `X-Telegram-Id`. `AuthMiddleware` сама по себе
+    не отклоняет запрос при неверном секрете (только оставляет
+    `request.state.user = None`), поэтому без явной dependency эти роуты
+    были бы доступны вообще без проверки секрета.
+
+    Args:
+        secret_key: Общий секрет bot/ <-> api/ из заголовка X-Internal-Secret.
+
+    Raises
+        InvalidInternalSecretError: если X-Internal-Secret отсутствует/неверен.
+
+    """
+    expected_secret = settings_api.internal_api_secret.get_secret_value()
+
+    if not secret_key or not secrets.compare_digest(secret_key, expected_secret):
+        raise InvalidInternalSecretError()

@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from subscription.services import SubscriptionService
 
 
-# TODO  Новый класс не протестирован, нужно логирование, тесты
 class PaymentService:
     """Сервис платежей — оркестрирует создание/подтверждение/отмену транзакций.
 

@@ -11,6 +11,7 @@ from bot.app_error.api_error import (
     APIClientValidationError,
     map_http_error,
 )
+from bot.app_error.schema import ErrorDetail
 
 # =========================
 # map_http_error
@@ -18,33 +19,41 @@ from bot.app_error.api_error import (
 
 
 @pytest.mark.parametrize(
-    ("status_code", "detail", "expected_cls"),
+    ("status_code", "expected_cls"),
     [
-        (401, "unauthorized", APIClientUnauthorizedError),
-        (403, "forbidden", APIClientForbiddenError),
-        (404, "not found", APIClientNotFoundError),
-        (409, "conflict", APIClientConflictError),
-        (422, "validation error", APIClientValidationError),
-        (500, "server error", APIClientHTTPError),  # default case
+        (401, APIClientUnauthorizedError),
+        (403, APIClientForbiddenError),
+        (404, APIClientNotFoundError),
+        (409, APIClientConflictError),
+        (422, APIClientValidationError),
+        (500, APIClientHTTPError),  # default case
     ],
 )
-def test_map_http_error_returns_correct_type(status_code, detail, expected_cls):
-    err = map_http_error(status_code, detail)
+def test_map_http_error_returns_correct_type(status_code, expected_cls):
+    response_body = {"error": {"code": "some_error", "message": "some message"}}
+    err = map_http_error(status_code, response_body)
 
     assert isinstance(err, expected_cls)
     assert err.status_code == status_code
-    assert err.detail == detail
+    assert err.error.code == "some_error"
+    assert err.error.message == "some message"
 
 
 @pytest.mark.parametrize(
-    ("status_code", "detail", "expected_message"),
+    ("response_body", "expected_message"),
     [
-        (404, None, "HTTP 404: Деталей нет."),
-        (404, "Not Found", "HTTP 404: Not Found"),
+        (
+            {"error": {"code": "not_found", "message": "Деталей нет."}},
+            "[not_found] Деталей нет.",
+        ),
+        (
+            {"error": {"code": "not_found", "message": "Not Found"}},
+            "[not_found] Not Found",
+        ),
     ],
 )
-def test_map_http_error_message_format(status_code, detail, expected_message):
-    err = map_http_error(status_code, detail)
+def test_map_http_error_message_format(response_body, expected_message):
+    err = map_http_error(404, response_body)
 
     assert str(err) == expected_message
 
@@ -55,16 +64,18 @@ def test_map_http_error_message_format(status_code, detail, expected_message):
 
 
 def test_api_client_error_str_without_cause():
-    err = APIClientError("some error")
+    err = APIClientError(ErrorDetail(code="some_error", message="some error"))
 
-    assert str(err) == "some error"
+    assert str(err) == "[some_error] some error"
 
 
 def test_api_client_error_str_with_cause():
     cause = ValueError("boom")
-    err = APIClientError("wrapper error", cause=cause)
+    err = APIClientError(
+        ErrorDetail(code="wrapper_error", message="wrapper error"), cause=cause
+    )
 
-    assert str(err) == "wrapper error (cause: boom)"
+    assert str(err) == "[wrapper_error] wrapper error (cause: boom)"
 
 
 # =========================
@@ -75,14 +86,17 @@ def test_api_client_error_str_with_cause():
 def test_connection_error_default_message():
     err = APIClientConnectionError()
 
-    assert str(err) == "Ошибка соединения с API"
+    assert str(err) == "[connection_error] ⚠️ Не удалось подключиться к API"
 
 
-def test_connection_error_custom_message_and_cause():
+def test_connection_error_with_cause():
     cause = RuntimeError("network down")
-    err = APIClientConnectionError("custom message", cause=cause)
+    err = APIClientConnectionError(cause=cause)
 
-    assert str(err) == "custom message (cause: network down)"
+    assert (
+        str(err)
+        == "[connection_error] ⚠️ Не удалось подключиться к API (cause: network down)"
+    )
     assert err.cause is cause
 
 
@@ -102,8 +116,9 @@ def test_connection_error_custom_message_and_cause():
     ],
 )
 def test_http_error_inheritance(exc_cls):
-    err = exc_cls(400, "detail")
+    err = exc_cls(400, ErrorDetail(code="some_error", message="detail"))
 
     assert isinstance(err, APIClientHTTPError)
     assert err.status_code == 400
-    assert err.detail == "detail"
+    assert err.error.code == "some_error"
+    assert err.error.message == "detail"

@@ -13,7 +13,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from api.core.dependencies import get_current_user, get_session
+from api.core.dependencies import get_current_user, get_session, verify_internal_secret
 from api.payment.dependencies import get_payment_service
 from api.payment.model import PaymentSource, PaymentStatus
 from api.payment.router import router
@@ -100,6 +100,7 @@ def overrides(app, payment_service_mock, user, session_mock):
     app.dependency_overrides[get_payment_service] = lambda: payment_service_mock
     app.dependency_overrides[get_current_user] = lambda: user
     app.dependency_overrides[get_session] = lambda: session_mock
+    app.dependency_overrides[verify_internal_secret] = lambda: None
 
     yield
 
@@ -371,7 +372,7 @@ async def test_webhook_cancel_transaction(
     session_mock,
 ):
     """Отмена транзакции по вебхуку платёжного провайдера (без Telegram-контекста
-    пользователя — см. TODO в api/payment/router.py).
+    пользователя — см. в api/payment/router.py).
     """
     tx_id = uuid4()
 
