@@ -137,29 +137,6 @@ class ReferralNotFoundError(ReferralError):
         )
 
 
-class ReferralBonusAlreadyGivenError(ReferralError):
-    """Ошибка повторного начисления реферального бонуса."""
-
-    code = "referral_bonus_already_given"
-    status_code = status.HTTP_409_CONFLICT
-
-    def __init__(self, invited_user_id: int, username: str) -> None:
-        """Инициализирует ошибку повторного бонуса.
-
-        Args:
-            invited_user_id: ID пользователя.
-            username: Telegram username.
-
-        """
-        super().__init__(
-            message=f"Бонус за пользователя @{username} уже был начислен",
-            details={
-                "invited_user_id": invited_user_id,
-                "username": username,
-            },
-        )
-
-
 class UserNotFoundError(AppError):
     """Ошибка отсутствия пользователя."""
 

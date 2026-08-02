@@ -99,6 +99,37 @@ async def test_register_referral_user_used_trial(mock_session):
 
 
 @pytest.mark.asyncio
+async def test_register_referral_self_referral_rejected(mock_session):
+    """inviter_telegram_id == telegram_id приглашённого -> реферал не регистрируется.
+
+    api/ — единственная точка, реально пишущая в БД, поэтому не должна
+    полагаться на то, что вызывающая сторона (bot/, см. проверку в
+    bot/users/router.py) никогда не пришлёт такой запрос напрямую.
+    """
+    service = ReferralService()
+    invited_user = make_invited_user(telegram_id=111)
+
+    with (
+        patch(
+            "api.referrals.services.UserDAO.find_one_or_none",
+            new=AsyncMock(),
+        ) as mock_find_inviter,
+        patch(
+            "api.referrals.services.ReferralDAO.add_referral",
+            new=AsyncMock(),
+        ) as mock_add_referral,
+    ):
+        await service.register_referral(
+            session=mock_session,
+            invited_user=invited_user,
+            inviter_telegram_id=111,
+        )
+
+        mock_find_inviter.assert_not_called()
+        mock_add_referral.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_register_referral_inviter_not_found(mock_session):
     """Инвайтер с указанным telegram_id не найден -> реферал не регистрируется."""
     service = ReferralService()

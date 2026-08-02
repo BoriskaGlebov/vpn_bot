@@ -258,6 +258,110 @@ async def test_fallback_delete_3xui(service):
 
 
 @pytest.mark.asyncio
+async def test_trigger_config_deletion_both_backends_error_notifies_admins(
+    service, mocker
+):
+    """SSH и fallback-3x-ui оба вернули ERROR — конфиг не удаляется из БД.
+
+    Запись в БД намеренно не трогается (конфиг может реально существовать на
+    одном из серверов, следующий прогон планировщика попробует снова) —
+    админы получают уведомление через _notify_deletion_failed.
+    """
+    cfg = DeletedVPNConfigSchema(file_name="conf1.conf", pub_key="key1")
+
+    mocker.patch.object(
+        service, "_delete_from_ssh", new=AsyncMock(return_value=DeleteStatus.ERROR)
+    )
+    mocker.patch.object(
+        service,
+        "_fallback_delete_3xui",
+        new=AsyncMock(return_value=DeleteStatus.ERROR),
+    )
+    mock_delete_db = mocker.patch.object(service, "_delete_from_db", new=AsyncMock())
+    mock_notify = mocker.patch.object(
+        service, "_notify_deletion_failed", new=AsyncMock()
+    )
+
+    count = await service._trigger_config_deletion(
+        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
+    )
+
+    assert count == 0
+    mock_delete_db.assert_not_called()
+    mock_notify.assert_awaited_once_with(cfg)
+
+
+@pytest.mark.asyncio
+async def test_trigger_config_deletion_ssh_error_xray_not_found_still_notifies(
+    service, mocker
+):
+    """SSH ERROR + fallback NOT_FOUND — не тот же случай, что "оба NOT_FOUND".
+
+    Штатное "нигде не найдено, значит нечего удалять" срабатывает только
+    если ОБА бэкенда согласны (NOT_FOUND, NOT_FOUND) — см. соседний тест
+    test_check_all_with_delete_event для успешного сценария. Если SSH
+    реально упал с ошибкой, а не просто "не нашёл", это не тот случай —
+    считается отказом и уходит на уведомление админов, а не тихую очистку БД.
+    """
+    cfg = DeletedVPNConfigSchema(file_name="conf1.conf", pub_key="key1")
+
+    mocker.patch.object(
+        service, "_delete_from_ssh", new=AsyncMock(return_value=DeleteStatus.ERROR)
+    )
+    mocker.patch.object(
+        service,
+        "_fallback_delete_3xui",
+        new=AsyncMock(return_value=DeleteStatus.NOT_FOUND),
+    )
+    mock_delete_db = mocker.patch.object(service, "_delete_from_db", new=AsyncMock())
+    mock_notify = mocker.patch.object(
+        service, "_notify_deletion_failed", new=AsyncMock()
+    )
+
+    count = await service._trigger_config_deletion(
+        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
+    )
+
+    assert count == 0
+    mock_delete_db.assert_not_called()
+    mock_notify.assert_awaited_once_with(cfg)
+
+
+@pytest.mark.asyncio
+async def test_trigger_config_deletion_both_not_found_cleans_up_db(service, mocker):
+    """SSH и fallback оба NOT_FOUND — конфиг нигде не существует, чистим БД.
+
+    В отличие от двух тестов выше (реальная ошибка на одном из бэкендов) —
+    здесь оба backend'а согласны, что удалять нечего, поэтому запись в БД
+    удаляется, а не остаётся висеть до следующего прогона.
+    """
+    cfg = DeletedVPNConfigSchema(file_name="conf1.conf", pub_key="key1")
+
+    mocker.patch.object(
+        service,
+        "_delete_from_ssh",
+        new=AsyncMock(return_value=DeleteStatus.NOT_FOUND),
+    )
+    mocker.patch.object(
+        service,
+        "_fallback_delete_3xui",
+        new=AsyncMock(return_value=DeleteStatus.NOT_FOUND),
+    )
+    mock_delete_db = mocker.patch.object(service, "_delete_from_db", new=AsyncMock())
+    mock_notify = mocker.patch.object(
+        service, "_notify_deletion_failed", new=AsyncMock()
+    )
+
+    count = await service._trigger_config_deletion(
+        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
+    )
+
+    assert count == 1
+    mock_delete_db.assert_awaited_once_with(cfg)
+    mock_notify.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_fallback_delete_3xui_invalid_json(service):
     """Невалидный pub_key (не JSON-список config_id) — детерминированно ERROR.
 

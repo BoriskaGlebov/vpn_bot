@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.app_error.base_error import (
     PaymentAlreadyProcessedError,
     PaymentTransactionNotFoundError,
-    ReferralBonusAlreadyGivenError,
 )
 from api.payment.dao import PaymentTransactionDAO
 from api.payment.model import PaymentSource, PaymentStatus, PaymentTransaction
@@ -602,23 +601,10 @@ class PaymentService:
             months=tx.subscription_months,
             premium=tx.is_premium,
         )
-        ref_mes = "Бонус по реферально программе начислен"
-        try:
-            ref_res, inviter, ref_mes = await self.ref_service.grant_referral_bonus(
-                session=session,
-                invited_user=sub_res,
-            )
-        except ReferralBonusAlreadyGivenError as e:
-            # Штатная идемпотентность (повторное подтверждение той же
-            # транзакции), но перехватывается здесь локально и без лога
-            # событие никак не попадало бы в логи вовсе.
-            logger.info(
-                "Реферальный бонус уже был начислен ранее: invited_user_id={}",
-                sub_res.id,
-            )
-            ref_res = False
-            inviter = None
-            ref_mes = e.message
+        ref_res, inviter, ref_mes = await self.ref_service.grant_referral_bonus(
+            session=session,
+            invited_user=sub_res,
+        )
         return SConfirmPaymentResponse(
             transaction_res=tx,
             subscription_res=sub_res,

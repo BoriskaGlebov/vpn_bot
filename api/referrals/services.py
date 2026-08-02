@@ -48,6 +48,12 @@ class ReferralService:
                 invited_user.has_used_trial,
             )
             return
+        if inviter_telegram_id == invited_user.telegram_id:
+            logger.warning(
+                "Попытка зарегистрировать самореферал: telegram_id={}",
+                inviter_telegram_id,
+            )
+            return
         s_user = SUserTelegramID(telegram_id=inviter_telegram_id)
         inviter_model = await UserDAO.find_one_or_none(
             session=session, filters=s_user, options=UserDAO.base_options

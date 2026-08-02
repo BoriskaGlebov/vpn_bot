@@ -17,7 +17,6 @@ import pytest
 from api.app_error.base_error import (
     PaymentAlreadyProcessedError,
     PaymentTransactionNotFoundError,
-    ReferralBonusAlreadyGivenError,
 )
 from api.payment.dao import PaymentTransactionDAO
 from api.payment.model import PaymentSource, PaymentStatus, PaymentTransaction
@@ -1301,7 +1300,13 @@ async def test_confirm_payment_flow_referral_already_given(
     payment_service,
     mock_session,
 ):
-    """Реферальный бонус уже был начислен ранее — flow не падает, просто не выдаёт бонус повторно."""
+    """Реферальный бонус уже был начислен ранее — flow не падает, просто не выдаёт бонус повторно.
+
+    `ReferralService.grant_referral_bonus` не бросает исключение в этом
+    случае — идемпотентность обеспечивается тем, что метод сам возвращает
+    ``(False, ..., message)``, и `confirm_payment_flow` просто прокидывает
+    этот результат дальше без какой-либо специальной обработки.
+    """
     data = SimpleNamespace(id=uuid4())
 
     tx = make_transaction(
@@ -1328,11 +1333,13 @@ async def test_confirm_payment_flow_referral_already_given(
             payment_service.ref_service,
             "grant_referral_bonus",
             new=AsyncMock(
-                side_effect=ReferralBonusAlreadyGivenError(
-                    invited_user_id=123, username="test_user"
+                return_value=(
+                    False,
+                    None,
+                    "Бонус за пользователя @test_user уже был начислен",
                 )
             ),
-        ),
+        ) as mock_grant,
     ):
 
         result = await payment_service.confirm_payment_flow(
@@ -1341,6 +1348,7 @@ async def test_confirm_payment_flow_referral_already_given(
             payment_source=PaymentSource.GATEWAY,
         )
 
+    mock_grant.assert_awaited_once_with(session=mock_session, invited_user=sub_res)
     assert result.referral_res.success is False
     assert result.referral_res.inviter_telegram_id is None
     assert (

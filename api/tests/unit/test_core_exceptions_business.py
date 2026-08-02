@@ -5,7 +5,6 @@ from fastapi import Request
 
 from api.app_error.base_error import (
     ActiveSubscriptionExistsError,
-    ReferralBonusAlreadyGivenError,
     ReferralError,
     ReferralNotFoundError,
     SubscriptionNotFoundError,
@@ -38,7 +37,6 @@ class DummyRequest(Request):
         (ActiveSubscriptionExistsError(user_id=42, username="test"), 409),
         (TrialAlreadyUsedError(user_id=42, username="test"), 409),
         (ReferralNotFoundError(invited_user_id=42, username="test"), 404),
-        (ReferralBonusAlreadyGivenError(invited_user_id=42, username="test"), 409),
         (ReferralError("Generic referral error"), 400),
         (VPNLimitError(user_id=99, limit=5, username="test"), 409),
     ],
