@@ -77,9 +77,10 @@ class PaymentAPIAdapter:
             "/payment/transaction",
             json=payload.model_dump(),
         )
-        logger.debug("Транзакция создана, status={} response={}", status_code, data)
+        result = SPaymentTransactionResponse.model_validate(data)
+        logger.debug("Транзакция создана: id={} status={}", result.id, result.status)
 
-        return SPaymentTransactionResponse.model_validate(data)
+        return result
 
     async def attach_provider_payment(
         self,
@@ -117,14 +118,15 @@ class PaymentAPIAdapter:
             f"/payment/transaction/{transaction_id}/provider",
             json=payload.model_dump(mode="json"),
         )
+        result = SPaymentTransactionResponse.model_validate(data)
 
         logger.debug(
-            "Provider payment привязан: status={} response={}",
-            status_code,
-            data,
+            "Provider payment привязан: transaction_id={} status={}",
+            result.id,
+            result.status,
         )
 
-        return SPaymentTransactionResponse.model_validate(data)
+        return result
 
     async def mark_payment_started(
         self, transaction_id: UUID
@@ -156,16 +158,19 @@ class PaymentAPIAdapter:
             SConfirmPaymentResponse: Результат подтверждения.
 
         """
-        logger.info("Подтверждение прихода денег: {}", transaction_id)
+        logger.info("Подтверждение прихода денег (админом): {}", transaction_id)
         payload = SConfirmPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
             "/payment/transaction/admin/confirm",
             json=payload.model_dump(mode="json"),
         )
+        result = SConfirmPaymentResponse.model_validate(data)
         logger.debug(
-            "Транзакция подтверждена, status={} response={}", status_code, data
+            "Транзакция подтверждена: id={} status={}",
+            result.transaction_res.id,
+            result.transaction_res.status,
         )
-        return SConfirmPaymentResponse.model_validate(data)
+        return result
 
     async def webhook_confirm_transaction(
         self,
@@ -180,16 +185,19 @@ class PaymentAPIAdapter:
             SConfirmPaymentResponse: Результат подтверждения.
 
         """
-        logger.info("Подтверждение прихода денег: {}", transaction_id)
+        logger.info("Подтверждение прихода денег (вебхук): {}", transaction_id)
         payload = SConfirmPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
             "/payment/transaction/webhook/confirm",
             json=payload.model_dump(mode="json"),
         )
+        result = SConfirmPaymentResponse.model_validate(data)
         logger.debug(
-            "Транзакция подтверждена, status={} response={}", status_code, data
+            "Транзакция подтверждена: id={} status={}",
+            result.transaction_res.id,
+            result.transaction_res.status,
         )
-        return SConfirmPaymentResponse.model_validate(data)
+        return result
 
     async def cancel_transaction(
         self,
@@ -210,8 +218,9 @@ class PaymentAPIAdapter:
             "/payment/transaction/cancel",
             json=payload.model_dump(mode="json"),
         )
-        logger.debug("Транзакция отменена, status={} response={}", status_code, data)
-        return SPaymentTransactionResponse.model_validate(data)
+        result = SPaymentTransactionResponse.model_validate(data)
+        logger.debug("Транзакция отменена: id={} status={}", result.id, result.status)
+        return result
 
     async def get_by_gateway_id(
         self, gateway_transaction_id: str
@@ -225,9 +234,14 @@ class PaymentAPIAdapter:
             SPaymentTransactionResponse: Найденная транзакция.
 
         """
+        logger.debug(
+            "Поиск транзакции по gateway_transaction_id={}", gateway_transaction_id
+        )
         data = await self._client.get(
             "/payment/transaction",
             params={"gateway_transaction_id": gateway_transaction_id},
         )
+        result = SPaymentTransactionResponse.model_validate(data)
+        logger.debug("Транзакция найдена: id={} status={}", result.id, result.status)
 
-        return SPaymentTransactionResponse.model_validate(data)
+        return result

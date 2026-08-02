@@ -357,7 +357,7 @@ class NewsRouter(BaseRouter):
                     )
                 except Exception as e:
                     failed = 1
-                    self.logger.error(f"Ошибка отправки {user_id}: {e}")
+                    self.logger.exception(f"Ошибка отправки {user_id}: {e}")
                     await send_to_admins(
                         bot=self.bot,
                         message_text=f"Не удалось отправить новость пользователю "
@@ -386,7 +386,7 @@ class NewsRouter(BaseRouter):
                             sent += 1
                         except Exception as exc:
                             failed += 1
-                            self.logger.error(
+                            self.logger.exception(
                                 f"Повторная отправка не удалась {user_id}: {exc}"
                             )
 
@@ -412,7 +412,7 @@ class NewsRouter(BaseRouter):
                         )
                     except Exception as exc:
                         failed += 1
-                        self.logger.error(
+                        self.logger.exception(
                             f"Неизвестная ошибка при отправке {user_id}: {exc}"
                         )
                         await send_to_admins(
@@ -421,7 +421,7 @@ class NewsRouter(BaseRouter):
                         )
 
                     await asyncio.sleep(0.05)
-            self.logger.info(
+            self.logger.bind(user=format_username(query.from_user)).info(
                 f"Рассылка завершена. Отправлено: {sent}, ошибок: {failed}"
             )
             await state.clear()

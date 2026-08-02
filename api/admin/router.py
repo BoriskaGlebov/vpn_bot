@@ -332,5 +332,10 @@ async def get_income(
         ValueError: Если передан некорректный год.
 
     """
+    logger.info("Запрос аналитики дохода year={} admin_id={}", year, admin_auth.id)
+
     income = await service.get_year_income(session=session, year=year)
+
+    logger.success("Аналитика дохода получена year={}", year)
+
     return income

@@ -54,7 +54,7 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             session=session, filters=stelegram_id, options=UserDAO.base_options
         )
         if not user:
-            logger.error(
+            logger.warning(
                 f"[DAO] Не удалось найти пользователя с {stelegram_id.telegram_id}"
             )
             raise UserNotFoundError(tg_id=stelegram_id.telegram_id)
@@ -66,10 +66,13 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             )
             await session.flush()
             subscription.activate(days=days, month_num=month, sub_type=sub_type)
-            logger.debug(f"[DAO] Активирую подписку на {days} дней")
+            logger.debug(
+                f"[DAO] Активирую подписку user_id={user.id}: "
+                f"days={days}, month={month}, type={sub_type}"
+            )
             return subscription
         except (TrialAlreadyUsedError, AppError):
             raise
-        except SQLAlchemyError as e:
-            logger.error(f"[DAO] Ошибка при активации подписки: {e}")
-            raise e
+        except SQLAlchemyError:
+            logger.exception("[DAO] Ошибка при активации подписки")
+            raise

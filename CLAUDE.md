@@ -127,8 +127,13 @@ handlers in `api/core/exceptions/handlers/` and registered on the FastAPI app in
 The bot side mirrors this with its own `bot/app_error/` for translating API error responses
 back into user-facing Telegram messages.
 
-Middleware order matters and is applied in `api/main.py` in this sequence: `LogContextMiddleware`
-→ `AuthMiddleware` → `RequestLoggingMiddleware` → `DBSessionMiddleware` → `ExceptionLoggingMiddleware`.
+Middleware order matters. Starlette executes middleware in the *reverse* of `add_middleware()`
+call order (each new one wraps the previous ones), so the actual execution order on an incoming
+request in `api/main.py` is: `ExceptionLoggingMiddleware` → `DBSessionMiddleware` →
+`AuthMiddleware` → `LogContextMiddleware` → `RequestLoggingMiddleware` → route. This is required
+so `AuthMiddleware` can query `request.state.db` (set by `DBSessionMiddleware`), `LogContextMiddleware`
+can read the user `AuthMiddleware` resolved, and `RequestLoggingMiddleware`'s own request-start/end
+logs get the `{extra[user]}` context `LogContextMiddleware` just set.
 The bot side registers its middlewares (`ErrorHandlerMiddleware`, `UserActionLoggingMiddleware`,
 `UserContextMiddleware`) inside the `lifespan` function in `bot/main.py`, not at app-creation time.
 

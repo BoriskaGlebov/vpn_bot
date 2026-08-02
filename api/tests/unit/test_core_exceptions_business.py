@@ -63,12 +63,18 @@ async def test_app_error_handler_returns_expected_status(
 
 @pytest.mark.asyncio
 async def test_app_error_handler_unexpected_exception():
-    """Исключение, не являющееся AppError, всё равно даёт корректный 500-ответ."""
+    """Исключение, не являющееся AppError, всё равно даёт корректный 500-ответ.
+
+    Текст исключения (`str(exc)`) не должен попадать в тело ответа клиенту —
+    он может содержать внутренние детали приложения (пути, куски SQL,
+    содержимое ошибок соединения и т.п.). Полный текст доступен только
+    в логах через `logger.exception`.
+    """
     request = DummyRequest()
 
     response = await app_error_handler(
         request,
-        ValueError("boom"),
+        ValueError("boom, contains secret db connection string"),
     )
 
     assert response.status_code == 500
@@ -77,4 +83,5 @@ async def test_app_error_handler_unexpected_exception():
 
     assert payload["error"]["code"] == "internal_error"
     assert payload["error"]["details"]["exc_type"] == "ValueError"
-    assert "boom" in payload["error"]["message"]
+    assert payload["error"]["message"] == "Internal server error"
+    assert "boom" not in payload["error"]["message"]

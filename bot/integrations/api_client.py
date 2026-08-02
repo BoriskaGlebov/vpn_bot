@@ -143,11 +143,10 @@ class APIClient:
                 )
                 if response.status_code >= 400:
                     logger.warning(
-                        "HTTP error: {} {} -> {} | body={}",
+                        "HTTP error: {} {} -> {}",
                         method,
                         url,
                         response.status_code,
-                        response.text,
                     )
                     try:
                         error_body = response.json()
@@ -159,6 +158,17 @@ class APIClient:
                             response.status_code,
                         )
                         raise APIClientInvalidJSONError() from exc
+                    # Тело ответа может содержать чувствительные данные (эхо
+                    # платёжных реквизитов, паролей и т.п. от стороннего
+                    # сервиса), поэтому в постоянные логи (WARNING/ERROR выше)
+                    # оно не попадает — только на DEBUG и усечённым.
+                    logger.debug(
+                        "HTTP error body: {} {} -> {} | body={}",
+                        method,
+                        url,
+                        response.status_code,
+                        str(error_body)[:500],
+                    )
                     raise map_http_error(response.status_code, error_body)
 
                 return response

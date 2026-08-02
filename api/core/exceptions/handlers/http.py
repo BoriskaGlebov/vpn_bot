@@ -174,8 +174,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     которые не были обработаны специализированными
     exception handlers.
 
-    Логирует traceback и возвращает унифицированный
-    HTTP-ответ с кодом 500.
+    Traceback и путь запроса логируются внутри `unexpected_exception_loger` —
+    здесь их логировать повторно не нужно (иначе на одно исключение в
+    error.log попадали бы две записи).
 
     Args:
         request: Текущий HTTP-запрос.
@@ -185,6 +186,5 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         JSONResponse: HTTP-ответ со статусом 500.
 
     """
-    logger.exception("Необработанное исключение при запросе {}", request.url.path)
     await log_cause(exc=exc)
-    return await unexpected_exception_loger(exc=exc)
+    return await unexpected_exception_loger(exc=exc, path=request.url.path)

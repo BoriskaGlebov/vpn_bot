@@ -54,7 +54,13 @@ class SubscriptionScheduler:
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
-        logger.info(f"Обработка пользователя: {user.username} (ID: {user.telegram_id})")
+        # DEBUG, а не INFO: вызывается для каждого пользователя на каждом
+        # ежедневном прогоне планировщика — на INFO это тонет в шуме и
+        # маскирует реально значимые события (истечение, деактивация),
+        # которые логируются отдельно ниже.
+        logger.debug(
+            f"Обработка пользователя: {user.username} (ID: {user.telegram_id})"
+        )
         stats = SubscriptionStats()
         events: list[SubscriptionEvent] = []
 

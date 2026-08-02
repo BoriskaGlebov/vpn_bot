@@ -1,8 +1,6 @@
-import traceback
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request
-from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from starlette.types import ASGIApp
@@ -11,12 +9,14 @@ from api.core.exceptions.handlers.business import unexpected_exception_loger
 
 
 class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
-    """Middleware для логирования непредвиденных ошибок.
+    """Ловит исключения, не перехваченные `add_exception_handler`.
 
-    Этот middleware оборачивает все HTTP-запросы и логирует
-    исключения, которые не были обработаны кастомными
-    exception handler'ами. В случае возникновения ошибки
-    возвращает статус 500.
+    `add_exception_handler(Exception, ...)` (см. `unhandled_exception_handler`)
+    перехватывает исключения только из самого роутера — этот middleware
+    добавлен как последний (а значит, самый внешний, см. порядок
+    `add_middleware` в `api/main.py`), чтобы подстраховать и исключения,
+    возникшие в других middleware (Auth/DBSession/RequestLogging/LogContext).
+    В случае ошибки возвращает статус 500.
 
     Attributes
         app: Приложение FastAPI, к которому применяется middleware.
@@ -53,8 +53,4 @@ class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
         except Exception as e:
-            tb_str = "".join(traceback.format_exception(type(e), e, e.__traceback__))
-            logger.exception(
-                f"[ExceptionLoggingMiddleware] Неожиданная ошибка: {e}\n{tb_str}"
-            )
-            return await unexpected_exception_loger(exc=e)
+            return await unexpected_exception_loger(exc=e, path=request.url.path)

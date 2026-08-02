@@ -550,6 +550,13 @@ class PaymentService:
                 invited_user=sub_res,
             )
         except ReferralBonusAlreadyGivenError as e:
+            # Штатная идемпотентность (повторное подтверждение той же
+            # транзакции), но перехватывается здесь локально и без лога
+            # событие никак не попадало бы в логи вовсе.
+            logger.info(
+                "Реферальный бонус уже был начислен ранее: invited_user_id={}",
+                sub_res.id,
+            )
             ref_res = False
             inviter = None
             ref_mes = e.message

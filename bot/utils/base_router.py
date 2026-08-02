@@ -61,7 +61,7 @@ class BaseRouter(ABC):
                     )
                     return result
                 except Exception as e:
-                    self.logger.error(
+                    self.logger.exception(
                         f"❌ Ошибка в {self.__class__.__name__}.{func.__name__}: {e}"
                     )
                     raise
@@ -126,8 +126,11 @@ class BaseRouter(ABC):
                 await asyncio.sleep(2)
                 await message.delete()
             except Exception as e:
-                self.logger.error(e)
-                pass
+                # Штатная ситуация — сообщение уже удалено пользователем
+                # или устарело, не сбой обработчика.
+                self.logger.debug(
+                    f"Не удалось удалить сообщение {message.message_id}: {e}"
+                )
 
             current_state = await state.get_state()
             state_me = current_state.split(":")[1] if current_state else None

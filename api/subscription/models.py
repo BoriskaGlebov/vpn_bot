@@ -179,7 +179,3 @@ class Subscription(Base):
             return None
         delta = self.end_date - datetime.datetime.now(tz=datetime.UTC)
         return max(delta.days, 0)
-
-
-if __name__ == "__main__":
-    print(SubscriptionType.PREMIUM.value)

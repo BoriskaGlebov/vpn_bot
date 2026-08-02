@@ -102,15 +102,27 @@ tags_metadata: list[dict[str, Any]] = [
 
 
 @asynccontextmanager
-@logger.catch  # type: ignore[misc]
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Менеджер жизненного цикла для FastAPI-приложения.
 
     Эта функция управляет настройкой и завершением работы бота, включая регистрацию роутеров,
     запуск бота, настройку вебхука и очистку при завершении работы бота.
+
+    Ошибка инициализации (`init_default_roles_admins`) пробрасывается дальше,
+    чтобы приложение не поднялось в нерабочем состоянии — раньше здесь стоял
+    `@logger.catch` поверх генератора, который на деле не перехватывал
+    исключения после `yield`/до него (он оборачивал только создание объекта
+    генератора, не его выполнение) и тем более не останавливал бы старт
+    приложения, даже если бы сработал (`reraise=False` по умолчанию).
     """
     logger.info("Запуск настройки api сервиса VPN Boriska...")
-    await init_default_roles_admins()  # type: ignore
+    try:
+        await init_default_roles_admins()  # type: ignore
+    except Exception:
+        logger.exception("Не удалось запустить api сервис VPN Boriska")
+        raise
+    logger.info("Api сервис VPN Boriska успешно запущен")
+
     yield
 
     logger.info("Завершение работы api сервиса VPN Boriska...")
@@ -247,9 +259,18 @@ app.add_exception_handler(SQLAlchemyError, database_exception_handler)
 app.add_exception_handler(AppError, app_error_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
+# Starlette выполняет middleware в порядке, ОБРАТНОМ вызовам add_middleware —
+# каждый новый добавляется в начало списка (значит, выполняется раньше).
+# Реальный порядок выполнения на входящий запрос (снаружи внутрь):
+#   ExceptionLoggingMiddleware -> DBSessionMiddleware -> AuthMiddleware ->
+#   LogContextMiddleware -> RequestLoggingMiddleware -> роут.
+# Это важно для логов: AuthMiddleware должен успеть отработать раньше
+# LogContextMiddleware (тот читает request.state.user, который выставляет
+# Auth), а LogContextMiddleware — раньше RequestLoggingMiddleware (иначе его
+# логи "Начало/Завершен запрос" всегда пишутся с user=undefined_user).
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(LogContextMiddleware)
 app.add_middleware(AuthMiddleware)
-app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(DBSessionMiddleware)
 app.add_middleware(ExceptionLoggingMiddleware)
 

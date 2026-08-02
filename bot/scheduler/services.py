@@ -148,8 +148,12 @@ class SchedulerBotService:
             else:
                 await self.bot.send_message(chat_id=tg_id, text=message)
         except TelegramForbiddenError:
-            logger.error(
-                "Невозможно отправить уведомление пользователю который заблокировал бота"
+            # Штатная, регулярно встречающаяся ситуация (пользователь
+            # заблокировал бота), а не сбой планировщика — поэтому warning,
+            # а не error.
+            logger.warning(
+                "Невозможно отправить уведомление tg_id={} (пользователь заблокировал бота)",
+                tg_id,
             )
             await send_to_admins(
                 bot=self.bot,

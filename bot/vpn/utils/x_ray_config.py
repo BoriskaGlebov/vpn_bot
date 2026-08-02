@@ -342,7 +342,7 @@ class ThreeXUIAdapter:
 
         """
         try:
-            logger.warning("Перезапуск XRay сервиса")
+            logger.info("Перезапуск XRay сервиса")
             result = await self.api.post(
                 f"{self.prefix}/panel/api/server/restartXrayService"
             )

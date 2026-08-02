@@ -306,7 +306,8 @@ async def payment_webhook(request: Request) -> Response:
         request (Request): Входящий HTTP-запрос с телом вебхука.
 
     Returns
-        Response: Пустой ответ 200, подтверждающий получение вебхука.
+        Response: Пустой ответ 200, подтверждающий получение вебхука;
+        403, если подлинность вебхука не подтверждена.
 
     """
     body: bytes = await request.body()
@@ -317,7 +318,18 @@ async def payment_webhook(request: Request) -> Response:
             media_type="text/plain",
             status_code=200,
         )
-    event = await container.payment_service.provider.parse_webhook(body)
+
+    provider = container.payment_service.provider
+    if not await provider.verify_webhook(headers=dict(request.headers), body=body):
+        logger.warning("Webhook платёжного провайдера не прошёл проверку подлинности")
+        return Response(status_code=403)
+
+    event = await provider.parse_webhook(body)
+    logger.info(
+        "Получен webhook платёжного провайдера: gateway_payment_id={} status={}",
+        event.provider_payment_id,
+        event.status,
+    )
 
     await container.payment_webhook_service.handle_event(event)
     return Response(status_code=200)

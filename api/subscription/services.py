@@ -52,7 +52,9 @@ class SubscriptionService:
             raise UserNotFoundError(tg_id=tg_id)
         subscription = user_model.current_subscription
         if subscription is None:
-            logger.error("Отсутствует current_subscription: tg_id={}", tg_id)
+            # Ожидаемая ситуация (у пользователя ещё нет подписки), а не
+            # системная ошибка — уровень как у соседнего "не найден" выше.
+            logger.warning("Отсутствует current_subscription: tg_id={}", tg_id)
             raise SubscriptionNotFoundError(
                 user_id=user_model.id, username=user_model.username
             )

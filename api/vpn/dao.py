@@ -51,7 +51,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             )
             logger.debug(f"[DAO] У пользователя {user_id} конфигов: {count}")
             if not user.current_subscription or not user.current_subscription.is_active:
-                logger.warning("Нет активной подписки.")
+                logger.warning("Нет активной подписки: user_id={}", user_id)
                 raise SubscriptionNotFoundError(user_id=user_id, username=user.username)
             if user and count == 0:
                 return True
@@ -62,9 +62,9 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             )
             return count < max_configs
 
-        except SQLAlchemyError as e:
-            logger.error(f"[DAO] Ошибка при при проверке лимита конфиг файлов: {e}")
-            raise e
+        except SQLAlchemyError:
+            logger.exception("[DAO] Ошибка при проверке лимита конфиг файлов")
+            raise
 
     @classmethod
     async def add_config(
@@ -92,7 +92,9 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
         )
         try:
             if not await cls.can_add_config(session=session, user_id=user_id):
-                logger.error(
+                # Ожидаемое бизнес-ограничение (превышен лимит устройств),
+                # а не системная ошибка.
+                logger.warning(
                     f"[DAO] Создание конфига отклонено — пользователь {user_id} достиг лимита",
                 )
                 user = await UserDAO.find_one_or_none_by_id(
@@ -114,6 +116,6 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 f"[DAO] Создан новый VPNConfig id={config.id} для пользователя {user_id} (файл='{file_name}')",
             )
             return config
-        except SQLAlchemyError as e:
-            logger.error(f"[DAO] Ошибка при добавлении конфиг файла: {e}")
-            raise e
+        except SQLAlchemyError:
+            logger.exception("[DAO] Ошибка при добавлении конфиг файла")
+            raise

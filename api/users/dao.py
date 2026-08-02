@@ -59,7 +59,7 @@ class UserDAO(BaseDAO[User]):
 
         logger.info(
             f"[DAO] Добавление записи {cls.model.__name__} с параметрами: "
-            f"Пользователь: {user_dict}, Роль: {role_dict}"
+            f"Пользователь: {cls._redact(user_dict)}, Роль: {cls._redact(role_dict)}"
         )
         try:
             role = await session.scalar(

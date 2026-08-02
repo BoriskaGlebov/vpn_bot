@@ -667,7 +667,10 @@ class SubscriptionRouter(BaseRouter):
                 transaction_id=transaction_id
             )
 
-            user_logger.info(f"Пользователь нажал оплату ({months} мес, {price}₽)")
+            user_logger.info(
+                f"Пользователь нажал оплату ({months} мес, {price}₽), "
+                f"transaction_id={transaction_id}"
+            )
             await query.answer(f"Пользователь нажал оплату ({months} мес, {price}₽)")
             user = query.from_user
             await msg.edit_text(m_subscription.wait_for_paid.user)
@@ -794,7 +797,8 @@ class SubscriptionRouter(BaseRouter):
                 )
             sub_type = user_schema.current_subscription.type.upper()
             user_logger.info(
-                f"Админ подтвердил оплату пользователя {user_id} ({months} мес)"
+                f"Админ подтвердил оплату пользователя {user_id} ({months} мес), "
+                f"transaction_id={transaction_id}"
             )
             try:
                 await self.bot.send_message(
@@ -884,7 +888,8 @@ class SubscriptionRouter(BaseRouter):
             await self.subscription_service.cancel_transaction(transaction_id)
 
             user_logger.info(
-                f"Админ отклонил оплату пользователя {user_id} ({months} мес)"
+                f"Админ отклонил оплату пользователя {user_id} ({months} мес), "
+                f"transaction_id={transaction_id}"
             )
 
             await self.bot.send_message(

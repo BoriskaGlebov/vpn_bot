@@ -4,6 +4,7 @@ from decimal import Decimal
 from pprint import pprint
 
 import httpx
+from loguru import logger
 
 from bot.core.config import settings_bot
 from bot.payment.dto import (
@@ -49,6 +50,9 @@ class PlategaProvider:
         Returns
             CreatedPaymentDTO: Ссылка на оплату и статус платежа.
 
+        Raises
+            httpx.HTTPError: При ошибке запроса к Platega (сеть, статус >= 400).
+
         """
         payload = {
             # "paymentMethod": 11,
@@ -62,18 +66,31 @@ class PlategaProvider:
             "payload": data.order_id,
         }
 
-        response = await self.client.post(
-            "v2/transaction/process",
-            json=payload,
-        )
-
-        response.raise_for_status()
+        try:
+            response = await self.client.post(
+                "v2/transaction/process",
+                json=payload,
+            )
+            response.raise_for_status()
+        except httpx.HTTPError:
+            logger.exception(
+                "Ошибка создания платежа в Platega: order_id={} amount={}",
+                data.order_id,
+                data.amount,
+            )
+            raise
 
         response_data = response.json()
         status = (
             PaymentStatus.PENDING
             if response_data["status"].lower() == PaymentStatus.PENDING
             else PaymentStatus.FAILED
+        )
+        logger.info(
+            "Платёж создан в Platega: order_id={} provider_payment_id={} status={}",
+            data.order_id,
+            response_data["transactionId"],
+            status,
         )
         return CreatedPaymentDTO(
             provider_payment_id=response_data["transactionId"],
@@ -101,9 +118,19 @@ class PlategaProvider:
         merchant_id = headers.get("X-MerchantId")
         secret = headers.get("X-Secret")
         if not merchant_id or not secret:
+            logger.warning(
+                "Вебхук Platega без X-MerchantId/X-Secret в заголовках — отклонён"
+            )
             return False
 
-        return merchant_id == self.merchant_id and secret == self.secret_key
+        if merchant_id != self.merchant_id or secret != self.secret_key:
+            logger.warning(
+                "Вебхук Platega с неверной подписью (merchant_id={}) — отклонён",
+                merchant_id,
+            )
+            return False
+
+        return True
 
     async def parse_webhook(
         self,
@@ -133,6 +160,12 @@ class PlategaProvider:
 
         else:
             status = PaymentStatus.PENDING
+            logger.debug(
+                "Вебхук Platega с незнакомым статусом provider_status={} — "
+                "трактуется как PENDING (provider_payment_id={})",
+                provider_status,
+                data["id"],
+            )
 
         return PaymentWebhookDTO(
             provider_payment_id=data["id"],

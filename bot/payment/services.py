@@ -3,6 +3,8 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from loguru import logger
+
 from bot.notification.services import NotificationService
 from bot.payment.adapter import PaymentAPIAdapter
 from bot.payment.dto import (
@@ -52,6 +54,13 @@ class PaymentService:
             SCreatePayment: Ссылка на оплату и данные созданной транзакции.
 
         """
+        logger.info(
+            "Создание транзакции: amount={} months={} premium={} founder={}",
+            amount,
+            subscription_months,
+            is_premium,
+            is_founder,
+        )
         api_res = await self.adapter.create_transaction(
             amount=amount,
             subscription_months=subscription_months,
@@ -79,6 +88,11 @@ class PaymentService:
             gateway_transaction_id=prov_res.provider_payment_id,
             gateway_payload=asdict(prov_res),
         )
+        logger.info(
+            "Транзакция создана: id={} gateway_payment_id={}",
+            tx_final.id,
+            prov_res.provider_payment_id,
+        )
 
         return SCreatePayment(
             payment_url=prov_res.payment_url,
@@ -97,6 +111,7 @@ class PaymentService:
             SPaymentTransactionResponse: Данные отменённой транзакции.
 
         """
+        logger.info("Отмена транзакции: {}", transaction_id)
         tx_res = await self.adapter.cancel_transaction(transaction_id=transaction_id)
         return tx_res
 
@@ -113,6 +128,11 @@ class PaymentService:
 
         """
         tx_res = await self.adapter.confirm_transaction(transaction_id=transaction_id)
+        logger.info(
+            "Транзакция {} подтверждена администратором, tg_id={}",
+            transaction_id,
+            tx_res.subscription_res.telegram_id,
+        )
         return tx_res
 
     async def webhook_confirm_transaction(
@@ -130,7 +150,11 @@ class PaymentService:
         tx_res = await self.adapter.webhook_confirm_transaction(
             transaction_id=transaction_id
         )
-        print(tx_res)
+        logger.info(
+            "Транзакция {} подтверждена по вебхуку, tg_id={}",
+            transaction_id,
+            tx_res.subscription_res.telegram_id,
+        )
         return tx_res
 
     async def mark_payment_started(
@@ -190,14 +214,24 @@ class PaymentWebhookService:
         tx = await self.payment_service.get_by_gateway_id(
             gateway_transaction_id=event.provider_payment_id
         )
-        print("Информация по транзакции")
-        print(tx)
+        logger.debug(
+            "Обработка вебхука: gateway_payment_id={} transaction_id={} status={}",
+            event.provider_payment_id,
+            tx.id,
+            event.status,
+        )
         if event.status == PaymentStatus.PAID:
             # Через subscription_service, а не payment_service напрямую: она
             # после подтверждения транзакции и продления подписки в БД ещё
             # продлевает XRay-конфиги пользователя на панелях 3x-ui (см.
             # `SubscriptionService._extend_xray_after_payment`).
             await self.subscription_service.webhook_confirm_transaction(tx.id)
+            logger.info(
+                "Платёж подтверждён: transaction_id={} tg_id={} amount={}",
+                tx.id,
+                tx.tg_id,
+                tx.amount,
+            )
 
             await self.notification_service.notify_payment_success(
                 user_id=tx.tg_id,
@@ -206,6 +240,9 @@ class PaymentWebhookService:
 
         elif event.status == PaymentStatus.FAILED:
             await self.payment_service.cancel_transaction(tx.id)
+            logger.warning(
+                "Платёж не прошёл: transaction_id={} tg_id={}", tx.id, tx.tg_id
+            )
 
             await self.notification_service.notify_payment_failed(
                 user_id=tx.tg_id,

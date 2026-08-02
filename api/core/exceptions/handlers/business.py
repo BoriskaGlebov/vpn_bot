@@ -29,32 +29,42 @@ async def log_cause(exc: Exception) -> None:
         )
 
 
-async def unexpected_exception_loger(exc: Exception) -> JSONResponse:
+async def unexpected_exception_loger(
+    exc: Exception, path: str | None = None
+) -> JSONResponse:
     """Обрабатывает непредвиденные исключения приложения.
 
-    Логирует информацию о необработанном исключении и формирует
-    унифицированный HTTP-ответ с кодом 500.
+    Логирует информацию о необработанном исключении (с traceback) и
+    формирует унифицированный HTTP-ответ с кодом 500.
 
-    В production-режиме не рекомендуется передавать текст
-    исключения клиенту, так как это может привести к утечке
-    внутренней информации приложения.
+    Текст исключения (`str(exc)`) клиенту не передаётся — он может
+    содержать внутренние детали (пути, куски SQL, содержимое секретов
+    в тексте ошибки соединения и т.п.), и раньше объект попадал прямо
+    в тело ответа API. Полный текст доступен только в логах
+    (см. `logger.exception` ниже).
+
+    Единственная точка логирования непредвиденных исключений —
+    вызывающий код (`ExceptionLoggingMiddleware`, `unhandled_exception_handler`)
+    не должен логировать то же самое исключение повторно.
 
     Args:
         exc: Непредвиденное исключение.
+        path: Путь запроса, при обработке которого возникло исключение
+            (для контекста в логе), если доступен.
 
     Returns
         JSONResponse: HTTP-ответ со статусом 500 и структурой ошибки.
 
     """
-    logger.error(
-        "Непредвиденное исключение exception: ({}) {}", type(exc).__name__, str(exc)
+    logger.exception(
+        "Непредвиденное исключение: ({}) path={}", type(exc).__name__, path
     )
     return JSONResponse(
         status_code=500,
         content=ErrorEnvelope(
             error=ErrorDetail(
                 code="internal_error",
-                message=f"Internal server error ({str(exc)})",
+                message="Internal server error",
                 details={"exc_type": type(exc).__name__},
             )
         ).model_dump(),
@@ -88,7 +98,7 @@ async def app_error_handler(
     """
     await log_cause(exc=exc)
     if not isinstance(exc, AppError):
-        return await unexpected_exception_loger(exc=exc)
+        return await unexpected_exception_loger(exc=exc, path=request.url.path)
 
     if exc.status_code >= 500:
         logger.exception(
