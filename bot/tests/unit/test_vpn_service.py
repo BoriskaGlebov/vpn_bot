@@ -571,3 +571,110 @@ async def test_delete_user_config_raises_on_connection_error(mocker):
         await service.delete_user_config(tg_id=123, config=config)
 
     api_adapter.delete_config.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_extend_user_xray_subscription_no_active_subscription(mocker, user_out):
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = user_out.model_copy(update={"current_subscription": None})
+
+    result = await service.extend_user_xray_subscription(user=user)
+
+    assert result == []
+    xray_registry.all.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_extend_user_xray_subscription_no_xray_configs(mocker, user_out):
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = user_out.model_copy(
+        update={
+            "current_subscription": SimpleNamespace(
+                is_active=True, end_date=datetime(2999, 1, 1)
+            ),
+            "vpn_configs": [
+                SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="raw-wg-pubkey")
+            ],
+        }
+    )
+
+    result = await service.extend_user_xray_subscription(user=user)
+
+    assert result == []
+    xray_registry.all.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_extend_user_xray_subscription_success(mocker, user_out):
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+
+    xray_adapter = mocker.AsyncMock()
+    xray_adapter.extend_config.return_value = ["cfg1", "cfg2"]
+    xray_registry = mocker.Mock()
+    xray_registry.all.return_value = [xray_adapter]
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = user_out.model_copy(
+        update={
+            "telegram_id": 123,
+            "current_subscription": SimpleNamespace(
+                is_active=True, end_date=datetime(2999, 1, 1)
+            ),
+            "vpn_configs": [
+                SVPNConfigOut(
+                    id=1, file_name="loc_user_123", pub_key='["cfg1", "cfg2"]'
+                )
+            ],
+        }
+    )
+
+    result = await service.extend_user_xray_subscription(user=user)
+
+    assert set(result) == {"cfg1", "cfg2"}
+    xray_adapter.extend_config.assert_awaited_once()
+    called_kwargs = xray_adapter.extend_config.await_args.kwargs
+    assert set(called_kwargs["config_ids"]) == {"cfg1", "cfg2"}
+    assert called_kwargs["days"] > 0
+
+
+@pytest.mark.asyncio
+async def test_extend_user_xray_subscription_not_found_anywhere_raises(
+    mocker, user_out
+):
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError
+
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+
+    xray_adapter = mocker.AsyncMock()
+    xray_adapter.extend_config.side_effect = ThreeXUIConfigNotFoundError(
+        config_ids=["cfg1"]
+    )
+    xray_registry = mocker.Mock()
+    xray_registry.all.return_value = [xray_adapter]
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = user_out.model_copy(
+        update={
+            "current_subscription": SimpleNamespace(
+                is_active=True, end_date=datetime(2999, 1, 1)
+            ),
+            "vpn_configs": [
+                SVPNConfigOut(id=1, file_name="loc_user_123", pub_key='["cfg1"]')
+            ],
+        }
+    )
+
+    with pytest.raises(ThreeXUIConfigNotFoundError):
+        await service.extend_user_xray_subscription(user=user)

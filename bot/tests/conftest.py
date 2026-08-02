@@ -20,6 +20,7 @@ from bot.referrals.adapter import ReferralAPIAdapter
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 from bot.utils import commands
+from bot.vpn.services import VPNService
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
@@ -352,6 +353,12 @@ def mock_users_adapter():
 def moc_payment_adapter():
     adapter = AsyncMock(spec=PaymentAPIAdapter)
     return adapter
+
+
+@pytest.fixture
+def mock_vpn_service():
+    service = AsyncMock(spec=VPNService)
+    return service
 
 
 @pytest.fixture

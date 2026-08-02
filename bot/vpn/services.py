@@ -23,6 +23,7 @@ from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN, AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
 from bot.vpn.utils.x_ray_config import XRayRegistry
+from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError, ThreeXUIError
 
 ssh_lock = asyncio.Lock()
 xray_lock = asyncio.Lock()
@@ -288,6 +289,137 @@ class VPNService:
             raise
 
         return sub_url
+
+    @staticmethod
+    def _collect_xray_config_ids(configs: list[SVPNConfigOut]) -> set[str]:
+        """Собирает `config_id` всех XRay-конфигов пользователя.
+
+        `pub_key` у XRay-конфигов — JSON-список `config_id` (по одному на
+        каждый inbound, см. `ThreeXUIAdapter.add_new_config`); у WireGuard —
+        сырой публичный ключ, который как JSON не парсится, поэтому такие
+        конфиги просто пропускаются (WireGuard не хранит срок действия на
+        сервере — продлевать там нечего).
+
+        Args:
+            configs: Список VPN-конфигов пользователя.
+
+        Returns
+            set[str]: Объединённое множество `config_id` по всем XRay-конфигам.
+
+        """
+        config_ids: set[str] = set()
+        for config in configs:
+            try:
+                ids = json.loads(config.pub_key)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(ids, list):
+                config_ids.update(ids)
+        return config_ids
+
+    async def extend_user_xray_subscription(self, user: SUserOut) -> list[str]:
+        """Продлевает существующие XRay-конфигурации пользователя на всех нодах.
+
+        Вызывается при продлении/активации платной подписки: сама подписка
+        живёт в БД `api/`, но выданные ранее XRay-конфиги на панелях 3x-ui
+        хранят свой собственный `expiryTime` и не продлеваются вместе с ней
+        автоматически — без этого метода пользователь после оплаты продления
+        всё равно терял бы доступ по старому сроку.
+
+        Не создаёт новых конфигов (в отличие от `generate_xray_subscription`) —
+        только обновляет `expiryTime` уже существующих, поэтому у
+        пользователя без активной подписки или без XRay-конфигов — это no-op.
+
+        Args:
+            user: Пользователь с уже применённой (продлённой) подпиской —
+                `current_subscription.end_date` используется как новая точка
+                отсчёта оставшихся дней.
+
+        Returns
+            list[str]: `config_id` продлённых XRay-конфигураций. Пустой
+                список, если у пользователя нет активной подписки или
+                XRay-конфигов — это не ошибка.
+
+        Raises
+            ThreeXUIError: Если у пользователя есть XRay-конфиги, но продлить
+                их не удалось ни на одной из зарегистрированных нод.
+
+        """
+        sub = user.current_subscription
+        if sub is None or not sub.is_active:
+            logger.debug(
+                "Нет активной подписки — пропуск продления XRay tg_id={}",
+                user.telegram_id,
+            )
+            return []
+
+        now = datetime.now(UTC)
+        end = sub.end_date
+        if end and end.tzinfo is None:
+            end = end.replace(tzinfo=UTC)
+        days_left = max((end - now).days, 0) if end else 0
+
+        if days_left <= 0:
+            logger.debug(
+                "Подписка истекает сегодня/бессрочная — пропуск продления XRay tg_id={}",
+                user.telegram_id,
+            )
+            return []
+
+        pending = self._collect_xray_config_ids(user.vpn_configs)
+        if not pending:
+            logger.debug(
+                "У пользователя tg_id={} нет XRay-конфигов для продления",
+                user.telegram_id,
+            )
+            return []
+
+        logger.info(
+            "Продление XRay-конфигов tg_id={} config_ids={} days={}",
+            user.telegram_id,
+            pending,
+            days_left,
+        )
+
+        extended: list[str] = []
+        last_error: ThreeXUIError | None = None
+
+        async with xray_lock:
+            for adapter in self.xray_registry.all():
+                if not pending:
+                    break
+                try:
+                    done = await adapter.extend_config(
+                        config_ids=list(pending), days=days_left
+                    )
+                except ThreeXUIConfigNotFoundError:
+                    continue
+                except ThreeXUIError as exc:
+                    logger.warning(
+                        "Ошибка продления XRay-конфигов tg_id={} на {}: {}",
+                        user.telegram_id,
+                        adapter,
+                        exc,
+                    )
+                    last_error = exc
+                    continue
+                extended.extend(done)
+                pending.difference_update(done)
+
+        if pending:
+            logger.error(
+                "Не удалось продлить часть XRay-конфигов tg_id={} config_ids={}",
+                user.telegram_id,
+                pending,
+            )
+            raise last_error or ThreeXUIConfigNotFoundError(config_ids=list(pending))
+
+        logger.info(
+            "XRay-конфиги продлены tg_id={} config_ids={}",
+            user.telegram_id,
+            extended,
+        )
+        return extended
 
     async def _delete_from_ssh_nodes(
         self, pub_key: str, file_name: str

@@ -196,10 +196,16 @@ class Container:
         self.payment_service = PaymentService(
             adapter=self.payment_adapter, provider=self.payment_provider
         )
+        self.vpn_service = VPNService(
+            adapter=self.vpn_adapter,
+            user_adapter=self.user_adapter,
+            xray_registry=self.xray_adapters,
+        )
         self.subscription_service = SubscriptionService(
             adapter=self.subscription_adapter,
             user_adapter=self.user_adapter,
             payment_service=self.payment_service,
+            vpn_service=self.vpn_service,
         )
         self.notification_service = NotificationService(bot=bot)
 
@@ -207,11 +213,6 @@ class Container:
             payment_service=self.payment_service,
             subscription_service=self.subscription_service,
             notification_service=self.notification_service,
-        )
-        self.vpn_service = VPNService(
-            adapter=self.vpn_adapter,
-            user_adapter=self.user_adapter,
-            xray_registry=self.xray_adapters,
         )
         self.news_service = NewsService(adapter=self.news_adapter)
         self.scheduler_bot_service = SchedulerBotService(

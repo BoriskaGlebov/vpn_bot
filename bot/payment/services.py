@@ -193,13 +193,11 @@ class PaymentWebhookService:
         print("Информация по транзакции")
         print(tx)
         if event.status == PaymentStatus.PAID:
-            await self.payment_service.webhook_confirm_transaction(tx.id)
-
-            # sub = await self.subscription_service.activate_paid_subscription(
-            #     user_id=tx.user_id,
-            #     months=tx.subscription_months,
-            #     premium=tx.is_premium,
-            # )
+            # Через subscription_service, а не payment_service напрямую: она
+            # после подтверждения транзакции и продления подписки в БД ещё
+            # продлевает XRay-конфиги пользователя на панелях 3x-ui (см.
+            # `SubscriptionService._extend_xray_after_payment`).
+            await self.subscription_service.webhook_confirm_transaction(tx.id)
 
             await self.notification_service.notify_payment_success(
                 user_id=tx.tg_id,

@@ -31,15 +31,27 @@ def adapter(api_client):
 
 @pytest.mark.asyncio
 async def test_login(adapter):
-    adapter.api.post = AsyncMock(return_value=({"ok": True}, 200))
+    adapter.api.post = AsyncMock(return_value=({"success": True, "ok": True}, 200))
 
     res, status = await adapter._login(
         user_credentials=MagicMock(model_dump=lambda: {"u": "a"})
     )
 
     assert status == 200
-    assert res == {"ok": True}
+    assert res == {"success": True, "ok": True}
     adapter.api.post.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_login_auth_error(adapter):
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIAuthError
+
+    adapter.api.post = AsyncMock(
+        return_value=({"success": False, "msg": "Wrong credentials"}, 200)
+    )
+
+    with pytest.raises(ThreeXUIAuthError):
+        await adapter._login(user_credentials=MagicMock(model_dump=lambda: {"u": "a"}))
 
 
 @pytest.mark.asyncio
@@ -62,7 +74,8 @@ async def test_logout_error_ignored(adapter):
 async def test_get_all_inbounds(adapter):
     adapter.api.get = AsyncMock(
         return_value={
-            "obj": [{"id": 1, "remark": "test", "enable": True, "port": 1000}]
+            "success": True,
+            "obj": [{"id": 1, "remark": "test", "enable": True, "port": 1000}],
         }
     )
 
@@ -76,6 +89,7 @@ async def test_get_all_inbounds(adapter):
 async def test_get_all_users(adapter):
     adapter.api.get = AsyncMock(
         return_value={
+            "success": True,
             "obj": [
                 {
                     "clientStats": [
@@ -83,7 +97,7 @@ async def test_get_all_users(adapter):
                         {"uuid": "456"},
                     ]
                 }
-            ]
+            ],
         }
     )
 
@@ -132,7 +146,6 @@ async def test_add_new_config(adapter):
         patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"),
         patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000),
     ):
-
         result, url = await adapter.add_new_config(
             tg_id=123,
             days=1,
@@ -145,6 +158,53 @@ async def test_add_new_config(adapter):
 
     adapter._add_user.assert_called_once()
     adapter._logout.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_extend_config_invalid_days(adapter):
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIInvalidExpiryError
+
+    with pytest.raises(ThreeXUIInvalidExpiryError):
+        await adapter.extend_config(config_ids=["a"], days=0)
+
+
+@pytest.mark.asyncio
+async def test_extend_config_success(adapter):
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock()
+    adapter._update_client = AsyncMock()
+
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1), MagicMock(id=2)])
+    adapter._get_inbound_clients = AsyncMock(
+        side_effect=[
+            [{"id": "abc", "email": "user_1"}],
+            [{"id": "def", "email": "user_2"}],
+        ]
+    )
+
+    with patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000):
+        result = await adapter.extend_config(config_ids=["abc", "def"], days=5)
+
+    assert set(result) == {"abc", "def"}
+    assert adapter._update_client.await_count == 2
+    adapter._restart_x_ray.assert_awaited_once()
+    adapter._logout.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_extend_config_not_found_raises(adapter):
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError
+
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock()
+
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1)])
+    adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "other"}])
+
+    with pytest.raises(ThreeXUIConfigNotFoundError):
+        await adapter.extend_config(config_ids=["missing"], days=5)
 
 
 @pytest.mark.asyncio
