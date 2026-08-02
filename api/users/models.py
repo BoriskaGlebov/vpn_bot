@@ -87,7 +87,7 @@ class User(Base):
         foreign_keys="PaymentTransaction.user_id",
         back_populates="user",
         lazy="selectin",
-        order_by="PaymentTransaction.paid_at.desc()",
+        order_by="PaymentTransaction.created_at.desc()",
         passive_deletes=True,
     )
 

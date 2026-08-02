@@ -25,17 +25,23 @@ router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
 # TODO 3. Нашёл серьёзную дыру, пока не трогал — при составлении карты
 # эндпоинтов выяснилось,
 # что GET /payment/transaction
-# (поиск транзакции по gateway_transaction_id) и
-# POST /payment/transaction/webhook/confirm (подтверждение платежа)
+# (поиск транзакции по gateway_transaction_id),
+# POST /payment/transaction/webhook/confirm (подтверждение платежа) и
+# POST /payment/transaction/webhook/cancel (отмена платежа, добавлен позже
+# по той же причине — см. ниже)
 # вообще без Depends(get_current_user)/check_admin_role — то есть
 # без секрета и без Telegram ID. Это тот же класс уязвимости,
 # что мы закрывали в начале сессии, только на другом эндпоинте:
 # кто угодно, зная/подобрав transaction_id, может прочитать
-# чужую транзакцию или подтвердить оплату бесплатно.
+# чужую транзакцию, подтвердить или отменить оплату бесплатно.
 # В документации я их честно оставил без 401/403
 # (иначе документация была бы неправдой),
 # но добавлять Depends тут не стал — это не «поправить доки»,
 # а отдельный фикс безопасности. Хотите, чтобы я закрыл это сейчас?
+# webhook/cancel не может требовать Telegram ID в принципе — вебхук от
+# платёжного шлюза приходит не от имени пользователя бота, X-Telegram-Id
+# взять неоткуда (см. PaymentWebhookService.handle_event) — но это не
+# отменяет вопрос защиты самого эндпоинта (например, отдельным секретом).
 # Возможная проблема
 #
 @router.post(
@@ -377,3 +383,56 @@ async def cancel_transaction(
     )
 
     return res
+
+
+@router.post(
+    "/transaction/webhook/cancel",
+    response_model=SPaymentTransactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Отмена платежной транзакции через webhook",
+    description=(
+        "Отменяет платежную транзакцию по уведомлению внешнего платёжного "
+        "провайдера (CANCELED/CHARGEBACKED). Без Telegram-контекста "
+        "пользователя — вебхук приходит напрямую от платёжного шлюза, а не "
+        "от бота от имени пользователя, поэтому `/transaction/cancel` "
+        "(требует `X-Telegram-Id`) для этого случая не подходит."
+    ),
+    response_description="Обновлённая платежная транзакция.",
+)
+async def webhook_cancel_transaction(
+    data: STransactionIDFilter,
+    service: PaymentService = Depends(get_payment_service),
+    session: AsyncSession = Depends(get_session),
+) -> SPaymentTransactionResponse:
+    """Отменяет платежную транзакцию по вебхуку платёжного провайдера.
+
+    Endpoint используется для отмены транзакции при получении от
+    платёжного провайдера статуса CANCELED/CHARGEBACKED — аналог
+    `webhook_confirm_transaction`, но для неуспешного платежа.
+
+    Args:
+        data:
+            Данные отменяемой транзакции.
+
+        service:
+            Сервис бизнес-логики платежей.
+
+        session:
+            Асинхронная SQLAlchemy-сессия.
+
+    Returns
+        SPaymentTransactionResponse:
+            Обновлённая платежная транзакция.
+
+    Raises
+        PaymentTransactionNotFoundError:
+            Если транзакция не найдена.
+
+        PaymentAlreadyProcessedError:
+            Если транзакция уже была обработана.
+
+    """
+    return await service.cancel_transaction(
+        session=session,
+        data=data,
+    )

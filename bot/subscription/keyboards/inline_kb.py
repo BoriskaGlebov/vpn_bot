@@ -199,23 +199,21 @@ def payment_method_kb(
     return builder.as_markup()
 
 
-def card_payment_kb(
-    transaction_id: UUID,
-    payment_url: str,
-    founder: bool,
-) -> InlineKeyboardMarkup:
+def card_payment_kb(payment_url: str) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру для оплаты картой через платёжный шлюз.
 
     Подтверждение оплаты автоматическое (по вебхуку от платёжного шлюза),
-    поэтому кнопки "Я оплатил" здесь нет — только ссылка на оплату и отмена.
+    поэтому здесь нет ни кнопки "Я оплатил", ни кнопки "Отмена" — сама
+    ссылка ведёт на внешнюю страницу оплаты, и бот не может знать, начал ли
+    пользователь платить, до прихода вебхука. Отмена на стороне бота была бы
+    гонкой: пользователь мог уже оплатить на странице Platega в момент клика
+    "Отмена", и деньги списались бы без выдачи подписки.
 
     Args
-        transaction_id (UUID): Идентификатор транзакции.
         payment_url (str): Ссылка на страницу оплаты картой.
-        founder (bool): Проверка на основателя.
 
     Returns
-        InlineKeyboardMarkup: Клавиатура со ссылкой на оплату и кнопкой "Отмена".
+        InlineKeyboardMarkup: Клавиатура со ссылкой на оплату.
 
     """
     builder = InlineKeyboardBuilder()
@@ -225,15 +223,6 @@ def card_payment_kb(
             url=payment_url,
         )
     )
-    builder.button(
-        text="❌ Отмена",
-        callback_data=SubscriptionCB(
-            action=SubscriptionAction.CANCEL,
-            transaction_id=transaction_id,
-            founder=founder,
-        ),
-    )
-    builder.adjust(1)
     return builder.as_markup()
 
 

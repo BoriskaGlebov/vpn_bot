@@ -30,6 +30,7 @@ async def test_show_subscription_options_premium_user(
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     await router._show_subscription_options(chat_id=123, user=user, state=state_mock)
@@ -66,6 +67,7 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     await router.my_subscription_menu(message=message_mock, state=fake_state)
@@ -102,6 +104,7 @@ async def test_config_delete_confirm_shows_confirmation(mocker):
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     callback_data = Mock(config_id=1)
@@ -132,6 +135,7 @@ async def test_config_delete_confirm_not_found(mocker):
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     callback_data = Mock(config_id=999)
@@ -162,6 +166,7 @@ async def test_config_delete_execute_deletes_and_refreshes(mocker):
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
         vpn_service=vpn_service_mock,
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     callback_data = Mock(config_id=1)
@@ -194,6 +199,7 @@ async def test_config_delete_cancel_returns_to_menu(mocker):
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     await router.config_delete_cancel(query=query_mock)
@@ -220,6 +226,7 @@ async def test_renew_subscription_selected_deletes_menu_and_shows_options(mocker
         referral_service=mocker.Mock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     await router.renew_subscription_selected(query=query_mock, state=mocker.AsyncMock())
@@ -252,6 +259,7 @@ async def test_subscription_selected_paid(mocker):
         referral_service=mocker.AsyncMock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     await router.subscription_selected(
@@ -298,6 +306,7 @@ async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
         referral_service=mocker.AsyncMock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
     send_to_admins_mock = mocker.patch("bot.subscription.router.send_to_admins")
 
@@ -337,6 +346,7 @@ async def test_payment_method_selected_card(mocker):
         referral_service=mocker.AsyncMock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     await router.payment_method_selected(
@@ -371,6 +381,7 @@ async def test_payment_method_selected_transfer(mocker):
         referral_service=mocker.AsyncMock(),
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     await router.payment_method_selected(
@@ -421,6 +432,7 @@ async def test_user_paid_calls_admins(
         referral_service=mocker.AsyncMock(),
         redis_service=fake_redis_service,
         vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     send_to_admins_mock = mocker.patch("bot.subscription.router.send_to_admins")
@@ -507,6 +519,7 @@ async def test_admin_confirm_payment(mocker):
         referral_service=referral_service_mock,
         redis_service=redis_mock,
         vpn_service=AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
     )
 
     # --- run ---

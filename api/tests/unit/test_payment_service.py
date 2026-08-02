@@ -28,6 +28,7 @@ from api.payment.schemas import (
     SPaymentStatusCancel,
     SPaymentStatusUpdate,
     STransactionIDFilter,
+    SUserPendingTransactionsFilter,
     SYearIncome,
 )
 from api.payment.services import PaymentService
@@ -175,12 +176,18 @@ async def test_create_transaction_success(
         description="test",
     )
 
-    with patch.object(
-        PaymentTransactionDAO,
-        "add",
-        new=AsyncMock(return_value=db_result),
-    ) as mock_add:
-
+    with (
+        patch.object(
+            PaymentTransactionDAO,
+            "find_all",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch.object(
+            PaymentTransactionDAO,
+            "add",
+            new=AsyncMock(return_value=db_result),
+        ) as mock_add,
+    ):
         result = await payment_service.create_transaction(
             session=mock_session,
             transaction=transaction_data,
@@ -207,6 +214,73 @@ async def test_create_transaction_success(
     # результат
     assert result is not None
     assert result.id == db_result.id
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_cancels_previous_pending(
+    payment_service,
+    mock_session,
+):
+    """При повторном оформлении подписки не должно оставаться нескольких
+    одновременно живых ссылок на оплату — старые PENDING-транзакции того же
+    пользователя отменяются перед созданием новой.
+    """
+    user = Mock()
+    user.id = 10
+
+    transaction_data = Mock()
+    transaction_data.model_dump.return_value = {
+        "amount": 1000,
+        "currency": "RUB",
+        "subscription_months": 3,
+        "is_premium": True,
+        "is_founder": False,
+        "description": "test",
+    }
+
+    stale_tx = make_transaction(id=uuid4(), user_id=10, status=PaymentStatus.PENDING)
+    db_result = make_transaction(user_id=10)
+
+    with (
+        patch.object(
+            PaymentTransactionDAO,
+            "find_all",
+            new=AsyncMock(return_value=[stale_tx]),
+        ) as mock_find_all,
+        patch.object(
+            PaymentTransactionDAO,
+            "update",
+            new=AsyncMock(return_value=1),
+        ) as mock_update,
+        patch.object(
+            PaymentTransactionDAO,
+            "add",
+            new=AsyncMock(return_value=db_result),
+        ),
+    ):
+        await payment_service.create_transaction(
+            session=mock_session,
+            transaction=transaction_data,
+            user_auth=user,
+        )
+
+    find_filters = mock_find_all.call_args.kwargs["filters"]
+    assert isinstance(find_filters, SUserPendingTransactionsFilter)
+    assert find_filters.user_id == 10
+    assert find_filters.status == PaymentStatus.PENDING
+
+    mock_update.assert_awaited_once()
+    update_filters = mock_update.call_args.kwargs["filters"]
+    update_values = mock_update.call_args.kwargs["values"]
+    assert update_filters.id == stale_tx.id
+    assert update_values.status == PaymentStatus.CANCELED
+    # DAO.update сериализует values через model_dump(exclude_unset=True) —
+    # поле должно быть явно передано в конструктор, а не взято из дефолта
+    # схемы, иначе UPDATE уйдёт с пустым SET и ничего не изменит в БД
+    # (реальный баг, который здесь ловим).
+    assert update_values.model_dump(exclude_unset=True) == {
+        "status": PaymentStatus.CANCELED
+    }
 
 
 @pytest.mark.asyncio

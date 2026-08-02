@@ -362,3 +362,37 @@ async def test_cancel_transaction(
 
     # body schema
     assert kwargs["data"].id == tx_id
+
+
+@pytest.mark.asyncio
+async def test_webhook_cancel_transaction(
+    client,
+    payment_service_mock,
+    session_mock,
+):
+    """Отмена транзакции по вебхуку платёжного провайдера (без Telegram-контекста
+    пользователя — см. TODO в api/payment/router.py).
+    """
+    tx_id = uuid4()
+
+    payment_service_mock.cancel_transaction.return_value = make_transaction_payload(
+        id=str(tx_id),
+        status="CANCELED",
+        source="GATEWAY",
+    )
+
+    payload = {"id": str(tx_id)}
+
+    response = await client.post(
+        "/payment/transaction/webhook/cancel",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+
+    payment_service_mock.cancel_transaction.assert_awaited_once()
+
+    _, kwargs = payment_service_mock.cancel_transaction.await_args
+
+    assert kwargs["session"] == session_mock
+    assert kwargs["data"].id == tx_id

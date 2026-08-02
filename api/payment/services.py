@@ -23,6 +23,7 @@ from api.payment.schemas import (
     SPaymentStatusUpdate,
     SPaymentTransactionResponse,
     STransactionIDFilter,
+    SUserPendingTransactionsFilter,
     SYearIncome,
 )
 from api.referrals.schemas import GrantReferralBonusResponse
@@ -135,6 +136,50 @@ class PaymentService:
                 payment_status=tx.status,
             )
 
+    async def _cancel_pending_transactions(
+        self,
+        session: AsyncSession,
+        user_id: int,
+    ) -> None:
+        """Отменяет незавершённые (PENDING) транзакции пользователя.
+
+        Вызывается перед созданием новой транзакции — если пользователь
+        повторно заходит в оформление подписки (например, после "Отмена" на
+        экране выбора способа оплаты или новой командой), не должно
+        оставаться нескольких одновременно живых ссылок на оплату одной и
+        той же подписки: оплата по "забытой" старой ссылке привела бы к
+        повторному списанию денег без дополнительной подписки.
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            user_id: ID пользователя, для которого создаётся новая транзакция.
+
+        """
+        pending = await PaymentTransactionDAO.find_all(
+            session=session,
+            filters=SUserPendingTransactionsFilter(
+                user_id=user_id, status=PaymentStatus.PENDING
+            ),
+        )
+        logger.info(
+            "[SERVICE] Найдено {} незавершённых транзакций для user_id={} "
+            "перед созданием новой",
+            len(pending),
+            user_id,
+        )
+        for tx in pending:
+            await PaymentTransactionDAO.update(
+                session=session,
+                filters=STransactionIDFilter(id=tx.id),
+                values=SPaymentStatusCancel(status=PaymentStatus.CANCELED),
+            )
+            logger.info(
+                "[SERVICE] Отменена незавершённая транзакция id={} "
+                "перед созданием новой для user_id={}",
+                tx.id,
+                user_id,
+            )
+
     async def create_transaction(
         self,
         session: AsyncSession,
@@ -143,7 +188,9 @@ class PaymentService:
     ) -> SPaymentTransactionResponse:
         """Создаёт новую платежную транзакцию.
 
-        Создаёт запись платежной транзакции в системе для указанного пользователя.
+        Создаёт запись платежной транзакции в системе для указанного
+        пользователя. Перед созданием отменяет все его незавершённые
+        (PENDING) транзакции (см. `_cancel_pending_transactions`).
 
         Args:
             session: Асинхронная SQLAlchemy-сессия.
@@ -158,6 +205,7 @@ class PaymentService:
             f"[SERVICE] Создание платежной транзакции "
             f"для пользователя ID={user_auth.id}"
         )
+        await self._cancel_pending_transactions(session=session, user_id=user_auth.id)
         payment_schema = SCreateTransaction(
             user_id=user_auth.id,
             **transaction.model_dump(exclude_unset=True),

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Protocol
 
 from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookDTO
@@ -15,7 +16,7 @@ class BasePaymentProvider(Protocol):
 
     async def verify_webhook(
         self,
-        headers: dict[str, str],
+        headers: Mapping[str, str],
         body: bytes,
     ) -> bool:
         """Проверяет подлинность входящего вебхука провайдера."""

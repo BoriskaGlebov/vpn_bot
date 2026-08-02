@@ -1,12 +1,9 @@
-import asyncio
 import json
-from decimal import Decimal
-from pprint import pprint
+from collections.abc import Mapping
 
 import httpx
 from loguru import logger
 
-from bot.core.config import settings_bot
 from bot.payment.dto import (
     CreatedPaymentDTO,
     CreatePaymentDTO,
@@ -102,7 +99,7 @@ class PlategaProvider:
 
     async def verify_webhook(
         self,
-        headers: dict[str, str],
+        headers: Mapping[str, str],
         body: bytes,
     ) -> bool:
         """Проверяет подлинность вебхука по merchant ID и секретному ключу в заголовках.
@@ -176,27 +173,3 @@ class PlategaProvider:
     async def close(self) -> None:
         """Закрывает HTTP-клиент провайдера."""
         await self.client.aclose()
-
-
-if __name__ == "__main__":
-
-    async def main() -> None:
-        """Пример ручного вызова `PlategaProvider.create_payment` для отладки."""
-        cr_payment = CreatePaymentDTO(
-            amount=Decimal(10),
-            currency="RUB",
-            order_id="rr123rr",
-            description="test payment",
-            success_url="https://e9fe-144-31-59-183.ngrok-free.app/bot/payment-webhook",
-            failed_url="https://e9fe-144-31-59-183.ngrok-free.app/bot/payment-webhook",
-            payload="payload",
-        )
-        client = PlategaProvider(
-            secret_key=settings_bot.payment.api_key.get_secret_value(),
-            merchant_id=settings_bot.payment.merchant_id.get_secret_value(),
-        )
-
-        res = await client.create_payment(data=cr_payment)
-        pprint(res)
-
-    asyncio.run(main())

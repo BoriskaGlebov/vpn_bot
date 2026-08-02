@@ -102,7 +102,7 @@ class PaymentService:
     async def cancel_transaction(
         self, transaction_id: UUID
     ) -> SPaymentTransactionResponse:
-        """Отменяет платёжную транзакцию.
+        """Отменяет платёжную транзакцию (по действию пользователя/админа).
 
         Args:
             transaction_id: UUID транзакции.
@@ -113,6 +113,24 @@ class PaymentService:
         """
         logger.info("Отмена транзакции: {}", transaction_id)
         tx_res = await self.adapter.cancel_transaction(transaction_id=transaction_id)
+        return tx_res
+
+    async def webhook_cancel_transaction(
+        self, transaction_id: UUID
+    ) -> SPaymentTransactionResponse:
+        """Отменяет платёжную транзакцию по вебхуку платёжного провайдера.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Данные отменённой транзакции.
+
+        """
+        logger.info("Отмена транзакции по вебхуку: {}", transaction_id)
+        tx_res = await self.adapter.webhook_cancel_transaction(
+            transaction_id=transaction_id
+        )
         return tx_res
 
     async def confirm_transaction(
@@ -225,7 +243,7 @@ class PaymentWebhookService:
             # после подтверждения транзакции и продления подписки в БД ещё
             # продлевает XRay-конфиги пользователя на панелях 3x-ui (см.
             # `SubscriptionService._extend_xray_after_payment`).
-            await self.subscription_service.webhook_confirm_transaction(tx.id)
+            confirm = await self.subscription_service.webhook_confirm_transaction(tx.id)
             logger.info(
                 "Платёж подтверждён: transaction_id={} tg_id={} amount={}",
                 tx.id,
@@ -233,17 +251,20 @@ class PaymentWebhookService:
                 tx.amount,
             )
 
-            await self.notification_service.notify_payment_success(
-                user_id=tx.tg_id,
-                amount=tx.amount,
-            )
+            await self.notification_service.notify_payment_confirmed(confirm)
 
         elif event.status == PaymentStatus.FAILED:
-            await self.payment_service.cancel_transaction(tx.id)
+            await self.payment_service.webhook_cancel_transaction(tx.id)
+            is_chargeback = event.raw_data.get("status") == "CHARGEBACKED"
             logger.warning(
-                "Платёж не прошёл: transaction_id={} tg_id={}", tx.id, tx.tg_id
+                "Платёж не прошёл: transaction_id={} tg_id={} chargeback={}",
+                tx.id,
+                tx.tg_id,
+                is_chargeback,
             )
 
             await self.notification_service.notify_payment_failed(
-                user_id=tx.tg_id,
+                transaction_id=tx.id,
+                tg_id=tx.tg_id,
+                is_chargeback=is_chargeback,
             )

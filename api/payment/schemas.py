@@ -126,6 +126,19 @@ class SGatewayTransactionFilter(BaseModel):
     gateway_transaction_id: str
 
 
+class SUserPendingTransactionsFilter(BaseModel):
+    """Фильтр незавершённых транзакций конкретного пользователя.
+
+    Attributes
+        user_id: Идентификатор пользователя.
+        status: Статус транзакции (по умолчанию PENDING).
+
+    """
+
+    user_id: int
+    status: PaymentStatus = PaymentStatus.PENDING
+
+
 class SAdminConfirmPayment(STransactionIDFilter):
     """Схема подтверждения платежа администратором.
 

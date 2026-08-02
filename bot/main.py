@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
+from bot.app_error.api_error import APIClientConflictError
 
 # from bot.ai.router import AIRouter
 from bot.core.config import bot, dp, logger, settings_bot
@@ -25,7 +26,7 @@ from bot.referrals.router import ReferralRouter
 from bot.scheduler.utils.scheduler_cron import scheduled_check, scheduler
 from bot.subscription.router import SubscriptionRouter
 from bot.users.router import UserRouter
-from bot.utils.start_stop_bot import start_bot, stop_bot
+from bot.utils.start_stop_bot import send_to_admins, start_bot, stop_bot
 from bot.vpn.router import VPNRouter
 
 # API теги и их описание
@@ -35,6 +36,8 @@ tags_metadata: list[dict[str, Any]] = [
         "description": "Получение обновлений телеграмм.",
     },
 ]
+
+m_subscription = settings_bot.messages.modes.subscription
 
 container = Container(bot=bot)
 
@@ -86,6 +89,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         referral_service=container.referral_service,
         redis_service=container.redis_admin_mess_storage,
         vpn_service=container.vpn_service,
+        payment_mess_storage=container.redis_payment_mess_storage,
     )
     vpn_router = VPNRouter(
         bot=bot,
@@ -292,7 +296,6 @@ async def health() -> JSONResponse:
     )
 
 
-# TODO Новый роут для приема оплаты
 @app.post(
     "/payment-webhook",
     tags=[
@@ -306,8 +309,10 @@ async def payment_webhook(request: Request) -> Response:
         request (Request): Входящий HTTP-запрос с телом вебхука.
 
     Returns
-        Response: Пустой ответ 200, подтверждающий получение вебхука;
-        403, если подлинность вебхука не подтверждена.
+        Response: 200 при успешной обработке (в том числе повторной доставке
+        уже обработанного платежа); 403, если подлинность вебхука не
+        подтверждена; 400, если тело вебхука не удалось разобрать; 500 при
+        неожиданной ошибке обработки (провайдер повторит доставку).
 
     """
     body: bytes = await request.body()
@@ -320,18 +325,69 @@ async def payment_webhook(request: Request) -> Response:
         )
 
     provider = container.payment_service.provider
-    if not await provider.verify_webhook(headers=dict(request.headers), body=body):
+    if not await provider.verify_webhook(headers=request.headers, body=body):
         logger.warning("Webhook платёжного провайдера не прошёл проверку подлинности")
         return Response(status_code=403)
 
-    event = await provider.parse_webhook(body)
+    try:
+        event = await provider.parse_webhook(body)
+    except Exception:
+        logger.exception("Не удалось разобрать webhook платёжного провайдера")
+        return Response(status_code=400)
+
     logger.info(
         "Получен webhook платёжного провайдера: gateway_payment_id={} status={}",
         event.provider_payment_id,
         event.status,
     )
 
-    await container.payment_webhook_service.handle_event(event)
+    try:
+        await container.payment_webhook_service.handle_event(event)
+    except APIClientConflictError as exc:
+        # api/ отвечает 409 в двух разных по серьёзности случаях, отличить
+        # можно по статусу транзакции в details (см. PaymentAlreadyProcessedError).
+        conflict_status = exc.error.details.get("status")
+        if conflict_status == "PAID":
+            # Harmless: повторная доставка уже обработанного платежа
+            # (Platega повторяет вебхук до 3 раз, если не получила 200
+            # вовремя) — идемпотентно подтверждаем получение.
+            logger.info(
+                "Webhook платёжного провайдера уже был обработан ранее: "
+                "gateway_payment_id={}",
+                event.provider_payment_id,
+            )
+        else:
+            # Транзакцию отменили раньше, чем пришло подтверждение оплаты —
+            # гонка между действием бота/пользователя и вебхуком. Деньги
+            # могли поступить, а услуга не предоставлена — нужна ручная
+            # проверка администратором (см. PaymentService.confirm_transaction).
+            logger.warning(
+                "Webhook подтвердил оплату уже отменённой транзакции: "
+                "gateway_payment_id={} status={}",
+                event.provider_payment_id,
+                conflict_status,
+            )
+            await send_to_admins(
+                bot=bot,
+                message_text=m_subscription.gateway_alert.status_conflict.format(
+                    transaction_id=exc.error.details.get("transaction_id"),
+                    status=conflict_status,
+                ),
+            )
+        return Response(status_code=200)
+    except Exception:
+        logger.exception(
+            "Ошибка обработки webhook платёжного провайдера: gateway_payment_id={}",
+            event.provider_payment_id,
+        )
+        await send_to_admins(
+            bot=bot,
+            message_text=m_subscription.gateway_alert.processing_error.format(
+                gateway_payment_id=event.provider_payment_id
+            ),
+        )
+        return Response(status_code=500)
+
     return Response(status_code=200)
 
 
@@ -350,6 +406,5 @@ if __name__ == "__main__":
         forwarded_allow_ips="*",
     )
 # TODO проблема перезапуска бота он не может корректно стартовать из-за того, что в контейнер ключи от  ssh агента не получает
-# TODO подтверждение при оплате надо добавить когда делает, админ а когда нет (платежный шлюз)
 # TODO отдельного пользвателя на Xray
 # TODO пользователь без подписки не может получить бесплатнывй прокси? пока не работает надо удалить?

@@ -15,7 +15,11 @@ from bot.payment.adapter import PaymentAPIAdapter
 from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.providers.platega import PlategaProvider
 from bot.payment.services import PaymentService, PaymentWebhookService
-from bot.redis_service import RedisAdminMessageStorage, RedisEmbeddingCache
+from bot.redis_service import (
+    RedisAdminMessageStorage,
+    RedisEmbeddingCache,
+    RedisPaymentMessageStorage,
+)
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.referrals.services import ReferralService
 from bot.scheduler.adapter import SchedulerAPIAdapter
@@ -81,6 +85,7 @@ class Container:
         payment_webhook_service (PaymentWebhookService)
 
         redis_admin_mess_storage (RedisAdminMessageStorage)
+        redis_payment_mess_storage (RedisPaymentMessageStorage)
         redis_embedding_cache (RedisEmbeddingCache)
 
         bot (Bot): экземпляр aiogram Bot (используется в scheduler).
@@ -126,6 +131,7 @@ class Container:
     payment_webhook_service: PaymentWebhookService
 
     redis_admin_mess_storage: RedisAdminMessageStorage
+    redis_payment_mess_storage: RedisPaymentMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
 
     # chat_service: ChatService | None
@@ -137,6 +143,9 @@ class Container:
             str(settings_bot.redis.url),
             default_expire=settings_bot.redis.default_expire,
         )
+        self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)
+        self.redis_payment_mess_storage = RedisPaymentMessageStorage(self.redis_manager)
+        self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
         self.api_client = APIClient(
             base_url=settings_bot.api.url,
             port=settings_bot.api.port,
@@ -207,7 +216,9 @@ class Container:
             payment_service=self.payment_service,
             vpn_service=self.vpn_service,
         )
-        self.notification_service = NotificationService(bot=bot)
+        self.notification_service = NotificationService(
+            bot=bot, payment_mess_storage=self.redis_payment_mess_storage
+        )
 
         self.payment_webhook_service = PaymentWebhookService(
             payment_service=self.payment_service,
@@ -221,10 +232,6 @@ class Container:
             vpn_adapter=self.vpn_adapter,
             xray_registry=self.xray_adapters,
         )
-
-        # 5. REDIS
-        self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)
-        self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
 
         # self.chat_service: ChatService | None = None
 

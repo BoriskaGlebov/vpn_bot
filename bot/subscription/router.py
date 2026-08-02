@@ -24,7 +24,7 @@ from bot.app_error.base_error import (
 )
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
-from bot.redis_service import RedisAdminMessageStorage
+from bot.redis_service import RedisAdminMessageStorage, RedisPaymentMessageStorage
 from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
@@ -51,7 +51,7 @@ from bot.subscription.utils.sub_utils import get_correct_price_map, get_correct_
 from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
-from bot.utils.formatting import format_username
+from bot.utils.formatting import format_subscription_end_date, format_username
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
 from bot.vpn.keyboards.inline_kb import (
     ConfigDeleteAction,
@@ -102,12 +102,14 @@ class SubscriptionRouter(BaseRouter):
         referral_service: ReferralService,
         redis_service: RedisAdminMessageStorage,
         vpn_service: VPNService,
+        payment_mess_storage: RedisPaymentMessageStorage,
     ) -> None:
         super().__init__(bot, logger)
         self.subscription_service = subscription_service
         self.referral_service = referral_service
         self.redis_service = redis_service
         self.vpn_service = vpn_service
+        self.payment_mess_storage = payment_mess_storage
 
     def _register_handlers(self) -> None:
         is_admin = IsAdmin()
@@ -563,11 +565,16 @@ class SubscriptionRouter(BaseRouter):
                 await query.answer("Оплата картой", show_alert=False)
                 await msg.edit_text(
                     text=m_subscription.pay_by_card,
-                    reply_markup=card_payment_kb(
-                        transaction_id=transaction_id,
-                        payment_url=payment_url,
-                        founder=founder,
-                    ),
+                    reply_markup=card_payment_kb(payment_url=payment_url),
+                )
+                # Запоминаем это сообщение, чтобы по итогам вебхука
+                # платёжного шлюза отредактировать именно его — заменить
+                # устаревшую ссылку на оплату итоговым статусом, а не
+                # оставлять пользователю неактуальный экран.
+                await self.payment_mess_storage.save(
+                    transaction_id=transaction_id,
+                    chat_id=msg.chat.id,
+                    message_id=msg.message_id,
                 )
             else:  # SubscriptionAction.PAY_TRANSFER
                 await query.answer("Оплата переводом", show_alert=False)
@@ -806,6 +813,10 @@ class SubscriptionRouter(BaseRouter):
                     text=m_subscription.accept_paid.user.format(
                         months=months,
                         sub_type=sub_type,
+                        amount=confirm_transaction.transaction_res.amount,
+                        end_date=format_subscription_end_date(
+                            user_schema.current_subscription.end_date
+                        ),
                     ),
                 )
                 referral_result: GrantReferralBonusResponse = (

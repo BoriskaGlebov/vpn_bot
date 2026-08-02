@@ -203,7 +203,7 @@ class PaymentAPIAdapter:
         self,
         transaction_id: UUID,
     ) -> SPaymentTransactionResponse:
-        """Отменяет платёжную транзакцию.
+        """Отменяет платёжную транзакцию (по действию пользователя/админа).
 
         Args:
             transaction_id: UUID транзакции.
@@ -216,6 +216,34 @@ class PaymentAPIAdapter:
         payload = SCancelPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
             "/payment/transaction/cancel",
+            json=payload.model_dump(mode="json"),
+        )
+        result = SPaymentTransactionResponse.model_validate(data)
+        logger.debug("Транзакция отменена: id={} status={}", result.id, result.status)
+        return result
+
+    async def webhook_cancel_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SPaymentTransactionResponse:
+        """Отменяет платёжную транзакцию по вебхуку платёжного провайдера.
+
+        В отличие от `cancel_transaction`, не требует Telegram-контекста
+        пользователя — вебхук приходит от платёжного шлюза напрямую, а не
+        от бота от имени конкретного пользователя (см. `X-Telegram-Id` в
+        `APIClient._build_headers`, который в этом случае взять неоткуда).
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Данные отменённой транзакции.
+
+        """
+        logger.info("Отмена транзакции по вебхуку: {}", transaction_id)
+        payload = SCancelPaymentIn(transaction_id=transaction_id)
+        data, status_code = await self._client.post(
+            "/payment/transaction/webhook/cancel",
             json=payload.model_dump(mode="json"),
         )
         result = SPaymentTransactionResponse.model_validate(data)
