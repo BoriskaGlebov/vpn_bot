@@ -259,14 +259,18 @@ async def test_fallback_delete_3xui(service):
 
 @pytest.mark.asyncio
 async def test_fallback_delete_3xui_invalid_json(service):
+    """Невалидный pub_key (не JSON-список config_id) — детерминированно ERROR.
+
+    `json.loads` бросает `JSONDecodeError` до того, как код успевает дойти
+    до `xray_registry`/`adapter.delete_config` — исход не должен зависеть от
+    их поведения, поэтому здесь именно `ERROR`, а не "любой из двух".
+    """
     cfg = MagicMock(pub_key="not_json")
 
     result = await service._fallback_delete_3xui(cfg)
 
-    assert result in (
-        DeleteStatus.ERROR,
-        DeleteStatus.NOT_FOUND,
-    )
+    assert result == DeleteStatus.ERROR
+    service.xray_registry.get.assert_not_called()
 
 
 @pytest.mark.asyncio

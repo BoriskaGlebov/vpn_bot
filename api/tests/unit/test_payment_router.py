@@ -13,7 +13,9 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from api.app_error.api_error import APIError
 from api.core.dependencies import get_current_user, get_session, verify_internal_secret
+from api.core.exceptions.handlers.http import api_error_handler
 from api.payment.dependencies import get_payment_service
 from api.payment.model import PaymentSource, PaymentStatus
 from api.payment.router import router
@@ -113,6 +115,88 @@ async def client(app, overrides):
 
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture
+def app_no_secret_override(payment_service_mock, session_mock):
+    """Тот же роутер, но БЕЗ переопределения verify_internal_secret.
+
+    Используется, чтобы доказать, что сами роуты защищены зависимостью (а не
+    просто что функция verify_internal_secret умеет бросать исключение) —
+    регрессия на дыру, где GET /payment/transaction и оба webhook-роута были
+    доступны кому угодно без единого заголовка (см. api/payment/router.py).
+    Регистрирует реальный api_error_handler, чтобы InvalidInternalSecretError
+    превращалась в настоящий HTTP 401, а не всплывала как сырое исключение.
+    """
+    isolated_app = FastAPI()
+    isolated_app.include_router(router)
+    isolated_app.add_exception_handler(APIError, api_error_handler)
+    isolated_app.dependency_overrides[get_payment_service] = (
+        lambda: payment_service_mock
+    )
+    isolated_app.dependency_overrides[get_session] = lambda: session_mock
+    return isolated_app
+
+
+@pytest.fixture
+async def client_no_secret(app_no_secret_override):
+    transport = ASGITransport(app=app_no_secret_override)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest.mark.parametrize(
+    ("method", "url"),
+    [
+        ("GET", "/payment/transaction?gateway_transaction_id=gw_1"),
+        ("POST", "/payment/transaction/webhook/confirm"),
+        ("POST", "/payment/transaction/webhook/cancel"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_webhook_endpoints_reject_missing_internal_secret(
+    client_no_secret, payment_service_mock, method, url
+):
+    """Без X-Internal-Secret вебхук-эндпоинты отклоняют запрос, не выполняя его.
+
+    До фикса эти три роута не имели вообще никакой зависимости-проверки —
+    кто угодно, зная/подобрав transaction_id, мог прочитать чужую транзакцию,
+    подтвердить или отменить оплату бесплатно.
+    """
+    body = {"id": str(uuid4())} if method == "POST" else None
+
+    response = await client_no_secret.request(method, url, json=body)
+
+    assert response.status_code == 401
+    payment_service_mock.get_by_gateway_id.assert_not_called()
+    payment_service_mock.confirm_payment_flow.assert_not_called()
+    payment_service_mock.cancel_transaction.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("method", "url"),
+    [
+        ("GET", "/payment/transaction?gateway_transaction_id=gw_1"),
+        ("POST", "/payment/transaction/webhook/confirm"),
+        ("POST", "/payment/transaction/webhook/cancel"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_webhook_endpoints_reject_wrong_internal_secret(
+    client_no_secret, payment_service_mock, method, url
+):
+    """Неверный (не пустой) X-Internal-Secret тоже должен отклоняться, не только отсутствие."""
+    body = {"id": str(uuid4())} if method == "POST" else None
+
+    response = await client_no_secret.request(
+        method, url, json=body, headers={"X-Internal-Secret": "not-the-real-secret"}
+    )
+
+    assert response.status_code == 401
+    payment_service_mock.get_by_gateway_id.assert_not_called()
+    payment_service_mock.confirm_payment_flow.assert_not_called()
+    payment_service_mock.cancel_transaction.assert_not_called()
 
 
 @pytest.mark.asyncio

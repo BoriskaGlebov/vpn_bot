@@ -28,6 +28,7 @@ from api.payment.schemas import (
     SPaymentStatusCancel,
     SPaymentStatusUpdate,
     STransactionIDFilter,
+    STransactionPendingFilter,
     SUserPendingTransactionsFilter,
     SYearIncome,
 )
@@ -676,6 +677,54 @@ async def test_admin_confirm_transaction_not_pending(
 
 
 @pytest.mark.asyncio
+async def test_admin_confirm_transaction_race_lost_update_raises(
+    payment_service,
+    mock_session,
+):
+    """Гонка: статус сменился между _ensure_pending и атомарным UPDATE.
+
+    Тот же сценарий, что и для webhook-подтверждения (см.
+    test_webhook_confirm_transaction_race_lost_update_raises) — здесь для
+    ручного подтверждения администратором.
+    """
+    transaction_id = uuid4()
+    data = Mock()
+    data.id = transaction_id
+    data.admin_id = 1
+
+    tx_looked_pending = make_transaction(
+        id=transaction_id, status=PaymentStatus.PENDING
+    )
+    tx_actually_canceled = make_transaction(
+        id=transaction_id, status=PaymentStatus.CANCELED
+    )
+
+    with (
+        patch.object(
+            payment_service,
+            "_get_transaction_or_raise",
+            new=AsyncMock(side_effect=[tx_looked_pending, tx_actually_canceled]),
+        ) as mock_get,
+        patch.object(
+            PaymentTransactionDAO,
+            "update",
+            new=AsyncMock(return_value=0),
+        ) as mock_update,
+    ):
+        with pytest.raises(PaymentAlreadyProcessedError):
+            await payment_service.admin_confirm_transaction(
+                data=data,
+                session=mock_session,
+            )
+
+    assert mock_get.await_count == 2
+    mock_update.assert_awaited_once()
+    call_kwargs = mock_update.call_args.kwargs
+    assert isinstance(call_kwargs["filters"], STransactionPendingFilter)
+    assert call_kwargs["filters"].status == PaymentStatus.PENDING
+
+
+@pytest.mark.asyncio
 async def test_webhook_confirm_transaction_success(
     payment_service,
     mock_session,
@@ -830,6 +879,57 @@ async def test_webhook_confirm_transaction_not_pending(
 
 
 @pytest.mark.asyncio
+async def test_webhook_confirm_transaction_race_lost_update_raises(
+    payment_service,
+    mock_session,
+):
+    """Гонка: статус сменился между _ensure_pending и атомарным UPDATE.
+
+    `_ensure_pending` проходит на изначально загруженной транзакции (ещё
+    PENDING), но конкурентный запрос успевает сменить статус до того, как
+    выполняется `UPDATE ... WHERE status='PENDING'` — тот находит 0 строк.
+    Сервис обязан перепроверить актуальный статус и поднять
+    `PaymentAlreadyProcessedError`, а не молча считать подтверждение
+    успешным (что привело бы к двойной активации подписки по одной оплате).
+    """
+    transaction_id = uuid4()
+    data = Mock()
+    data.id = transaction_id
+
+    tx_looked_pending = make_transaction(
+        id=transaction_id, status=PaymentStatus.PENDING
+    )
+    tx_actually_paid = make_transaction(id=transaction_id, status=PaymentStatus.PAID)
+
+    with (
+        patch.object(
+            payment_service,
+            "_get_transaction_or_raise",
+            new=AsyncMock(side_effect=[tx_looked_pending, tx_actually_paid]),
+        ) as mock_get,
+        patch.object(
+            PaymentTransactionDAO,
+            "update",
+            new=AsyncMock(return_value=0),
+        ) as mock_update,
+    ):
+        with pytest.raises(PaymentAlreadyProcessedError):
+            await payment_service.webhook_confirm_transaction(
+                data=data,
+                session=mock_session,
+            )
+
+    # перепроверка транзакции произошла дважды: до UPDATE и после rowcount=0
+    assert mock_get.await_count == 2
+
+    mock_update.assert_awaited_once()
+    call_kwargs = mock_update.call_args.kwargs
+    assert isinstance(call_kwargs["filters"], STransactionPendingFilter)
+    assert call_kwargs["filters"].id == transaction_id
+    assert call_kwargs["filters"].status == PaymentStatus.PENDING
+
+
+@pytest.mark.asyncio
 async def test_cancel_transaction_success(
     payment_service,
     mock_session,
@@ -969,6 +1069,52 @@ async def test_cancel_transaction_not_pending(
     mock_pending.assert_called_once_with(tx=tx)
 
     mock_update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cancel_transaction_race_lost_update_raises(
+    payment_service,
+    mock_session,
+):
+    """Гонка: статус сменился между _ensure_pending и атомарным UPDATE.
+
+    Тот же сценарий, что и для подтверждения (см.
+    test_webhook_confirm_transaction_race_lost_update_raises) — здесь для
+    отмены транзакции (пример из ревью: пользователь жмёт "Отмена" в тот же
+    момент, когда уже пришёл подтверждающий вебхук).
+    """
+    transaction_id = uuid4()
+    data = Mock()
+    data.id = transaction_id
+
+    tx_looked_pending = make_transaction(
+        id=transaction_id, status=PaymentStatus.PENDING
+    )
+    tx_actually_paid = make_transaction(id=transaction_id, status=PaymentStatus.PAID)
+
+    with (
+        patch.object(
+            payment_service,
+            "_get_transaction_or_raise",
+            new=AsyncMock(side_effect=[tx_looked_pending, tx_actually_paid]),
+        ) as mock_get,
+        patch.object(
+            PaymentTransactionDAO,
+            "update",
+            new=AsyncMock(return_value=0),
+        ) as mock_update,
+    ):
+        with pytest.raises(PaymentAlreadyProcessedError):
+            await payment_service.cancel_transaction(
+                session=mock_session,
+                data=data,
+            )
+
+    assert mock_get.await_count == 2
+    mock_update.assert_awaited_once()
+    call_kwargs = mock_update.call_args.kwargs
+    assert isinstance(call_kwargs["filters"], STransactionPendingFilter)
+    assert call_kwargs["filters"].status == PaymentStatus.PENDING
 
 
 @pytest.mark.asyncio

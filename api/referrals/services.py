@@ -152,6 +152,11 @@ class ReferralService:
                 month=months,
                 sub_type=sub_type,
             )
+        elif current_sub.end_date is None:
+            logger.info(
+                "Продление подписки по рефералу делать не стал, подписка бесконечная у  inviter_telegram_id={}",
+                inviter.telegram_id,
+            )
         else:
             logger.info(
                 "Продление подписки по рефералу inviter_telegram_id={} months={}",
