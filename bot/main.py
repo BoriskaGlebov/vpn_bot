@@ -21,7 +21,7 @@ from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.middleware.user_context import UserContextMiddleware
 from bot.news.router import NewsRouter
-from bot.payment.router import build_payment_router
+from bot.payment.router import router as payment_router
 from bot.referrals.router import ReferralRouter
 from bot.scheduler.utils.scheduler_cron import scheduled_check, scheduler
 from bot.subscription.router import SubscriptionRouter
@@ -36,8 +36,6 @@ tags_metadata: list[dict[str, Any]] = [
         "description": "Получение обновлений телеграмм.",
     },
 ]
-
-m_subscription = settings_bot.messages.modes.subscription
 
 container = Container(bot=bot)
 
@@ -114,14 +112,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
 
-    payment_router = build_payment_router(
-        bot=bot,
-        logger=logger,  # type: ignore[arg-type]
-        payment_service=container.payment_service,
-        payment_webhook_service=container.payment_webhook_service,
-        m_subscription=m_subscription,
-    )
-    app.include_router(payment_router)
     # if container.chat_service is None:
     #     raise RuntimeError("ChatService ещё не инициализирован!")
     # ai_router = AIRouter(
@@ -228,6 +218,13 @@ ___
     },
     lifespan=lifespan,
 )
+
+# Контейнер кладётся в app.state, чтобы FastAPI-зависимости payment-роутера
+# (bot/payment/dependencies.py) могли получить его через Request без
+# циклического импорта bot.main (см. get_container).
+app.state.container = container
+
+app.include_router(payment_router)
 
 
 @app.post(

@@ -1,12 +1,14 @@
-"""Контрактные тесты для `bot/payment/router.py::build_payment_router`.
+"""Контрактные тесты для `bot/payment/router.py`.
 
-Роутер поднимается изолированно (без остального `bot.main.app`), провайдер и
-`payment_webhook_service` подменяются моками, `send_to_admins` патчится —
-проверяется HTTP-контракт эндпоинта `/payment-webhook`: коды статусов и то,
-что каждая ветка обработки (успех / неверная подпись / битое тело / гонка
-отмена-vs-вебхук / неожиданная ошибка) действительно ведёт себя так, как
-описано в докстринге `payment_webhook` — это единственный денежный webhook
-проекта, доступный извне без Telegram-контекста.
+Роутер поднимается изолированно (без остального `bot.main.app`), все внешние
+зависимости (`bot/payment/dependencies.py`) переопределяются через
+`app.dependency_overrides` — так же, как это делается для роутеров `api/`
+(см. `api/tests/unit/test_payment_router.py`). `send_to_admins` патчится —
+проверяется HTTP-контракт эндпоинта `POST /platega/payment-webhook`: коды
+статусов и то, что каждая ветка обработки (успех / неверная подпись / битое
+тело / гонка отмена-vs-вебхук / неожиданная ошибка) действительно ведёт себя
+так, как описано в докстринге `payment_webhook` — это единственный денежный
+webhook проекта, доступный извне без Telegram-контекста.
 """
 
 from unittest.mock import AsyncMock, Mock
@@ -18,8 +20,15 @@ from httpx import ASGITransport, AsyncClient
 from bot.app_error.api_error import APIClientConflictError
 from bot.app_error.schema import ErrorDetail
 from bot.core.config import settings_bot
+from bot.payment.dependencies import (
+    get_bot_instance,
+    get_logger,
+    get_payment_service,
+    get_payment_webhook_service,
+    get_subscription_messages,
+)
 from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
-from bot.payment.router import build_payment_router
+from bot.payment.router import router
 
 m_subscription = settings_bot.messages.modes.subscription
 
@@ -43,15 +52,17 @@ def bot_mock():
 
 @pytest.fixture
 def app(payment_service_mock, payment_webhook_service_mock, bot_mock):
-    router = build_payment_router(
-        bot=bot_mock,
-        logger=Mock(),
-        payment_service=payment_service_mock,
-        payment_webhook_service=payment_webhook_service_mock,
-        m_subscription=m_subscription,
-    )
     fastapi_app = FastAPI()
     fastapi_app.include_router(router)
+    fastapi_app.dependency_overrides[get_payment_service] = lambda: (
+        payment_service_mock
+    )
+    fastapi_app.dependency_overrides[get_payment_webhook_service] = lambda: (
+        payment_webhook_service_mock
+    )
+    fastapi_app.dependency_overrides[get_bot_instance] = lambda: bot_mock
+    fastapi_app.dependency_overrides[get_logger] = lambda: Mock()
+    fastapi_app.dependency_overrides[get_subscription_messages] = lambda: m_subscription
     return fastapi_app
 
 
@@ -79,7 +90,7 @@ async def test_empty_body_returns_200_without_touching_provider(
     Не должен доходить ни до проверки подписи, ни до обработки события —
     иначе легко превратить "пустой пинг" в ложное 403/500 в логах.
     """
-    response = await client.post("/payment-webhook", content=b"")
+    response = await client.post("/platega/payment-webhook", content=b"")
 
     assert response.status_code == 200
     payment_service_mock.provider.verify_webhook.assert_not_called()
@@ -97,7 +108,7 @@ async def test_invalid_signature_returns_403_and_stops_processing(
     """
     payment_service_mock.provider.verify_webhook.return_value = False
 
-    response = await client.post("/payment-webhook", json={"id": "x"})
+    response = await client.post("/platega/payment-webhook", json={"id": "x"})
 
     assert response.status_code == 403
     payment_service_mock.provider.parse_webhook.assert_not_called()
@@ -114,7 +125,7 @@ async def test_unparsable_body_returns_400(client, payment_service_mock):
     payment_service_mock.provider.verify_webhook.return_value = True
     payment_service_mock.provider.parse_webhook.side_effect = ValueError("bad json")
 
-    response = await client.post("/payment-webhook", content=b"not-json")
+    response = await client.post("/platega/payment-webhook", content=b"not-json")
 
     assert response.status_code == 400
 
@@ -128,7 +139,7 @@ async def test_successful_event_is_handled_and_returns_200(
     event = make_event(PaymentStatus.PAID)
     payment_service_mock.provider.parse_webhook.return_value = event
 
-    response = await client.post("/payment-webhook", json={"id": "prov-123"})
+    response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
 
     assert response.status_code == 200
     payment_webhook_service_mock.handle_event.assert_awaited_once_with(event)
@@ -156,7 +167,7 @@ async def test_conflict_on_already_paid_is_idempotent_no_admin_alert(
         ),
     )
 
-    response = await client.post("/payment-webhook", json={"id": "prov-123"})
+    response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
 
     assert response.status_code == 200
     send_to_admins_mock.assert_not_called()
@@ -187,7 +198,7 @@ async def test_conflict_on_canceled_transaction_alerts_admins(
         ),
     )
 
-    response = await client.post("/payment-webhook", json={"id": "prov-123"})
+    response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
 
     assert response.status_code == 200
     send_to_admins_mock.assert_awaited_once()
@@ -195,6 +206,72 @@ async def test_conflict_on_canceled_transaction_alerts_admins(
     assert kwargs["bot"] is bot_mock
     assert "tx-42" in kwargs["message_text"]
     assert "CANCELED" in kwargs["message_text"]
+
+
+@pytest.mark.asyncio
+async def test_conflict_on_cancel_webhook_for_already_canceled_is_idempotent(
+    client, payment_service_mock, payment_webhook_service_mock, mocker
+):
+    """Вебхук-отмена на уже отменённую транзакцию — 200 без тревоги админам.
+
+    Platega сама отменяет платёжную сессию после ~30 минут бездействия
+    пользователя — если транзакция к этому моменту уже отменена (например,
+    повторная доставка того же вебхука), это штатная идемпотентная
+    ситуация, а не гонка "деньги пришли после отмены" (для той нужен именно
+    PAID-вебхук, см. `test_conflict_on_canceled_transaction_alerts_admins`).
+    """
+    send_to_admins_mock = mocker.patch("bot.payment.router.send_to_admins")
+
+    payment_service_mock.provider.verify_webhook.return_value = True
+    payment_service_mock.provider.parse_webhook.return_value = make_event(
+        PaymentStatus.FAILED
+    )
+    payment_webhook_service_mock.handle_event.side_effect = APIClientConflictError(
+        409,
+        ErrorDetail(
+            code="payment_already_processed",
+            message="already processed",
+            details={"status": "CANCELED", "transaction_id": "tx-7"},
+        ),
+    )
+
+    response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
+
+    assert response.status_code == 200
+    send_to_admins_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_conflict_on_cancel_webhook_for_already_paid_is_idempotent(
+    client, payment_service_mock, payment_webhook_service_mock, mocker
+):
+    """Вебхук-отмена на уже оплаченную (переводом) транзакцию — 200 без алерта.
+
+    Ровно сценарий из бага: пользователь выбрал оплату переводом, админ
+    подтвердил транзакцию вручную, а Platega по истечении ~30 минут
+    бездействия на своей карточной сессии всё равно присылает отмену — не
+    зная, что оплата уже прошла другим путём. Отменять нечего, деньги не
+    теряются — не повод для алерта.
+    """
+    send_to_admins_mock = mocker.patch("bot.payment.router.send_to_admins")
+
+    payment_service_mock.provider.verify_webhook.return_value = True
+    payment_service_mock.provider.parse_webhook.return_value = make_event(
+        PaymentStatus.FAILED
+    )
+    payment_webhook_service_mock.handle_event.side_effect = APIClientConflictError(
+        409,
+        ErrorDetail(
+            code="payment_already_processed",
+            message="already processed",
+            details={"status": "PAID", "transaction_id": "tx-8"},
+        ),
+    )
+
+    response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
+
+    assert response.status_code == 200
+    send_to_admins_mock.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -214,7 +291,7 @@ async def test_unexpected_error_returns_500_and_alerts_admins(
     payment_service_mock.provider.parse_webhook.return_value = make_event()
     payment_webhook_service_mock.handle_event.side_effect = RuntimeError("db is down")
 
-    response = await client.post("/payment-webhook", json={"id": "prov-123"})
+    response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
 
     assert response.status_code == 500
     send_to_admins_mock.assert_awaited_once()
