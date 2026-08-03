@@ -181,6 +181,10 @@ jobs:
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
           SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+
+          # == PAYMENT ==
+          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
+          API_KEY=${{ secrets.API_KEY }}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env.dev"
@@ -303,6 +307,10 @@ jobs:
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
           SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+
+          # == PAYMENT ==
+          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
+          API_KEY=${{ secrets.API_KEY }}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env"
@@ -375,6 +383,9 @@ jobs:
             echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env.local
             echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.local
             echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
+
+            echo "MERCHANT_ID=${{ secrets.MERCHANT_ID }}" >> .env.local
+            echo "API_KEY=${{ secrets.API_KEY }}" >> .env.local
 
 
             echo "Restart Docker containers..."
