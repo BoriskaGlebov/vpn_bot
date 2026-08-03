@@ -5,6 +5,11 @@ echo "Выставляем корректные права на папку ло�
 mkdir -p /vpn_bot/api/logs
 chown -R botuser:bot /vpn_bot/api/logs
 
+echo "🔄 Синхронизация шаблонов в volume из образа..."
+rm -rf /vpn_bot/api/templates/*
+cp -a /vpn_bot/api/templates_src/. /vpn_bot/api/templates/
+chown -R botuser:bot /vpn_bot/api/templates
+
 echo "⚙️ Checking for Alembic migrations..."
 
 # Проверяем наличие alembic-конфигурации

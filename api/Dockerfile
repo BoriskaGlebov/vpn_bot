@@ -49,6 +49,14 @@ COPY --chown=botuser:bot api/ api/
 COPY --chown=botuser:bot pyproject.toml poetry.lock alembic.ini app_config.toml app_config.develop.toml  ./
 COPY --chown=botuser:bot shared/ shared/
 
+# Эталонная копия шаблонов вне api/templates: в docker-compose поверх
+# api/templates монтируется именованный volume (чтобы шаблоны раздавал
+# nginx напрямую), а Docker не обновляет уже существующий volume при
+# пересборке образа. entrypoint.sh синхронизирует volume из этой копии
+# при каждом старте контейнера, чтобы volume не отставал от образа.
+RUN cp -a api/templates api/templates_src && \
+    chown -R botuser:bot api/templates_src
+
 # Делаем entrypoint исполняемым
 RUN chmod +x ./api/entrypoint.sh
 
