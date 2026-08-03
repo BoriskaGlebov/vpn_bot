@@ -60,7 +60,7 @@ async def test_handle_event_paid_confirms_via_subscription_service(
     )
     payment_service_mock.webhook_confirm_transaction.assert_not_called()
     webhook_service.notification_service.notify_payment_confirmed.assert_awaited_once_with(
-        confirm
+        confirm, provider_name=payment_service_mock.provider.provider_name
     )
 
 

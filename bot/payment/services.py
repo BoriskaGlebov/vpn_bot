@@ -250,7 +250,9 @@ class PaymentWebhookService:
                 tx.amount,
             )
 
-            await self.notification_service.notify_payment_confirmed(confirm)
+            await self.notification_service.notify_payment_confirmed(
+                confirm, provider_name=self.payment_service.provider.provider_name
+            )
 
         elif event.status == PaymentStatus.FAILED:
             await self.payment_service.webhook_cancel_transaction(tx.id)

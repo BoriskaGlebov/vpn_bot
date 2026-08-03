@@ -70,7 +70,9 @@ class NotificationService:
                 )
         await self.bot.send_message(chat_id=tg_id, text=text)
 
-    async def notify_payment_confirmed(self, confirm: SConfirmPaymentResponse) -> None:
+    async def notify_payment_confirmed(
+        self, confirm: SConfirmPaymentResponse, provider_name: str = "Platega"
+    ) -> None:
         """Уведомляет об оплате, автоматически подтверждённой платёжным шлюзом.
 
         Переиспользует те же тексты, что и ручное подтверждение оплаты
@@ -81,6 +83,8 @@ class NotificationService:
             confirm: Результат подтверждения оплаты — транзакция, обновлённые
                 данные подписки пользователя и результат начисления
                 реферального бонуса.
+            provider_name: Название платёжного шлюза, подтвердившего оплату
+                (например, "Platega") — попадает в алерт администраторам.
 
         Raises
             SubscriptionActivationFailedError: Если после подтверждения оплаты
@@ -132,7 +136,10 @@ class NotificationService:
                 user_id=tx.tg_id,
                 sub_type=sub_type,
                 username=user.username,
-                info=m_subscription.gateway_alert.confirmed_info,
+                amount=tx.amount,
+                info=m_subscription.gateway_alert.confirmed_info.format(
+                    gateway=provider_name
+                ),
             ),
         )
 

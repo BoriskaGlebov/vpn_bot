@@ -7,6 +7,8 @@ from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookD
 class BasePaymentProvider(Protocol):
     """Интерфейс платёжного провайдера (например, Platega)."""
 
+    provider_name: str
+
     async def create_payment(
         self,
         data: CreatePaymentDTO,

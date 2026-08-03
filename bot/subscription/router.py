@@ -786,7 +786,6 @@ class SubscriptionRouter(BaseRouter):
             await query.answer("Админ подтвердил оплату", show_alert=False)
             user_id = callback_data.user_id
             months = callback_data.months
-            premium = callback_data.premium
             transaction_id = callback_data.transaction_id
             confirm_transaction = await self.subscription_service.confirm_transaction(
                 transaction_id
@@ -843,6 +842,7 @@ class SubscriptionRouter(BaseRouter):
                         user_id=user_id,
                         sub_type=sub_type,
                         username=user_schema.username,
+                        amount=confirm_transaction.transaction_res.amount,
                         info=ref_inf,
                     ),
                     admin_mess_storage=self.redis_service,
@@ -857,12 +857,10 @@ class SubscriptionRouter(BaseRouter):
                     bot=self.bot,
                     message_text=m_subscription.accept_paid.admin.format(
                         user_id=user_id,
-                        premium=(
-                            f"{ToggleSubscriptionMode.PREMIUM.upper()}"
-                            if premium
-                            else f"{ToggleSubscriptionMode.STANDARD.upper()}"
-                        ),
+                        sub_type=sub_type,
                         username=user_schema.username,
+                        amount=confirm_transaction.transaction_res.amount,
+                        info=ref_inf,
                     ),
                 )
 

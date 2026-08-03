@@ -17,6 +17,7 @@ from bot.payment.exceptions import PaymentProviderError
 class PlategaProvider:
     """Платёжный провайдер Platega (`BasePaymentProvider`)."""
 
+    provider_name = "Platega"
     BASE_URL = "https://app.platega.io"
 
     def __init__(
