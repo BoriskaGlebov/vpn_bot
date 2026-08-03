@@ -5,6 +5,15 @@ echo "Выставляем корректные права на папку ло�
 mkdir -p /vpn_bot/api/logs
 chown -R botuser:bot /vpn_bot/api/logs
 
+echo "🔄 Синхронизация шаблонов в volume из образа..."
+rsync -a --delete --delay-updates /vpn_bot/api/templates_src/ /vpn_bot/api/templates/
+chown -R botuser:bot /vpn_bot/api/templates
+
+echo "🔄 Синхронизация статики sqladmin в volume из образа..."
+SQLADMIN_STATICS=/vpn_bot/.venv/lib/python3.12/site-packages/sqladmin/statics
+rsync -a --delete --delay-updates /vpn_bot/sqladmin_statics_src/ "$SQLADMIN_STATICS/"
+chown -R botuser:bot "$SQLADMIN_STATICS"
+
 echo "⚙️ Checking for Alembic migrations..."
 
 # Проверяем наличие alembic-конфигурации
