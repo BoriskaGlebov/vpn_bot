@@ -48,6 +48,16 @@ class HelpRouter(BaseRouter):
         DeviceEnum.HAPP: HappDevice,
     }
 
+    DEVICE_LABELS: dict[str, str] = {
+        DeviceEnum.ANDROID: "Android",
+        DeviceEnum.IOS: "iOS",
+        DeviceEnum.PC: "Windows / Linux",
+        DeviceEnum.TV: "Smart TV",
+        DeviceEnum.SPLIT: "раздельное туннелирование",
+        DeviceEnum.HAPP: "Happ",
+        "developer": "связь с разработчиком",
+    }
+
     def __init__(self, bot: Bot, logger: Logger, redis: RedisClient) -> None:
         super().__init__(bot, logger)
         self.redis = redis
@@ -64,7 +74,12 @@ class HelpRouter(BaseRouter):
             F.chat.type == ChatType.PRIVATE,
         )
         self.router.callback_query.register(
-            self.device_cb, F.data.startswith("device_"), HelpStates.device_state
+            self.device_cb,
+            F.data.startswith("device_"),
+            StateFilter(HelpStates.device_state),
+        )
+        self.router.callback_query.register(
+            self.noop_cb, F.data == "noop", StateFilter(HelpStates.device_state)
         )
         self.router.message.register(
             self.mistake_handler_user,
@@ -97,6 +112,19 @@ class HelpRouter(BaseRouter):
         await state.set_state(HelpStates.device_state)
 
     @BaseRouter.log_method
+    async def noop_cb(self, call: CallbackQuery) -> None:
+        """Обрабатывает клик по декоративному разделителю в клавиатуре выбора устройства.
+
+        Ничего не делает, кроме подтверждения callback — не должно влиять
+        на состояние FSM пользователя (в отличие от `device_cb`).
+
+        Args:
+            call (CallbackQuery): Объект callback-запроса от Telegram.
+
+        """
+        await call.answer()
+
+    @BaseRouter.log_method
     @BaseRouter.require_message
     async def device_cb(
         self,
@@ -121,7 +149,8 @@ class HelpRouter(BaseRouter):
             self.logger.error("CallbackQuery received without data")
             return
         call_device = data.replace("device_", "")
-        await call.answer(text=f"Ты выбрал {call_device}", show_alert=False)
+        label = self.DEVICE_LABELS.get(call_device, call_device)
+        await call.answer(text=f"Ты выбрал {label}", show_alert=False)
         chat_id = msg.chat.id
         redis_key = f"help:device:{chat_id}:{call_device}"
         acquired = await self.redis.set(redis_key, "1", 60, True)
@@ -132,13 +161,10 @@ class HelpRouter(BaseRouter):
             async with ChatActionSender.typing(bot=self.bot, chat_id=chat_id):
                 device_class = self.DEVICE_MAP.get(call_device)
                 if device_class:
-                    if hasattr(msg, "delete"):
-                        await msg.delete()
+                    await msg.delete()
                     await device_class.send_message(bot=self.bot, chat_id=chat_id)
                 elif "developer" in call_device:
-                    if hasattr(msg, "delete"):
-                        await msg.delete()
-
+                    await msg.delete()
                     await self.bot.send_message(
                         chat_id=chat_id,
                         text="Для связи напишите @BorisisTheBlade",

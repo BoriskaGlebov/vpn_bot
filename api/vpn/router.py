@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.core.dependencies import get_current_user, get_session
+from api.core.openapi_responses import AUTH_RESPONSES
 from api.users.models import User
 from api.vpn.dependencies import get_vpn_service
 from api.vpn.schemas import (
@@ -21,6 +22,7 @@ router = APIRouter(prefix="/vpn", tags=["bot", "VPN"])
     "/limit",
     response_model=SVPNCheckLimitResponse,
     summary="Проверка лимита VPN конфигов",
+    responses=AUTH_RESPONSES,
 )
 async def check_limit(
     tg_id: int,
@@ -51,6 +53,7 @@ async def check_limit(
     response_model=SVPNCreateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Сохранение VPN конфига",
+    responses=AUTH_RESPONSES,
 )
 async def add_config(
     data: SVPNCreateRequest,
@@ -82,6 +85,7 @@ async def add_config(
     "/config",
     status_code=status.HTTP_200_OK,
     summary="Удаление VPN конфига",
+    responses=AUTH_RESPONSES,
 )
 async def delete_config(
     data: SVPNDeleteRequest,

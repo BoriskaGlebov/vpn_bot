@@ -28,6 +28,13 @@ base_site = "https://vpn-boriska.ru/bot"
 # *Использовать webhook или polling по умолчанию polling false
 use_polling = false
 
+# === SCHEDULER ===
+[scheduler]
+# Dev/local: проверка каждые N секунд вместо cron — удобно для отладки.
+# Чтобы вернуть боевое поведение здесь, просто уберите interval_seconds
+# (или переопределите его в app_config.local.toml).
+interval_seconds = 30
+
 # === PRICING ===
 [pricing]
 # Цена за тарифы 1, 3, 6, 12 месяцев и триал период на 7 дней

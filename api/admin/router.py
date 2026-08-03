@@ -7,6 +7,8 @@ from api.admin.dependencies import check_admin_role, get_admin_service
 from api.admin.schemas import SChangeRole, SExtendSubscription
 from api.admin.services import AdminService
 from api.core.dependencies import get_session
+from api.core.exceptions.schema import APIErrorResponse
+from api.core.openapi_responses import ADMIN_RESPONSES
 from api.payment.dependencies import get_payment_service
 from api.payment.schemas import SYearIncome
 from api.payment.services import PaymentService
@@ -25,16 +27,9 @@ router = APIRouter(prefix="/admin", tags=["bot", "ADMIN"])
     description="Возвращает пользователя по его Telegram ID. "
     "Если пользователь не найден — возвращается ошибка 404.",
     responses={
+        **ADMIN_RESPONSES,
         200: {
             "description": "Пользователь успешно найден",
-        },
-        404: {
-            "description": "Пользователь не найден",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Пользователь с telegram_id=123 не найден"}
-                }
-            },
         },
     },
 )
@@ -90,6 +85,7 @@ async def get_user(
         "- `admin` — администраторы\n"
         "- `founder` — владельцы системы"
     ),
+    responses=ADMIN_RESPONSES,
 )
 async def get_users(
     filter_type: RoleEnum = Query(
@@ -149,16 +145,13 @@ async def get_users(
         "Если пользователь или роль не найдены — возвращается ошибка 404."
     ),
     responses={
+        **ADMIN_RESPONSES,
         200: {
             "description": "Роль пользователя успешно изменена",
         },
         404: {
+            "model": APIErrorResponse,
             "description": "Пользователь или роль не найдены",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Пользователь с telegram_id=123 не найден"}
-                }
-            },
         },
     },
 )
@@ -225,16 +218,13 @@ async def change_user_role(
         "Если у пользователя нет активной подписки, она будет создана или обработана в сервисе."
     ),
     responses={
+        **ADMIN_RESPONSES,
         200: {
             "description": "Подписка успешно продлена",
         },
         404: {
-            "description": "Пользователь не найден",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Пользователь с telegram_id=123 не найден"}
-                }
-            },
+            "model": APIErrorResponse,
+            "description": "Пользователь не найден или подписка не активна",
         },
     },
 )
@@ -305,6 +295,7 @@ async def extend_subscription(
         "и общая сумма дохода за год."
     ),
     responses={
+        **ADMIN_RESPONSES,
         200: {
             "description": "Аналитика дохода успешно получена",
         },
@@ -314,6 +305,7 @@ async def get_income(
     year: int | None = None,
     service: PaymentService = Depends(get_payment_service),
     session: AsyncSession = Depends(get_session),
+    admin_auth: User = Depends(check_admin_role),
 ) -> SYearIncome:
     """Получает аналитику доходов за год.
 
@@ -327,6 +319,7 @@ async def get_income(
     - возвращает итоговую аналитику
 
     Args:
+        admin_auth: Доступ только админам.
         year (int | None): Год для получения аналитики.
             Если значение не передано, используется текущий год.
         service (PaymentService): Сервис бизнес-логики платежей.
@@ -339,5 +332,10 @@ async def get_income(
         ValueError: Если передан некорректный год.
 
     """
+    logger.info("Запрос аналитики дохода year={} admin_id={}", year, admin_auth.id)
+
     income = await service.get_year_income(session=session, year=year)
+
+    logger.success("Аналитика дохода получена year={}", year)
+
     return income

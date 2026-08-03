@@ -1,5 +1,3 @@
-import asyncio
-
 from aiogram import Bot
 
 from bot.core.config import settings_bot
@@ -12,56 +10,33 @@ class HappDevice(Device):
     PREFIX = f"{settings_bot.bucket.prefix}happ/"
     MESSAGES_PATH = settings_bot.messages.modes.help.instructions.happ
     LINK_PATH = settings_bot.messages.modes.help.instructions.links.happ
+    CAPTION_SLEEP = 1.2
 
     @classmethod
     async def send_message(cls, bot: Bot, chat_id: int) -> None:
-        """Отправляет сообщение в указанный чат.
+        """Отправляет инструкции по настройке Happ.
 
-        Этот метод должен быть реализован в подклассах для отправки
-        определённого типа сообщения (текста, фото, видео и т.д.) с помощью
-        экземпляра бота Aiogram.
+        Формат: вступительное сообщение с набором ссылок под разные ОС
+        (позиционные `{}`-плейсхолдеры, подставляются из списка `LINK_PATH`),
+        затем серия фото-инструкций без ссылок, финальное сообщение снова
+        со ссылками.
 
         Args:
-            bot (Bot): Экземпляр бота Aiogram, используемый для отправки сообщения.
-            chat_id (int): Идентификатор чата Telegram, куда будет отправлено сообщение.
+            bot (Bot): Экземпляр бота Aiogram.
+            chat_id (int): Telegram chat_id пользователя.
 
         Raises
-            TelegramAPIError: Если при взаимодействии с Telegram API возникает ошибка.
+            DeviceEmptyMessagesError: если для устройства не заданы подписи.
+            DeviceEmptyMediaError: если в S3 не найдено ни одного файла.
+            DeviceInstructionMismatchError: если количество подписей не
+                соответствует количеству файлов.
+            TelegramAPIError: при ошибке отправки сообщения в Telegram.
 
         """
-        media = await cls._list_files()
-        messages = cls.MESSAGES_PATH
         link = cls.LINK_PATH
-
-        if not messages:
-            raise ValueError(f"{cls.__name__}: Пустой список инстуркций")
-
-        if not media:
-            raise ValueError(f"{cls.__name__}: Нет файлов в  S3")
-
-        if len(messages) not in {len(media) + 1, len(media) + 2}:
-            raise ValueError(
-                f"{cls.__name__}: несоответствие длин media({len(media)}) "
-                f"и messages({len(messages)}). "
-                "Ожидается: вступление + подписи ко всем фото (+ опционально финал)"
-            )
-
-        await bot.send_message(
-            chat_id, messages[0].format(*link), disable_web_page_preview=True
+        await cls._send_intro_media_final(
+            bot,
+            chat_id,
+            intro_formatter=lambda text: text.format(*link),
+            final_formatter=lambda text: text.format(*link),
         )
-        await asyncio.sleep(1.2)
-        has_final = len(messages) == len(media) + 2
-        captions = messages[1:-1] if has_final else messages[1:]
-        for file, caption in zip(media, captions):
-            await bot.send_photo(
-                chat_id=chat_id,
-                photo=file,
-                caption=caption,
-                parse_mode="HTML",
-            )
-            await asyncio.sleep(1.2)
-
-        if has_final:
-            await bot.send_message(
-                chat_id, messages[-1].format(*link), disable_web_page_preview=True
-            )

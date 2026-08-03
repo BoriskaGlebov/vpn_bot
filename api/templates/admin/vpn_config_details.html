@@ -2,54 +2,76 @@
 
 {% block content %}
 
-<div style="margin-bottom:20px">
-    <a href="/bot/admin/vpn-config/list" class="btn btn-secondary">⬅ Назад</a>
+<div class="col-12 mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <h2 class="mb-0">🔐 VPN конфиг «{{ model.file_name or "config" }}»</h2>
 
-    <button type="button" class="btn btn-danger"
-            onclick="if(confirm('Удалить конфиг?')) {
-            fetch('/bot/admin/vpn-config/delete?pks={{ model.id }}', { method: 'DELETE' })
-            .then(response => {
-                if(response.ok) window.location.href = '/bot/admin/vpn-config/list';
-                else alert('Ошибка при удалении');
-            });
-        }">
-        🗑 Удалить
-    </button>
+        <div>
+            <a href="{{ url_for('admin:list', identity='vpn-config') }}" class="btn btn-secondary">⬅ Назад</a>
 
-
+            <button type="button" class="btn btn-danger"
+                    onclick="if(confirm('Удалить конфиг?')) {
+                    fetch('{{ url_for('admin:delete', identity='vpn-config') }}?pks={{ model.id }}', { method: 'DELETE' })
+                    .then(response => {
+                        if(response.ok) window.location.href = '{{ url_for('admin:list', identity='vpn-config') }}';
+                        else alert('Ошибка при удалении');
+                    });
+                }">
+                🗑 Удалить
+            </button>
+        </div>
+    </div>
 </div>
 
-<h2>🔐 VPN конфиг</h2>
+<div class="col-md-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Детали</h3>
+        </div>
+        <div class="card-body">
+            <table class="table table-borderless mb-0">
+                <tr>
+                    <th>ID</th>
+                    <td>{{ model.id }}</td>
+                </tr>
+                <tr>
+                    <th>Пользователь</th>
+                    <td>
+                        {% if model.user %}
+                        <a href="{{ url_for('admin:details', identity='user', pk=model.user.id) }}">
+                            {{ model.user.username or model.user.telegram_id }}
+                        </a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Имя файла</th>
+                    <td>{{ model.file_name if model.file_name else "config" }}</td>
+                </tr>
+                <tr>
+                    <th>Создан</th>
+                    <td>{{ model.created_at.strftime("%Y-%m-%d %H:%M") if model.created_at else "-" }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
 
-<table class="table table-bordered table-striped">
-    <tr>
-        <th>ID</th>
-        <td>{{ model.id }}</td>
-    </tr>
-    <tr>
-        <th>Пользователь</th>
-        <td>
-            {% if model.user %}
-                {{ model.user.username }} ({{ model.user.telegram_id }})
-            {% else %}
-                -
-            {% endif %}
-        </td>
-    </tr>
-    <tr>
-        <th>Имя файла</th>
-        <td>{{ model.file_name if model.file_name else "config" }}</td>
-    </tr>
-    <tr>
-        <th>Public Key</th>
-        <td>
+<div class="col-md-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Public Key</h3>
+        </div>
+        <div class="card-body">
             {% if model.pub_key %}
-                <textarea readonly style="width:100%;height:120px;font-family:monospace;">{{ model.pub_key }}</textarea>
+            <textarea readonly style="width:100%;height:120px;font-family:monospace;" class="form-control">{{ model.pub_key }}</textarea>
             {% else %}
-                -
+            <span class="text-muted">-</span>
             {% endif %}
-        </td>
-    </tr>
-</table>
+        </div>
+    </div>
+</div>
 
 {% endblock %}

@@ -302,8 +302,8 @@ async def test_sub_select_callback_subscription_error(
     # extend_user_subscription вызван
     admin_service.extend_user_subscription.assert_awaited()
 
-    # query.answer с текстом ошибки
-    query.answer.assert_awaited_with("У пользователя 100 нет подписки / не активна.")
+    # query.answer с текстом ошибки (без служебного префикса [code])
+    query.answer.assert_awaited_with("У пользователя 100 нет активной подписки")
     # edit_text НЕ должен вызываться
     assert query.message.edit_text.await_count == 0
 

@@ -32,7 +32,7 @@ endif
 
 .PHONY: help compose-up compose-down rev rev-up rev-down \
         infra-up infra-down pre-commit ci-checks \
-        init-db init-redis run-bot full-up
+        init-db init-redis run-bot full-up coverage
 
 help:
 	@echo ""
@@ -51,6 +51,7 @@ help:
 	@echo "  pre-commit           — запустить pre-commit проверки"
 	@echo "  ci-checks            — полный набор проверок (black, isort, ruff, mypy)"
 	@echo "  pytests              — запустить тесты (с поддержкой -m)"
+	@echo "  coverage             — тесты + HTML-отчёт покрытия (htmlcov/index.html)"
 	@echo ""
 	@echo "────────────────────────────────────────────"
 	@echo "  Stage: $(STAGE)"
@@ -115,3 +116,9 @@ pytests:
 	@echo "🧪 Запускаем тесты..."
 	pytest -vs $(if $(m),-m $(m),) bot/tests
 	pytest -vs $(if $(m),-m $(m),) api/tests
+
+coverage:
+	@echo "📊 Тесты с отчётом покрытия..."
+	poetry run pytest $(if $(m),-m $(m),) --cov=bot --cov=api --cov=shared \
+		--cov-report=term-missing:skip-covered --cov-report=html
+	@echo "✅ HTML-отчёт: htmlcov/index.html"

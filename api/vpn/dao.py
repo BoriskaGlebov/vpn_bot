@@ -3,7 +3,11 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
+from api.app_error.base_error import (
+    AppError,
+    SubscriptionNotFoundError,
+    VPNLimitError,
+)
 from api.core.config import settings_api
 from api.core.dao.base import BaseDAO
 from api.subscription.models import DEVICE_LIMITS
@@ -47,8 +51,8 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             )
             logger.debug(f"[DAO] У пользователя {user_id} конфигов: {count}")
             if not user.current_subscription or not user.current_subscription.is_active:
-                logger.warning("Нет активной подписки.")
-                raise SubscriptionNotFoundError(user_id=user_id)
+                logger.warning("Нет активной подписки: user_id={}", user_id)
+                raise SubscriptionNotFoundError(user_id=user_id, username=user.username)
             if user and count == 0:
                 return True
             sub_type = user.current_subscription.type
@@ -58,9 +62,9 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             )
             return count < max_configs
 
-        except SQLAlchemyError as e:
-            logger.error(f"[DAO] Ошибка при при проверке лимита конфиг файлов: {e}")
-            raise e
+        except SQLAlchemyError:
+            logger.exception("[DAO] Ошибка при проверке лимита конфиг файлов")
+            raise
 
     @classmethod
     async def add_config(
@@ -88,11 +92,22 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
         )
         try:
             if not await cls.can_add_config(session=session, user_id=user_id):
-                logger.error(
+                # Ожидаемое бизнес-ограничение (превышен лимит устройств),
+                # а не системная ошибка.
+                logger.warning(
                     f"[DAO] Создание конфига отклонено — пользователь {user_id} достиг лимита",
                 )
+                user = await UserDAO.find_one_or_none_by_id(
+                    session=session, data_id=user_id
+                )
+                if user is None:
+                    raise AppError(
+                        message=f"Не удалось найти пользователя по внутреннему ID={user_id}"
+                    )
                 raise VPNLimitError(
-                    user_id=user_id, limit=settings_api.core.max_configs_per_user
+                    user_id=user_id,
+                    limit=settings_api.core.max_configs_per_user,
+                    username=user.username if user else "unknown_username",
                 )
 
             config = VPNConfig(user_id=user_id, file_name=file_name, pub_key=pub_key)
@@ -101,6 +116,6 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 f"[DAO] Создан новый VPNConfig id={config.id} для пользователя {user_id} (файл='{file_name}')",
             )
             return config
-        except SQLAlchemyError as e:
-            logger.error(f"[DAO] Ошибка при добавлении конфиг файла: {e}")
-            raise e
+        except SQLAlchemyError:
+            logger.exception("[DAO] Ошибка при добавлении конфиг файла")
+            raise

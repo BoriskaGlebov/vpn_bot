@@ -5,13 +5,21 @@ from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 
 # from bot.ai.services.service import ChatService, build_chat_service
-from bot.core.config import bot, settings_bot
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.news.services import NewsService
+from bot.notification.services import NotificationService
 from bot.payment.adapter import PaymentAPIAdapter
-from bot.redis_service import RedisAdminMessageStorage, RedisEmbeddingCache
+from bot.payment.providers.payment_client import BasePaymentProvider
+from bot.payment.providers.platega import PlategaProvider
+from bot.payment.services import PaymentService, PaymentWebhookService
+from bot.redis_service import (
+    RedisAdminMessageStorage,
+    RedisEmbeddingCache,
+    RedisPaymentMessageStorage,
+)
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.referrals.services import ReferralService
 from bot.scheduler.adapter import SchedulerAPIAdapter
@@ -54,6 +62,7 @@ class Container:
         user_adapter (UsersAPIAdapter)
         admin_adapter (AdminAPIAdapter)
         subscription_adapter (SubscriptionAPIAdapter)
+        payment_provider: (BasePaymentProvider)
         payment_adapter (PaymentApiAdapter)
         referral_adapter (ReferralAPIAdapter)
         vpn_adapter (VPNAPIAdapter)
@@ -70,8 +79,12 @@ class Container:
         vpn_service (VPNService)
         news_service (NewsService)
         scheduler_bot_service (SchedulerBotService)
+        payment_service (PaymentService)
+        notification_service (NotificationService)
+        payment_webhook_service (PaymentWebhookService)
 
         redis_admin_mess_storage (RedisAdminMessageStorage)
+        redis_payment_mess_storage (RedisPaymentMessageStorage)
         redis_embedding_cache (RedisEmbeddingCache)
 
         bot (Bot): экземпляр aiogram Bot (используется в scheduler).
@@ -96,6 +109,7 @@ class Container:
     user_adapter: UsersAPIAdapter
     admin_adapter: AdminAPIAdapter
     subscription_adapter: SubscriptionAPIAdapter
+    payment_provider: BasePaymentProvider
     payment_adapter: PaymentAPIAdapter
     referral_adapter: ReferralAPIAdapter
     vpn_adapter: VPNAPIAdapter
@@ -111,8 +125,12 @@ class Container:
     vpn_service: VPNService
     news_service: NewsService
     scheduler_bot_service: SchedulerBotService
+    payment_service: PaymentService
+    notification_service: NotificationService
+    payment_webhook_service: PaymentWebhookService
 
     redis_admin_mess_storage: RedisAdminMessageStorage
+    redis_payment_mess_storage: RedisPaymentMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
 
     # chat_service: ChatService | None
@@ -124,14 +142,25 @@ class Container:
             str(settings_bot.redis.url),
             default_expire=settings_bot.redis.default_expire,
         )
+        self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)
+        self.redis_payment_mess_storage = RedisPaymentMessageStorage(self.redis_manager)
+        self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
         self.api_client = APIClient(
-            base_url=settings_bot.api.url, port=settings_bot.api.port
+            base_url=settings_bot.api.url,
+            port=settings_bot.api.port,
+            internal_secret=settings_bot.api.secret.get_secret_value(),
         )
         # 2. ADAPTERS API (обычные)
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAPIAdapter(client=self.api_client)
-        self.payment_adapter = PaymentAPIAdapter(client=self.api_client)
+        self.payment_provider = PlategaProvider(
+            merchant_id=settings_bot.payment.merchant_id.get_secret_value(),
+            secret_key=settings_bot.payment.api_key.get_secret_value(),
+        )
+        self.payment_adapter = PaymentAPIAdapter(
+            client=self.api_client, provider=self.payment_provider
+        )
         self.referral_adapter = ReferralAPIAdapter(client=self.api_client)
         self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
@@ -171,15 +200,28 @@ class Container:
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
-        self.subscription_service = SubscriptionService(
-            adapter=self.subscription_adapter,
-            user_adapter=self.user_adapter,
-            payment_adapter=self.payment_adapter,
+        self.payment_service = PaymentService(
+            adapter=self.payment_adapter, provider=self.payment_provider
         )
         self.vpn_service = VPNService(
             adapter=self.vpn_adapter,
             user_adapter=self.user_adapter,
             xray_registry=self.xray_adapters,
+        )
+        self.subscription_service = SubscriptionService(
+            adapter=self.subscription_adapter,
+            user_adapter=self.user_adapter,
+            payment_service=self.payment_service,
+            vpn_service=self.vpn_service,
+        )
+        self.notification_service = NotificationService(
+            bot=bot, payment_mess_storage=self.redis_payment_mess_storage
+        )
+
+        self.payment_webhook_service = PaymentWebhookService(
+            payment_service=self.payment_service,
+            subscription_service=self.subscription_service,
+            notification_service=self.notification_service,
         )
         self.news_service = NewsService(adapter=self.news_adapter)
         self.scheduler_bot_service = SchedulerBotService(
@@ -188,10 +230,6 @@ class Container:
             vpn_adapter=self.vpn_adapter,
             xray_registry=self.xray_adapters,
         )
-
-        # 5. REDIS
-        self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)
-        self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
 
         # self.chat_service: ChatService | None = None
 
@@ -206,10 +244,3 @@ class Container:
         await self.api_client.close()
         for client in self._xray_clients:
             await client.close()
-
-
-if __name__ == "__main__":
-    print("G")
-    c = Container(bot=bot)
-    print(settings_bot.redis.default_expire)
-    print(c.redis_manager.default_expire)

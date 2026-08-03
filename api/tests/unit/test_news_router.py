@@ -1,11 +1,9 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from starlette.testclient import TestClient
 
 from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_session
-from api.main import app
 from api.news.dependencies import get_news_service
 
 
@@ -31,20 +29,16 @@ def fake_logger(monkeypatch):
 
 
 @pytest.fixture
-def client(mock_service, mock_session, mock_admin):
-    """TestClient с переопределёнными зависимостями."""
-    with patch(
-        "api.main.init_default_roles_admins",
-        new=AsyncMock(),
-    ):
-        app.dependency_overrides[get_news_service] = lambda: mock_service
-        app.dependency_overrides[get_session] = lambda: mock_session
-        app.dependency_overrides[check_admin_role] = lambda: mock_admin
-
-        with TestClient(app) as c:
-            yield c
-
-    app.dependency_overrides.clear()
+def client(make_client, mock_service, mock_session, mock_admin):
+    """TestClient с переопределёнными зависимостями роутера новостей."""
+    with make_client(
+        {
+            get_news_service: lambda: mock_service,
+            get_session: lambda: mock_session,
+            check_admin_role: lambda: mock_admin,
+        }
+    ) as c:
+        yield c
 
 
 def test_get_news_recipients_success(

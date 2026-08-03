@@ -2,8 +2,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from api.payment.schemas import SYearIncome
+from api.app_error.base_error import UserNotFoundError
 from api.users.schemas import SRoleOut, SUserOut
+from shared.enums.admin_enum import RoleEnum
 
 
 class FakeAdminService:
@@ -35,6 +36,7 @@ def make_user():
 
 
 def test_get_user_success(client, mock_service):
+    """Пользователь найден по telegram_id -> 200 с его данными."""
     user = make_user()
 
     mock_service.get_user_by_telegram_id = AsyncMock(return_value=user)
@@ -46,8 +48,7 @@ def test_get_user_success(client, mock_service):
 
 
 def test_get_user_not_found(client, mock_service):
-    from api.app_error.base_error import UserNotFoundError
-
+    """Сервис бросает UserNotFoundError -> 404."""
     mock_service.get_user_by_telegram_id = AsyncMock(
         side_effect=UserNotFoundError(tg_id=123)
     )
@@ -57,10 +58,8 @@ def test_get_user_not_found(client, mock_service):
     assert response.status_code == 404
 
 
-from shared.enums.admin_enum import RoleEnum
-
-
 def test_get_users(client, mock_service):
+    """Список пользователей по фильтру роли."""
     users = [make_user(), make_user()]
 
     mock_service.get_users_by_filter = AsyncMock(return_value=users)
@@ -72,6 +71,7 @@ def test_get_users(client, mock_service):
 
 
 def test_change_user_role_success(client, mock_service):
+    """Смена роли пользователя -> 200 с обновлённой ролью."""
     user = make_user()
 
     mock_service.change_user_role = AsyncMock(return_value=user)
@@ -88,8 +88,7 @@ def test_change_user_role_success(client, mock_service):
 
 
 def test_change_user_role_not_found(client, mock_service):
-    from api.app_error.base_error import UserNotFoundError
-
+    """Пользователь не найден -> 404."""
     mock_service.change_user_role = AsyncMock(side_effect=UserNotFoundError(tg_id=123))
 
     payload = {
@@ -103,6 +102,7 @@ def test_change_user_role_not_found(client, mock_service):
 
 
 def test_extend_subscription_success(client, mock_service):
+    """Продление подписки администратором -> 200 с данными пользователя."""
     user = make_user()
 
     mock_service.extend_user_subscription = AsyncMock(return_value=user)
@@ -119,6 +119,7 @@ def test_extend_subscription_success(client, mock_service):
 
 
 def test_extend_subscription_validation_error(client):
+    """months=0 не проходит валидацию схемы (ge=1) -> 422."""
     payload = {
         "telegram_id": 123,
         "months": 0,  # invalid (ge=1)
@@ -130,6 +131,7 @@ def test_extend_subscription_validation_error(client):
 
 
 def test_get_income_success(client):
+    """Доход за явно указанный год."""
     response = client.get("/admin/analytics/income", params={"year": 2026})
 
     assert response.status_code == 200
@@ -137,6 +139,7 @@ def test_get_income_success(client):
 
 
 def test_get_income_current_year(client):
+    """Год не передан -> используется текущий (по FakePaymentService всегда 1500)."""
     response = client.get("/admin/analytics/income")
 
     assert response.status_code == 200
@@ -144,6 +147,7 @@ def test_get_income_current_year(client):
 
 
 def test_get_income_validation_error(client):
+    """Нечисловой year -> 422."""
     response = client.get(
         "/admin/analytics/income",
         params={"year": "invalid"},

@@ -1,14 +1,24 @@
 from dataclasses import dataclass
+from uuid import UUID
+
+from loguru import logger
 
 from bot.app_error.api_error import APIClientError
 from bot.core.config import settings_bot
-from bot.payment.adapter import PaymentAPIAdapter
+from bot.payment.schemas import (
+    SConfirmPaymentResponse,
+    SCreatePayment,
+    SPaymentTransactionResponse,
+)
+from bot.payment.services import PaymentService
 from bot.subscription.adapter import (
     SubscriptionAPIAdapter,
 )
 from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.schemas import SUserOut
+from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
+from bot.vpn.services import VPNService
+from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
 from shared.enums.admin_enum import RoleEnum
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -60,11 +70,13 @@ class SubscriptionService:
         self,
         adapter: SubscriptionAPIAdapter,
         user_adapter: UsersAPIAdapter,
-        payment_adapter: PaymentAPIAdapter,
+        payment_service: PaymentService,
+        vpn_service: VPNService,
     ) -> None:
         self.api_adapter = adapter
         self.user_adapter = user_adapter
-        self.payment_adapter = payment_adapter
+        self.payment_service = payment_service
+        self.vpn_service = vpn_service
 
     async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool, bool]:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
@@ -115,6 +127,13 @@ class SubscriptionService:
         всегда продлевается текущая подписка и устанавливается тип `PREMIUM`.
         В противном случае создается новая подписка через DAO.
 
+        После продления подписки в БД дополнительно продлевает уже выданные
+        пользователю XRay-конфиги на панелях 3x-ui (см. `VPNService.
+        extend_user_xray_subscription`) — иначе срок действия в БД обновится,
+        а реальный доступ на панели останется со старой датой. Ошибка
+        продления на панели не должна откатывать уже прошедшую оплату и
+        обновление подписки в БД, поэтому она только логируется.
+
         Args:
             tg_id (int): Telegram ID пользователя.
             months (int): Количество месяцев для продления или новой подписки.
@@ -131,7 +150,33 @@ class SubscriptionService:
         res = await self.api_adapter.activate_paid(
             tg_id=tg_id, months=months, premium=premium
         )
+
+        await self._extend_xray_after_payment(user=res)
+
         return res
+
+    async def _extend_xray_after_payment(self, user: SUserOut) -> None:
+        """Продлевает XRay-конфиги пользователя на панели после оплаты.
+
+        Общий шаг для всех точек, где подписка продлевается в БД по факту
+        оплаты (`activate_paid_subscription`, `confirm_transaction`,
+        `webhook_confirm_transaction`) — без него подписка в БД обновляется,
+        а выданные ранее XRay-конфиги на 3x-ui остаются со старым сроком.
+        Ошибка продления на панели не должна откатывать уже подтверждённую
+        оплату, поэтому она только логируется.
+
+        Args:
+            user: Пользователь с уже применённой (продлённой) подпиской.
+
+        """
+        try:
+            await self.vpn_service.extend_user_xray_subscription(user=user)
+        except ThreeXUIError as exc:
+            logger.error(
+                "Не удалось продлить XRay-конфиги на панели tg_id={}: {}",
+                user.telegram_id,
+                exc,
+            )
 
     async def _get_referral_info(self, tg_id: int) -> str:
         """Формирует текстовую информацию о реферальной статистике пользователя.
@@ -161,6 +206,41 @@ class SubscriptionService:
             paid=paid,
             conversion=f"{conversion:.2f}",
         )
+
+    async def is_subscription_active(self, tg_id: int) -> bool:
+        """Проверяет активность подписки пользователя.
+
+        В отличие от `get_subscription_info`, возвращает булево значение
+        напрямую из структурированного статуса API, а не текст для показа
+        пользователю — не стоит парсить человекочитаемый текст на признак
+        активности (текст может измениться и молча сломать проверку).
+
+        Args:
+            tg_id (int): ID Telegram-пользователя.
+
+        Returns
+            bool: True, если подписка активна.
+
+        """
+        data = await self.api_adapter.get_subscription_info(tg_id=tg_id)
+        return data.status == "active"
+
+    async def get_user_vpn_configs(self, tg_id: int) -> list[SVPNConfigOut]:
+        """Возвращает список VPN-конфигов пользователя.
+
+        Используется для самостоятельного удаления конфигов пользователем —
+        в отличие от `get_subscription_info` (текст для показа), возвращает
+        структурированные данные с `id`/`pub_key`, достаточные для удаления.
+
+        Args:
+            tg_id (int): ID Telegram-пользователя.
+
+        Returns
+            list[SVPNConfigOut]: Список конфигов пользователя.
+
+        """
+        user, _ = await self.user_adapter.register(SUser(telegram_id=tg_id))
+        return user.vpn_configs
 
     async def get_subscription_info(self, tg_id: int) -> str:
         """Возвращает информацию о подписке пользователя и его VPN-конфигах.
@@ -209,3 +289,108 @@ class SubscriptionService:
         subscription_info = await self.get_subscription_info(tg_id)
         referral_info = await self._get_referral_info(tg_id)
         return f"{subscription_info}\n\n{referral_info}"
+
+    async def create_transaction(
+        self, amount: int, subscription_months: int, is_premium: bool, is_founder: bool
+    ) -> SCreatePayment:
+        """Создаёт платёжную транзакцию для оформления/продления подписки.
+
+        Args:
+            amount: Сумма платежа в минимальных единицах.
+            subscription_months: Количество месяцев подписки.
+            is_premium: Флаг премиум-подписки.
+            is_founder: Флаг пользователя-основателя.
+
+        Returns
+            SCreatePayment: Ссылка на оплату и данные созданной транзакции.
+
+        """
+        tx_res = await self.payment_service.create_transaction(
+            amount=amount,
+            subscription_months=subscription_months,
+            is_premium=is_premium,
+            is_founder=is_founder,
+        )
+        return tx_res
+
+    async def mark_payment_started(
+        self,
+        transaction_id: UUID,
+    ) -> SPaymentTransactionResponse:
+        """Помечает начало обработки платежа.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Обновлённая транзакция.
+
+        """
+        tx_res = await self.payment_service.mark_payment_started(
+            transaction_id=transaction_id
+        )
+        return tx_res
+
+    async def cancel_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SPaymentTransactionResponse:
+        """Отменяет платёжную транзакцию.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Данные отменённой транзакции.
+
+        """
+        tx_res = await self.payment_service.cancel_transaction(
+            transaction_id=transaction_id
+        )
+        return tx_res
+
+    async def confirm_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SConfirmPaymentResponse:
+        """Подтверждает платёжную транзакцию (администратором).
+
+        После подтверждения подписка пользователя продлевается в БД `api/`
+        (см. `SConfirmPaymentResponse.subscription_res`) — следом продлеваются
+        и его XRay-конфиги на панелях 3x-ui (см. `_extend_xray_after_payment`).
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SConfirmPaymentResponse: Результат подтверждения.
+
+        """
+        tx_res = await self.payment_service.confirm_transaction(
+            transaction_id=transaction_id
+        )
+        await self._extend_xray_after_payment(user=tx_res.subscription_res)
+        return tx_res
+
+    async def webhook_confirm_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SConfirmPaymentResponse:
+        """Подтверждает платёжную транзакцию по вебхуку платёжного провайдера.
+
+        Аналог `confirm_transaction`, но для автоматического подтверждения
+        оплаты картой (см. `PaymentWebhookService.handle_event`) — так же
+        продлевает XRay-конфиги на панелях 3x-ui после продления подписки в БД.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SConfirmPaymentResponse: Результат подтверждения.
+
+        """
+        tx_res = await self.payment_service.webhook_confirm_transaction(
+            transaction_id=transaction_id
+        )
+        await self._extend_xray_after_payment(user=tx_res.subscription_res)
+        return tx_res

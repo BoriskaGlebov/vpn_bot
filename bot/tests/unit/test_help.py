@@ -125,7 +125,7 @@ async def test_device_cb(
         fake_state.clear.assert_awaited()
 
         fake_call.answer.assert_awaited_with(
-            text=f"Ты выбрал {device_name}",
+            text=f"Ты выбрал {HelpRouter.DEVICE_LABELS[device_name]}",
             show_alert=False,
         )
 

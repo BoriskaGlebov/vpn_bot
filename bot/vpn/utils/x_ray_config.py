@@ -6,14 +6,19 @@ from typing import Any
 from loguru import logger
 
 from bot.app_error.api_error import APIClientConnectionError, APIClientError
-from bot.app_error.base_error import AppError
 from bot.core.config import SInbound
 from bot.integrations.api_client import APIClient
 from bot.vpn.DTO import Inbound, UserUUID
 from bot.vpn.schemas import S3XuiCredentials, S3XuiUSerSettings
+from bot.vpn.utils.x_ray_exceptions import (
+    ThreeXUIAuthError,
+    ThreeXUIConfigNotFoundError,
+    ThreeXUIInboundNotFoundError,
+    ThreeXUIInvalidExpiryError,
+    ThreeXUIRequestError,
+)
 
 
-# TODO нет корректного продления подписки в панели ,когда пользователь продлевает подписку
 class ThreeXUIAdapter:
     """Адаптер для взаимодействия с панелью 3x-ui.
 
@@ -76,6 +81,27 @@ class ThreeXUIAdapter:
         self.sub_prefix = sub_prefix
         self.location_prefix = location_prefix
 
+    @staticmethod
+    def _ensure_success(data: dict[str, Any], action: str) -> None:
+        """Проверяет поле `success` в ответе панели 3x-ui.
+
+        Панель 3x-ui в большинстве случаев отвечает HTTP 200 даже для
+        логических ошибок (неверные креды, несуществующий клиент и т.д.),
+        сигнализируя об этом полем `success: false` в теле ответа — такие
+        ошибки не попадают в `APIClient._request` (там проверяется только
+        HTTP статус-код), поэтому проверять их нужно здесь.
+
+        Args:
+            data: Тело ответа панели.
+            action: Название операции — для сообщения об ошибке.
+
+        Raises
+            ThreeXUIRequestError: Если `data["success"]` не `True`.
+
+        """
+        if not data.get("success", False):
+            raise ThreeXUIRequestError(action=action, reason=data.get("msg", ""))
+
     async def _login(
         self, user_credentials: S3XuiCredentials
     ) -> tuple[dict[str, Any], int]:
@@ -93,6 +119,7 @@ class ThreeXUIAdapter:
 
         Raises
             APIClientConnectionError: При ошибке соединения с API.
+            ThreeXUIAuthError: Если панель отклонила учётные данные.
 
         """
         logger.debug(
@@ -104,6 +131,15 @@ class ThreeXUIAdapter:
             url=f"{self.prefix}/login",
             json=user_credentials.model_dump(),
         )
+        if not res.get("success", False):
+            logger.error(
+                "Ошибка авторизации в 3x-ui username={}: {}",
+                user_credentials.username,
+                res.get("msg"),
+            )
+            raise ThreeXUIAuthError(
+                username=user_credentials.username, reason=res.get("msg", "")
+            )
         logger.info("Успешная авторизация в 3x-ui (status={})", s_code)
         return res, s_code
 
@@ -124,7 +160,7 @@ class ThreeXUIAdapter:
             )
             logger.info("Успешный выход из 3x-ui")
         except APIClientError as e:
-            logger.info("Logout response обработан как successful: %s", e)
+            logger.info("Logout response обработан как successful: {}", e)
         logger.info("Сессия завершена (logout)")
 
     async def _get_all_inbounds(self) -> list[Inbound]:
@@ -135,10 +171,12 @@ class ThreeXUIAdapter:
 
         Raises
             APIClientError: При ошибке API.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
 
         """
         logger.info("Запрос списка inbound-конфигураций")
         data = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
+        self._ensure_success(data, action="get_inbounds_list")
 
         objs = data.get("obj", [])
 
@@ -163,10 +201,12 @@ class ThreeXUIAdapter:
 
         Raises
             APIClientError: При ошибке запроса к API.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
 
         """
         logger.info("Запрос списка inbound-конфигураций")
         data = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
+        self._ensure_success(data, action="get_inbounds_list")
 
         objs = data.get("obj", [])
         user_uuids: list[UserUUID] = []
@@ -194,6 +234,7 @@ class ThreeXUIAdapter:
 
         Raises
             APIClientError: При ошибке API.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
 
         """
         client_dict = user_add.model_dump()
@@ -212,10 +253,82 @@ class ThreeXUIAdapter:
         )
         logger.debug("Payload add user: {}", payload)
 
-        return await self.api.post(
+        data, s_code = await self.api.post(
             url=f"{self.prefix}/panel/api/inbounds/addClient",
             json=payload,
         )
+        self._ensure_success(data, action="add_client")
+        return data, s_code
+
+    async def _get_inbound_clients(self, inbound_id: int) -> list[dict[str, Any]]:
+        """Возвращает клиентов (`settings.clients`) inbound-конфигурации.
+
+        Нужен для продления существующих конфигураций: `updateClient`
+        полностью заменяет объект клиента на панели, поэтому перед
+        изменением `expiryTime` нужно сначала получить его текущие поля
+        (email, subId, flow и т.д.), чтобы их не потерять.
+
+        Args:
+            inbound_id: Идентификатор inbound.
+
+        Returns
+            list[dict[str, Any]]: Список клиентов в «сыром» виде (как в панели).
+
+        Raises
+            APIClientError: При ошибке API.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
+
+        """
+        data = await self.api.get(f"{self.prefix}/panel/api/inbounds/get/{inbound_id}")
+        self._ensure_success(data, action="get_inbound")
+
+        obj = data.get("obj") or {}
+        clients: list[dict[str, Any]] = json.loads(obj.get("settings") or "{}").get(
+            "clients", []
+        )
+        return clients
+
+    async def _update_client(
+        self,
+        inbound_id: int,
+        client_id: str,
+        client: dict[str, Any],
+    ) -> tuple[dict[str, Any], int]:
+        """Обновляет существующего клиента в указанной inbound-конфигурации.
+
+        Args:
+            inbound_id: Идентификатор inbound, которому принадлежит клиент.
+            client_id: UUID клиента (совпадает с `client["id"]`).
+            client: Полный объект клиента (см. `_get_inbound_clients`) с уже
+                применёнными изменениями — панель заменяет клиента целиком.
+
+        Returns
+            tuple: (response, status_code)
+                response: Ответ API.
+                status_code: HTTP статус-код.
+
+        Raises
+            APIClientError: При ошибке API.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
+
+        """
+        settings = json.dumps({"clients": [client]}, separators=(",", ":"))
+        payload = {
+            "id": inbound_id,
+            "settings": settings,
+        }
+
+        logger.info(
+            "Обновление клиента client_id={} inbound_id={}", client_id, inbound_id
+        )
+        logger.debug("Payload update client: {}", payload)
+
+        data, s_code = await self.api.post(
+            url=f"{self.prefix}/panel/api/inbounds/updateClient/{client_id}",
+            json=payload,
+        )
+        self._ensure_success(data, action="update_client")
+        return data, s_code
 
     async def _restart_x_ray(self) -> tuple[dict[str, Any], int] | None:
         """Перезапускает сервис XRay.
@@ -229,7 +342,7 @@ class ThreeXUIAdapter:
 
         """
         try:
-            logger.warning("Перезапуск XRay сервиса")
+            logger.info("Перезапуск XRay сервиса")
             result = await self.api.post(
                 f"{self.prefix}/panel/api/server/restartXrayService"
             )
@@ -251,7 +364,7 @@ class ThreeXUIAdapter:
             list[Inbound]: Найденные inbound-конфигурации.
 
         Raises
-            AppError: Если найдено меньше inbound, чем ожидалось.
+            ThreeXUIInboundNotFoundError: Если найдено меньше inbound, чем ожидалось.
 
         """
         all_inbounds = await self._get_all_inbounds()
@@ -259,7 +372,9 @@ class ThreeXUIAdapter:
         find_inb = [inb for inb in all_inbounds if (inb.port, inb.remark) in allow_inb]
         if len(find_inb) < len(inbounds_cfg):
             logger.error(f"Не все Inbound найдены.{find_inb}")
-            raise AppError(message=f"Не все  inbound найдены {find_inb}")
+            raise ThreeXUIInboundNotFoundError(
+                expected=len(inbounds_cfg), found=find_inb
+            )
         return find_inb
 
     async def add_new_config(
@@ -292,7 +407,8 @@ class ThreeXUIAdapter:
             )
 
         Raises
-            AppError: При отсутствии необходимых inbound.
+            ThreeXUIInboundNotFoundError: При отсутствии необходимых inbound.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
             APIClientError: При ошибках API.
 
         """
@@ -339,6 +455,100 @@ class ThreeXUIAdapter:
             "config_ids": list(user_add_info["config_ids"]),
             "sub_ids": list(user_add_info["sub_ids"]),
         }, url
+
+    async def extend_config(
+        self,
+        config_ids: list[str],
+        days: int,
+    ) -> list[str]:
+        """Продлевает срок действия уже существующих VPN-конфигураций пользователя.
+
+        В отличие от `add_new_config`, не создаёт новых клиентов, а находит
+        уже существующие по их `config_id` среди ожидаемых inbound этой ноды
+        и обновляет только `expiryTime`/`enable`, не трогая остальные поля
+        клиента (email, subId, flow и т.д.).
+
+        Полный цикл:
+            1. Авторизация.
+            2. Получение ожидаемых inbound-конфигураций.
+            3. Поиск клиентов с указанными `config_id` среди клиентов каждого
+               inbound.
+            4. Обновление найденных клиентов новым `expiryTime`.
+            5. Перезапуск XRay.
+
+        Так как каждый `config_id` из `add_new_config` создаётся один раз на
+        конкретный inbound, часть `config_ids` может не найтись на этой ноде —
+        это нормально, если у пользователя есть конфиги ещё и на других
+        XRay-нодах (см. `XRayRegistry.all()`), поэтому такие id просто
+        пропускаются, а не считаются ошибкой сами по себе.
+
+        Args:
+            config_ids: UUID существующих конфигураций клиента, которые нужно
+                продлить.
+            days: Новый срок действия в днях от текущего момента. Должен быть
+                больше 0 — бессрочные конфиги (`expiryTime=0`) через этот
+                метод не создаются и не проставляются.
+
+        Returns
+            list[str]: `config_id` конфигураций, которые реально были найдены
+                и продлены. Может быть короче `config_ids`, если часть из них
+                принадлежит другой XRay-ноде — вызывающий код должен повторить
+                вызов для оставшихся `config_id` на других нодах реестра.
+
+        Raises
+            ThreeXUIInvalidExpiryError: Если `days <= 0`.
+            ThreeXUIInboundNotFoundError: Если не все ожидаемые inbound найдены.
+            ThreeXUIConfigNotFoundError: Если ни один `config_id` не найден ни
+                в одном inbound этой ноды.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
+            APIClientError: При ошибках API.
+
+        """
+        if days <= 0:
+            raise ThreeXUIInvalidExpiryError(days=days)
+
+        logger.info("Продление конфигураций {} на {} дней", config_ids, days)
+
+        credentials = S3XuiCredentials(
+            username=self.username,
+            password=self.password,
+        )
+        await self._login(user_credentials=credentials)
+        inbounds_correct = await self._get_inbound(inbounds_cfg=self.inbounds_name)
+        new_expiry = (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
+
+        pending = set(config_ids)
+        extended: list[str] = []
+
+        for inb in inbounds_correct:
+            if not pending:
+                break
+            clients = await self._get_inbound_clients(inb.id)
+            for client in clients:
+                client_id = client.get("id")
+                if client_id not in pending:
+                    continue
+                client["expiryTime"] = new_expiry
+                client["enable"] = True
+                await self._update_client(
+                    inbound_id=inb.id, client_id=client_id, client=client
+                )
+                extended.append(client_id)
+                pending.discard(client_id)
+
+        await self._restart_x_ray()
+        await self._logout()
+
+        if not extended:
+            raise ThreeXUIConfigNotFoundError(config_ids=config_ids)
+
+        logger.info(
+            "Продлено конфигураций: {} из {} ({})",
+            len(extended),
+            len(config_ids),
+            extended,
+        )
+        return extended
 
     async def delete_config(
         self,

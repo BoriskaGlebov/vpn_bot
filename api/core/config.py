@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from pprint import pprint
 
 from dotenv import load_dotenv
 from pydantic import Field, SecretStr
@@ -36,16 +35,18 @@ class SettingsAPI(SettingsCommon):
         session_secret (SecretStr):
             Секретный ключ для подписи сессий (например, cookies или JWT).
 
-
+        internal_api_secret (SecretStr):
+            Общий секрет, которым бот подписывает запросы к api/
+            (заголовок X-Internal-Secret). Без него X-Telegram-Id
+            не принимается во внимание — см. AuthMiddleware.
 
     """
 
     core: SettingsApp = Field(default_factory=SettingsApp)
-    # core: SettingsApp
     db: PostgresSettings = Field(default_factory=PostgresSettings)
-    # db: PostgresSettings
 
     session_secret: SecretStr = SecretStr("secret")
+    internal_api_secret: SecretStr = SecretStr("secret")
 
 
 load_dotenv(BASE_DIR / ".env.local")
@@ -65,8 +66,3 @@ LoggerConfig(
     logger_level_file=settings_api.core.logger_level_file,
     logger_error_file=settings_api.core.logger_error_file,
 )
-if __name__ == "__main__":
-    # pprint(load_toml_config())
-    # pprint(settings_api.core.model_dump())
-    pprint(settings_api.db.model_dump())
-    # pprint(os.getenv("DB_USER"))

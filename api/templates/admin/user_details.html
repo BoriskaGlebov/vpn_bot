@@ -2,142 +2,336 @@
 
 {% block content %}
 
-<div style="margin-bottom:20px">
+{% set role_name = model.role.name if model.role else None %}
+{% set role_badge = role_badge_colors.get(role_name, "secondary") %}
 
-    <a href="/bot/admin/user/list" class="btn btn-secondary">⬅ Назад</a>
+{% set total_spent = model.payments | selectattr("status.value", "equalto", "PAID") | sum(attribute="amount") %}
+{% set cur_sub = model.current_subscription %}
 
-    <a href="/bot/admin/user/edit/{{ model.id }}" class="btn btn-primary">
-        ✏️ Редактировать
-    </a>
+<div class="col-12 mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div class="d-flex align-items-center">
+            <span class="avatar avatar-lg me-3"
+                  style="background: linear-gradient(135deg,#4f46e5,#818cf8); color:#fff; font-weight:700; font-size:1.4rem;">
+                {{ ((model.first_name or model.username or "?")[0])|upper }}
+            </span>
+            <div>
+                <h2 class="mb-0">
+                    {{ model.first_name or "" }} {{ model.last_name or "" }}
+                    {% if model.username %}<span class="text-muted">@{{ model.username }}</span>{% endif %}
+                </h2>
+                <div class="text-muted">
+                    Telegram ID: {{ model.telegram_id }}
+                    {% if role_name %}<span class="badge bg-{{ role_badge }} ms-2">{{ role_name }}</span>{% endif %}
+                    {% if model.has_used_trial %}<span class="badge bg-secondary-lt ms-1">триал использован</span>{% endif %}
+                </div>
+            </div>
+        </div>
 
-    <a href="/bot/admin/user/delete/{{ model.id }}"
-       class="btn btn-danger"
-       onclick="return confirm('Удалить пользователя?')">
-        🗑 Удалить
-    </a>
+        <div>
+            <a href="{{ url_for('admin:list', identity='user') }}" class="btn btn-secondary">⬅ Назад</a>
 
+            <a href="{{ url_for('admin:edit', identity='user', pk=model.id) }}" class="btn btn-primary">
+                ✏️ Редактировать
+            </a>
+
+            <button type="button" class="btn btn-danger"
+                    onclick="if(confirm('Удалить пользователя?')) {
+                    fetch('{{ url_for('admin:delete', identity='user') }}?pks={{ model.id }}', { method: 'DELETE' })
+                    .then(response => {
+                        if(response.ok) window.location.href = '{{ url_for('admin:list', identity='user') }}';
+                        else alert('Ошибка при удалении');
+                    });
+                }">
+                🗑 Удалить
+            </button>
+        </div>
+    </div>
 </div>
 
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Потрачено всего</div>
+            <div class="h1 mb-0">{{ "{:,}".format(total_spent).replace(",", " ") }} ₽</div>
+            <div class="text-muted">{{ model.payments_count }} платёж(ей)</div>
+        </div>
+    </div>
+</div>
 
-<h2>👤 Пользователь</h2>
-
-<table class="table table-bordered">
-    <tr>
-        <th>ID</th>
-        <td>{{ model.id }}</td>
-    </tr>
-    <tr>
-        <th>Telegram ID</th>
-        <td>{{ model.telegram_id }}</td>
-    </tr>
-    <tr>
-        <th>Username</th>
-        <td>{{ model.username }}</td>
-    </tr>
-    <tr>
-        <th>Имя</th>
-        <td>{{ model.first_name }}</td>
-    </tr>
-    <tr>
-        <th>Фамилия</th>
-        <td>{{ model.last_name }}</td>
-    </tr>
-    <tr>
-        <th>Роль</th>
-        <td>{{ model.role.name if model.role else "-" }}</td>
-    </tr>
-    <tr>
-        <th>Использовал триал</th>
-        <td>{{ "Да" if model.has_used_trial else "Нет" }}</td>
-    </tr>
-</table>
-
-<hr>
-
-<h3>💳 Подписки пользователя</h3>
-
-<table class="table table-striped">
-    <thead>
-    <tr>
-        <th>ID</th>
-        <th>Тип</th>
-        <th>Активна</th>
-        <th>Начало</th>
-        <th>Окончание</th>
-        <th></th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for sub in model.subscriptions %}
-    <tr {% if sub.is_active %} style="background:#e6ffe6;" {% endif %}>
-        <td>{{ sub.id }}</td>
-        <td>{{ sub.type.name if sub.type else "-" }}</td>
-
-        <td>
-            {% if sub.is_active %}
-            <span style="color:green;font-weight:bold">АКТИВНА</span>
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Текущая подписка</div>
+            {% if cur_sub %}
+            <div class="h3 mb-0">
+                <span class="badge bg-{{ subscription_badge_colors.get(cur_sub.type.value if cur_sub.type else '', 'secondary') }}">
+                    {{ cur_sub.type.name if cur_sub.type else "-" }}
+                </span>
+            </div>
+            <div class="text-muted">
+                {% if cur_sub.is_active %}
+                    <span style="color:#2fb344;font-weight:600">активна</span>
+                {% else %}
+                    <span style="color:#d63939;font-weight:600">не активна</span>
+                {% endif %}
+                до {{ cur_sub.end_date.strftime("%Y-%m-%d") if cur_sub.end_date else "∞" }}
+            </div>
             {% else %}
-            ❌
+            <div class="h3 mb-0 text-muted">нет</div>
             {% endif %}
-        </td>
+        </div>
+    </div>
+</div>
 
-        <td>{{ sub.start_date.strftime("%Y-%m-%d") if sub.start_date else "-" }}</td>
-        <td>{{ sub.end_date.strftime("%Y-%m-%d") if sub.end_date else "∞" }}</td>
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">VPN конфиги</div>
+            <div class="h1 mb-0">{{ model.vpn_files_count }}</div>
+        </div>
+    </div>
+</div>
 
-        <td>
-            <a href="/bot/admin/subscription/details/{{ sub.id }}"
-               class="btn btn-sm btn-info">
-                👁 Открыть
-            </a>
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Рефералы</div>
+            <div class="h1 mb-0">{{ model.referrals_count }}</div>
+            <div class="text-muted">
+                {{ model.paid_referrals_count }} с бонусом ·
+                {{ "%.0f"|format(model.referral_conversion * 100) }}%
+            </div>
+        </div>
+    </div>
+</div>
 
-            <a href="/bot/admin/subscription/edit/{{ sub.id }}"
-               class="btn btn-sm btn-primary">
-                ✏️
-            </a>
-        </td>
-    </tr>
-    {% else %}
-    <tr>
-        <td colspan="6">Нет подписок</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="col-md-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🎁 Реферальная программа</h3>
+        </div>
+        <div class="card-body">
+            <div class="mb-2">
+                <span class="text-muted">Кто пригласил:</span>
+                {% if model.invited_by and model.invited_by.inviter %}
+                <a href="{{ url_for('admin:details', identity='user', pk=model.invited_by.inviter.id) }}">
+                    {{ model.invited_by.inviter.username or model.invited_by.inviter.telegram_id }}
+                </a>
+                {% if model.invited_by.bonus_given %}<span class="badge bg-success ms-1">бонус выдан</span>{% endif %}
+                {% else %}
+                <span class="text-muted">никто (сам пришёл)</span>
+                {% endif %}
+            </div>
+            <div>
+                <span class="text-muted">Кого пригласил ({{ model.invited_users | length }}):</span>
+                {% if model.invited_users %}
+                <ul class="list-unstyled mt-1 mb-0">
+                    {% for ref in model.invited_users %}
+                    <li>
+                        {% if ref.invited %}
+                        <a href="{{ url_for('admin:details', identity='user', pk=ref.invited.id) }}">
+                            {{ ref.invited.username or ref.invited.telegram_id }}
+                        </a>
+                        {% else %}
+                        <span class="text-muted">пользователь удалён</span>
+                        {% endif %}
+                        {% if ref.bonus_given %}
+                        <span class="badge bg-success">бонус</span>
+                        {% else %}
+                        <span class="badge bg-secondary">без бонуса</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="text-muted">пока никого не пригласил</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
 
-<hr>
+<div class="col-md-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">👤 Данные аккаунта</h3>
+        </div>
+        <div class="card-body">
+            <table class="table table-borderless mb-0">
+                <tr>
+                    <th>ID</th>
+                    <td>{{ model.id }}</td>
+                </tr>
+                <tr>
+                    <th>Имя</th>
+                    <td>{{ model.first_name or "-" }}</td>
+                </tr>
+                <tr>
+                    <th>Фамилия</th>
+                    <td>{{ model.last_name or "-" }}</td>
+                </tr>
+                <tr>
+                    <th>Триал</th>
+                    <td>{{ "Использован" if model.has_used_trial else "Не использован" }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
 
-<h3>🔐 VPN конфиги</h3>
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">💳 Подписки пользователя</h3>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-vcenter">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Тип</th>
+                    <th>Статус</th>
+                    <th>Начало</th>
+                    <th>Окончание</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for sub in model.subscriptions %}
+                <tr>
+                    <td>{{ sub.id }}</td>
+                    <td>
+                        <span class="badge bg-{{ subscription_badge_colors.get(sub.type.value if sub.type else '', 'secondary') }}">
+                            {{ sub.type.name if sub.type else "-" }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if sub.is_active %}
+                        <span class="badge bg-success">активна</span>
+                        {% else %}
+                        <span class="badge bg-secondary">нет</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ sub.start_date.strftime("%Y-%m-%d") if sub.start_date else "-" }}</td>
+                    <td>{{ sub.end_date.strftime("%Y-%m-%d") if sub.end_date else "∞" }}</td>
+                    <td>
+                        <a href="{{ url_for('admin:details', identity='subscription', pk=sub.id) }}"
+                           class="btn btn-sm btn-info">
+                            👁
+                        </a>
+                        <a href="{{ url_for('admin:edit', identity='subscription', pk=sub.id) }}"
+                           class="btn btn-sm btn-primary">
+                            ✏️
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-muted">Нет подписок</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-<table class="table table-striped">
-    <thead>
-    <tr>
-        <th>ID</th>
-        <th>Название</th>
-        <th>Создан</th>
-        <th></th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for vpn in model.vpn_configs %}
-    <tr>
-        <td>{{ vpn.id }}</td>
-        <td>{{ vpn.file_name if vpn.file_name else "config" }}</td>
-        <td>{{ vpn.created_at.strftime("%Y-%m-%d %H:%M") if vpn.created_at else "-" }}</td>
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🔐 VPN конфиги</h3>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-vcenter">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Название</th>
+                    <th>Создан</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for vpn in model.vpn_configs %}
+                <tr>
+                    <td>{{ vpn.id }}</td>
+                    <td>{{ vpn.file_name if vpn.file_name else "config" }}</td>
+                    <td>{{ vpn.created_at.strftime("%Y-%m-%d %H:%M") if vpn.created_at else "-" }}</td>
+                    <td>
+                        <a href="{{ url_for('admin:details', identity='vpn-config', pk=vpn.id) }}"
+                           class="btn btn-sm btn-info">
+                            👁
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-muted">Нет конфигов</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-        <td>
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">💰 Платежи</h3>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-vcenter">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Источник</th>
+                    <th>Подписка (мес)</th>
+                    <th>Создан</th>
+                    <th>Оплачен</th>
+                    <th></th>
+                </tr>
+                </thead>
 
-            <a href="/bot/admin/vpn-config/details/{{ vpn.id }}"
-               class="btn btn-sm btn-info">
-                👁
-            </a>
-        </td>
-    </tr>
-    {% else %}
-    <tr>
-        <td colspan="4">Нет конфигов</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-</table>
+                <tbody>
+                {% for p in model.payments %}
+                <tr>
+                    <td>{{ p.id }}</td>
+                    <td>{{ p.amount }} {{ p.currency }}</td>
+                    <td>
+                        {% if p.status.value == "PAID" %}
+                        <span class="badge bg-success">PAID</span>
+                        {% elif p.status.value == "PENDING" %}
+                        <span class="badge bg-warning">PENDING</span>
+                        {% elif p.status.value == "FAILED" %}
+                        <span class="badge bg-danger">FAILED</span>
+                        {% else %}
+                        <span class="badge bg-secondary">{{ p.status.value }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ p.source.value if p.source else "-" }}</td>
+                    <td>{{ p.subscription_months }}</td>
+                    <td>{{ p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "-" }}</td>
+                    <td>{{ p.paid_at.strftime("%Y-%m-%d %H:%M") if p.paid_at else "-" }}</td>
+                    <td>
+                        <a href="{{ url_for('admin:details', identity='payment-transaction', pk=p.id) }}"
+                           class="btn btn-sm btn-info">
+                            👁
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-muted">Нет платежей</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
 {% endblock %}

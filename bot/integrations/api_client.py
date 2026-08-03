@@ -8,8 +8,10 @@ from loguru import logger
 from bot.app_error.api_error import (
     APIClientConnectionError,
     APIClientError,
+    APIClientInvalidJSONError,
     map_http_error,
 )
+from bot.app_error.schema import ErrorDetail
 from shared.config.context import log_context
 
 
@@ -18,9 +20,13 @@ class APIClient:
 
     Args:
         base_url (str): Базовый URL API.
+        port (int): Порт API.
         timeout (float): Таймаут запроса.
         max_retries (int): Количество попыток.
         retry_delay (float): Задержка между попытками.
+        scheme (str): Схема подключения ("http"/"https").
+        internal_secret (str | None): Секрет для заголовка X-Internal-Secret
+            (только для клиента нашего api/).
 
     """
 
@@ -32,8 +38,23 @@ class APIClient:
         max_retries: int = 3,
         retry_delay: float = 0.5,
         scheme: str = "http",
+        internal_secret: str | None = None,
     ) -> None:
-        """Инициализация класса Клиента."""
+        """Инициализация класса Клиента.
+
+        Args:
+            base_url: Хост целевого сервиса (со схемой или без — схема будет
+                подставлена из аргумента `scheme`).
+            port: Порт целевого сервиса.
+            timeout: Таймаут HTTP-запроса в секундах.
+            max_retries: Количество повторных попыток при неудачном запросе.
+            retry_delay: Задержка между повторными попытками в секундах.
+            scheme: Схема подключения (`http`/`https`).
+            internal_secret: Секрет для заголовка X-Internal-Secret. Задаётся
+                только для клиента нашего api/ — сторонним хостам (например,
+                панелям XRay) он передаваться не должен.
+
+        """
         base_url = base_url.rstrip("/")
 
         # если вдруг передали уже с http/https — убираем
@@ -43,6 +64,7 @@ class APIClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self._internal_secret = internal_secret
 
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
@@ -59,6 +81,9 @@ class APIClient:
         self, headers: Mapping[str, str] | None = None
     ) -> dict[str, str]:
         result = dict(headers or {})
+
+        if self._internal_secret:
+            result["X-Internal-Secret"] = self._internal_secret
 
         ctx = log_context.get()
 
@@ -118,13 +143,33 @@ class APIClient:
                 )
                 if response.status_code >= 400:
                     logger.warning(
-                        "HTTP error: {} {} -> {} | body={}",
+                        "HTTP error: {} {} -> {}",
                         method,
                         url,
                         response.status_code,
-                        response.text,
                     )
-                    raise map_http_error(response.status_code, response.text)
+                    try:
+                        error_body = response.json()
+                    except ValueError as exc:
+                        logger.error(
+                            "Невалидный JSON в ответе с ошибкой: {} {} {}",
+                            method,
+                            url,
+                            response.status_code,
+                        )
+                        raise APIClientInvalidJSONError() from exc
+                    # Тело ответа может содержать чувствительные данные (эхо
+                    # платёжных реквизитов, паролей и т.п. от стороннего
+                    # сервиса), поэтому в постоянные логи (WARNING/ERROR выше)
+                    # оно не попадает — только на DEBUG и усечённым.
+                    logger.debug(
+                        "HTTP error body: {} {} -> {} | body={}",
+                        method,
+                        url,
+                        response.status_code,
+                        str(error_body)[:500],
+                    )
+                    raise map_http_error(response.status_code, error_body)
 
                 return response
 
@@ -139,10 +184,7 @@ class APIClient:
                     exc,
                 )
                 if attempt == self.max_retries:
-                    raise APIClientConnectionError(
-                        "Не удалось подключиться к API",
-                        cause=exc,
-                    ) from exc
+                    raise APIClientConnectionError() from exc
 
                 await asyncio.sleep(self.retry_delay)
             except httpx.RequestError as exc:
@@ -152,11 +194,10 @@ class APIClient:
                     url,
                     exc,
                 )
-                raise APIClientConnectionError(
-                    "Ошибка запроса",
-                    cause=exc,
-                ) from exc
-        raise APIClientError("Неизвестная ошибка", cause=last_exc)
+                raise APIClientConnectionError() from exc
+        raise APIClientError(
+            error=ErrorDetail(code="unknown_error", message="Неизвестная ошибка")
+        ) from last_exc
 
     async def _parse_json(self, response: httpx.Response) -> dict[str, Any]:
         """Парсит JSON с обработкой ошибок."""
@@ -169,10 +210,7 @@ class APIClient:
                 response.request.url,
                 response.status_code,
             )
-            raise APIClientError(
-                "Ответ API не является корректным JSON",
-                cause=exc,
-            ) from exc
+            raise APIClientInvalidJSONError() from exc
         return data
 
     async def get(self, url: str, **kwargs: Any) -> dict[str, Any]:

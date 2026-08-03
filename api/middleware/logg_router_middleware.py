@@ -34,19 +34,22 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             Response: Ответ клиенту.
 
         """
+        # Логируется только path, не полный URL — query-параметры в будущем
+        # могут содержать чувствительные значения (например, токены), которых
+        # в логах быть не должно.
         logger.info(
-            "Начало запроса: {method} {url} от {client}",
+            "Начало запроса: {method} {path} от {client}",
             method=request.method,
-            url=str(request.url),
+            path=request.url.path,
             client=request.client.host if request.client else "unknown",
         )
 
         response = await call_next(request)
 
         logger.info(
-            "Завершен запрос: {method} {url} от {client} -> {status_code}",
+            "Завершен запрос: {method} {path} от {client} -> {status_code}",
             method=request.method,
-            url=str(request.url),
+            path=request.url.path,
             client=request.client.host if request.client else "unknown",
             status_code=response.status_code,
         )

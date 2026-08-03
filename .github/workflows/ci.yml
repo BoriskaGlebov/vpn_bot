@@ -82,6 +82,8 @@ jobs:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
           SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
+          MERCHANT_ID: ${{ secrets.MERCHANT_ID }}
+          API_KEY: ${{ secrets.API_KEY }}
         run: poetry run pytest -vs .
 
   deploy_develop:
@@ -179,6 +181,10 @@ jobs:
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
           SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+
+          # == PAYMENT ==
+          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
+          API_KEY=${{ secrets.API_KEY }}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env.dev"
@@ -226,8 +232,6 @@ jobs:
 
             TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
             TOML_FILE="./telemt-config/telemt.toml"
-
-            echo "DEBUG: TELEMT_SECRET_HELLO=$TELEMT_SECRET_HELLO"
 
             if grep -q '^hello\s*=' "$TOML_FILE"; then
               sed -i "s/^hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
@@ -303,6 +307,10 @@ jobs:
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
           SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+
+          # == PAYMENT ==
+          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
+          API_KEY=${{ secrets.API_KEY }}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env"
@@ -375,6 +383,9 @@ jobs:
             echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env.local
             echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.local
             echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
+
+            echo "MERCHANT_ID=${{ secrets.MERCHANT_ID }}" >> .env.local
+            echo "API_KEY=${{ secrets.API_KEY }}" >> .env.local
 
 
             echo "Restart Docker containers..."

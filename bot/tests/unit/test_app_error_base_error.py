@@ -15,14 +15,14 @@ from bot.app_error.base_error import (
 def test_app_error_str_without_cause():
     err = AppError("base error")
 
-    assert str(err) == "base error"
+    assert str(err) == "[app_error] base error"
 
 
 def test_app_error_str_with_cause():
     cause = ValueError("boom")
     err = AppError("wrapped", cause=cause)
 
-    assert str(err) == "wrapped (cause: boom)"
+    assert str(err) == "[app_error] wrapped"
     assert err.cause is cause
 
 
@@ -36,7 +36,7 @@ def test_user_not_found_error():
     err = UserNotFoundError(tg_id)
 
     assert err.tg_id == tg_id
-    assert str(err) == f"Пользователь с Telegram ID {tg_id} не найден."
+    assert str(err) == f"[user_not_found] Пользователь с Telegram ID {tg_id} не найден"
 
 
 # =========================
@@ -45,11 +45,14 @@ def test_user_not_found_error():
 
 
 def test_subscription_not_found_error():
-    user_id = 42
-    err = SubscriptionNotFoundError(user_id)
+    tg_id = 42
+    err = SubscriptionNotFoundError(tg_id)
 
-    assert err.user_id == user_id
-    assert str(err) == f"У пользователя {user_id} нет подписки / не активна."
+    assert err.tg_id == tg_id
+    assert (
+        str(err)
+        == f"[subscription_not_found] У пользователя {tg_id} нет активной подписки"
+    )
 
 
 # =========================
@@ -58,26 +61,20 @@ def test_subscription_not_found_error():
 
 
 @pytest.mark.parametrize(
-    ("user_id", "limit", "username", "expected_message"),
+    ("tg_id", "limit", "username"),
     [
-        (
-            1,
-            3,
-            "john",
-            "Пользователь 1 достиг лимита (3) конфигов.\n@john",
-        ),
-        (
-            2,
-            5,
-            "",
-            "Пользователь 2 достиг лимита (5) конфигов.\n",
-        ),
+        (1, 3, "john"),
+        (2, 5, ""),
     ],
 )
-def test_vpn_limit_error(user_id, limit, username, expected_message):
-    err = VPNLimitError(user_id, limit, username)
+def test_vpn_limit_error(tg_id, limit, username):
+    err = VPNLimitError(tg_id, limit, username)
 
-    assert err.user_id == user_id
+    assert err.tg_id == tg_id
     assert err.limit == limit
     assert err.username == username
-    assert str(err) == expected_message
+    assert (
+        str(err)
+        == f"[vpn_limit_reached] Пользователь достиг лимита VPN-конфигов ({limit})"
+    )
+    assert err.details == {"tg_id": tg_id, "limit": limit, "username": username}

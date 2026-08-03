@@ -34,11 +34,11 @@ class Referral(Base):
     """
 
     id: Mapped[int_pk]
-    inviter_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    inviter_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    invited_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    invited_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     bonus_given: Mapped[bool] = mapped_column(
@@ -48,17 +48,29 @@ class Referral(Base):
         DateTime(timezone=True),
         nullable=True,
     )
-    inviter: Mapped["User"] = relationship(
+    inviter: Mapped["User | None"] = relationship(
         "User",
         foreign_keys=[inviter_id],
         lazy="selectin",
         back_populates="invited_users",
+        passive_deletes=True,
     )
 
-    invited: Mapped["User"] = relationship(
+    invited: Mapped["User | None"] = relationship(
         "User",
         foreign_keys=[invited_id],
         lazy="selectin",
         back_populates="invited_by",
+        passive_deletes=True,
     )
     __table_args__ = (UniqueConstraint("invited_id", name="uq_referrals_invited"),)
+
+    def __repr__(self) -> str:
+        """Возвращает строковое представление реферальной записи."""
+        return (
+            f"<Referral "
+            f"id={self.id} "
+            f"inviter_id={self.inviter_id} "
+            f"invited_id={self.invited_id} "
+            f"bonus_given={self.bonus_given}>"
+        )

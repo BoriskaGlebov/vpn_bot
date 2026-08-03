@@ -31,7 +31,6 @@ def load_dialogs(filename: Path | str | None = None) -> Box:
 
     if "bot" not in data:
         logger.warning(f"Ключ 'bot' отсутствует в файле {filename}")
-        # return {}
         raise KeyError(f"Ключ 'bot' отсутствует в файле {filename}")
 
     bot_data = data["bot"]

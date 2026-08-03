@@ -5,6 +5,7 @@ from typing import Any
 import uvicorn
 from aiogram.types import Update
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request, Response
 from pydantic import ValidationError
 from starlette.responses import JSONResponse
@@ -20,6 +21,7 @@ from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.middleware.user_context import UserContextMiddleware
 from bot.news.router import NewsRouter
+from bot.payment.router import router as payment_router
 from bot.referrals.router import ReferralRouter
 from bot.scheduler.utils.scheduler_cron import scheduled_check, scheduler
 from bot.subscription.router import SubscriptionRouter
@@ -38,6 +40,7 @@ tags_metadata: list[dict[str, Any]] = [
 container = Container(bot=bot)
 
 
+# TODO Почему-то бот после перезагрузки compose не стартует при перезагрузке сервера странно
 @asynccontextmanager
 @logger.catch  # type: ignore[misc]
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -83,6 +86,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         subscription_service=container.subscription_service,
         referral_service=container.referral_service,
         redis_service=container.redis_admin_mess_storage,
+        vpn_service=container.vpn_service,
+        payment_mess_storage=container.redis_payment_mess_storage,
     )
     vpn_router = VPNRouter(
         bot=bot,
@@ -106,6 +111,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
+
     # if container.chat_service is None:
     #     raise RuntimeError("ChatService ещё не инициализирован!")
     # ai_router = AIRouter(
@@ -117,10 +123,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # dp.include_router(ai_router.router)
 
     await start_bot(bot=bot)
+
+    scheduler_settings = settings_bot.scheduler
+    if scheduler_settings.interval_seconds is not None:
+        # Задаётся через app_config.develop.toml / app_config.local.toml —
+        # используется для отладки, в проде interval_seconds не задан.
+        trigger: IntervalTrigger | CronTrigger = IntervalTrigger(
+            seconds=scheduler_settings.interval_seconds
+        )
+        schedule_description = f"каждые {scheduler_settings.interval_seconds} сек."
+    else:
+        trigger = CronTrigger(
+            hour=scheduler_settings.cron_hour, minute=scheduler_settings.cron_minute
+        )
+        schedule_description = (
+            f"каждый день в {scheduler_settings.cron_hour:02d}:"
+            f"{scheduler_settings.cron_minute:02d}"
+        )
+
     scheduler.add_job(
         scheduled_check,
-        # trigger=IntervalTrigger(seconds=45, minutes=0),
-        trigger=CronTrigger(hour=8, minute=0),
+        trigger=trigger,
         kwargs={"service": container.scheduler_bot_service},
         id="scheduled_check",
         max_instances=1,  # Запрещаем параллельное выполнение
@@ -129,7 +152,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         replace_existing=True,  # Заменить, если задача с таким id уже есть
     )
     scheduler.start()
-    logger.info("🕒 Планировщик запущен — проверка каждый день в 8:00")
+    logger.info("🕒 Планировщик запущен — проверка {}", schedule_description)
     if settings_bot.bot.use_polling:
         await bot.delete_webhook(drop_pending_updates=True)
 
@@ -196,6 +219,13 @@ ___
     lifespan=lifespan,
 )
 
+# Контейнер кладётся в app.state, чтобы FastAPI-зависимости payment-роутера
+# (bot/payment/dependencies.py) могли получить его через Request без
+# циклического импорта bot.main (см. get_container).
+app.state.container = container
+
+app.include_router(payment_router)
+
 
 @app.post(
     "/webhook",
@@ -221,7 +251,6 @@ async def webhook(request: Request) -> Response:
 
     """
     body: bytes = await request.body()
-
     if not body:
         logger.debug("Webhook-запрос с пустым телом")
         return Response(
@@ -287,3 +316,5 @@ if __name__ == "__main__":
         proxy_headers=True,
         forwarded_allow_ips="*",
     )
+# TODO проблема перезапуска бота он не может корректно стартовать из-за того, что в контейнер ключи от  ssh агента не получает
+# TODO отдельного пользвателя на Xray

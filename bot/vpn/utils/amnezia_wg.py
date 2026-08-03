@@ -106,19 +106,21 @@ class AsyncSSHClientWG:
             logger.bind(user=self.username).debug(
                 f"AsyncSSH: подключение и shell-сессия установлены к {self.host}"
             )
-        except TimeoutError:
+        except TimeoutError as e:
             logger.bind(user=self.username).error(
                 f"AsyncSSH: таймаут подключения к {self.host}"
             )
             raise AmneziaSSHError(
                 message=f"SSH timeout при подключении к {self.host}:{self.port}"
-            )
+            ) from e
 
         except (OSError, asyncssh.Error) as exc:
             logger.bind(user=self.username).error(
                 f"AsyncSSH: ошибка подключения: {exc}"
             )
-            raise
+            raise AmneziaSSHError(
+                message=f"AsyncSSH: ошибка подключения: {exc}"
+            ) from exc
 
     async def write_single_cmd(self, cmd: str) -> tuple[str, str, int | None, str]:
         """Выполняет одну команду внутри контейнера.
@@ -134,7 +136,8 @@ class AsyncSSHClientWG:
                 - cmd (str): Выполненная команда.
 
         Raises
-            RuntimeError: Если shell-сессия не запущена.
+            AmneziaSSHError: Если shell-сессия не запущена, либо соединение
+                оборвалось во время чтения вывода команды.
 
         """
         if self.use_local:
@@ -160,12 +163,14 @@ class AsyncSSHClientWG:
         await self._process.stdin.drain()
         try:
             output = await self._process.stdout.readuntil("\n")
+            while marker not in output:
+                output += await self._process.stdout.readuntil("\n")
         except asyncio.IncompleteReadError as e:
-            if e.partial == b"":
-                raise AmneziaSSHError("AsyncSSH: соединение закрыто при чтении stdout")
+            if not e.partial:
+                raise AmneziaSSHError(
+                    "AsyncSSH: соединение закрыто при чтении stdout"
+                ) from e
             raise
-        while marker not in output:
-            output += await self._process.stdout.readuntil("\n")
         stdout, _, exit_info = output.rpartition("__EXIT__")
         try:
             exit_code = int(exit_info.split(":")[-1])
@@ -532,7 +537,8 @@ class AsyncSSHClientWG:
 
         """
         vpn_config = await self._get_vpn_params_config()
-        assert vpn_config is not None, "Не удалось получить параметры VPN"
+        if vpn_config is None:
+            raise AmneziaConfigError(message="Не удалось получить параметры VPN")
         vpn_params, listen_port = vpn_config
         interface_data = {
             "Address": new_ip,
@@ -689,8 +695,8 @@ class AsyncSSHClientWG:
             bool: True если запись добавлена.
 
         Raises
-            AmneziaConfigError: Если произошла ошибка при добавлении записи в clientsTable.
-            JSONDecodeError: Если JSON в clientsTable некорректен.
+            AmneziaConfigError: Если произошла ошибка при чтении clientsTable
+                или JSON в нём некорректен.
 
         """
         stdout, stderr, code, _ = await self.write_single_cmd(
@@ -708,7 +714,11 @@ class AsyncSSHClientWG:
             data = json.loads(stdout)
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка парсинга clientsTable: {e}")
-            raise
+            raise AmneziaConfigError(
+                message=f"Некорректный JSON в {self.WG_CLIENTS_TABLE}: {e}",
+                file=self.WG_CLIENTS_TABLE,
+                cause=e,
+            ) from e
         if any(item.get("clientId") == public_key for item in data):
             logger.info("Клиент уже в clientsTable")
             return True
@@ -727,7 +737,8 @@ class AsyncSSHClientWG:
             stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
         else:
             escaped_cmd = shlex.quote(cmd)
-            assert self._conn is not None
+            if self._conn is None:
+                raise AmneziaSSHError(message="SSH-соединение не установлено")
             result = await self._conn.run(
                 f"docker exec -i {self.container} sh -c {escaped_cmd}"
             )
@@ -810,11 +821,21 @@ class AsyncSSHClientWG:
             correct_ip = await self._get_correct_ip()
             psk = await self._get_psk_key()
 
-            assert private_key is not None
-            assert pub_key is not None
-            assert pub_server_key is not None
-            assert correct_ip is not None
-            assert psk is not None
+            missing = [
+                name
+                for name, value in (
+                    ("private_key", private_key),
+                    ("pub_key", pub_key),
+                    ("pub_server_key", pub_server_key),
+                    ("correct_ip", correct_ip),
+                    ("psk", psk),
+                )
+                if value is None
+            ]
+            if missing:
+                raise AmneziaConfigError(
+                    message=f"Не удалось получить данные для нового конфига: {', '.join(missing)}"
+                )
             stdout = await self._add_user_in_config(pub_key, correct_ip, psk)
             if stdout == "OK":
                 logger.bind(user=self.username).success(
@@ -916,7 +937,8 @@ class AsyncSSHClientWG:
                 stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
             else:
                 escaped_cmd = shlex.quote(cmd)
-                assert self._conn is not None
+                if self._conn is None:
+                    raise AmneziaSSHError(message="SSH-соединение не установлено")
                 result = await self._conn.run(
                     f"docker exec -i {self.container} sh -c {escaped_cmd}"
                 )
@@ -990,7 +1012,11 @@ class AsyncSSHClientWG:
             data = json.loads(stdout)
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка парсинга clientsTable: {e}")
-            raise
+            raise AmneziaConfigError(
+                message=f"Некорректный JSON в {clients_table}: {e}",
+                file=clients_table,
+                cause=e,
+            ) from e
         new_data = [item for item in data if item.get("clientId") != public_key]
 
         if len(new_data) < len(data):
@@ -1006,7 +1032,8 @@ class AsyncSSHClientWG:
             stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
         else:
             escaped_cmd = shlex.quote(cmd)
-            assert self._conn is not None
+            if self._conn is None:
+                raise AmneziaSSHError(message="SSH-соединение не установлено")
             result = await self._conn.run(
                 f"docker exec -i {self.container} sh -c {escaped_cmd}"
             )
@@ -1070,10 +1097,23 @@ class AsyncSSHClientWG:
             ) from e
 
     async def close(self) -> None:
-        """Закрывает shell-сессию и соединение."""
+        """Закрывает shell-сессию и соединение.
+
+        Соединение к этому моменту может быть уже разорвано (например,
+        `docker exec` в несуществующий контейнер завершил процесс раньше,
+        чем мы попытались что-то в него записать) — попытка вежливо выйти
+        командой `exit` в мёртвый канал сама кидает `BrokenPipeError`.
+        Это ожидаемо при закрытии и не должно ни маскировать исходную
+        ошибку, ни мешать закрыть соединение (`self._conn`) следом.
+        """
         if self._process is not None:
-            self._process.stdin.write("exit\n")
-            await self._process.stdin.drain()
+            try:
+                self._process.stdin.write("exit\n")
+                await self._process.stdin.drain()
+            except (BrokenPipeError, ConnectionError) as e:
+                logger.bind(user=self.username).debug(
+                    f"AsyncSSH: shell-сессия уже была разорвана при закрытии: {e}"
+                )
             self._process = None
 
         if self._conn is not None:
@@ -1224,7 +1264,8 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
 
         """
         vpn_config = await self._get_vpn_params_config()
-        assert vpn_config is not None, "Не удалось получить параметры VPN"
+        if vpn_config is None:
+            raise AmneziaConfigError(message="Не удалось получить параметры VPN")
         vpn_params, listen_port = vpn_config
         interface_data = {
             "Address": new_ip,
@@ -1247,26 +1288,3 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
         for key, value in peer_data.items():
             lines.append(f"{key} = {value}")
         return "\n".join(lines)
-
-
-# if __name__ == "__main__":
-#     """Пример использования AsyncSSHClient."""
-#     key_path = Path().home() / ".ssh" / "test_vpn"
-#
-#     async def main() -> None:
-#         """Пример использования AsyncSSHClient."""
-#         async with AsyncSSHClientWG2(
-#             host="vpn-boriska.ru",
-#             username="prod_server",
-#             known_hosts=None,  # Отключить проверку known_hosts
-#             container="amnezia-awg2",
-#         ) as ssh_client:
-#             await ssh_client.connect()
-#             res = await ssh_client.write_single_cmd(cmd="whoami")
-#             print(res)
-#             # await ssh_client.add_new_user_gen_config("boris_blade")
-#             # await ssh_client.full_delete_user(
-#             #     "EbXGP3l+Mz6q6huezEfmNr5AKjLcVBDfy+wfAQ2tFHY="
-#             # )
-#
-#     asyncio.run(main())

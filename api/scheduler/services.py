@@ -1,9 +1,7 @@
 import datetime
 
 from loguru import logger
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from api.scheduler.domain.event import (
     AdminNotifyEvent,
@@ -16,6 +14,7 @@ from api.scheduler.domain.stats import SubscriptionStats
 from api.scheduler.enums import SubscriptionEventType
 from api.scheduler.schemas import DeletedVPNConfigSchema
 from api.subscription.models import DEVICE_LIMITS, Subscription
+from api.users.dao import UserDAO
 from api.users.models import User
 from api.vpn.models import VPNConfig, VPNConfigStatus
 
@@ -55,7 +54,13 @@ class SubscriptionScheduler:
                 - "configs_deleted": количество удалённых VPN-конфигов
 
         """
-        logger.info(f"Обработка пользователя: {user.username} (ID: {user.telegram_id})")
+        # DEBUG, а не INFO: вызывается для каждого пользователя на каждом
+        # ежедневном прогоне планировщика — на INFO это тонет в шуме и
+        # маскирует реально значимые события (истечение, деактивация),
+        # которые логируются отдельно ниже.
+        logger.debug(
+            f"Обработка пользователя: {user.username} (ID: {user.telegram_id})"
+        )
         stats = SubscriptionStats()
         events: list[SubscriptionEvent] = []
 
@@ -305,7 +310,6 @@ class SubscriptionScheduler:
             for c in deleted_configs
         ]
 
-        # единый формат события (как у тебя в expired)
         events.append(
             DeleteVPNConfigsEvent(
                 type=SubscriptionEventType.DELETE_VPN_CONFIGS,
@@ -370,15 +374,7 @@ class SubscriptionScheduler:
 
         """
         logger.info("Начало проверки всех подписок пользователей")
-        result = await session.execute(
-            select(User).options(
-                selectinload(User.subscriptions),
-                selectinload(User.role),
-                selectinload(User.vpn_configs),
-            )
-        )
-
-        users = result.scalars().all()
+        users = await UserDAO.find_all(session=session, options=UserDAO.base_options)
 
         stats = SubscriptionStats()
         events: list[SubscriptionEvent] = []
@@ -391,10 +387,11 @@ class SubscriptionScheduler:
             stats.add(s)
             events.extend(e)
 
-        await session.commit()
         logger.info(
-            f"Проверка завершена. Пользователей обработано: {stats.checked}, "
-            f"истекших подписок: {stats.expired}, действий: {len(events)}, "
+            f"Проверка завершена.\n"
+            f"Пользователей обработано: {stats.checked},\n"
+            f"истекших подписок: {stats.expired},\n"
+            f"действий: {len(events)},\n"
             f"конфигов удалено: {stats.configs_deleted}"
         )
         return stats, events

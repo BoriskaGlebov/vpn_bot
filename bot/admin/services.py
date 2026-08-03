@@ -3,11 +3,13 @@ from loguru import logger
 from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.enums import AdminModeKeys
 from bot.admin.schemas import SChangeRole, SExtendSubscription, SYearIncome
-from bot.users.router import m_admin
+from bot.core.config import settings_bot
 from bot.users.schemas import (
     SUserOut,
 )
 from shared.enums.admin_enum import RoleEnum
+
+m_admin = settings_bot.messages.modes.admin
 
 
 class AdminService:
@@ -37,11 +39,11 @@ class AdminService:
             SUserOut: Данные пользователя.
 
         """
-        logger.info("Получение пользователя telegram_id=%s", telegram_id)
+        logger.info("Получение пользователя telegram_id={}", telegram_id)
 
         user = await self.api_adapter.get_user_by_telegram_id(telegram_id)
 
-        logger.debug("Пользователь получен telegram_id=%s", telegram_id)
+        logger.debug("Пользователь получен telegram_id={}", telegram_id)
 
         return user
 
@@ -55,11 +57,11 @@ class AdminService:
             list[SUserOut]: Список пользователей.
 
         """
-        logger.info("Получение пользователей по роли=%s", filter_type)
+        logger.info("Получение пользователей по роли={}", filter_type)
 
         users = await self.api_adapter.get_users(filter_type)
 
-        logger.debug("Найдено пользователей: %s", len(users))
+        logger.debug("Найдено пользователей: {}", len(users))
 
         return users
 
@@ -87,7 +89,9 @@ class AdminService:
             username=suser.username or "-",
             telegram_id=suser.telegram_id or "-",
             roles=str(suser.role),
-            subscription=str(suser.current_subscription) or "-",
+            subscription=(
+                str(suser.current_subscription) if suser.current_subscription else "-"
+            ),
             config_files=(
                 f"📜 <b>Пользовательские конфиги:</b>\n {config_str}"
                 if suser.vpn_configs
@@ -107,7 +111,7 @@ class AdminService:
 
         """
         logger.info(
-            "Изменение роли пользователя telegram_id=%s role=%s",
+            "Изменение роли пользователя telegram_id={} role={}",
             telegram_id,
             role_name,
         )
@@ -120,7 +124,7 @@ class AdminService:
         user = await self.api_adapter.change_user_role(payload)
 
         logger.success(
-            "Роль изменена telegram_id=%s role=%s",
+            "Роль изменена telegram_id={} role={}",
             telegram_id,
             role_name,
         )
@@ -139,7 +143,7 @@ class AdminService:
 
         """
         logger.info(
-            "Продление подписки telegram_id=%s months=%s",
+            "Продление подписки telegram_id={} months={}",
             telegram_id,
             months,
         )
@@ -152,7 +156,7 @@ class AdminService:
         user: SUserOut = await self.api_adapter.extend_subscription(payload)
 
         logger.success(
-            "Подписка продлена telegram_id=%s months=%s",
+            "Подписка продлена telegram_id={} months={}",
             telegram_id,
             months,
         )
@@ -170,6 +174,6 @@ class AdminService:
 
         res = await self.api_adapter.year_income()
 
-        logger.debug("Годовой доход получен: %s", res.year_income)
+        logger.debug("Годовой доход получен: {}", res.year_income)
 
         return res

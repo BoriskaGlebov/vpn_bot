@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from api.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
+from api.app_error.base_error import VPNLimitError
 from api.vpn.dao import VPNConfigDAO
 
 
@@ -25,6 +25,7 @@ def user():
 
 @pytest.mark.asyncio
 async def test_can_add_config_under_limit(session, monkeypatch, user):
+    """Текущее число конфигов меньше лимита -> можно добавить ещё один."""
     # user найден
     monkeypatch.setattr(
         "api.vpn.dao.UserDAO.find_one_or_none_by_id",
@@ -41,6 +42,7 @@ async def test_can_add_config_under_limit(session, monkeypatch, user):
 
 @pytest.mark.asyncio
 async def test_can_add_config_over_limit(session, monkeypatch, user):
+    """Лимит устройств для типа подписки уже исчерпан -> добавить нельзя."""
     monkeypatch.setattr(
         "api.vpn.dao.UserDAO.find_one_or_none_by_id",
         AsyncMock(return_value=user),
@@ -61,6 +63,7 @@ async def test_can_add_config_over_limit(session, monkeypatch, user):
 
 @pytest.mark.asyncio
 async def test_can_add_config_no_user(session, monkeypatch):
+    """Пользователь не найден -> считаем, что добавить нельзя (без исключения)."""
     monkeypatch.setattr(
         "api.vpn.dao.UserDAO.find_one_or_none_by_id",
         AsyncMock(return_value=None),
@@ -73,6 +76,7 @@ async def test_can_add_config_no_user(session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_add_config_raises_limit(session, monkeypatch, user):
+    """Лимит исчерпан -> add_config() бросает VPNLimitError, а не тихо игнорирует."""
     monkeypatch.setattr(
         "api.vpn.dao.UserDAO.find_one_or_none_by_id",
         AsyncMock(return_value=user),

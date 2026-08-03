@@ -20,6 +20,7 @@ from bot.referrals.adapter import ReferralAPIAdapter
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 from bot.utils import commands
+from bot.vpn.services import VPNService
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 
@@ -281,6 +282,8 @@ def make_fake_message():
         message.chat = chat
         message.text = text
         message.message_id = 1000 + user_id
+        message.photo = None
+        message.video = None
         message.answer = AsyncMock()
         message.answer_document = AsyncMock()
         message.edit_text = AsyncMock()
@@ -353,6 +356,12 @@ def moc_payment_adapter():
 
 
 @pytest.fixture
+def mock_vpn_service():
+    service = AsyncMock(spec=VPNService)
+    return service
+
+
+@pytest.fixture
 def make_fake_photo():
     def _make(user_id: int = 123):
         user = User(
@@ -368,6 +377,7 @@ def make_fake_photo():
         message.message_id = 1000 + user_id
         # Для теста с фото
         message.photo = [type("Photo", (), {"file_id": "file123"})()]
+        message.video = None
         message.caption = "Caption text"
         message.text = None  # текст отсутствует, чтобы сработал блок для фото
         # Асинхронные методы
@@ -376,6 +386,71 @@ def make_fake_photo():
         message.edit_text = AsyncMock()
         message.delete = AsyncMock()
         return message
+
+    return _make
+
+
+@pytest.fixture
+def make_fake_video():
+    def _make(user_id: int = 123):
+        user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=f"first_name_{user_id}",
+            username=f"username_{user_id}",
+        )
+        chat = Chat(id=user_id, type="private")
+        message = AsyncMock(spec=Message)
+        message.from_user = user
+        message.chat = chat
+        message.message_id = 1000 + user_id
+        # Для теста с видео
+        message.photo = None
+        message.video = type("Video", (), {"file_id": "video123"})()
+        message.caption = "Caption text"
+        message.text = None  # текст отсутствует, чтобы сработал блок для видео
+        # Асинхронные методы
+        message.answer = AsyncMock()
+        message.answer_video = AsyncMock()
+        message.edit_text = AsyncMock()
+        message.delete = AsyncMock()
+        return message
+
+    return _make
+
+
+@pytest.fixture
+def make_query_video(make_fake_video):
+    """Фикстура для создания CallbackQuery с сообщением, содержащим видео."""
+
+    def _make(
+        user_id: int = 999,
+        data: str = "",
+        username: str = "test_admin",
+        first_name: str = "Admin",
+    ):
+        query = AsyncMock(spec=CallbackQuery)
+        query.from_user = User(
+            id=user_id,
+            is_bot=False,
+            first_name=first_name,
+            username=username,
+        )
+
+        message = make_fake_video(user_id)
+        query.message = message
+
+        query.id = f"query_{user_id}"
+        query.data = data
+        query.bot = AsyncMock()
+        query.bot.send_message = AsyncMock()
+        query.bot.send_video = AsyncMock()
+
+        query.answer = AsyncMock()
+        query.message.edit_text = AsyncMock()
+        query.message.edit_caption = AsyncMock()
+
+        return query
 
     return _make
 

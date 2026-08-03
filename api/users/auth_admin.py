@@ -1,3 +1,4 @@
+import secrets
 from collections.abc import Mapping
 from typing import Any
 
@@ -36,9 +37,10 @@ class AdminAuth(AuthenticationBackend):
         if not isinstance(username, str) or not isinstance(password, str):
             return False
 
-        if (
-            username == settings_api.db.user
-            and password == settings_api.db.password.get_secret_value()
+        if secrets.compare_digest(
+            username, settings_api.db.user
+        ) and secrets.compare_digest(
+            password, settings_api.db.password.get_secret_value()
         ):
             request.session.update({"admin": True})
             return True

@@ -29,9 +29,11 @@ class SUser(SUserTelegramID):
 
     """
 
-    username: str | None = Field(None, description="Имя пользователя в Telegram")
-    first_name: str | None = Field(None, description="Имя пользователя")
-    last_name: str | None = Field(None, description="Фамилия пользователя")
+    username: str | None = Field(
+        default=None, description="Имя пользователя в Telegram"
+    )
+    first_name: str | None = Field(default=None, description="Имя пользователя")
+    last_name: str | None = Field(default=None, description="Фамилия пользователя")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -118,8 +120,8 @@ class SUserOut(BaseModel):
         default_factory=list,
         description="Список VPN конфигураций пользователя",
     )
-    current_subscription: SSubscriptionOut = Field(
-        ..., description="Текущая подписка пользователя"
+    current_subscription: SSubscriptionOut | None = Field(
+        default=None, description="Текущая подписка пользователя (может отсутствовать)"
     )
 
     model_config = ConfigDict(from_attributes=True)

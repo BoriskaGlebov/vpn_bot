@@ -2,6 +2,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from api.app_error.base_error import UserNotFoundError
 from api.core.config import settings_api
 from api.core.mapper.user_mapper import UserMapper
 from api.referrals.models import Referral
@@ -80,7 +81,7 @@ class UserService:
         self,
         session: AsyncSession,
         telegram_id: int,
-    ) -> SUserWithReferralStats | None:
+    ) -> SUserWithReferralStats:
         """Получает пользователя с реферальной статистикой.
 
         Args:
@@ -88,7 +89,7 @@ class UserService:
             telegram_id (int): Telegram ID пользователя
 
         Returns
-            SUserWithReferralStats | None
+            SUserWithReferralStats
 
         """
         logger.debug("Получение пользователя с реферальной статистикой")
@@ -105,7 +106,7 @@ class UserService:
         )
         if not user:
             logger.warning(f"Пользователь с telegram_id={telegram_id} не найден")
-            return None
+            raise UserNotFoundError(tg_id=telegram_id)
 
         logger.info(f"Пользователь найден: {user.id}, считаем рефералов")
         return await UserMapper.to_schema_with_referrals(user)

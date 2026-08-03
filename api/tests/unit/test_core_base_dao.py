@@ -1,3 +1,5 @@
+"""Тесты BaseDAO (api/core/dao/base.py) на временной модели, не завязанные на реальную схему."""
+
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import String
@@ -40,6 +42,7 @@ async def setup_test_table(session: AsyncSession):
 @pytest.mark.asyncio
 @pytest.mark.dao
 async def test_add_and_find_by_id(session):
+    """add() создаёт запись, find_one_or_none_by_id() находит её по PK."""
     item = await TmpDAO.add(session, TmpSchema(name="item1", value=10))
     await session.flush()
     found = await TmpDAO.find_one_or_none_by_id(item.id, session)
@@ -51,6 +54,7 @@ async def test_add_and_find_by_id(session):
 @pytest.mark.asyncio
 @pytest.mark.dao
 async def test_find_one_or_none(session):
+    """find_one_or_none() находит запись по произвольному фильтру."""
     await TmpDAO.add(session, TmpSchema(name="unique", value=5))
 
     found = await TmpDAO.find_one_or_none(session, FilterSchema(name="unique"))
@@ -61,6 +65,7 @@ async def test_find_one_or_none(session):
 @pytest.mark.asyncio
 @pytest.mark.dao
 async def test_find_all_with_filters(session):
+    """find_all() с фильтром возвращает только подходящие записи."""
     await TmpDAO.add(session, TmpSchema(name="a", value=1))
     await TmpDAO.add(session, TmpSchema(name="a", value=2))
     await TmpDAO.add(session, TmpSchema(name="b", value=3))
@@ -73,6 +78,7 @@ async def test_find_all_with_filters(session):
 @pytest.mark.asyncio
 @pytest.mark.dao
 async def test_find_all_without_filters(session):
+    """find_all() без фильтра возвращает все записи таблицы."""
     await TmpDAO.add(session, TmpSchema(name="x"))
     await TmpDAO.add(session, TmpSchema(name="y"))
 
@@ -83,6 +89,7 @@ async def test_find_all_without_filters(session):
 @pytest.mark.asyncio
 @pytest.mark.dao
 async def test_update_records(session):
+    """update() применяет values к записям, подходящим под filters."""
     dao = TmpDAO()
     await dao.add(session, TmpSchema(name="to_update", value=1))
     await dao.update(
@@ -98,6 +105,7 @@ async def test_update_records(session):
 @pytest.mark.asyncio
 @pytest.mark.dao
 async def test_delete_records(session):
+    """delete() удаляет подходящие записи и возвращает их количество."""
     dao = TmpDAO()
     await dao.add(session, TmpSchema(name="to_delete"))
 
@@ -111,6 +119,7 @@ async def test_delete_records(session):
 @pytest.mark.asyncio
 @pytest.mark.dao
 async def test_count_records(session):
+    """count() считает записи, подходящие под filters."""
     dao = TmpDAO()
     await dao.add(session, TmpSchema(name="c1"))
     await dao.add(session, TmpSchema(name="c2"))
@@ -122,6 +131,7 @@ async def test_count_records(session):
 @pytest.mark.asyncio
 @pytest.mark.dao
 async def test_find_by_ids(session):
+    """find_by_ids() возвращает записи по списку первичных ключей."""
     dao = TmpDAO()
     i1 = await dao.add(session, TmpSchema(name="one"))
     i2 = await dao.add(session, TmpSchema(name="two"))

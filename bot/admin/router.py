@@ -18,9 +18,13 @@ from bot.admin.keyboards.inline_kb import (
     user_navigation_kb,
 )
 from bot.admin.services import AdminService
-from bot.app_error.base_error import SubscriptionNotFoundError
+from bot.app_error.base_error import (
+    SubscriptionNotFoundError,
+    TelegramIdNotProvidedError,
+)
 from bot.core.filters import IsAdmin
 from bot.utils.base_router import BaseRouter
+from bot.utils.formatting import format_username
 
 
 class AdminStates(StatesGroup):  # type: ignore[misc]
@@ -114,16 +118,14 @@ class AdminRouter(BaseRouter):
             callback_data (UserPageCB | None): Данные из callback кнопки.
 
         """
-        user_logger = self.logger.bind(
-            user=query.from_user.username or query.from_user.id
-        )
+        user_logger = self.logger.bind(user=format_username(query.from_user))
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             user_id: int | None = callback_data.telegram_id
             if user_id is None:
                 user_logger.error(
                     "Не передан telegram_id для редактирования пользователя"
                 )
-                raise ValueError("Необходимо передать в запрос telegram_id")
+                raise TelegramIdNotProvidedError()
             user_schema = await self.admin_service.get_user_by_telegram_id(
                 telegram_id=user_id
             )
@@ -173,12 +175,10 @@ class AdminRouter(BaseRouter):
             state (FSMContext): Контекст состояний FSM.
 
         Raises
-            ValueError: Если пользователь или роль не найдены.
+            TelegramIdNotProvidedError: Если в callback не передан telegram_id.
 
         """
-        user_logger = self.logger.bind(
-            user=query.from_user.username or query.from_user.id
-        )
+        user_logger = self.logger.bind(user=format_username(query.from_user))
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Поменял роль")
 
@@ -187,8 +187,7 @@ class AdminRouter(BaseRouter):
 
             if user_id is None:
                 user_logger.error("Не передан telegram_id для смены роли")
-                raise ValueError("Необходимо передать в запрос telegram_id")
-
+                raise TelegramIdNotProvidedError()
             user_schema = await self.admin_service.change_user_role(
                 telegram_id=user_id,
                 role_name=role_name,
@@ -227,19 +226,19 @@ class AdminRouter(BaseRouter):
             state (FSMContext): Контекст состояний FSM.
 
         Raises
-            ValueError: Если пользователь не найден.
+            TelegramIdNotProvidedError: Если не переданы telegram_id или месяц.
 
         """
-        user_logger = self.logger.bind(
-            user=query.from_user.username or query.from_user.id
-        )
+        user_logger = self.logger.bind(user=format_username(query.from_user))
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             user_id = callback_data.telegram_id
             months = callback_data.month
 
             if user_id is None or months is None:
                 user_logger.error("Не передан telegram_id или месяц для подписки")
-                raise ValueError("Необходимо передать в запрос telegram_id/month")
+                raise TelegramIdNotProvidedError(
+                    message="Необходимо передать в запрос telegram_id/month"
+                )
 
             months = int(months)
             try:
@@ -266,7 +265,7 @@ class AdminRouter(BaseRouter):
                 await state.clear()
             except SubscriptionNotFoundError as e:
                 self.logger.error("Нельзя продлить подписку она не активирована")
-                await query.answer(str(e))
+                await query.answer(e.message)
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -284,9 +283,7 @@ class AdminRouter(BaseRouter):
             callback_data (UserPageCB): Данные из callback кнопки.
 
         """
-        user_logger = self.logger.bind(
-            user=query.from_user.username or query.from_user.id
-        )
+        user_logger = self.logger.bind(user=format_username(query.from_user))
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Отмена")
             user_id = callback_data.telegram_id
@@ -328,9 +325,7 @@ class AdminRouter(BaseRouter):
             state (FSMContext): Контекст состояний FSM.
 
         """
-        user_logger = self.logger.bind(
-            user=query.from_user.username or query.from_user.id
-        )
+        user_logger = self.logger.bind(user=format_username(query.from_user))
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             filter_type = callback_data.filter_type
             await query.answer(f"Выбрал {filter_type.value}")
@@ -381,9 +376,7 @@ class AdminRouter(BaseRouter):
             session (AsyncSession): Асинхронная сессия базы данных.
 
         """
-        user_logger = self.logger.bind(
-            user=query.from_user.username or query.from_user.id
-        )
+        user_logger = self.logger.bind(user=format_username(query.from_user))
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             await query.answer("Следующая страница")
             users_schemas = await self.admin_service.get_users_by_filter(

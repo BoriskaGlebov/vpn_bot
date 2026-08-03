@@ -57,6 +57,10 @@ async def test_stop_bot_sends_messages_and_logs(
     Кейс:
     - отправляется сообщение админам
     - логируется остановка
+
+    Остановка бота вызывается при каждом штатном деплое/рестарте, а не
+    только при сбое, поэтому логируется на DEBUG, а не ERROR (иначе каждый
+    обычный деплой давал бы ложную тревогу в error.log).
     """
     fake_bot.send_message = AsyncMock()
     fake_logger.bind.return_value = fake_logger
@@ -72,7 +76,8 @@ async def test_stop_bot_sends_messages_and_logs(
     start_module.send_to_admins.assert_awaited_once_with(
         bot=fake_bot, message_text="Бот остановлен. За что?😔"
     )
-    fake_logger.error.assert_any_call("Бот остановлен!")
+    fake_logger.error.assert_not_called()
+    fake_logger.debug.assert_called_once()
 
 
 @pytest.mark.asyncio

@@ -259,6 +259,7 @@ async def test_cancel_news_handler_edits_message_and_clears_state(
     fake_state,
     fake_bot,
     make_query_photo,
+    make_query_video,
     news_adapter_mock,
 ) -> None:
     """Тест отмены рассылки новости пользователем.
@@ -267,6 +268,9 @@ async def test_cancel_news_handler_edits_message_and_clears_state(
         1. Редактирование текста или подписи сообщения на ❌ Рассылка отменена.
         2. Очистку FSMContext.
         3. Ответ на CallbackQuery.
+        Для всех трёх типов контента (текст/фото/видео) — регрессионный тест
+        на баг, когда отмена рассылки с видео падала с TelegramBadRequest,
+        т.к. код пытался вызвать edit_message_text на медиа-сообщении.
     """
     news_service = NewsService(adapter=news_adapter_mock)
     router = NewsRouter(bot=fake_bot, logger=fake_logger, news_service=news_service)
@@ -300,3 +304,20 @@ async def test_cancel_news_handler_edits_message_and_clears_state(
     )
     fake_state.clear.assert_awaited()
     query_photo.answer.assert_awaited()
+
+    # Сбрасываем mock-объекты
+    fake_bot.edit_message_caption.reset_mock()
+    fake_state.clear.reset_mock()
+
+    # === Тест для сообщения с видео ===
+    query_video: CallbackQuery = make_query_video()
+
+    await router.cancel_news_handler(query=query_video, state=fake_state)
+
+    fake_bot.edit_message_caption.assert_awaited_once_with(
+        chat_id=999,
+        message_id=1999,
+        caption="❌ Рассылка отменена.",
+    )
+    fake_state.clear.assert_awaited()
+    query_video.answer.assert_awaited()

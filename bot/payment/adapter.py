@@ -1,9 +1,12 @@
+from typing import Any
 from uuid import UUID
 
 from loguru import logger
 
 from bot.integrations.api_client import APIClient
+from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.schemas import (
+    SAttachProviderPaymentIn,
     SCancelPaymentIn,
     SConfirmPaymentIn,
     SConfirmPaymentResponse,
@@ -12,7 +15,6 @@ from bot.payment.schemas import (
 )
 
 
-# TODO ДОкументация тесты типы данных логирование
 class PaymentAPIAdapter:
     """Адаптер для работы с Payment API.
 
@@ -23,11 +25,13 @@ class PaymentAPIAdapter:
 
     """
 
-    def __init__(self, client: APIClient) -> None:
+    def __init__(self, client: APIClient, provider: BasePaymentProvider) -> None:
         """Инициализация адаптера.
 
         Args:
             client: HTTP клиент для взаимодействия с внешним API.
+            provider: Платёжный провайдер (не используется адаптером напрямую,
+                хранится для совместимости с местом вызова).
 
         """
         self._client = client
@@ -42,7 +46,7 @@ class PaymentAPIAdapter:
         """Создаёт платёжную транзакцию.
 
         Args:
-            amount: Сумма платежа в минимальных единицах (например, копейки).
+            amount: Сумма платежа в рублях (целое число).
             subscription_months: Количество месяцев подписки.
             is_premium: Флаг премиум-подписки.
             is_founder: Флаг пользователя-основателя.
@@ -55,7 +59,7 @@ class PaymentAPIAdapter:
 
         """
         logger.info(
-            "Создаёт платёжную транзакцию: amount=%s months=%s premium=%s founder=%s",
+            "Создаёт платёжную транзакцию: amount={} months={} premium={} founder={}",
             amount,
             subscription_months,
             is_premium,
@@ -72,7 +76,72 @@ class PaymentAPIAdapter:
             "/payment/transaction",
             json=payload.model_dump(),
         )
-        logger.debug("Транзакция создана, status=%s response=%s", status_code, data)
+        result = SPaymentTransactionResponse.model_validate(data)
+        logger.debug("Транзакция создана: id={} status={}", result.id, result.status)
+
+        return result
+
+    async def attach_provider_payment(
+        self,
+        transaction_id: UUID,
+        gateway_transaction_id: str,
+        gateway_payload: dict[Any, Any] | None,
+    ) -> SPaymentTransactionResponse:
+        """Привязывает provider transaction к внутренней транзакции.
+
+        Args:
+            transaction_id: UUID внутренней транзакции.
+            gateway_transaction_id: ID транзакции внешнего платёжного шлюза.
+            gateway_payload: Сырые данные платежа от шлюза.
+
+        Returns
+            SPaymentTransactionResponse: Обновлённая транзакция.
+
+        Raises
+            Exception: Ошибка HTTP-клиента или валидации ответа.
+
+        """
+        logger.info(
+            "Привязка provider payment: transaction_id={} gateway_id={}",
+            transaction_id,
+            gateway_transaction_id,
+        )
+
+        payload = SAttachProviderPaymentIn(
+            # transaction_id=transaction_id,
+            gateway_transaction_id=gateway_transaction_id,
+            gateway_payload=gateway_payload,
+        )
+
+        data, status_code = await self._client.post(
+            f"/payment/transaction/{transaction_id}/provider",
+            json=payload.model_dump(mode="json"),
+        )
+        result = SPaymentTransactionResponse.model_validate(data)
+
+        logger.debug(
+            "Provider payment привязан: transaction_id={} status={}",
+            result.id,
+            result.status,
+        )
+
+        return result
+
+    async def mark_payment_started(
+        self, transaction_id: UUID
+    ) -> SPaymentTransactionResponse:
+        """Помечает транзакцию как оплаченную пользователем (ожидает подтверждения).
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Обновлённая транзакция.
+
+        """
+        data, _ = await self._client.post(
+            f"/payment/transaction/{transaction_id}/paid", json={}
+        )
         return SPaymentTransactionResponse.model_validate(data)
 
     async def confirm_transaction(
@@ -88,22 +157,52 @@ class PaymentAPIAdapter:
             SConfirmPaymentResponse: Результат подтверждения.
 
         """
-        logger.info("Подтверждение прихода денег: %s", transaction_id)
+        logger.info("Подтверждение прихода денег (админом): {}", transaction_id)
         payload = SConfirmPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
-            "/payment/transaction/confirm",
+            "/payment/transaction/admin/confirm",
             json=payload.model_dump(mode="json"),
         )
+        result = SConfirmPaymentResponse.model_validate(data)
         logger.debug(
-            "Транзакция подтверждена, status=%s response=%s", status_code, data
+            "Транзакция подтверждена: id={} status={}",
+            result.transaction_res.id,
+            result.transaction_res.status,
         )
-        return SConfirmPaymentResponse.model_validate(data)
+        return result
+
+    async def webhook_confirm_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SConfirmPaymentResponse:
+        """Подтверждает платёжную транзакцию по вебхуку платёжного провайдера.
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SConfirmPaymentResponse: Результат подтверждения.
+
+        """
+        logger.info("Подтверждение прихода денег (вебхук): {}", transaction_id)
+        payload = SConfirmPaymentIn(transaction_id=transaction_id)
+        data, status_code = await self._client.post(
+            "/payment/transaction/webhook/confirm",
+            json=payload.model_dump(mode="json"),
+        )
+        result = SConfirmPaymentResponse.model_validate(data)
+        logger.debug(
+            "Транзакция подтверждена: id={} status={}",
+            result.transaction_res.id,
+            result.transaction_res.status,
+        )
+        return result
 
     async def cancel_transaction(
         self,
         transaction_id: UUID,
     ) -> SPaymentTransactionResponse:
-        """Отменяет платёжную транзакцию.
+        """Отменяет платёжную транзакцию (по действию пользователя/админа).
 
         Args:
             transaction_id: UUID транзакции.
@@ -112,11 +211,64 @@ class PaymentAPIAdapter:
             SPaymentTransactionResponse: Данные отменённой транзакции.
 
         """
-        logger.info("Процесс отмены созданной транзакции: %s", transaction_id)
+        logger.info("Процесс отмены созданной транзакции: {}", transaction_id)
         payload = SCancelPaymentIn(transaction_id=transaction_id)
         data, status_code = await self._client.post(
             "/payment/transaction/cancel",
             json=payload.model_dump(mode="json"),
         )
-        logger.debug("Транзакция отменена, status=%s response=%s", status_code, data)
-        return SPaymentTransactionResponse.model_validate(data)
+        result = SPaymentTransactionResponse.model_validate(data)
+        logger.debug("Транзакция отменена: id={} status={}", result.id, result.status)
+        return result
+
+    async def webhook_cancel_transaction(
+        self,
+        transaction_id: UUID,
+    ) -> SPaymentTransactionResponse:
+        """Отменяет платёжную транзакцию по вебхуку платёжного провайдера.
+
+        В отличие от `cancel_transaction`, не требует Telegram-контекста
+        пользователя — вебхук приходит от платёжного шлюза напрямую, а не
+        от бота от имени конкретного пользователя (см. `X-Telegram-Id` в
+        `APIClient._build_headers`, который в этом случае взять неоткуда).
+
+        Args:
+            transaction_id: UUID транзакции.
+
+        Returns
+            SPaymentTransactionResponse: Данные отменённой транзакции.
+
+        """
+        logger.info("Отмена транзакции по вебхуку: {}", transaction_id)
+        payload = SCancelPaymentIn(transaction_id=transaction_id)
+        data, status_code = await self._client.post(
+            "/payment/transaction/webhook/cancel",
+            json=payload.model_dump(mode="json"),
+        )
+        result = SPaymentTransactionResponse.model_validate(data)
+        logger.debug("Транзакция отменена: id={} status={}", result.id, result.status)
+        return result
+
+    async def get_by_gateway_id(
+        self, gateway_transaction_id: str
+    ) -> SPaymentTransactionResponse:
+        """Находит транзакцию по ID платежа во внешнем шлюзе.
+
+        Args:
+            gateway_transaction_id: ID транзакции внешнего платёжного шлюза.
+
+        Returns
+            SPaymentTransactionResponse: Найденная транзакция.
+
+        """
+        logger.debug(
+            "Поиск транзакции по gateway_transaction_id={}", gateway_transaction_id
+        )
+        data = await self._client.get(
+            "/payment/transaction",
+            params={"gateway_transaction_id": gateway_transaction_id},
+        )
+        result = SPaymentTransactionResponse.model_validate(data)
+        logger.debug("Транзакция найдена: id={} status={}", result.id, result.status)
+
+        return result

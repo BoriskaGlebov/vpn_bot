@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any
 
 from aiogram import BaseMiddleware, Bot
 from aiogram.exceptions import (
@@ -18,101 +18,127 @@ from aiogram.exceptions import (
     TelegramServerError,
     TelegramUnauthorizedError,
 )
-from aiogram.types import CallbackQuery, Message, TelegramObject
+from aiogram.types import CallbackQuery, Message, TelegramObject, User
 from loguru._logger import Logger
 
 from bot.app_error.api_error import (
-    APIClientConflictError,
-    APIClientConnectionError,
-    APIClientForbiddenError,
-    APIClientHTTPError,
-    APIClientNotFoundError,
-    APIClientUnauthorizedError,
-    APIClientValidationError,
+    APIClientError,
 )
-from bot.app_error.base_error import SubscriptionNotFoundError, VPNLimitError
+from bot.app_error.base_error import AppError
+from bot.app_error.schema import ErrorDetail, ErrorEnvelope
 from bot.core.config import settings_bot
+from bot.utils.formatting import format_username
+from bot.utils.start_stop_bot import send_to_admins
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
 
 class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
-    """Промежуточное ПО для обработки исключений в aiogram.
-
-    Ловит типовые ошибки Telegram API, отправляет пользователю
-    дружелюбные сообщения и логирует полные трассировки ошибок.
-
-    Methods
-        __call__(handler, event, data):
-            Обрабатывает событие, перехватывает исключения и логирует их.
-
-    Args:
-        handler (Callable[[Any, Dict[str, Any]], Awaitable[Any]]):
-            Оригинальный хендлер события.
-        event (Union[types.Message, types.CallbackQuery, Any]):
-            Событие Telegram, которое передаётся хендлеру.
-        data (Dict[str, Any]):
-            Контекстные данные для хендлера.
-
-    Raises
-        Все необработанные исключения логируются и, если возможно,
-        пользователю отправляется уведомление о проблеме.
-
-    """
+    """Перехватывает исключения хендлеров, нормализует их и уведомляет админов."""
 
     def __init__(self, logger: Logger, bot: Bot) -> None:
         super().__init__()
         self.logger = logger
         self.bot = bot
 
-        self.error_messages: dict[type[Exception], str] = {
-            VPNLimitError: "⚠️ Слишком много запросов. Превышен лимит на количество устройств",
-            SubscriptionNotFoundError: "⚠️ Ошибка отсутствует подписка",
-            # --- API ---
-            APIClientConnectionError: "⚠️ Нет соединения с сервером. Попробуйте позже",
-            APIClientUnauthorizedError: "⚠️ Ошибка авторизации",
-            APIClientForbiddenError: "⚠️ Доступ запрещён",
-            APIClientNotFoundError: "⚠️ Объект не найден",
-            APIClientValidationError: "⚠️ Ошибка данных",
-            APIClientConflictError: "⚠️ Конфликт данных",
-            APIClientHTTPError: "⚠️ Ошибка сервера",
-            TelegramRetryAfter: "⚠️ Слишком много запросов.",
-            TelegramForbiddenError: "⚠️ Доступ запрещён.",
-            TelegramUnauthorizedError: "⚠️ Ошибка авторизации.",
-            TelegramNotFound: "⚠️ Объект не найден.",
-            TelegramBadRequest: "⚠️ Неверный запрос.",
-            TelegramEntityTooLarge: "⚠️ Файл слишком большой.",
-            TelegramNetworkError: "⚠️ Ошибка сети Telegram.",
-            TelegramServerError: "⚠️ Ошибка сервера Telegram.",
-            RestartingTelegram: "⚠️ Telegram временно недоступен.",
-            TelegramMigrateToChat: "⚠️ Чат был перемещён.",
-            TelegramConflictError: "⚠️ Конфликт токена.",
-            TelegramAPIError: "⚠️ Ошибка Telegram API.",
+    def _normalize_exception(self, exc: Exception) -> ErrorEnvelope:
+        """Приводит любое исключение к ErrorEnvelope."""
+        # 1. Уже новый формат (если вдруг прилетает из API слоя)
+        if isinstance(exc, AppError | APIClientError):
+            return exc.to_envelope()
+        if isinstance(exc, TelegramRetryAfter):
+            return ErrorEnvelope(
+                error=ErrorDetail(
+                    code="telegram_retry_after",
+                    message="⚠️ Слишком много запросов.",
+                    details={"retry_after": exc.retry_after},
+                )
+            )
+        telegram_map: dict[type[Exception], tuple[str, str]] = {
+            TelegramForbiddenError: ("telegram_forbidden", "⚠️ Доступ запрещён."),
+            TelegramUnauthorizedError: (
+                "telegram_unauthorized",
+                "⚠️ Ошибка авторизации.",
+            ),
+            TelegramNotFound: ("telegram_not_found", "⚠️ Объект не найден."),
+            TelegramBadRequest: ("telegram_bad_request", "⚠️ Неверный запрос."),
+            TelegramEntityTooLarge: (
+                "telegram_entity_too_large",
+                "⚠️ Файл слишком большой.",
+            ),
+            TelegramNetworkError: ("telegram_network_error", "⚠️ Ошибка сети Telegram."),
+            TelegramServerError: (
+                "telegram_server_error",
+                "⚠️ Ошибка сервера Telegram.",
+            ),
+            RestartingTelegram: (
+                "telegram_restarting",
+                "⚠️ Telegram временно недоступен.",
+            ),
+            TelegramMigrateToChat: ("telegram_migrate_to_chat", "⚠️ Чат был перемещён."),
+            TelegramConflictError: ("telegram_conflict", "⚠️ Конфликт токена."),
+            TelegramAPIError: ("telegram_api_error", "⚠️ Ошибка Telegram API."),
         }
 
-        self.default_user_message = cast(
-            str, settings_bot.messages.general.common_error
+        for exc_type, (code, message) in telegram_map.items():
+            if isinstance(exc, exc_type):
+                return ErrorEnvelope(
+                    error=ErrorDetail(
+                        code=code,
+                        message=message,
+                    )
+                )
+
+        return ErrorEnvelope(
+            error=ErrorDetail(
+                code="unexpected_error",
+                message=str(exc) or "Неизвестная ошибка",
+                details={"type": type(exc).__name__},
+            )
         )
 
-    def _resolve_user_message(self, exc: Exception) -> str:
-        """Универсальный метод получения сообщения для пользователя."""
-        for exc_type, message in self.error_messages.items():
-            if isinstance(exc, exc_type):
-                if isinstance(exc, TelegramRetryAfter):
-                    return f"⚠️ Слишком много запросов. Попробуйте через {exc.retry_after} секунд."
-                elif isinstance(exc, TelegramBadRequest):
-                    return f"⚠️ Неверный запрос: {exc.message}"
-                elif isinstance(exc, VPNLimitError):
-                    return (
-                        f"⚠️ Достигнут лимит конфигов ({exc.limit}/{exc.limit}).\n\n"
-                        f"🚀 В премиум-подписке доступно больше конфигов и расширенные возможности.\n\n"
-                        f"Подключить премиум или задать вопрос:\n"
-                        f"💬 @BorisisTheBlade"
-                    )
-                elif isinstance(exc, APIClientConflictError):
-                    return f"⚠️ Конфликт данных ({exc.detail})"
+    def _resolve_user_message(self, envelope: ErrorEnvelope) -> str:
+        code = envelope.error.code
+        message = envelope.error.message
+        details = envelope.error.details
+
+        match code:
+            case "vpn_limit_reached":
+                return (
+                    f"⚠️ Достигнут лимит конфигов ({details.get('limit', 0)}/{details.get('limit', 0)}).\n\n"
+                    f"🚀 В премиум-подписке доступно больше конфигов и расширенные возможности.\n\n"
+                    f"Подключить премиум или задать вопрос:\n"
+                    f"💬 @BorisisTheBlade"
+                )
+
+            case "subscription_not_found":
+                return "⚠️ Подписка не найдена."
+
+            case "telegram_retry_after":
+                retry = details.get("retry_after", "?")
+                return f"⚠️ Слишком много запросов. Попробуйте через {retry} секунд."
+
+            case "telegram_bad_request":
+                return f"⚠️ Неверный запрос: {message}"
+
+            case "unexpected_error":
+                return settings_bot.messages.general.common_error
+
+            case _:
                 return message
-        return self.default_user_message
+
+    def _log_exception(
+        self, event: TelegramObject, envelope: ErrorEnvelope, exc: Exception
+    ) -> None:
+        user = getattr(getattr(event, "from_user", None), "id", None)
+        cause = exc.__cause__
+        self.logger.bind(user=user).error(
+            f"\n[code] {envelope.error.code}\n"
+            f"[message] {envelope.error.message}\n"
+            f"[details] {envelope.error.details}\n"
+            f"[cause_type] {type(cause).__name__ if cause else 'None'}\n"
+            f"[cause_message] {str(cause) if cause else 'None'}"
+        )
 
     async def _safe_send_error(self, event: TelegramObject, text: str) -> None:
         """Универсальная отправка сообщения пользователю."""
@@ -124,31 +150,35 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         except Exception:
             self.logger.warning("Не удалось отправить ошибку пользователю")
 
-    async def _notify_admins(self, event: TelegramObject, exc: Exception) -> None:
-        """Отправляет сообщение админам с подробной информацией об ошибке."""
+    async def _notify_admins_envelope(
+        self, event: TelegramObject, envelope: ErrorEnvelope, exc: Exception
+    ) -> None:
         try:
             user = getattr(event, "from_user", None)
-            user_info = (
-                f"{user.username} ({user.id})" if user else "Неизвестный пользователь"
-            )
-            update_id = getattr(event, "update_id", None)
-            exc_type = type(exc).__name__
-            exc_text = str(exc)
 
+            if isinstance(user, User):
+                user_info = f"{format_username(user)} ({user.id})"
+            else:
+                user_info = "Unknown user"
+            cause = exc.__cause__
             msg = (
-                f"⚠️ Ошибка у пользователя {user_info}\n"
-                f"update_id: {update_id}\n"
-                f"type: {exc_type}\n"
-                f"message: {exc_text}"
+                f"⚠️ Возникла ошибка\n"
+                f"user: {user_info}\n"
+                f"code: {envelope.error.code}\n"
+                f"message: {envelope.error.message}\n"
+                f"details: {envelope.error.details}"
             )
-            for admin_id in settings_bot.core.admin_ids:
-                await self.bot.send_message(chat_id=admin_id, text=msg)
-        except Exception:
-            self.logger.warning("Не удалось отправить сообщение админам")
+            if cause:
+                msg += (
+                    f"\n[ПЕРВОПРИЧИНА]\n"
+                    f"cause_type: {type(cause).__name__}\n"
+                    f"cause_message: {cause}"
+                )
 
-    def _is_expected_error(self, exc: Exception) -> bool:
-        """Проверяю, что тип ошибки ожидаемый и не надо весь trace выводить."""
-        return any(isinstance(exc, exc_type) for exc_type in self.error_messages)
+            await send_to_admins(bot=self.bot, message_text=msg)
+
+        except Exception:
+            self.logger.warning("Ошибка при попытке уведомить админа")
 
     async def __call__(
         self,
@@ -156,33 +186,28 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
-        """Перехватывает исключения, возникающие при обработке событий и логирует их."""
+        """Оборачивает вызов хендлера, перехватывая и обрабатывая исключения.
+
+        Args:
+            handler: Следующий хендлер/мидлварь в цепочке aiogram.
+            event: Входящее Telegram-событие.
+            data: Контекстные данные aiogram, передаваемые хендлеру.
+
+        Returns
+            Any: Результат хендлера, либо None при перехваченном исключении.
+
+        """
         try:
             return await handler(event, data)
 
         except Exception as exc:
-            user_id: int | None = None
-            user = getattr(event, "from_user", None)
+            envelope = self._normalize_exception(exc)
 
-            if user is not None:
-                user_id = getattr(user, "id", None)
-
-            user_message = self._resolve_user_message(exc)
+            user_message = self._resolve_user_message(envelope)
             await self._safe_send_error(event, user_message)
-            await self._notify_admins(event, exc)
-            update_id = getattr(event, "update_id", None)
-            exception_type = type(exc).__name__
-            if self._is_expected_error(exc):
-                self.logger.bind(user=user_id).error(
-                    f"[update_id] - {update_id}\n"
-                    f"[exception_type] - {exception_type}\n"
-                    f"{str(exc)}"
-                )
-            else:
-                self.logger.bind(user=user_id).exception(
-                    f"[update_id] - {update_id}\n"
-                    f"[exception_type]{exception_type}\n"
-                    f"Неожиданная ошибка"
-                )
+
+            await self._notify_admins_envelope(event, envelope, exc)
+
+            self._log_exception(event, envelope, exc)
 
             return None

@@ -28,6 +28,12 @@ base_site = "https://help-blocks.ru/bot"
 # *Использовать webhook или polling по умолчанию polling false
 use_polling = false
 
+# === SCHEDULER ===
+[scheduler]
+# Прод: interval_seconds не задан → используется cron-расписание ниже.
+cron_hour = 8
+cron_minute = 0
+
 # === PRICING ===
 [pricing]
 # Цена за тарифы 1, 3, 6, 12 месяцев и триал период на 7 дней
