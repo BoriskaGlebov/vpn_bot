@@ -57,6 +57,14 @@ COPY --chown=botuser:bot shared/ shared/
 RUN cp -a api/templates api/templates_src && \
     chown -R botuser:bot api/templates_src
 
+# То же самое для статики sqladmin: volume в docker-compose монтируется
+# только в подпапку statics (не на весь пакет sqladmin — иначе volume
+# заморозил бы и сам код библиотеки на старой версии, игнорируя
+# обновления sqladmin через poetry.lock). Эталонная копия — вне зоны
+# volume-монтирования, синхронизируется entrypoint.sh при каждом старте.
+RUN cp -a /vpn_bot/.venv/lib/python3.12/site-packages/sqladmin/statics /vpn_bot/sqladmin_statics_src && \
+    chown -R botuser:bot /vpn_bot/sqladmin_statics_src
+
 # Делаем entrypoint исполняемым
 RUN chmod +x ./api/entrypoint.sh
 
