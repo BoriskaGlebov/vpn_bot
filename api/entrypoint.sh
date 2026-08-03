@@ -6,14 +6,12 @@ mkdir -p /vpn_bot/api/logs
 chown -R botuser:bot /vpn_bot/api/logs
 
 echo "🔄 Синхронизация шаблонов в volume из образа..."
-rm -rf /vpn_bot/api/templates/*
-cp -a /vpn_bot/api/templates_src/. /vpn_bot/api/templates/
+rsync -a --delete --delay-updates /vpn_bot/api/templates_src/ /vpn_bot/api/templates/
 chown -R botuser:bot /vpn_bot/api/templates
 
 echo "🔄 Синхронизация статики sqladmin в volume из образа..."
 SQLADMIN_STATICS=/vpn_bot/.venv/lib/python3.12/site-packages/sqladmin/statics
-rm -rf "$SQLADMIN_STATICS"/*
-cp -a /vpn_bot/sqladmin_statics_src/. "$SQLADMIN_STATICS/"
+rsync -a --delete --delay-updates /vpn_bot/sqladmin_statics_src/ "$SQLADMIN_STATICS/"
 chown -R botuser:bot "$SQLADMIN_STATICS"
 
 echo "⚙️ Checking for Alembic migrations..."

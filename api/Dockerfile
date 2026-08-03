@@ -34,6 +34,11 @@ WORKDIR /vpn_bot
 
 
 
+# rsync нужен entrypoint.sh для атомарной синхронизации volume с шаблонами/статикой
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends rsync && \
+    rm -rf /var/lib/apt/lists/*
+
 # Устанавливаем Poetry
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir "poetry==$POETRY_VERSION"
