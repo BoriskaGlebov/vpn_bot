@@ -134,6 +134,7 @@ class PaymentService:
             raise PaymentAlreadyProcessedError(
                 transaction_id=str(tx.id),
                 payment_status=tx.status,
+                source=tx.source,
             )
 
     async def _cancel_pending_transactions(

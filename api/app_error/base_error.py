@@ -308,22 +308,31 @@ class PaymentAlreadyProcessedError(PaymentError):
     code = "payment_already_processed"
     status_code = status.HTTP_409_CONFLICT
 
-    def __init__(self, transaction_id: str, payment_status: str) -> None:
+    def __init__(
+        self,
+        transaction_id: str,
+        payment_status: str,
+        source: str | None = None,
+    ) -> None:
         """Инициализирует ошибку повторной обработки.
 
         Args:
             transaction_id: ID транзакции.
             payment_status: Текущий статус платежа.
+            source: Источник, которым транзакция была переведена в текущий
+                статус (`PaymentSource.MANUAL`/`GATEWAY`) — позволяет
+                вызывающей стороне понять, кто именно оплату подтвердил.
 
         """
         super().__init__(
             message=(
                 f"Транзакция {transaction_id} уже обработана "
-                f"(текущий статус: {payment_status})."
+                f"(текущий статус: {payment_status}, источник: {source})."
             ),
             details={
                 "transaction_id": transaction_id,
                 "status": payment_status,
+                "source": source,
             },
         )
 

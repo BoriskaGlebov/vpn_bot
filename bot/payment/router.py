@@ -23,11 +23,111 @@ from bot.payment.dependencies import (
     get_payment_webhook_service,
     get_subscription_messages,
 )
-from bot.payment.dto import PaymentStatus
+from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
 from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.utils.start_stop_bot import send_to_admins
 
 router = APIRouter(prefix="/platega", tags=["webhook"])
+
+PAYMENT_SOURCE_LABELS = {
+    "MANUAL": "вручную администратором",
+    "GATEWAY": "автоматически платёжным шлюзом",
+}
+
+
+async def _notify_transaction_conflict(
+    exc: APIClientConflictError,
+    event: PaymentWebhookDTO,
+    bot: Bot,
+    logger: Logger,
+    m_subscription: Any,
+) -> None:
+    """Разбирает 409-конфликт между вебхуком и текущим статусом транзакции.
+
+    api/ отвечает 409 (`PaymentAlreadyProcessedError`), если транзакция уже
+    не в PENDING — то есть кто-то (вебхук раньше, бот, администратор)
+    успел изменить её статус первым. Здесь эта гонка классифицируется на
+    4 варианта: что говорит текущий вебхук (`webhook_confirms_payment`) и
+    в каком статусе транзакция оказалась на самом деле (`transaction_is_paid`).
+    Администраторам уходит алерт всегда, кроме мгновенной повторной доставки
+    одного и того же PAID-вебхука — иначе ретраи Platega (до 3 раз подряд,
+    если не дождалась 200 вовремя) спамили бы одним и тем же сообщением.
+
+    Args:
+        exc: Конфликт, полученный от api/ при обработке события.
+        event: Событие вебхука, на котором произошёл конфликт.
+        bot: Экземпляр бота для отправки алертов администраторам.
+        logger: Логгер.
+        m_subscription: Секция сообщений `messages.modes.subscription`.
+
+    """
+    transaction_id = exc.error.details.get("transaction_id")
+    transaction_status = exc.error.details.get("status")
+    transaction_source = exc.error.details.get("source")
+    source_label = (
+        PAYMENT_SOURCE_LABELS.get(transaction_source, transaction_source)
+        if transaction_source
+        else "неизвестным способом"
+    )
+
+    webhook_confirms_payment = event.status == PaymentStatus.PAID
+    transaction_is_paid = transaction_status == "PAID"
+
+    if webhook_confirms_payment and transaction_is_paid:
+        logger.info(
+            "Повторная доставка вебхука уже подтверждённого платежа: "
+            "gateway_payment_id={} transaction_id={}",
+            event.provider_payment_id,
+            transaction_id,
+        )
+        return
+
+    if webhook_confirms_payment and not transaction_is_paid:
+        logger.warning(
+            "Webhook подтвердил оплату уже отменённой транзакции: "
+            "gateway_payment_id={} transaction_id={} status={}",
+            event.provider_payment_id,
+            transaction_id,
+            transaction_status,
+        )
+        await send_to_admins(
+            bot=bot,
+            message_text=m_subscription.gateway_alert.status_conflict.format(
+                transaction_id=transaction_id,
+                status=transaction_status,
+            ),
+        )
+        return
+
+    if not webhook_confirms_payment and transaction_is_paid:
+        logger.warning(
+            "Webhook-отмена для транзакции, уже подтверждённой как "
+            "оплаченная: gateway_payment_id={} transaction_id={} source={}",
+            event.provider_payment_id,
+            transaction_id,
+            transaction_source,
+        )
+        await send_to_admins(
+            bot=bot,
+            message_text=m_subscription.gateway_alert.cancel_after_paid.format(
+                transaction_id=transaction_id,
+                source=source_label,
+            ),
+        )
+        return
+
+    logger.info(
+        "Повторная webhook-отмена для уже отменённой транзакции: "
+        "gateway_payment_id={} transaction_id={}",
+        event.provider_payment_id,
+        transaction_id,
+    )
+    await send_to_admins(
+        bot=bot,
+        message_text=m_subscription.gateway_alert.cancel_already_canceled.format(
+            transaction_id=transaction_id,
+        ),
+    )
 
 
 @router.post("/payment-webhook")
@@ -53,12 +153,8 @@ async def payment_webhook(
             (тексты алертов администраторам).
 
     Returns
-        Response: 200 при успешной обработке, включая идемпотентные
-        случаи — повторную доставку уже обработанного платежа, а также
-        вебхук-отмену (например, автоотмену Platega платёжной сессии
-        после ~30 минут бездействия) для транзакции, которая уже в
-        финальном статусе (отменена другим путём или уже оплачена
-        переводом) — отменять в таком случае нечего, это не ошибка; 403,
+        Response: 200 при успешной обработке, включая конфликтные и
+        идемпотентные случаи (см. `_notify_transaction_conflict`); 403,
         если подлинность вебхука не подтверждена; 400, если тело вебхука
         не удалось разобрать; 500 при неожиданной ошибке обработки
         (провайдер повторит доставку).
@@ -93,57 +189,7 @@ async def payment_webhook(
     try:
         await payment_webhook_service.handle_event(event)
     except APIClientConflictError as exc:
-        # api/ отвечает 409, если транзакция уже не в PENDING (см.
-        # `PaymentService._ensure_pending` на api-стороне) — это касается
-        # и подтверждения, и отмены: конфликт возникает при любой попытке
-        # повторно изменить статус уже финализированной транзакции.
-        conflict_status = exc.error.details.get("status")
-
-        if event.status != PaymentStatus.PAID:
-            # Сам вебхук — отмена/чарджбэк, а не подтверждение оплаты.
-            # Platega, например, сама отменяет платёжную сессию после
-            # ~30 минут бездействия пользователя — к этому моменту
-            # транзакция уже могла быть отменена другим путём (повторная
-            # доставка того же вебхука) или уже оплачена переводом и
-            # подтверждена администратором. В обоих случаях отменять
-            # нечего и денег никто не теряет — штатная идемпотентная
-            # ситуация, не повод для алерта администраторам.
-            logger.info(
-                "Webhook-отмена для транзакции с уже финальным статусом: "
-                "gateway_payment_id={} current_status={}",
-                event.provider_payment_id,
-                conflict_status,
-            )
-            return Response(status_code=200)
-
-        if conflict_status == "PAID":
-            # Harmless: повторная доставка уже обработанного платежа
-            # (Platega повторяет вебхук до 3 раз, если не получила 200
-            # вовремя) — идемпотентно подтверждаем получение.
-            logger.info(
-                "Webhook платёжного провайдера уже был обработан ранее: "
-                "gateway_payment_id={}",
-                event.provider_payment_id,
-            )
-        else:
-            # Вебхук пытается подтвердить оплату транзакции, которая уже
-            # отменена/провалена — гонка между действием бота/пользователя
-            # и вебхуком. Деньги могли поступить, а услуга не
-            # предоставлена — нужна ручная проверка администратором
-            # (см. PaymentService.confirm_transaction).
-            logger.warning(
-                "Webhook подтвердил оплату уже отменённой транзакции: "
-                "gateway_payment_id={} status={}",
-                event.provider_payment_id,
-                conflict_status,
-            )
-            await send_to_admins(
-                bot=bot,
-                message_text=m_subscription.gateway_alert.status_conflict.format(
-                    transaction_id=exc.error.details.get("transaction_id"),
-                    status=conflict_status,
-                ),
-            )
+        await _notify_transaction_conflict(exc, event, bot, logger, m_subscription)
         return Response(status_code=200)
     except Exception:
         logger.exception(

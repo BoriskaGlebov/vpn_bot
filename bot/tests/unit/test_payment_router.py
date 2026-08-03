@@ -209,18 +209,21 @@ async def test_conflict_on_canceled_transaction_alerts_admins(
 
 
 @pytest.mark.asyncio
-async def test_conflict_on_cancel_webhook_for_already_canceled_is_idempotent(
-    client, payment_service_mock, payment_webhook_service_mock, mocker
+async def test_conflict_on_cancel_webhook_for_already_canceled_alerts_admins(
+    client, payment_service_mock, payment_webhook_service_mock, bot_mock, mocker
 ):
-    """Вебхук-отмена на уже отменённую транзакцию — 200 без тревоги админам.
+    """Вебхук-отмена на уже отменённую транзакцию — 200 + инфо-алерт.
 
     Platega сама отменяет платёжную сессию после ~30 минут бездействия
     пользователя — если транзакция к этому моменту уже отменена (например,
     повторная доставка того же вебхука), это штатная идемпотентная
     ситуация, а не гонка "деньги пришли после отмены" (для той нужен именно
     PAID-вебхук, см. `test_conflict_on_canceled_transaction_alerts_admins`).
+    Тем не менее админ должен быть в курсе, что и это произошло.
     """
-    send_to_admins_mock = mocker.patch("bot.payment.router.send_to_admins")
+    send_to_admins_mock = mocker.patch(
+        "bot.payment.router.send_to_admins", new=AsyncMock()
+    )
 
     payment_service_mock.provider.verify_webhook.return_value = True
     payment_service_mock.provider.parse_webhook.return_value = make_event(
@@ -238,22 +241,29 @@ async def test_conflict_on_cancel_webhook_for_already_canceled_is_idempotent(
     response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
 
     assert response.status_code == 200
-    send_to_admins_mock.assert_not_called()
+    send_to_admins_mock.assert_awaited_once()
+    _, kwargs = send_to_admins_mock.await_args
+    assert kwargs["bot"] is bot_mock
+    assert "tx-7" in kwargs["message_text"]
 
 
 @pytest.mark.asyncio
-async def test_conflict_on_cancel_webhook_for_already_paid_is_idempotent(
-    client, payment_service_mock, payment_webhook_service_mock, mocker
+async def test_conflict_on_cancel_webhook_for_already_paid_alerts_admins(
+    client, payment_service_mock, payment_webhook_service_mock, bot_mock, mocker
 ):
-    """Вебхук-отмена на уже оплаченную (переводом) транзакцию — 200 без алерта.
+    """Вебхук-отмена на уже оплаченную (переводом) транзакцию — 200 + инфо-алерт.
 
     Ровно сценарий из бага: пользователь выбрал оплату переводом, админ
     подтвердил транзакцию вручную, а Platega по истечении ~30 минут
     бездействия на своей карточной сессии всё равно присылает отмену — не
     зная, что оплата уже прошла другим путём. Отменять нечего, деньги не
-    теряются — не повод для алерта.
+    теряются, но раньше это проходило совсем без следа — админы должны
+    видеть такую гонку, даже если она не требует действий, и понимать,
+    что оплата была подтверждена именно вручную.
     """
-    send_to_admins_mock = mocker.patch("bot.payment.router.send_to_admins")
+    send_to_admins_mock = mocker.patch(
+        "bot.payment.router.send_to_admins", new=AsyncMock()
+    )
 
     payment_service_mock.provider.verify_webhook.return_value = True
     payment_service_mock.provider.parse_webhook.return_value = make_event(
@@ -264,14 +274,18 @@ async def test_conflict_on_cancel_webhook_for_already_paid_is_idempotent(
         ErrorDetail(
             code="payment_already_processed",
             message="already processed",
-            details={"status": "PAID", "transaction_id": "tx-8"},
+            details={"status": "PAID", "transaction_id": "tx-8", "source": "MANUAL"},
         ),
     )
 
     response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
 
     assert response.status_code == 200
-    send_to_admins_mock.assert_not_called()
+    send_to_admins_mock.assert_awaited_once()
+    _, kwargs = send_to_admins_mock.await_args
+    assert kwargs["bot"] is bot_mock
+    assert "tx-8" in kwargs["message_text"]
+    assert "вручную администратором" in kwargs["message_text"]
 
 
 @pytest.mark.asyncio
