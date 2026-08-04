@@ -66,7 +66,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                 "telegram_entity_too_large",
                 "⚠️ Файл слишком большой.",
             ),
-            TelegramNetworkError: ("telegram_network_error", "⚠️ Ошибка сети Telegram."),
+            TelegramNetworkError: (
+                "telegram_network_error",
+                "⚠️ Ошибка сети Telegram.",
+            ),
             TelegramServerError: (
                 "telegram_server_error",
                 "⚠️ Ошибка сервера Telegram.",
@@ -75,7 +78,10 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                 "telegram_restarting",
                 "⚠️ Telegram временно недоступен.",
             ),
-            TelegramMigrateToChat: ("telegram_migrate_to_chat", "⚠️ Чат был перемещён."),
+            TelegramMigrateToChat: (
+                "telegram_migrate_to_chat",
+                "⚠️ Чат был перемещён.",
+            ),
             TelegramConflictError: ("telegram_conflict", "⚠️ Конфликт токена."),
             TelegramAPIError: ("telegram_api_error", "⚠️ Ошибка Telegram API."),
         }
