@@ -6,6 +6,7 @@ max_configs_per_user = 2
 #Дефолтное время для Timeout ошибки при подключени к стороннему сревису
 common_timeout = 10
 
+
 admin_ids = [439653349,]
 
 # === LOGGER ===
