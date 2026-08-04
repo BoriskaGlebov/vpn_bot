@@ -75,15 +75,19 @@ jobs:
       - name: Run tests
         env:
           ENV_FILE: .env.test
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          # Тестам не нужны реальные секреты — только синтаксически валидные
+          # значения для конструирования Bot/SecretStr при коллекции тестов
+          # (Dependabot PR не получает доступ к repository secrets, поэтому
+          # эти пять полей не должны зависеть от secrets.*).
+          BOT_TOKEN: "123456:TEST-DUMMY-TOKEN-NOT-REAL-00000000000"
           DB_PASSWORD: ${{ vars.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ vars.REDIS_PASSWORD }}
-          ACCESS_KEY: ${{ secrets.ACCESS_KEY }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          ACCESS_KEY: "test-access-key"
+          SECRET_KEY: "test-secret-key"
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
           SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
-          MERCHANT_ID: ${{ secrets.MERCHANT_ID }}
-          API_KEY: ${{ secrets.API_KEY }}
+          MERCHANT_ID: "test-merchant-id"
+          API_KEY: "test-api-key"
         run: poetry run pytest -vs .
 
   deploy_develop:
