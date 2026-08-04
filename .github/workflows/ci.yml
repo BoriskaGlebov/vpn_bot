@@ -112,14 +112,17 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
 
-            # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
-            # Запускаем агент, если не запущен
-            if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
-              eval $(ssh-agent) > /dev/null
-              echo "SSH agent started with socket: $SSH_AUTH_SOCK"
+            # ===== ИСПОЛЬЗУЕМ ПЕРСИСТЕНТНЫЙ SSH-AGENT (systemd, см. deploy/systemd/ssh-agent.service) =====
+            # Агент живёт постоянно на фиксированном пути и переживает рестарт
+            # контейнеров/ребут хоста (в отличие от ad-hoc `eval $(ssh-agent)`).
+            export SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket
+            if [ ! -S "$SSH_AUTH_SOCK" ]; then
+              echo "ERROR: persistent ssh-agent socket not found at $SSH_AUTH_SOCK"
+              echo "Проверьте на хосте: systemctl --user status ssh-agent.service"
+              exit 1
             fi
 
-            # Добавляем ключи
+            # Добавляем ключи (idempotent self-heal поверх ExecStartPost юнита)
             if [ -f ~/.ssh/help_blocks ]; then
               ssh-add ~/.ssh/help_blocks < /dev/null 2>/dev/null
               echo "SSH key added"
@@ -245,12 +248,17 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
 
-            # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
-            if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
-              eval $(ssh-agent) > /dev/null
-              echo "SSH agent started with socket: $SSH_AUTH_SOCK"
+            # ===== ИСПОЛЬЗУЕМ ПЕРСИСТЕНТНЫЙ SSH-AGENT (systemd, см. deploy/systemd/ssh-agent.service) =====
+            # Агент живёт постоянно на фиксированном пути и переживает рестарт
+            # контейнеров/ребут хоста (в отличие от ad-hoc `eval $(ssh-agent)`).
+            export SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket
+            if [ ! -S "$SSH_AUTH_SOCK" ]; then
+              echo "ERROR: persistent ssh-agent socket not found at $SSH_AUTH_SOCK"
+              echo "Проверьте на хосте: systemctl --user status ssh-agent.service"
+              exit 1
             fi
 
+            # Добавляем ключи (idempotent self-heal поверх ExecStartPost юнита)
             if [ -f ~/.ssh/vpn_boriska ]; then
               ssh-add ~/.ssh/vpn_boriska < /dev/null 2>/dev/null
               echo "SSH key added"

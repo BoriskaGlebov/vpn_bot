@@ -20,7 +20,7 @@ echo "⚙️ Checking for Alembic migrations..."
 if [ -d "api/migrations" ] && [ -f "alembic.ini" ]; then
     echo "📦 Alembic detected — applying migrations..."
     alembic upgrade head
-#
+
     echo "🧹 Cleaning up Alembic migration files..."
     rm -rf api/migrations alembic.ini || true
     echo "✅ Migrations applied and Alembic removed."
@@ -29,5 +29,4 @@ else
 fi
 
 echo "🚀 Starting api..."
-exec su -s /bin/bash botuser -c  "python -m api.main"
-#exec python -m api.main
+exec su -s /bin/bash botuser -c "python -m api.main"

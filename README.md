@@ -28,6 +28,7 @@
 - [Тесты и качество кода](#тесты-и-качество-кода)
 - [Платежи](#платежи)
 - [MTProto-прокси (telemt)](#mtproto-прокси-telemt)
+- [Персистентный SSH-agent на деплой-хосте](#персистентный-ssh-agent-на-деплой-хосте)
 - [Nginx](#nginx)
 - [Эксплуатационные заметки](#эксплуатационные-заметки)
 - [Лицензия](#лицензия)
@@ -355,6 +356,63 @@ openssl rand -hex 16
 Замечания по продакшну:
 - Убедитесь, что контейнер имеет доступ к публичному порту прокси (обычно 443).
 - Если у сервера два публичных IP и нужно обслуживать оба через один nginx — запускайте nginx в `network_mode: host` (или эквиваленте), иначе он будет видеть только один IP.
+
+## Персистентный SSH-agent на деплой-хосте
+
+Бот подключается к удалённым VPN-нодам (`use_local = false` в `[vpn.nodes.<name>]`, см. [«Настройки приложения»](#настройки-приложения-app_configtoml)) по SSH через `asyncssh` с `agent_forwarding=True` (`bot/vpn/utils/amnezia_wg.py`, `amnezia_proxy.py`, `mtproto.py`). Сокет ssh-agent пробрасывается в контейнер бота с хоста (`docker-compose.develop.yml`/`docker-compose.prod.yml`: `$SSH_AUTH_SOCK:/ssh-agent`).
+
+**Зачем нужна отдельная настройка хоста.** Раньше ssh-agent поднимался ad-hoc прямо внутри SSH-скрипта деплоя в CI (`eval $(ssh-agent)`) — такой процесс живёт на случайном временном пути и не переживает рестарт контейнера бота или ребут сервера, поэтому ключи «терялись» и приходилось заново гонять деплой через CI, чтобы их добавить. Решение — постоянный ssh-agent на хосте с **фиксированным** путём сокета, поднимаемый через systemd и не зависящий от того, когда в последний раз запускался деплой.
+
+### Предусловия
+
+| Хост | Пользователь | Путь репозитория | SSH-ключи (без passphrase) |
+|---|---|---|---|
+| develop | `prod_server` | `/home/prod_server/production/vpn_bot` | `~/.ssh/help_blocks`, `~/.ssh/xray_boriska` |
+| prod | `vpn_user` | `/home/vpn_user/test_zone/vpn_bot` | `~/.ssh/vpn_boriska`, `~/.ssh/xray_boriska` |
+
+Ключи должны быть **без passphrase** — автозагрузка ключей при старте агента (`ExecStartPost` в unit-файле) выполняется неинтерактивно; ключ с паролем будет молча пропущен и не подхватится после ребута до ручного `ssh-add`.
+
+### Установка (один раз на каждом хосте)
+
+Выполняется от имени деплой-пользователя (`prod_server` / `vpn_user`), не root:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp deploy/systemd/ssh-agent.service ~/.config/systemd/user/ssh-agent.service
+# отредактировать в скопированном файле обе строки ExecStartPost — подставить
+# пути к ключам конкретного хоста (см. таблицу выше)
+
+systemctl --user daemon-reload
+systemctl --user enable --now ssh-agent.service
+```
+
+Затем от root (или через `sudo`) — обязательно, иначе агент не переживёт отсутствие активной SSH-сессии:
+
+```bash
+sudo loginctl enable-linger <username>   # prod_server или vpn_user
+```
+
+Проверка, что ключи подхватились:
+
+```bash
+SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket ssh-add -l
+```
+
+### Проверка после ребута
+
+Один раз стоит явно перезагрузить хост и убедиться, что агент поднимается сам, без участия CI и без интерактивного логина:
+
+```bash
+sudo reboot
+# после того как хост снова доступен:
+ssh <user>@<host> 'systemctl --user status ssh-agent.service && SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket ssh-add -l'
+```
+
+### Troubleshooting
+
+- Логи агента: `journalctl --user -u ssh-agent.service`.
+- Если `loginctl enable-linger` недоступен на конкретном хосте (редкие hardened-конфигурации) — запасной вариант: тот же unit, но system-level (`/etc/systemd/system/ssh-agent-<user>.service` с `User=<username>` и явным `RuntimeDirectory=`), который не зависит от PAM-сессий, но требует root для установки и изменения.
+- CI (`.github/workflows/ci.yml`, jobs `deploy_develop`/`deploy_prod`) ожидает сокет строго по пути `/run/user/$(id -u)/ssh-agent.socket` и завершится с понятной ошибкой, если персистентный агент не поднят — в этом случае проверить `systemctl --user status ssh-agent.service` на соответствующем хосте.
 
 ## Nginx
 

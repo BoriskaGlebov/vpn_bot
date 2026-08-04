@@ -8,31 +8,11 @@ ENV POETRY_VERSION=1.8.0 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     PATH="/vpn_bot/.venv/bin:/vpn_bot/.local/bin:$PATH"
 
-
 # Создаём пользователя
 RUN groupadd -r bot && \
     useradd -r -g bot -d /vpn_bot -s /bin/bash -m botuser
 
 WORKDIR /vpn_bot
-
-## Устанавливаем системные зависимости + docker CLI
-#RUN apt-get update && \
-#    apt-get install -y --no-install-recommends \
-#        ca-certificates \
-#        curl \
-#        gnupg \
-#        lsb-release \
-#    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg \
-#    && echo \
-#        "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] \
-#        https://download.docker.com/linux/debian \
-#        $(lsb_release -cs) stable" \
-#        > /etc/apt/sources.list.d/docker.list \
-#    && apt-get update \
-#    && apt-get install -y --no-install-recommends docker-cli \
-#    && rm -rf /var/lib/apt/lists/*
-
-
 
 # rsync нужен entrypoint.sh для атомарной синхронизации volume с шаблонами/статикой
 RUN apt-get update && \

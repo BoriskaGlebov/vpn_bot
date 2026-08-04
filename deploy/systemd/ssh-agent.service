@@ -1,0 +1,31 @@
+# Персистентный ssh-agent для деплой-пользователя на сервере.
+#
+# Устанавливается как user-level unit (~/.config/systemd/user/ssh-agent.service),
+# не system-level — деплой-пользователь (prod_server / vpn_user) управляет им
+# без sudo. Требует `loginctl enable-linger <user>`, иначе агент не переживёт
+# отсутствие активной сессии. Подробная инструкция — в README.md,
+# раздел "Персистентный SSH-agent на деплой-хосте".
+#
+# Ванильный OpenSSH ssh-agent не поддерживает systemd socket-activation
+# (sd_listen_fds), поэтому это единственный unit — без отдельного .socket.
+# Сокет создаёт сам ssh-agent по фиксированному пути %t/ssh-agent.socket,
+# который не меняется между рестартами контейнеров и ребутами хоста.
+#
+# ExecStartPost ниже подставить под конкретный хост при первичной установке:
+#   develop-хост: %h/.ssh/help_blocks и %h/.ssh/xray_boriska
+#   prod-хост:    %h/.ssh/vpn_boriska и %h/.ssh/xray_boriska
+# Ключи должны быть без passphrase — иначе автозагрузка тут молча не сработает.
+
+[Unit]
+Description=Persistent SSH agent for automated VPN-node deploys
+
+[Service]
+Type=simple
+Environment=SSH_AUTH_SOCK=%t/ssh-agent.socket
+ExecStart=/usr/bin/ssh-agent -D -a %t/ssh-agent.socket
+ExecStartPost=/bin/sh -c 'SSH_AUTH_SOCK=%t/ssh-agent.socket ssh-add %h/.ssh/<key1> </dev/null 2>/dev/null || true'
+ExecStartPost=/bin/sh -c 'SSH_AUTH_SOCK=%t/ssh-agent.socket ssh-add %h/.ssh/<key2> </dev/null 2>/dev/null || true'
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
