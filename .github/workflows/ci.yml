@@ -79,7 +79,7 @@ jobs:
           # значения для конструирования Bot/SecretStr при коллекции тестов
           # (Dependabot PR не получает доступ к repository secrets, поэтому
           # эти пять полей не должны зависеть от secrets.*).
-          BOT_TOKEN: "123456:TEST-DUMMY-TOKEN-NOT-REAL-00000000000"
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           DB_PASSWORD: ${{ vars.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ vars.REDIS_PASSWORD }}
           ACCESS_KEY: "test-access-key"
