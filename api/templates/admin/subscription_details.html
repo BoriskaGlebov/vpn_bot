@@ -2,51 +2,67 @@
 
 {% block content %}
 
-<div style="margin-bottom:20px">
-    <a href="/bot/admin/subscription/list" class="btn btn-secondary">⬅ Назад</a>
+<div class="col-12 mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <h2 class="mb-0">
+            💳 Подписка
+            <span class="badge bg-{{ subscription_badge_colors.get(model.type.value if model.type else '', 'secondary') }}">
+                {{ model.type.name if model.type else "-" }}
+            </span>
+            {% if model.is_active %}
+            <span class="badge bg-success">активна</span>
+            {% else %}
+            <span class="badge bg-secondary">не активна</span>
+            {% endif %}
+        </h2>
 
-    <a href="/bot/admin/subscription/edit/{{ model.id }}" class="btn btn-primary">
-        ✏️ Редактировать
-    </a>
+        <div>
+            <a href="{{ url_for('admin:list', identity='subscription') }}" class="btn btn-secondary">⬅ Назад</a>
+            <a href="{{ url_for('admin:edit', identity='subscription', pk=model.id) }}" class="btn btn-primary">
+                ✏️ Редактировать
+            </a>
+        </div>
+    </div>
 </div>
 
-<h2>💳 Подписка пользователя</h2>
-
-<table class="table table-bordered table-striped">
-    <tr>
-        <th>ID</th>
-        <td>{{ model.id }}</td>
-    </tr>
-    <tr>
-        <th>Пользователь</th>
-        <td>{{ model.user.username if model.user else "-" }} ({{ model.user.telegram_id if model.user else "-" }})</td>
-    </tr>
-    <tr>
-        <th>Тип</th>
-        <td>{{ model.type.value.upper() if model.type else "-" }}</td>
-    </tr>
-    <tr>
-        <th>Активна</th>
-        <td>
-            {% if model.is_active %}
-                <span style="color:green;font-weight:bold">🟢 АКТИВНА</span>
-            {% else %}
-                <span style="color:red;font-weight:bold">🔴 НЕТ</span>
-            {% endif %}
-        </td>
-    </tr>
-    <tr>
-        <th>Начало</th>
-        <td>{{ model.start_date.strftime("%Y-%m-%d") if model.start_date else "-" }}</td>
-    </tr>
-    <tr>
-        <th>Конец</th>
-        <td>{{ model.end_date.strftime("%Y-%m-%d") if model.end_date else "∞" }}</td>
-    </tr>
-    <tr>
-        <th>Осталось дней</th>
-        <td>{{ model.remaining_days() if model.remaining_days() is not none else "∞" }}</td>
-    </tr>
-</table>
+<div class="col-md-6">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Детали</h3>
+        </div>
+        <div class="card-body">
+            <table class="table table-borderless mb-0">
+                <tr>
+                    <th>ID</th>
+                    <td>{{ model.id }}</td>
+                </tr>
+                <tr>
+                    <th>Пользователь</th>
+                    <td>
+                        {% if model.user %}
+                        <a href="{{ url_for('admin:details', identity='user', pk=model.user.id) }}">
+                            {{ model.user.username or model.user.telegram_id }}
+                        </a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Начало</th>
+                    <td>{{ model.start_date.strftime("%Y-%m-%d") if model.start_date else "-" }}</td>
+                </tr>
+                <tr>
+                    <th>Конец</th>
+                    <td>{{ model.end_date.strftime("%Y-%m-%d") if model.end_date else "∞" }}</td>
+                </tr>
+                <tr>
+                    <th>Осталось дней</th>
+                    <td>{{ model.remaining_days() if model.remaining_days() is not none else "∞" }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
 
 {% endblock %}

@@ -1,4 +1,8 @@
 from enum import StrEnum
+from typing import Final
+
+# Значение `months` в `SubscriptionCB`, обозначающее выбор пробного периода (7 дней), а не платной подписки.
+TRIAL_PERIOD_SENTINEL: Final = 7
 
 
 class SubscriptionAction(StrEnum):
@@ -6,12 +10,18 @@ class SubscriptionAction(StrEnum):
 
     Attributes
         SELECT: Пользователь выбирает тип подписки.
-        PAID: Подписка успешно оплачена.
+        PAY_CARD: Пользователь выбрал оплату картой (автоматически, через платёжный шлюз).
+        PAY_TRANSFER: Пользователь выбрал оплату переводом (вручную, с проверкой администратором).
+        PAID: Пользователь подтвердил перевод ("Я оплатил") — ждём проверки администратором.
+        CANCEL: Отмена
 
     """
 
     SELECT = "select"
+    PAY_CARD = "pay_card"
+    PAY_TRANSFER = "pay_transfer"
     PAID = "paid"
+    CANCEL = "cancel"
 
 
 class ToggleSubscriptionMode(StrEnum):
@@ -42,3 +52,14 @@ class AdminPaymentAction(StrEnum):
 
     CONFIRM = "confirm"
     DECLINE = "decline"
+
+
+class MySubscriptionAction(StrEnum):
+    """Действия под карточкой "Моя подписка" главного меню.
+
+    Attributes
+        RENEW: Оформить новую или продлить текущую подписку.
+
+    """
+
+    RENEW = "renew"

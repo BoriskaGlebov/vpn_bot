@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
@@ -9,6 +9,7 @@ from api.referrals.models import Referral
 
 @pytest.mark.asyncio
 async def test_add_referral_success(mock_session):
+    """Создаёт запись Referral с корректными полями и flush()-ит сессию."""
     inviter_id = 1
     invited_id = 2
 
@@ -33,6 +34,7 @@ async def test_add_referral_success(mock_session):
 
 @pytest.mark.asyncio
 async def test_add_referral_logs_info(mock_session):
+    """Успешное добавление реферала логируется с inviter/invited id."""
     inviter_id = 10
     invited_id = 20
 
@@ -51,6 +53,7 @@ async def test_add_referral_logs_info(mock_session):
 
 @pytest.mark.asyncio
 async def test_add_referral_sqlalchemy_error(mock_session):
+    """Ошибка БД при flush() пробрасывается наружу и логируется как error."""
     inviter_id = 1
     invited_id = 2
 

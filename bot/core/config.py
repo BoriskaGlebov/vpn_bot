@@ -12,7 +12,11 @@ from loguru import logger
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 from pydantic_settings import SettingsConfigDict
 
-from bot.app_error.base_error import AppError
+from bot.app_error.base_error import (
+    ProxyNotConfiguredError,
+    VPNNodeNotFoundError,
+    XRayNotConfiguredError,
+)
 from shared.config.app_config import SettingsApp, SettingsCommon, load_toml_config
 from shared.config.db_config import RedisSettings
 from shared.config.logger_config import LoggerConfig
@@ -69,17 +73,49 @@ class BotSettings(SettingsCommon):
     model_config = SettingsConfigDict(env_prefix="BOT_")
 
 
+class SchedulerSettings(SettingsCommon):
+    """Настройки расписания плановой проверки подписок.
+
+    Позволяет переключать проверку между быстрым интервалом (для локальной
+    отладки) и боевым cron-расписанием без ручной правки кода — выбор
+    зависит только от того, что задано в `app_config.{toml,develop.toml}`
+    для текущей `STAGE`.
+
+    Attributes
+        interval_seconds (int | None): Если задано — джоба запускается через
+            фиксированный интервал в секундах (используется в dev/local).
+            Если не задано (None) — используется cron-расписание
+            (`cron_hour`:`cron_minute`), как в проде.
+        cron_hour (int): Час запуска по cron-расписанию.
+        cron_minute (int): Минута запуска по cron-расписанию.
+
+    """
+
+    interval_seconds: int | None = None
+    cron_hour: int = 8
+    cron_minute: int = 0
+
+    model_config = SettingsConfigDict(env_prefix="SCHEDULER_")
+
+
 class ApiSettings(SettingsCommon):
     """Настройки API-сервиса.
 
     Attributes
         url (str): Хост или путь API.
         port (int): Порт API.
+        secret (SecretStr): Общий секрет для подписи запросов бота к api/
+            (заголовок X-Internal-Secret). Должен совпадать со значением
+            INTERNAL_API_SECRET на стороне api/.
 
     """
 
     url: str = "api"
     port: int = 8089
+    secret: SecretStr = Field(
+        default=SecretStr("secret"),
+        validation_alias="INTERNAL_API_SECRET",
+    )
 
     model_config = SettingsConfigDict(env_prefix="API_")
 
@@ -199,11 +235,11 @@ class VPNNode(SettingsCommon):
             XRaySettings: Настройки XRay.
 
         Raises
-            AppError: Если XRay не настроен.
+            XRayNotConfiguredError: Если XRay не настроен.
 
         """
         if self.xray is None:
-            raise AppError(f"XRay не настроен для {self.host}")
+            raise XRayNotConfiguredError(self.host)
         return self.xray
 
     def require_proxy(self) -> ProxySettings:
@@ -213,11 +249,11 @@ class VPNNode(SettingsCommon):
             ProxySettings: Настройки Proxy.
 
         Raises
-            AppError: Если Proxy не настроен.
+            ProxyNotConfiguredError: Если Proxy не настроен.
 
         """
         if self.proxy is None:
-            raise AppError(f"Proxy не настроен для {self.host}")
+            raise ProxyNotConfiguredError(self.host)
         return self.proxy
 
 
@@ -241,13 +277,13 @@ class VPNRegistry(SettingsCommon):
             VPNNode: Найденная нода.
 
         Raises
-            ValueError: Если нода не найдена.
+            VPNNodeNotFoundError: Если нода не найдена.
 
         """
         try:
             return self.nodes[name]
         except KeyError as exc:
-            raise ValueError(f"VPN node '{name}' не найден в настройках.") from exc
+            raise VPNNodeNotFoundError(name) from exc
 
     @property
     def main(self) -> VPNNode:
@@ -318,6 +354,21 @@ class BucketSettings(SettingsCommon):
     secret_key: SecretStr
 
 
+class PaymentSettings(SettingsCommon):
+    """Настройки интеграции с платёжным шлюзом.
+
+    Attributes
+        merchant_id (SecretStr): Идентификатор мерчанта,
+            предоставленный платёжной системой.
+        api_key (SecretStr): Секретный API-ключ для
+            аутентификации запросов к платёжному API.
+
+    """
+
+    merchant_id: SecretStr
+    api_key: SecretStr
+
+
 class Settings(SettingsCommon):
     """Агрегированная конфигурация приложения.
 
@@ -330,6 +381,9 @@ class Settings(SettingsCommon):
 
         bot (BotSettings): Настройки Telegram-бота
             (токен, администраторы, webhook/polling).
+
+        scheduler (SchedulerSettings): Расписание плановой проверки подписок
+            (интервал для dev или cron-время для прода).
 
         api (ApiSettings): Конфигурация API-сервиса
             (хост, порт).
@@ -344,6 +398,8 @@ class Settings(SettingsCommon):
 
         redis (RedisSettings): Настройки Redis
             (подключение и TTL для FSM/кэша).
+
+        payment (PaymentSettings): Настройки интеграции с сервисом оплаты
 
     Properties
         messages (Box): Тексты диалогов бота.
@@ -360,6 +416,7 @@ class Settings(SettingsCommon):
     core: SettingsApp = Field(default_factory=SettingsApp)
 
     bot: BotSettings = Field(default_factory=BotSettings)
+    scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     api: ApiSettings = Field(default_factory=ApiSettings)
 
     vpn: VPNRegistry = Field(default_factory=VPNRegistry)
@@ -369,6 +426,8 @@ class Settings(SettingsCommon):
     bucket: BucketSettings = Field(default_factory=BucketSettings)
 
     redis: RedisSettings = Field(default_factory=RedisSettings)
+
+    payment: PaymentSettings = Field(default_factory=PaymentSettings)
 
     @cached_property
     def messages(self) -> Box:
@@ -411,8 +470,3 @@ storage = RedisStorage.from_url(
 # dp = Dispatcher(storage=MemoryStorage())
 # Это если работать через Redis
 dp = Dispatcher(storage=storage)
-
-
-if __name__ == "__main__":
-    s = settings_bot.vpn.get("main")
-    print(s.xray)

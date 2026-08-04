@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from bot.app_error.api_error import APIClientError
+from bot.app_error.schema import ErrorDetail
 from bot.news.adapter import NewsAPIAdapter
 from bot.news.services import NewsService
 
@@ -40,7 +41,9 @@ async def test_all_users_id_adapter_raises(news_adapter_mock: AsyncMock) -> None
     сервис корректно пробрасывает это исключение дальше.
     """
     # Мокаем, чтобы метод выбрасывал исключение
-    news_adapter_mock.get_recipients.side_effect = APIClientError("Ошибка API")
+    news_adapter_mock.get_recipients.side_effect = APIClientError(
+        ErrorDetail(code="api_error", message="Ошибка API")
+    )
 
     service = NewsService(adapter=news_adapter_mock)
 

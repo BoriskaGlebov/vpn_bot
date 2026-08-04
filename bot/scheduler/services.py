@@ -1,5 +1,4 @@
 import json
-from collections.abc import Iterable
 from dataclasses import dataclass
 
 from aiogram import Bot
@@ -7,6 +6,7 @@ from aiogram.exceptions import TelegramForbiddenError
 from loguru import logger
 
 from bot.app_error.api_error import APIClientError
+from bot.app_error.base_error import VPNConfigDeletionFailedError
 from bot.core.config import settings_bot
 from bot.scheduler.adapter import SchedulerAPIAdapter
 from bot.scheduler.enums import DeleteStatus
@@ -95,7 +95,16 @@ class SchedulerBotService:
         self.bot = bot
 
     async def _run_check_all(self) -> CheckAllSubscriptionsResponse | None:
-        """Выполняет запрос к API планировщика и возвращает ответ."""
+        """Выполняет запрос к API планировщика и возвращает ответ.
+
+        При ошибке API уведомляет админов и возвращает None — вызывающий код
+        (`check_all_subscriptions`) не должен уведомлять их повторно.
+
+        Returns
+            CheckAllSubscriptionsResponse | None: Ответ API, либо None,
+                если запрос завершился `APIClientError`.
+
+        """
         try:
             return await self.api_adapter.check_all()
         except APIClientError as exs:
@@ -107,36 +116,23 @@ class SchedulerBotService:
             await send_to_admins(bot=self.bot, message_text=message_text)
             return None
 
-    async def _handle_delete_events(
-        self, events: Iterable[DeleteVPNConfigsEventSchema]
-    ) -> None:
-        """Обрабатывает события, полученные от планировщика."""
-        for event in events:
-            if isinstance(event, DeleteVPNConfigsEventSchema):
-                await self._trigger_config_deletion(
-                    event.user_id, event.configs, [AsyncSSHClientWG, AsyncSSHClientWG2]
-                )
-            # elif isinstance(event, DeleteProxyEventSchema):
-            #     await self._trigger_proxy_deletion(event.user_id)
-            else:
-                # сюда можно логировать неизвестный event
-                continue
-
-    async def _handle_notify_events(self, events: Iterable[EventBase]) -> None:
-        """Обрабатывает события, полученные от планировщика."""
-        for event in events:
-            if isinstance(event, UserNotifyEventSchema):
-                await self._send_user_message(event.user_id, event.message, event)
-            elif isinstance(event, AdminNotifyEventSchema):
-                await send_to_admins(bot=self.bot, message_text=event.message)
-            else:
-                # сюда можно логировать неизвестный event
-                continue
-
     async def _send_user_message(
         self, tg_id: int, message: str, event: EventBase
     ) -> None:
-        """Отправляет сообщение пользователю через бота."""
+        """Отправляет сообщение пользователю через бота.
+
+        Для `UserNotifyEventSchema` текст формируется из шаблонов
+        уведомления об истечении подписки (`message` игнорируется); для
+        остальных типов событий отправляется `message` как есть. Если
+        пользователь заблокировал бота — уведомляет админов вместо падения.
+
+        Args:
+            tg_id: Telegram ID получателя.
+            message: Текст сообщения (используется, если событие — не
+                `UserNotifyEventSchema`).
+            event: Исходное событие, определяющее формат текста.
+
+        """
         try:
             if isinstance(event, UserNotifyEventSchema):
                 if event.remaining_days >= 0 and event.active_sbs:
@@ -152,8 +148,12 @@ class SchedulerBotService:
             else:
                 await self.bot.send_message(chat_id=tg_id, text=message)
         except TelegramForbiddenError:
-            logger.error(
-                "Невозможно отправить уведомление пользователю который заблокировал бота"
+            # Штатная, регулярно встречающаяся ситуация (пользователь
+            # заблокировал бота), а не сбой планировщика — поэтому warning,
+            # а не error.
+            logger.warning(
+                "Невозможно отправить уведомление tg_id={} (пользователь заблокировал бота)",
+                tg_id,
             )
             await send_to_admins(
                 bot=self.bot,
@@ -161,10 +161,27 @@ class SchedulerBotService:
             )
 
     async def _handle_broken_pipe(
-        self, client_cls: AsyncSSHClientWG, file_name: str, error: Exception
+        self,
+        client_cls: AsyncSSHClientWG | type[AsyncSSHClientWG],
+        file_name: str,
+        error: Exception,
     ) -> None:
-        """Обработка события, когда не может подключиться к контейнеру с настройками."""
-        logger.error("SSH соединение разорвано ({}): {}", str(client_cls), error)
+        """Логирует обрыв SSH-соединения при удалении конфига.
+
+        Args:
+            client_cls: SSH-клиент, на котором произошёл обрыв — инстанс,
+                если соединение успело открыться, либо класс клиента, если
+                обрыв случился ещё на этапе подключения.
+            file_name: Имя файла конфига, который пытались удалить.
+            error: Исходное исключение `BrokenPipeError`.
+
+        """
+        logger.error(
+            "SSH соединение разорвано при удалении {} ({}): {}",
+            file_name,
+            str(client_cls),
+            error,
+        )
 
         # await send_to_admins(
         #     bot=self.bot,
@@ -181,7 +198,15 @@ class SchedulerBotService:
         config_id: str,
         serv_loc: str,
     ) -> None:
-        """Обработчик ошибки работы с 3XUI панелью."""
+        """Логирует и уведомляет админов об ошибке запроса к 3x-ui панели.
+
+        Args:
+            client_cls: Адаптер `ThreeXUIAdapter`, на котором произошла ошибка.
+            error: Исходное исключение (`APIClientError`).
+            config_id: Идентификатор конфига, который пытались удалить.
+            serv_loc: Локация/сервер, на котором произошла ошибка.
+
+        """
         logger.error(
             "Ошибка при осуществлении запроса к XRAY панели: ({}): {}",
             str(client_cls),
@@ -196,8 +221,39 @@ class SchedulerBotService:
             ),
         )
 
+    async def _notify_deletion_failed(self, cfg: DeletedVPNConfigSchema) -> None:
+        """Уведомляет админов, что конфиг не удалось удалить ни на Amnezia, ни на 3x-ui.
+
+        Запись в БД в этом случае намеренно не трогается (см.
+        `VPNConfigDeletionFailedError`) — конфиг может реально существовать
+        на одном из серверов, и попытка удаления повторится в следующем
+        прогоне планировщика.
+
+        Args:
+            cfg: Данные конфига, который не удалось удалить.
+
+        """
+        error = VPNConfigDeletionFailedError(cfg.file_name)
+        envelope = error.to_envelope()
+        logger.error(
+            "[{}] {} | details={}",
+            envelope.error.code,
+            envelope.error.message,
+            envelope.error.details,
+        )
+        await send_to_admins(bot=self.bot, message_text=f"⚠️ {envelope.error.message}")
+
     async def _delete_from_db(self, cfg: DeletedVPNConfigSchema) -> None:
-        """Удаляет конфиг из БД."""
+        """Удаляет запись о конфиге из БД через `api/`.
+
+        Вызывается только после того, как конфиг подтверждённо удалён (или
+        точно не найден) на внешнем сервисе (Amnezia/3x-ui) — см.
+        `_trigger_config_deletion`.
+
+        Args:
+            cfg: Данные конфига, чью запись нужно удалить из БД.
+
+        """
         logger.debug("Удаление из БД {}", cfg.file_name)
 
         try:
@@ -216,7 +272,24 @@ class SchedulerBotService:
         self,
         cfg: DeletedVPNConfigSchema,
     ) -> DeleteStatus:
-        """Удаляет конфиг через 3x-ui если не найден в SSH."""
+        """Удаляет конфиг через панели 3x-ui, если не найден/не удалён по SSH.
+
+        `cfg.pub_key` в этом сценарии — не WG-публичный ключ, а JSON-список
+        `config_id` в 3x-ui (перегрузка одного поля под два бэкенда, см.
+        `DeletedVPNConfigSchema`). Перебирает все локации (`ALL_LOCATIONS`) и
+        удаляет там все `config_id` из списка.
+
+        Args:
+            cfg: Данные удаляемого конфига; `pub_key` ожидается как
+                JSON-массив идентификаторов конфигов в 3x-ui.
+
+        Returns
+            DeleteStatus: `DELETED`, если все config_id успешно удалены в
+                какой-то одной локации; `NOT_FOUND`, если ошибок не было, но
+                удалить нечего; `ERROR`, если `pub_key` не распарсился как
+                JSON или удаление хотя бы одного config_id завершилось ошибкой.
+
+        """
         logger.info("Fallback: проверка 3x-ui")
         deletion_statistic = []
         try:
@@ -265,7 +338,24 @@ class SchedulerBotService:
         cfg: DeletedVPNConfigSchema,
         ssh_clients: list[type[AsyncSSHClientWG]],
     ) -> DeleteStatus:
-        """Пытается удалить конфиг через SSH на всех клиентах."""
+        """Пытается удалить конфиг через SSH на всех Amnezia-клиентах и локациях.
+
+        Перебирает все переданные классы SSH-клиентов и все локации
+        (`ALL_LOCATIONS`), пока конфиг не будет удалён либо не закончатся
+        варианты подключения.
+
+        Args:
+            cfg: Данные удаляемого VPN-конфига (имя файла и публичный ключ).
+            ssh_clients: Классы SSH-клиентов, которые нужно перебрать
+                (например, `AsyncSSHClientWG`, `AsyncSSHClientWG2`).
+
+        Returns
+            DeleteStatus: `DELETED`, если конфиг удалён хотя бы одним клиентом;
+                `NOT_FOUND`, если ни на одном сервере не было ошибок, но конфиг
+                нигде не найден; `ERROR`, если хотя бы одна попытка завершилась
+                ошибкой подключения.
+
+        """
         deletion_statistic = []
         for client_cls in ssh_clients:
             for loc_prefix in ALL_LOCATIONS:
@@ -273,6 +363,7 @@ class SchedulerBotService:
                     server_info = settings_bot.vpn.get("main")
                 else:
                     server_info = settings_bot.vpn.get(loc_prefix.value)
+                ssh_client: AsyncSSHClientWG | None = None
                 try:
                     async with client_cls(
                         host=server_info.host,
@@ -296,7 +387,11 @@ class SchedulerBotService:
                     deletion_statistic.append(DeleteStatus.ERROR)
 
                 except BrokenPipeError as e:
-                    await self._handle_broken_pipe(ssh_client, cfg.file_name, e)
+                    # ssh_client может быть не присвоен, если BrokenPipeError
+                    # произошёл на этапе подключения (до входа в `async with`).
+                    await self._handle_broken_pipe(
+                        ssh_client or client_cls, cfg.file_name, e
+                    )
                     deletion_statistic.append(DeleteStatus.ERROR)
         else:
             return (
@@ -311,7 +406,24 @@ class SchedulerBotService:
         configs: list[DeletedVPNConfigSchema],
         ssh_clients: list[type[AsyncSSHClientWG]],
     ) -> int:
-        """Оркестрирует удаление VPN-конфигов."""
+        """Оркестрирует последовательное удаление VPN-конфигов пользователя.
+
+        Для каждого конфига сначала пробует удалить его через SSH (Amnezia),
+        затем, если там не нашлось или произошла ошибка — через панель 3x-ui.
+        Из БД конфиг удаляется только если он реально удалён (или точно
+        не найден) хотя бы в одном из внешних сервисов; если оба сервиса
+        вернули ошибку — запись в БД намеренно не трогается, а админы
+        получают уведомление (см. `_notify_deletion_failed`).
+
+        Args:
+            tg_id: Telegram ID пользователя, которому принадлежат конфиги.
+            configs: Список конфигов на удаление.
+            ssh_clients: Классы SSH-клиентов для перебора в `_delete_from_ssh`.
+
+        Returns
+            int: Количество фактически удалённых конфигов.
+
+        """
         if not configs:
             return 0
         count_deleted = 0
@@ -344,40 +456,21 @@ class SchedulerBotService:
                         count_deleted += 1
                         continue
                     else:
-                        logger.error("Ошибка 3x-ui → НЕ удаляю из БД {}", cfg.file_name)
+                        await self._notify_deletion_failed(cfg)
             return count_deleted
-
-    async def _trigger_proxy_deletion(self, tg_id: int) -> None:
-        """Триггер удаления прокси через внешний сервис."""
-        # async with ssh_lock:
-        #     async with AsyncDockerSSHClient(
-        #         host=settings_bot.vpn_host,
-        #         username=settings_bot.vpn_username,
-        #         container=settings_bot.vpn_proxy,
-        #     ) as client:
-        #         proxy = AmneziaProxy(client=client, port=settings_bot.proxy_port)
-        #         try:
-        #             res = await proxy.delete_user(username=str(tg_id))
-        #             if res:
-        #                 await self._send_user_message(
-        #                     tg_id=tg_id,
-        #                     message="⚠️ Настройки прокси удалены.",
-        #                 )
-        #         except AmneziaError as e:
-        #             logger.error(f"SSH deletion error: {e}")
-        #             raise
-        pass
 
     async def check_all_subscriptions(
         self,
     ) -> SubscriptionBotStats:
         """Проверяет все подписки пользователей и собирает статистику.
 
-        Метод выполняет выборку всех пользователей с подгрузкой их подписок,
-        роли и VPN-конфигов. Для каждого пользователя вызывается внутренний
-        метод `_process_user`, который возвращает статистику по истёкшим
-        подпискам, уведомлениям и удалённым конфигам.
-
+        Дёргает `/scheduler/check-all` (через `_run_check_all`), который на
+        стороне `api/` деактивирует истёкшие подписки и формирует список
+        событий. Затем разбирает события на два потока: удаление VPN-конфигов
+        (`DeleteVPNConfigsEventSchema` → `_trigger_config_deletion`) и
+        уведомления (`UserNotifyEventSchema`/`AdminNotifyEventSchema` →
+        `_send_user_message`/`send_to_admins`). В конце шлёт админам сводную
+        статистику прогона.
 
         Returns
             SubscriptionStats: Статистика по всем пользователям. Ключи включают:
@@ -397,14 +490,11 @@ class SchedulerBotService:
         )
 
         if not result:
-            await send_to_admins(
-                bot=self.bot,
-                message_text=m_subscription_local.daily_check.format(
-                    checked=stats.checked,
-                    expired=stats.expired,
-                    notified=stats.notified,
-                    configs_deleted=stats.configs_deleted,
-                ),
+            # Об ошибке уже сообщили админам внутри `_run_check_all` — здесь
+            # не дублируем уведомление сводкой из нулей, которая выглядела бы
+            # как «нормальный» день с checked=0, а не как сбой проверки.
+            logger.debug(
+                "check_all вернул None — пропускаю обработку событий и повторное уведомление"
             )
             return stats
 

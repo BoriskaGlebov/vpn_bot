@@ -1,8 +1,7 @@
 from loguru import logger
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.users.models import Role, User
+from api.users.dao import UserDAO
 from shared.enums.admin_enum import RoleEnum
 
 
@@ -19,13 +18,8 @@ class NewsService:
             List[int]: Список Telegram ID пользователей для рассылки.
 
         """
-        query = (
-            select(User.telegram_id)
-            .join(User.role)
-            .where(Role.name != RoleEnum.ADMIN.value)
+        users_id = await UserDAO.get_telegram_ids_excluding_role(
+            session=session, role_name=RoleEnum.ADMIN
         )
-
-        result = await session.execute(query)
-        users_id = result.scalars().all()
         logger.info("Получил id пользователей для рассылки.")
-        return list(users_id)
+        return users_id

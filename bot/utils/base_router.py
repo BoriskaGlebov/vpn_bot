@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import inspect
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -16,6 +17,7 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
 from bot.core.config import settings_bot
+from bot.utils.formatting import format_username
 
 T = TypeVar("T")
 F = TypeVar("F", bound=Callable[..., Any])
@@ -45,7 +47,7 @@ class BaseRouter(ABC):
             F:
 
         """
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             # если функция асинхронная
             @functools.wraps(func)
             async def async_wrapper(self: SelfT, *args: Any, **kwargs: Any) -> Any:
@@ -59,7 +61,7 @@ class BaseRouter(ABC):
                     )
                     return result
                 except Exception as e:
-                    self.logger.error(
+                    self.logger.exception(
                         f"❌ Ошибка в {self.__class__.__name__}.{func.__name__}: {e}"
                     )
                     raise
@@ -124,8 +126,11 @@ class BaseRouter(ABC):
                 await asyncio.sleep(2)
                 await message.delete()
             except Exception as e:
-                self.logger.error(e)
-                pass
+                # Штатная ситуация — сообщение уже удалено пользователем
+                # или устарело, не сбой обработчика.
+                self.logger.debug(
+                    f"Не удалось удалить сообщение {message.message_id}: {e}"
+                )
 
             current_state = await state.get_state()
             state_me = current_state.split(":")[1] if current_state else None
@@ -135,15 +140,7 @@ class BaseRouter(ABC):
             if counter >= 2:
                 await state.clear()
 
-                user = message.from_user
-                if user:
-                    username = (
-                        f"@{user.username}"
-                        if user.username
-                        else user.full_name or f"Гость_{user.id}"
-                    )
-                else:
-                    username = "Гость"
+                username = format_username(message.from_user)
 
                 answer_text = m_error.help_limit_reached.format(username=username)
 
@@ -176,7 +173,7 @@ class BaseRouter(ABC):
             user = message.from_user
             if user is None:
                 self.logger.error("message.from_user is None")
-                return
+                return None
             return await func(self, message, user=user, *args, **kwargs)
 
         return wrapper  # type: ignore[return-value]
@@ -208,10 +205,10 @@ class BaseRouter(ABC):
             msg = query.message
             if msg is None:
                 self.logger.error("CallbackQuery.message is None")
-                return
+                return None
             if isinstance(msg, InaccessibleMessage):
                 self.logger.warning("CallbackQuery.message is InaccessibleMessage")
-                return
+                return None
             return await func(self, query, msg, *args, **kwargs)
 
         return wrapper  # type: ignore[return-value]

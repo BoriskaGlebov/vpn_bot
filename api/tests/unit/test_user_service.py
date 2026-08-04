@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.app_error.base_error import UserNotFoundError
 from api.users.schemas import (
     SUser,
     SUserOut,
@@ -34,6 +35,7 @@ async def test_register_or_get_user_existing(
     service,
     session,
 ):
+    """Пользователь уже существует -> возвращается без создания, created=False."""
     fake_user = MagicMock()
     mock_find_user.return_value = fake_user
 
@@ -208,12 +210,14 @@ async def test_get_user_with_referrals_not_found(
     service,
     session,
 ):
-    """Пользователь не найден."""
+    """Пользователь не найден -> UserNotFoundError (404)."""
     mock_find_user.return_value = None
 
-    result = await service.get_user_with_referrals(
-        session=session,
-        telegram_id=123,
-    )
+    with pytest.raises(UserNotFoundError) as exc_info:
+        await service.get_user_with_referrals(
+            session=session,
+            telegram_id=123,
+        )
 
-    assert result is None
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "user_not_found"

@@ -8,11 +8,6 @@ ENV POETRY_VERSION=1.8.0 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     PATH="/vpn_bot/.venv/bin:/vpn_bot/.local/bin:$PATH"
 
-
-# Создаём пользователя
-RUN groupadd -r bot && \
-    useradd -r -g bot -d /vpn_bot -s /bin/bash -m botuser
-
 WORKDIR /vpn_bot
 
 # Устанавливаем системные зависимости + docker CLI
@@ -32,22 +27,20 @@ RUN apt-get update && \
     && apt-get install -y --no-install-recommends docker-cli \
     && rm -rf /var/lib/apt/lists/*
 
-
-
 # Устанавливаем Poetry
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir "poetry==$POETRY_VERSION"
 
 # Копируем декларации зависимостей
-COPY --chown=botuser:bot pyproject.toml poetry.lock ./
+COPY pyproject.toml poetry.lock ./
 
 # Устанавливаем зависимости (без dev)
 RUN poetry install --without dev --no-cache
 
 # Копируем проект целиком
-COPY --chown=botuser:bot bot/ bot/
-COPY --chown=botuser:bot pyproject.toml poetry.lock app_config.toml app_config.develop.toml ./
-COPY --chown=botuser:bot shared/ shared/
+COPY bot/ bot/
+COPY pyproject.toml poetry.lock app_config.toml app_config.develop.toml ./
+COPY shared/ shared/
 
 # Делаем entrypoint исполняемым
 RUN chmod +x ./bot/entrypoint.sh

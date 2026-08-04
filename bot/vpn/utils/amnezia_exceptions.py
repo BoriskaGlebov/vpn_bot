@@ -1,5 +1,12 @@
-class AmneziaError(Exception):
+from bot.app_error.base_error import AppError
+
+
+class AmneziaError(AppError):
     """Базовый класс для всех ошибок Amnezia.
+
+    Наследуется от `AppError`, чтобы попадать в общий `ErrorHandlerMiddleware`
+    (который распознаёт только `AppError`/`APIClientError`) и корректно
+    превращаться в `ErrorEnvelope` вместо generic "unexpected_error".
 
     Args:
         message (str): Описание ошибки.
@@ -7,25 +14,8 @@ class AmneziaError(Exception):
 
     """
 
-    def __init__(self, message: str, *, cause: Exception | None = None) -> None:
-        super().__init__(message)
-        self.cause = cause
-
-    def __str__(self) -> str:
-        """Возвращает строковое представление ошибки, включая причину, если она есть."""
-        base = super().__str__()
-        details = self._format_details()
-        return f"{base}{details}" if details else base
-
-    def _format_details(self) -> str | None:
-        """Форматирует дополнительные сведения об ошибке.
-
-        Returns
-            str: Строка с подробной информацией об ошибке.
-            Если деталей нет, возвращается пустая строка.
-
-        """
-        pass
+    code: str = "amnezia_error"
+    status_code: int = 502
 
 
 class AmneziaSSHError(AmneziaError):
@@ -40,30 +30,30 @@ class AmneziaSSHError(AmneziaError):
 
     """
 
+    code = "amnezia_ssh_error"
+
     def __init__(
         self,
         message: str,
+        *,
         cmd: str = "",
         stdout: str = "",
         stderr: str = "",
-        *,
         cause: Exception | None = None,
     ) -> None:
-        super().__init__(message, cause=cause)
+        super().__init__(
+            message,
+            details={
+                "cmd": cmd,
+                "stdout": stdout,
+                "stderr": stderr,
+            },
+            cause=cause,
+        )
+
         self.cmd = cmd
         self.stdout = stdout
         self.stderr = stderr
-
-    def _format_details(self) -> str:
-        parts = []
-
-        if self.cmd:
-            parts.append(f"Команда: {self.cmd}")
-        if self.stdout:
-            parts.append(f"stdout: {self.stdout}")
-        if self.stderr:
-            parts.append(f"stderr: {self.stderr}")
-        return "\n" + "\n".join(parts) if parts else ""
 
 
 class AmneziaConfigError(AmneziaError):
@@ -76,26 +66,27 @@ class AmneziaConfigError(AmneziaError):
 
     """
 
+    code = "amnezia_config_error"
+
     def __init__(
         self,
         message: str,
-        file: str = "",
         *,
+        file: str = "",
         stderr: str = "",
         cause: Exception | None = None,
     ) -> None:
-        super().__init__(message, cause=cause)
+        super().__init__(
+            message,
+            details={
+                "file": file,
+                "stderr": stderr,
+            },
+            cause=cause,
+        )
+
         self.file = file
         self.stderr = stderr
-
-    def _format_details(self) -> str:
-        parts = []
-
-        if self.file:
-            parts.append(f"Файл: {self.file}")
-        if self.stderr:
-            parts.append(f"stderr: {self.stderr}")
-        return "\n" + "\n".join(parts) if parts else ""
 
 
 class AmneziaUserError(AmneziaError):
@@ -108,14 +99,21 @@ class AmneziaUserError(AmneziaError):
 
     """
 
-    def __init__(
-        self, message: str, user: str = "", *, cause: Exception | None = None
-    ) -> None:
-        super().__init__(message, cause=cause)
-        self.user = user
+    code = "amnezia_user_error"
 
-    def _format_details(self) -> str:
-        parts = []
-        if self.user:
-            parts.append(f"user: {self.user}")
-        return "\n" + "\n".join(parts) if parts else ""
+    def __init__(
+        self,
+        message: str,
+        *,
+        user: str = "",
+        cause: Exception | None = None,
+    ) -> None:
+        super().__init__(
+            message,
+            details={
+                "user": user,
+            },
+            cause=cause,
+        )
+
+        self.user = user

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_session
+from api.core.openapi_responses import ADMIN_RESPONSES
 from api.news.dependencies import get_news_service
 from api.news.services import NewsService
 from api.users.models import User
@@ -21,6 +22,7 @@ router = APIRouter(prefix="/news", tags=["bot", "NEWS"])
         "Из выборки исключаются пользователи с административной ролью."
     ),
     response_description="Список Telegram ID пользователей",
+    responses=ADMIN_RESPONSES,
 )
 async def get_news_recipients(
     session: AsyncSession = Depends(get_session),

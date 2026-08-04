@@ -8,7 +8,6 @@ from api.core.dao.base import BaseDAO
 from api.payment.model import PaymentStatus, PaymentTransaction
 
 
-# TODO документация типы данных и тесты если будут методы
 class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):
     """DAO для работы с платежными транзакциями.
 
@@ -18,7 +17,6 @@ class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):
 
     model = PaymentTransaction
 
-    # TODO вернет то скорее DECIMAL???
     @classmethod
     async def get_year_income(
         cls,

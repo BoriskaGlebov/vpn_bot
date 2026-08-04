@@ -1,21 +1,93 @@
+from typing import Any
+
+from starlette import status
+
+from api.core.exceptions.schema import ErrorDetail, ErrorEnvelope
+
+
 class AppError(Exception):
     """Базовое приложение-ориентированное исключение.
 
-    Args:
-        message (str): Описание ошибки.
-        cause (Exception | None): Исходное исключение.
+    Используется как корневой класс всех доменных ошибок приложения.
+    Позволяет унифицировать формат ошибок и их сериализацию в API.
+
+    Attributes
+        code: Машиночитаемый код ошибки.
+        status_code: HTTP статус ответа.
+        message: Текстовое описание ошибки.
+        details: Дополнительные структурированные данные.
+        cause: Первопричина ошибки (исходное исключение).
 
     """
 
-    def __init__(self, message: str, *, cause: Exception | None = None) -> None:
+    code: str = "app_error"
+    status_code: int = status.HTTP_400_BAD_REQUEST
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+        cause: Exception | None = None,
+    ) -> None:
+        """Инициализирует базовую ошибку приложения.
+
+        Args:
+            message: Описание ошибки.
+            details: Дополнительные данные об ошибке.
+            cause: Исходное исключение, вызвавшее ошибку.
+
+        """
         super().__init__(message)
+
+        self.message = message
+        self.details = details or {}
         self.cause = cause
 
+    def to_dict(self) -> dict[str, Any]:
+        """Преобразует исключение в словарь API формата.
+
+        Returns
+            Словарь с описанием ошибки.
+
+        """
+        return {
+            "error": {
+                "code": self.code,
+                "message": self.message,
+                "details": self.details,
+            }
+        }
+
+    def to_envelope(
+        self,
+    ) -> ErrorEnvelope:
+        """Преобразует ошибку в Pydantic-обёртку.
+
+        Returns
+            ErrorEnvelope с данными ошибки.
+
+        """
+        return ErrorEnvelope(
+            error=ErrorDetail(
+                code=self.code,
+                message=self.message,
+                details=self.details or {},
+            )
+        )
+
     def __str__(self) -> str:
-        """Строковое представление об ошибке."""
-        base = super().__str__()
+        """Возвращает строковое представление ошибки.
+
+        Returns
+            Текст ошибки с указанием причины, если она есть.
+
+        """
+        base = self.message
+
         if self.cause:
             return f"{base} (cause: {self.cause})"
+
         return base
 
 
@@ -37,195 +109,313 @@ class ReferralError(AppError):
 
 
 class ReferralNotFoundError(ReferralError):
-    """Ошибка: реферальная запись не найдена.
-
-    Возникает, если для указанного приглашённого пользователя
-    отсутствует запись о реферале.
+    """Ошибка отсутствия реферальной записи.
 
     Attributes
-        invited_user_id (int): Telegram ID приглашённого пользователя,
-            для которого не найдена реферальная запись.
-
-    Args:
-        invited_user_id (int): Telegram ID приглашённого пользователя.
+        invited_user_id: ID приглашённого пользователя.
+        username: Telegram username приглашённого пользователя.
 
     """
 
-    def __init__(self, invited_user_id: int) -> None:
-        """Инициализирует исключение.
+    code = "referral_not_found"
+    status_code = status.HTTP_404_NOT_FOUND
+
+    def __init__(self, invited_user_id: int, username: str) -> None:
+        """Инициализирует ошибку отсутствия реферала.
 
         Args:
-            invited_user_id (int): Telegram ID приглашённого пользователя.
+            invited_user_id: ID приглашённого пользователя.
+            username: Telegram username приглашённого пользователя.
 
         """
         super().__init__(
-            f"Реферальная запись для пользователя {invited_user_id} не найдена"
+            message=f"Реферальная запись для пользователя @{username} не найдена",
+            details={
+                "invited_user_id": invited_user_id,
+                "username": username,
+            },
         )
-        self.invited_user_id = invited_user_id
-
-
-class ReferralBonusAlreadyGivenError(ReferralError):
-    """Ошибка: бонус уже был начислен.
-
-    Возникает, если попытка начислить бонус выполняется повторно
-    для одного и того же приглашённого пользователя.
-
-    Attributes
-        invited_user_id (int): Telegram ID приглашённого пользователя,
-            для которого бонус уже был начислен.
-
-    Args:
-        invited_user_id (int): Telegram ID приглашённого пользователя.
-
-    """
-
-    def __init__(self, invited_user_id: int) -> None:
-        super().__init__(f"Бонус за пользователя {invited_user_id} уже был начислен")
-        self.invited_user_id = invited_user_id
 
 
 class UserNotFoundError(AppError):
-    """Пользователь не найден."""
+    """Ошибка отсутствия пользователя."""
+
+    code = "user_not_found"
+    status_code = status.HTTP_404_NOT_FOUND
 
     def __init__(self, tg_id: int) -> None:
-        """Инициализирует исключение.
+        """Инициализирует ошибку отсутствия пользователя.
 
         Args:
-            tg_id (int): Telegram ID приглашённого пользователя.
+            tg_id: Telegram ID пользователя.
 
         """
-        super().__init__(message=f"Пользователь с Telegram ID {tg_id} не найден.")
-        self.tg_id = tg_id
+        super().__init__(
+            message=f"Пользователь с Telegram ID {tg_id} не найден.",
+            details={
+                "tg_id": tg_id,
+            },
+        )
 
 
 class RoleNotFoundError(AppError):
-    """Роль не найден."""
+    """Ошибка отсутствия роли."""
+
+    code = "role_not_found"
+    status_code = status.HTTP_404_NOT_FOUND
 
     def __init__(self, role_name: str) -> None:
-        super().__init__(message=f"Роль пользователя  {role_name} не найдена.")
-        self.role_name = role_name
+        """Инициализирует ошибку отсутствия роли.
+
+        Args:
+            role_name: Название роли.
+
+        """
+        super().__init__(
+            message=f"Роль пользователя  {role_name} не найдена.",
+            details={"role_name": role_name},
+        )
 
 
 class SubscriptionNotFoundError(AppError):
-    """У пользователя нет подписки."""
+    """Ошибка отсутствия подписки."""
 
-    def __init__(self, user_id: int) -> None:
-        super().__init__(f"У пользователя {user_id} нет подписки / не активна.")
-        self.user_id = user_id
+    code = "subscription_not_found"
+    status_code = status.HTTP_404_NOT_FOUND
+
+    def __init__(self, user_id: int, username: str) -> None:
+        """Инициализирует ошибку отсутствия подписки.
+
+        Args:
+            user_id: ID пользователя.
+            username: Telegram username.
+
+        """
+        super().__init__(
+            message=f"У пользователя @{username} нет подписки / не активна.",
+            details={"user_id": user_id, "username": username},
+        )
 
 
 class ActiveSubscriptionExistsError(AppError):
-    """У пользователя уже есть активная подписка."""
+    """Ошибка наличия активной подписки."""
 
-    def __init__(self) -> None:
-        super().__init__("У пользователя уже есть активная подписка")
+    code = "subscription_error"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, user_id: int, username: str) -> None:
+        """Инициализирует ошибку активной подписки.
+
+        Args:
+            user_id: ID пользователя.
+            username: Telegram username.
+
+        """
+        super().__init__(
+            message=f"У пользователя @{username} уже есть активная подписка",
+            details={"user_id": user_id, "username": username},
+        )
 
 
 class TrialAlreadyUsedError(AppError):
-    """Пробный период уже использован."""
+    """Ошибка повторного использования пробного периода."""
 
-    def __init__(self, message: str | None = None) -> None:
+    code = "trial_alredy_used_error"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, user_id: int, username: str) -> None:
+        """Инициализирует ошибку пробного периода.
+
+        Args:
+            user_id: ID пользователя.
+            username: Telegram username.
+
+        """
         super().__init__(
-            message=message if message else "Пробный период уже был использован"
+            message=f"Пробный период уже был использован пользователем @{username}",
+            details={"user_id": user_id, "username": username},
         )
 
 
 class VPNLimitError(AppError):
-    """Пользователь достиг лимита VPN-конфигов.
+    """Ошибка превышения лимита VPN-конфигов."""
 
-    Args:
-        user_id (int): ID пользователя.
-        limit (int): Максимальное количество конфигов.
+    code = "vpn_limit_reached"
+    status_code = status.HTTP_409_CONFLICT
 
-    """
+    def __init__(
+        self,
+        user_id: int,
+        limit: int,
+        username: str,
+    ) -> None:
+        """Инициализирует ошибку лимита VPN.
 
-    def __init__(self, user_id: int, limit: int, username: str = "") -> None:
+        Args:
+            user_id: ID пользователя.
+            limit: Максимально допустимое количество конфигов.
+            username: Telegram username.
+
+        """
         super().__init__(
-            f"Пользователь {user_id} достиг лимита ({limit}) конфигов.\n@{username}"
+            message=f"Пользователь @{username} достиг лимита ({limit}) конфигов.",
+            details={
+                "user_id": user_id,
+                "limit": limit,
+                "username": username,
+            },
         )
-        self.user_id = user_id
-        self.username = username
-        self.limit = limit
 
 
 class PaymentError(AppError):
     """Базовое исключение платежной системы."""
 
+    code = "payment_error"
+    status_code = status.HTTP_400_BAD_REQUEST
     pass
 
 
 class PaymentTransactionNotFoundError(PaymentError):
-    """Транзакция не найдена."""
+    """Ошибка отсутствия транзакции."""
 
-    def __init__(self, transaction_id: str) -> None:
-        super().__init__(message=f"Транзакция {transaction_id} не найдена.")
-        self.transaction_id = transaction_id
+    code = "transaction_not_found"
+    status_code = status.HTTP_404_NOT_FOUND
+
+    def __init__(
+        self, transaction_id: str | None, gateway_transaction_id: str | None = None
+    ) -> None:
+        """Инициализирует ошибку отсутствия транзакции.
+
+        Args:
+            transaction_id: ID транзакции.
+            gateway_transaction_id: ID транзакции в платёжном шлюзе.
+
+        """
+        super().__init__(
+            message=f"Транзакция transaction_id({transaction_id or 'undefined_transaction'}) \n "
+            f"gateway_id({gateway_transaction_id or 'undefined_transaction'}) \n"
+            f"не найдена.",
+            details={
+                "transaction_id": transaction_id,
+                "gateway_transaction_id": gateway_transaction_id,
+            },
+        )
 
 
 class PaymentAlreadyProcessedError(PaymentError):
-    """Транзакция уже обработана."""
+    """Ошибка повторной обработки транзакции."""
 
-    def __init__(self, transaction_id: str, status: str) -> None:
+    code = "payment_already_processed"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(
+        self,
+        transaction_id: str,
+        payment_status: str,
+        source: str | None = None,
+    ) -> None:
+        """Инициализирует ошибку повторной обработки.
+
+        Args:
+            transaction_id: ID транзакции.
+            payment_status: Текущий статус платежа.
+            source: Источник, которым транзакция была переведена в текущий
+                статус (`PaymentSource.MANUAL`/`GATEWAY`) — позволяет
+                вызывающей стороне понять, кто именно оплату подтвердил.
+
+        """
         super().__init__(
             message=(
                 f"Транзакция {transaction_id} уже обработана "
-                f"(текущий статус: {status})."
-            )
+                f"(текущий статус: {payment_status}, источник: {source})."
+            ),
+            details={
+                "transaction_id": transaction_id,
+                "status": payment_status,
+                "source": source,
+            },
         )
-        self.transaction_id = transaction_id
-        self.status = status
 
 
 class PaymentConfirmationError(PaymentError):
     """Ошибка подтверждения платежа."""
 
+    code = "payment_confirmation_failed"
+    status_code = status.HTTP_502_BAD_GATEWAY
+
     def __init__(self, transaction_id: str) -> None:
-        super().__init__(message=f"Не удалось подтвердить транзакцию {transaction_id}.")
-        self.transaction_id = transaction_id
+        """Инициализирует ошибку подтверждения.
+
+        Args:
+            transaction_id: ID транзакции.
+
+        """
+        super().__init__(
+            message=f"Не удалось подтвердить транзакцию {transaction_id}.",
+            details={
+                "transaction_id": transaction_id,
+            },
+        )
 
 
 class PaymentAlreadyConfirmedError(PaymentError):
-    """Платеж уже подтвержден."""
+    """Ошибка повторного подтверждения платежа."""
+
+    code = "payment_already_confirmed"
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, transaction_id: str) -> None:
-        super().__init__(message=f"Транзакция {transaction_id} уже подтверждена.")
-        self.transaction_id = transaction_id
+        """Инициализирует ошибку повторного подтверждения.
+
+        Args:
+            transaction_id: ID транзакции.
+
+        """
+        super().__init__(
+            message=f"Транзакция {transaction_id} уже подтверждена.",
+            details={
+                "transaction_id": transaction_id,
+            },
+        )
 
 
 class PaymentCanceledError(PaymentError):
-    """Транзакция отменена."""
+    """Ошибка отменённого платежа."""
+
+    code = "payment_canceled"
+    status_code = status.HTTP_409_CONFLICT
 
     def __init__(self, transaction_id: str) -> None:
-        super().__init__(message=f"Транзакция {transaction_id} отменена.")
-        self.transaction_id = transaction_id
+        """Инициализирует ошибку отменённого платежа.
+
+        Args:
+            transaction_id: ID транзакции.
+
+        """
+        super().__init__(
+            message=f"Транзакция {transaction_id} отменена.",
+            details={
+                "transaction_id": transaction_id,
+            },
+        )
 
 
 class PaymentFailedError(PaymentError):
-    """Ошибка оплаты."""
+    """Ошибка неуспешного платежа."""
+
+    code = "payment_failed"
+    status_code = status.HTTP_402_PAYMENT_REQUIRED
 
     def __init__(self, transaction_id: str) -> None:
+        """Инициализирует ошибку неуспешного платежа.
+
+        Args:
+            transaction_id: ID транзакции.
+
+        """
         super().__init__(
-            message=f"Оплата транзакции {transaction_id} завершилась ошибкой."
+            message=f"Оплата транзакции {transaction_id} завершилась ошибкой.",
+            details={
+                "transaction_id": transaction_id,
+            },
         )
-        self.transaction_id = transaction_id
-
-
-class InvalidPaymentStatusTransitionError(PaymentError):
-    """Недопустимый переход статуса платежа."""
-
-    def __init__(
-        self,
-        transaction_id: str,
-        from_status: str,
-        to_status: str,
-    ) -> None:
-        super().__init__(
-            message=(
-                f"Недопустимый переход статуса транзакции "
-                f"{transaction_id}: {from_status} -> {to_status}."
-            )
-        )
-
-        self.transaction_id = transaction_id
-        self.from_status = from_status
-        self.to_status = to_status

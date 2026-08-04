@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from api.app_error.base_error import UserNotFoundError
 from api.core.dependencies import get_current_user, get_session
+from api.core.openapi_responses import AUTH_RESPONSES
 from api.users.dependencies import get_user_service
 from api.users.models import User
 from api.users.schemas import SUser, SUserOut, SUserWithReferralStats
@@ -54,6 +54,7 @@ async def register_user(
     "/{telegram_id}/referrals",
     response_model=SUserWithReferralStats,
     summary="Получает пользователя с реферальной статистикой",
+    responses=AUTH_RESPONSES,
 )
 async def get_user_referrals(
     telegram_id: int,
@@ -86,8 +87,5 @@ async def get_user_referrals(
         session=session,
         telegram_id=telegram_id,
     )
-
-    if not user_with_referrals:
-        raise UserNotFoundError(tg_id=telegram_id)
 
     return user_with_referrals

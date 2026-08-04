@@ -82,7 +82,7 @@ async def edit_admin_messages(
                 )
                 continue
     else:
-        raise MessageNotFoundError(message="Ненайдено сообщение для редактирования.")
+        raise MessageNotFoundError()
 
     await admin_mess_storage.clear(user_id)
 
@@ -110,9 +110,15 @@ async def stop_bot(bot: Bot) -> None:
     Эта функция отправляет сообщение администраторам, уведомляя их о том,
     что бот был остановлен, и логирует это событие.
 
+    Вызывается при каждой штатной остановке (деплой, рестарт), а не только
+    при сбое — поэтому логируется на DEBUG, а не ERROR: сам факт остановки
+    уже фиксируется на INFO вызывающим кодом (`bot/main.py` lifespan) после
+    успешного выполнения этой функции, а ERROR здесь означал бы ложную
+    тревогу при каждом обычном деплое.
+
     Args:
         bot (Bot): Экземпляр бота Aiogram.
 
     """
     await send_to_admins(bot=bot, message_text="Бот остановлен. За что?😔")
-    logger.error("Бот остановлен!")
+    logger.debug("Уведомление администраторов об остановке бота отправлено")

@@ -35,6 +35,7 @@ from bot.users.schemas import SUserOut
 from bot.users.services import UserService
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
+from bot.utils.formatting import format_username
 from bot.utils.start_stop_bot import send_to_admins
 from shared.enums.admin_enum import RoleEnum
 
@@ -51,12 +52,11 @@ location_buttons_text = [
     for protocol in VPNProtocol
 ]
 INVALID_FOR_USER = [
-    MainMenuText.CHOOSE_SUBSCRIPTION.value,
+    MainMenuText.MY_SUBSCRIPTION.value,
+    MainMenuText.GET_SUBSCRIPTION.value,
     MainMenuText.AMNEZIA_PROXY.value,
     MainMenuText.FREE_AMNEZIA_PROXY.value,
-    MainMenuText.CHECK_STATUS.value,
     MainMenuText.HELP.value,
-    MainMenuText.RENEW_SUBSCRIPTION.value,
     MainMenuText.PREMIUM.value,
     MainMenuText.BACK.value,
 ]
@@ -207,19 +207,14 @@ class UserRouter(BaseRouter):
             None
 
         """
-        assert message.from_user is not None
-        # TODO Возможно будут жалобы?
         try:
-            user_id = message.from_user.id
-            if user_id not in settings_bot.core.admin_ids:
+            if user.id not in settings_bot.core.admin_ids:
                 await self.bot.delete_my_commands(
-                    scope=BotCommandScopeChat(chat_id=message.from_user.id)
+                    scope=BotCommandScopeChat(chat_id=user.id)
                 )
-                self.logger.info(
-                    f"Очищены личные команды для пользователя {message.from_user.id}"
-                )
-        except Exception:
-            pass
+                self.logger.info(f"Очищены личные команды для пользователя {user.id}")
+        except Exception as e:
+            self.logger.warning(f"Не удалось очистить личные команды {user.id}: {e}")
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
             if message.chat.type != ChatType.PRIVATE:
@@ -233,12 +228,11 @@ class UserRouter(BaseRouter):
             )
             welcome_messages = m_start.welcome
 
-            username = user.username or f"Гость_{user.id}"
+            username = format_username(user)
             full_name = user.full_name or username
             if not is_new:
                 self.logger.bind(user=username).info("Пользователь вернулся в бота")
                 response_message = welcome_messages.again[0].format(username=full_name)
-                follow_up_message = welcome_messages.again[1]
 
                 bot_inf = await self.bot.get_me()
                 await message.answer(
@@ -254,6 +248,11 @@ class UserRouter(BaseRouter):
                 subscription_type = subscription.type if subscription else None
                 check_premium = subscription_type == ToggleSubscriptionMode.PREMIUM
                 founder_role = user_info.role.name == RoleEnum.FOUNDER
+                follow_up_message = (
+                    welcome_messages.again[1]
+                    if is_active
+                    else welcome_messages.again_get_subscription
+                )
 
                 await message.answer(
                     follow_up_message,
@@ -264,23 +263,28 @@ class UserRouter(BaseRouter):
                     ),
                 )
             else:
-                self.logger.bind(user=user.username or user.id).info(
+                self.logger.bind(user=format_username(user)).info(
                     f"Новый пользователь зарегистрирован: {user.id} ({username})"
                 )
                 await self._process_referral(command=command, invited_user=user_info)
                 response_message = welcome_messages.first[0].format(username=full_name)
-                follow_up_message = welcome_messages.first[1]
+                is_active = (
+                    user_info.current_subscription.is_active
+                    if user_info.current_subscription
+                    else False
+                )
+                follow_up_message = (
+                    welcome_messages.first[1]
+                    if is_active
+                    else welcome_messages.first_get_subscription
+                )
                 await message.answer(
                     response_message, reply_markup=ReplyKeyboardRemove()
                 )
                 await message.answer(
                     follow_up_message,
                     reply_markup=main_kb(
-                        active_subscription=(
-                            user_info.current_subscription.is_active
-                            if user_info.current_subscription
-                            else False
-                        ),
+                        active_subscription=is_active,
                         user_telegram_id=user.id,
                     ),
                 )
@@ -291,7 +295,11 @@ class UserRouter(BaseRouter):
                         username=user_info.username or "undefined",
                         telegram_id=user_info.telegram_id,
                         roles=str(user_info.role),
-                        subscription=str(user_info.current_subscription),
+                        subscription=(
+                            str(user_info.current_subscription)
+                            if user_info.current_subscription
+                            else "-"
+                        ),
                         config_files="",
                     )
                     await send_to_admins(
@@ -330,20 +338,15 @@ class UserRouter(BaseRouter):
             await state.clear()
 
             if user.id not in settings_bot.core.admin_ids:
-                self.logger.bind(user=user.username or user.id).warning(
+                self.logger.bind(user=format_username(user)).warning(
                     f"Попытка доступа к админ-панели не админом: {user.id}"
                 )
                 await message.answer(
-                    text=m_admin.off,
-                    reply_markup=ReplyKeyboardRemove(),
-                )
-                await self.bot.send_message(
                     text=m_error.admin_only,
                     reply_markup=ReplyKeyboardRemove(),
-                    chat_id=message.chat.id,
                 )
                 return
-            self.logger.bind(user=user.username or user.id).info(
+            self.logger.bind(user=format_username(user)).info(
                 f"Админ {user.id} вошёл в панель администратора"
             )
             await self.bot.send_message(
@@ -351,7 +354,7 @@ class UserRouter(BaseRouter):
                 text=m_admin.on[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
-            # TODO вот этот момент выглядит как костыль, годовые расходы жестко зашиты в код.
+            # FIXME вот этот момент выглядит как костыль, годовые расходы жестко зашиты в код.
             income = await self.admin_service.year_income()
             expense = 28358
             profit = income.year_income - expense

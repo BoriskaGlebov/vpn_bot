@@ -31,6 +31,7 @@ from bot.news.keyboards.inline_kb import (
 )
 from bot.news.services import NewsService
 from bot.utils.base_router import BaseRouter
+from bot.utils.formatting import format_username
 from bot.utils.start_stop_bot import send_to_admins
 
 m_news = settings_bot.messages.modes.news
@@ -69,8 +70,13 @@ class NewsRouter(BaseRouter):
 
     def _register_handlers(self) -> None:
         is_admin = IsAdmin()
+        all_news_states = StateFilter(*NewStates.__all_states__)
         self.router.message.register(
             self.start_handler, and_f(Command("news"), is_admin)
+        )
+        self.router.message.register(
+            self.cancel_news_flow,
+            and_f(Command("cancel"), all_news_states, is_admin),
         )
         self.router.message.register(
             self.news_text_handler, and_f(StateFilter(NewStates.news_start), is_admin)
@@ -82,6 +88,10 @@ class NewsRouter(BaseRouter):
                 TargetCB.filter(),
                 is_admin,
             ),
+        )
+        self.router.message.register(
+            self.mistake_handler_user,
+            and_f(StateFilter(NewStates.choose_target), F.text, is_admin),
         )
         self.router.message.register(
             self.user_id_handler,
@@ -108,15 +118,31 @@ class NewsRouter(BaseRouter):
                 is_admin,
             ),
         )
-        (
-            self.router.message.register(
-                self.mistake_handler_user,
-                and_f(StateFilter(NewStates.confirm_news), F.text, is_admin),
-            ),
+        self.router.message.register(
+            self.mistake_handler_user,
+            and_f(StateFilter(NewStates.confirm_news), F.text, is_admin),
+        )
+
+    @BaseRouter.log_method
+    async def cancel_news_flow(self, message: Message, state: FSMContext) -> None:
+        """Прерывает сборку рассылки по команде /cancel на любом её шаге.
+
+        Доступна в любом состоянии `NewStates` (ввод текста/фото/видео,
+        выбор получателя, ввод user_id, подтверждение) — не даёт админу
+        застрять в процессе, если он передумал отправлять новость.
+
+        Args:
+            message (Message): Сообщение с командой /cancel.
+            state (FSMContext): Контекст FSM для очистки.
+
+        """
+        await state.clear()
+        await message.answer(
+            "❌ Создание рассылки отменено.", reply_markup=ReplyKeyboardRemove()
         )
 
     async def _send_news(self, user_id: int, news_data: dict[str, Any]) -> None:
-        """Фунция расслыки новостей."""
+        """Отправляет одну новость пользователю по её типу (текст/фото/видео)."""
         if news_data["content_type"] == "text":
             await self.bot.send_message(user_id, news_data["text"])
 
@@ -182,7 +208,7 @@ class NewsRouter(BaseRouter):
             await state.set_state(NewStates.choose_target)
             await message.answer(
                 "Куда отправляем?",
-                reply_markup=target_choice_kb(),  # сделаешь 2 кнопки
+                reply_markup=target_choice_kb(),
             )
 
     @BaseRouter.log_method
@@ -234,7 +260,9 @@ class NewsRouter(BaseRouter):
         try:
             user_id = int(message.text)
         except ValueError:
-            await message.answer("Некорректный user_id")
+            await message.answer(
+                "Некорректный user_id, не смог преобразовать из строки в число."
+            )
             return
 
         await state.update_data(target="one", user_id=user_id)
@@ -293,7 +321,7 @@ class NewsRouter(BaseRouter):
         await query.answer("Отправляем!")
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             data = await state.get_data()
-            news = data.get("news")
+            news = data.get("news", {})
             target = data.get("target")
             if not news or "content_type" not in news:
                 self.logger.warning(
@@ -306,6 +334,7 @@ class NewsRouter(BaseRouter):
                 await query.answer()
                 return
             sent = 0
+            failed = 0
             if target == "one":
                 user_id = data.get("user_id")
                 if not isinstance(user_id, int):
@@ -316,14 +345,29 @@ class NewsRouter(BaseRouter):
                 try:
                     await self._send_news(user_id, news)
                     sent = 1
+                except TelegramForbiddenError:
+                    failed = 1
+                    self.logger.warning(
+                        f"Пользователь {user_id} заблокировал бота, новость не доставлена."
+                    )
+                    await send_to_admins(
+                        bot=self.bot,
+                        message_text=f"Пользователь {user_id} заблокировал бота, "
+                        f"новость не доставлена.",
+                    )
                 except Exception as e:
-                    sent = 0
-                    self.logger.error(f"Ошибка отправки {user_id}: {e}")
+                    failed = 1
+                    self.logger.exception(f"Ошибка отправки {user_id}: {e}")
+                    await send_to_admins(
+                        bot=self.bot,
+                        message_text=f"Не удалось отправить новость пользователю "
+                        f"{user_id}: {e}",
+                    )
 
             elif target == "all":
                 recipients = await self.news_service.all_users_id()
 
-                self.logger.bind(user=query.from_user.username or "undefined").info(
+                self.logger.bind(user=format_username(query.from_user)).info(
                     f"Начата рассылка новостей "
                     f"({query.from_user.id}), тип новости: {news['content_type']}"
                 )
@@ -341,11 +385,13 @@ class NewsRouter(BaseRouter):
                             await self._send_news(user_id, news)
                             sent += 1
                         except Exception as exc:
-                            self.logger.error(
+                            failed += 1
+                            self.logger.exception(
                                 f"Повторная отправка не удалась {user_id}: {exc}"
                             )
 
                     except TelegramForbiddenError:
+                        failed += 1
                         self.logger.warning(
                             f"Пользователь {user_id} заблокировал бота, пропускаем."
                         )
@@ -356,6 +402,7 @@ class NewsRouter(BaseRouter):
                         )
 
                     except TelegramBadRequest as e:
+                        failed += 1
                         self.logger.warning(
                             f"Ошибка TelegramBadRequest для {user_id}: {e}"
                         )
@@ -364,7 +411,8 @@ class NewsRouter(BaseRouter):
                             message_text=f"Ошибка TelegramBadRequest для {user_id}: {e}",
                         )
                     except Exception as exc:
-                        self.logger.error(
+                        failed += 1
+                        self.logger.exception(
                             f"Неизвестная ошибка при отправке {user_id}: {exc}"
                         )
                         await send_to_admins(
@@ -373,25 +421,30 @@ class NewsRouter(BaseRouter):
                         )
 
                     await asyncio.sleep(0.05)
-            self.logger.info(f"Рассылка завершена. Отправлено сообщений: {sent}")
+            self.logger.bind(user=format_username(query.from_user)).info(
+                f"Рассылка завершена. Отправлено: {sent}, ошибок: {failed}"
+            )
             await state.clear()
+            result_text = f"✅ Новость отправлена.\nПолучателей: {sent}"
+            if failed:
+                result_text += f"\n⚠️ Не удалось отправить: {failed}"
             if msg.photo:
                 await self.bot.edit_message_caption(
                     chat_id=msg.chat.id,
                     message_id=msg.message_id,
-                    caption=f"✅ Новость отправлена.\nПолучателей: {sent}",
+                    caption=result_text,
                 )
             elif msg.video:
                 await self.bot.edit_message_caption(
                     chat_id=msg.chat.id,
                     message_id=msg.message_id,
-                    caption=f"✅ Новость отправлена.\nПолучателей: {sent}",
+                    caption=result_text,
                 )
             else:
                 await self.bot.edit_message_text(
                     chat_id=msg.chat.id,
                     message_id=msg.message_id,
-                    text=f"✅ Новость отправлена.\nПолучателей: {sent}",
+                    text=result_text,
                 )
 
     @BaseRouter.log_method
@@ -412,7 +465,7 @@ class NewsRouter(BaseRouter):
         """
         await query.answer(text="Отменил")
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
-            if hasattr(msg, "photo") and msg.photo:
+            if msg.photo or msg.video:
                 await self.bot.edit_message_caption(
                     chat_id=msg.chat.id,
                     message_id=msg.message_id,
@@ -425,6 +478,6 @@ class NewsRouter(BaseRouter):
                     text="❌ Рассылка отменена.",
                 )
             await state.clear()
-        self.logger.bind(user=query.from_user.username).info(
+        self.logger.bind(user=format_username(query.from_user)).info(
             f"Рассылка отменена ({query.from_user.id})"
         )

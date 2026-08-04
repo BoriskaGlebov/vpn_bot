@@ -74,6 +74,7 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
 
     name = "VPN конфиг"
     name_plural = "VPN конфиги"
+    icon = "fa-solid fa-network-wired"
 
     column_list = [
         "id",

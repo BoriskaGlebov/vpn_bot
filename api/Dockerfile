@@ -8,31 +8,16 @@ ENV POETRY_VERSION=1.8.0 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     PATH="/vpn_bot/.venv/bin:/vpn_bot/.local/bin:$PATH"
 
-
 # Создаём пользователя
 RUN groupadd -r bot && \
     useradd -r -g bot -d /vpn_bot -s /bin/bash -m botuser
 
 WORKDIR /vpn_bot
 
-## Устанавливаем системные зависимости + docker CLI
-#RUN apt-get update && \
-#    apt-get install -y --no-install-recommends \
-#        ca-certificates \
-#        curl \
-#        gnupg \
-#        lsb-release \
-#    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker.gpg \
-#    && echo \
-#        "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker.gpg] \
-#        https://download.docker.com/linux/debian \
-#        $(lsb_release -cs) stable" \
-#        > /etc/apt/sources.list.d/docker.list \
-#    && apt-get update \
-#    && apt-get install -y --no-install-recommends docker-cli \
-#    && rm -rf /var/lib/apt/lists/*
-
-
+# rsync нужен entrypoint.sh для атомарной синхронизации volume с шаблонами/статикой
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends rsync && \
+    rm -rf /var/lib/apt/lists/*
 
 # Устанавливаем Poetry
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -48,6 +33,22 @@ RUN poetry install --without dev --no-cache
 COPY --chown=botuser:bot api/ api/
 COPY --chown=botuser:bot pyproject.toml poetry.lock alembic.ini app_config.toml app_config.develop.toml  ./
 COPY --chown=botuser:bot shared/ shared/
+
+# Эталонная копия шаблонов вне api/templates: в docker-compose поверх
+# api/templates монтируется именованный volume (чтобы шаблоны раздавал
+# nginx напрямую), а Docker не обновляет уже существующий volume при
+# пересборке образа. entrypoint.sh синхронизирует volume из этой копии
+# при каждом старте контейнера, чтобы volume не отставал от образа.
+RUN cp -a api/templates api/templates_src && \
+    chown -R botuser:bot api/templates_src
+
+# То же самое для статики sqladmin: volume в docker-compose монтируется
+# только в подпапку statics (не на весь пакет sqladmin — иначе volume
+# заморозил бы и сам код библиотеки на старой версии, игнорируя
+# обновления sqladmin через poetry.lock). Эталонная копия — вне зоны
+# volume-монтирования, синхронизируется entrypoint.sh при каждом старте.
+RUN cp -a /vpn_bot/.venv/lib/python3.12/site-packages/sqladmin/statics /vpn_bot/sqladmin_statics_src && \
+    chown -R botuser:bot /vpn_bot/sqladmin_statics_src
 
 # Делаем entrypoint исполняемым
 RUN chmod +x ./api/entrypoint.sh

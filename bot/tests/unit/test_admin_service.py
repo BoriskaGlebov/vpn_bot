@@ -2,8 +2,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from bot.admin.enums import AdminModeKeys
 from bot.admin.schemas import SYearIncome
 from bot.admin.services import AdminService
+from bot.users.schemas import SVPNConfigOut
 from shared.enums.admin_enum import RoleEnum
 
 
@@ -57,6 +59,69 @@ async def test_extend_user_subscription(mock_admin_adapter, user_out):
     assert called_payload.telegram_id == 123456
     assert called_payload.months == 3
     assert user.telegram_id == 123456
+
+
+@pytest.mark.asyncio
+async def test_format_user_text_full_info(user_out):
+    """Полностью заполненный пользователь — все поля и список конфигов рендерятся."""
+    user = user_out.model_copy(
+        update={
+            "vpn_configs": [
+                SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1"),
+                SVPNConfigOut(id=2, file_name="conf2.conf", pub_key="PUBKEY2"),
+            ]
+        }
+    )
+
+    text = await AdminService.format_user_text(user)
+
+    assert "John" in text
+    assert "Doe" in text
+    assert "@test_user" in text
+    assert "123456" in text
+    assert "📌 conf1.conf" in text
+    assert "📌 conf2.conf" in text
+
+
+@pytest.mark.asyncio
+async def test_format_user_text_missing_fields_fallback_to_dash(user_out):
+    """Отсутствующие first_name/last_name/username подставляются как "-", а не None/пусто."""
+    user = user_out.model_copy(
+        update={"first_name": None, "last_name": None, "username": None}
+    )
+
+    text = await AdminService.format_user_text(user)
+
+    assert "<b>Имя:</b> - -" in text
+    assert "@-" in text
+
+
+@pytest.mark.asyncio
+async def test_format_user_text_no_vpn_configs_omits_config_block(user_out):
+    """Пустой список конфигов — блок "Пользовательские конфиги" не выводится вовсе."""
+    assert user_out.vpn_configs == []
+
+    text = await AdminService.format_user_text(user_out)
+
+    assert "Пользовательские конфиги" not in text
+
+
+@pytest.mark.asyncio
+async def test_format_user_text_no_subscription_shows_dash(user_out):
+    """Нет активной подписки — "-" вместо строкового представления подписки."""
+    user = user_out.model_copy(update={"current_subscription": None})
+
+    text = await AdminService.format_user_text(user)
+
+    assert "💎 <b>Подписка:</b> -" in text
+
+
+@pytest.mark.asyncio
+async def test_format_user_text_edit_user_key_uses_edit_template(user_out):
+    """key=EDIT_USER рендерит другой шаблон (заголовок редактирования), не "user"."""
+    text = await AdminService.format_user_text(user_out, key=AdminModeKeys.EDIT_USER)
+
+    assert "Редактирование данных пользователя" in text
 
 
 @pytest.mark.asyncio

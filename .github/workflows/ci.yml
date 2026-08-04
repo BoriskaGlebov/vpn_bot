@@ -75,13 +75,19 @@ jobs:
       - name: Run tests
         env:
           ENV_FILE: .env.test
+          # Тестам не нужны реальные секреты — только синтаксически валидные
+          # значения для конструирования Bot/SecretStr при коллекции тестов
+          # (Dependabot PR не получает доступ к repository secrets, поэтому
+          # эти пять полей не должны зависеть от secrets.*).
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           DB_PASSWORD: ${{ vars.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ vars.REDIS_PASSWORD }}
-          ACCESS_KEY: ${{ secrets.ACCESS_KEY }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          ACCESS_KEY: "test-access-key"
+          SECRET_KEY: "test-secret-key"
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
           SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
+          MERCHANT_ID: "test-merchant-id"
+          API_KEY: "test-api-key"
         run: poetry run pytest -vs .
 
   deploy_develop:
@@ -110,14 +116,17 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
 
-            # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
-            # Запускаем агент, если не запущен
-            if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
-              eval $(ssh-agent) > /dev/null
-              echo "SSH agent started with socket: $SSH_AUTH_SOCK"
+            # ===== ИСПОЛЬЗУЕМ ПЕРСИСТЕНТНЫЙ SSH-AGENT (systemd, см. deploy/systemd/ssh-agent.service) =====
+            # Агент живёт постоянно на фиксированном пути и переживает рестарт
+            # контейнеров/ребут хоста (в отличие от ad-hoc `eval $(ssh-agent)`).
+            export SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket
+            if [ ! -S "$SSH_AUTH_SOCK" ]; then
+              echo "ERROR: persistent ssh-agent socket not found at $SSH_AUTH_SOCK"
+              echo "Проверьте на хосте: systemctl --user status ssh-agent.service"
+              exit 1
             fi
 
-            # Добавляем ключи
+            # Добавляем ключи (idempotent self-heal поверх ExecStartPost юнита)
             if [ -f ~/.ssh/help_blocks ]; then
               ssh-add ~/.ssh/help_blocks < /dev/null 2>/dev/null
               echo "SSH key added"
@@ -179,6 +188,10 @@ jobs:
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
           SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+
+          # == PAYMENT ==
+          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
+          API_KEY=${{ secrets.API_KEY }}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env.dev"
@@ -227,8 +240,6 @@ jobs:
             TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
             TOML_FILE="./telemt-config/telemt.toml"
 
-            echo "DEBUG: TELEMT_SECRET_HELLO=$TELEMT_SECRET_HELLO"
-
             if grep -q '^hello\s*=' "$TOML_FILE"; then
               sed -i "s/^hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
             else
@@ -241,12 +252,17 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
             set -e
 
-            # ===== ЯВНЫЙ ЗАПУСК SSH-AGENT =====
-            if [ -z "$SSH_AUTH_SOCK" ] || [ ! -S "$SSH_AUTH_SOCK" ]; then
-              eval $(ssh-agent) > /dev/null
-              echo "SSH agent started with socket: $SSH_AUTH_SOCK"
+            # ===== ИСПОЛЬЗУЕМ ПЕРСИСТЕНТНЫЙ SSH-AGENT (systemd, см. deploy/systemd/ssh-agent.service) =====
+            # Агент живёт постоянно на фиксированном пути и переживает рестарт
+            # контейнеров/ребут хоста (в отличие от ad-hoc `eval $(ssh-agent)`).
+            export SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket
+            if [ ! -S "$SSH_AUTH_SOCK" ]; then
+              echo "ERROR: persistent ssh-agent socket not found at $SSH_AUTH_SOCK"
+              echo "Проверьте на хосте: systemctl --user status ssh-agent.service"
+              exit 1
             fi
 
+            # Добавляем ключи (idempotent self-heal поверх ExecStartPost юнита)
             if [ -f ~/.ssh/vpn_boriska ]; then
               ssh-add ~/.ssh/vpn_boriska < /dev/null 2>/dev/null
               echo "SSH key added"
@@ -303,6 +319,10 @@ jobs:
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
           SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
           SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+
+          # == PAYMENT ==
+          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
+          API_KEY=${{ secrets.API_KEY }}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env"
@@ -375,6 +395,9 @@ jobs:
             echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env.local
             echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.local
             echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
+
+            echo "MERCHANT_ID=${{ secrets.MERCHANT_ID }}" >> .env.local
+            echo "API_KEY=${{ secrets.API_KEY }}" >> .env.local
 
 
             echo "Restart Docker containers..."

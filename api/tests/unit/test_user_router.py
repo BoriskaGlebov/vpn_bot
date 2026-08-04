@@ -1,13 +1,11 @@
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
-from starlette.testclient import TestClient
 
 from api.core.dependencies import get_current_user, get_session
-from api.main import app
-from api.tests.unit.test_subscription_router import fake_user
+from api.tests.conftest import fake_user
 from api.users.dependencies import get_user_service
-from api.users.schemas import SRoleOut
+from api.users.schemas import SRoleOut, SUserOut, SUserWithReferralStats
 from api.users.services import UserService
 from shared.enums.admin_enum import FilterTypeEnum
 
@@ -18,24 +16,21 @@ def service_mock():
 
 
 @pytest.fixture
-async def client(service_mock):
-    with patch(
-        "api.main.init_default_roles_admins",
-        new=AsyncMock(),
-    ):
-        app.dependency_overrides[get_user_service] = lambda: service_mock
-        app.dependency_overrides[get_session] = lambda: AsyncMock()
-        app.dependency_overrides[get_current_user] = fake_user
-
-        return TestClient(app)
-    app.dependency_overrides.clear()
-
-
-from api.users.schemas import SRole, SUserOut
+def client(make_client, service_mock):
+    """TestClient с переопределёнными зависимостями роутера пользователей."""
+    with make_client(
+        {
+            get_user_service: lambda: service_mock,
+            get_session: lambda: AsyncMock(),
+            get_current_user: fake_user,
+        }
+    ) as c:
+        yield c
 
 
 @pytest.mark.asyncio
 async def test_register_user_created(client, service_mock):
+    """Новый пользователь регистрируется, ответ 201 с telegram_id."""
     service_mock.register_or_get_user.return_value = (
         SUserOut(
             id=1,
@@ -67,6 +62,7 @@ async def test_register_user_created(client, service_mock):
 
 @pytest.mark.asyncio
 async def test_register_user_existing(client, service_mock):
+    """Повторная регистрация уже известного пользователя возвращает 200 (не 201)."""
     service_mock.register_or_get_user.return_value = (
         {
             "telegram_id": 123,
@@ -93,11 +89,9 @@ async def test_register_user_existing(client, service_mock):
     assert response.status_code == 200
 
 
-from api.users.schemas import SUserWithReferralStats
-
-
 @pytest.mark.asyncio
 async def test_get_user_referrals_success(client, service_mock):
+    """Возвращает пользователя вместе с реферальной статистикой."""
     service_mock.get_user_with_referrals.return_value = SUserWithReferralStats(
         id=1,
         telegram_id=123,
@@ -124,6 +118,7 @@ async def test_get_user_referrals_success(client, service_mock):
 
 @pytest.mark.asyncio
 async def test_get_user_referrals_not_found(client, service_mock):
+    """Сервис вернул None -> ответ об ошибке (404/500 в зависимости от хендлера)."""
     service_mock.get_user_with_referrals.return_value = None
 
     response = client.get("/api/users/999/referrals")

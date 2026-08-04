@@ -30,8 +30,6 @@ class PaymentSource(str, Enum):
     GATEWAY = "GATEWAY"  # платежная система
 
 
-# TODO Документация тесты типы данных
-#  и удалить лишние комментарии
 class PaymentTransaction(Base):
     """Модель платежной транзакции пользователя.
 
@@ -49,8 +47,7 @@ class PaymentTransaction(Base):
             Связанный объект пользователя.
 
         amount:
-            Сумма платежа в минимальных единицах валюты
-            (например, копейки для RUB).
+            Сумма платежа в рублях (целое число, не копейки).
 
         currency:
             Код валюты в формате ISO 4217.
@@ -102,12 +99,18 @@ class PaymentTransaction(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
     # USER
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
         index=True,
-        nullable=False,
+        nullable=True,
     )
-    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
+    user: Mapped["User | None"] = relationship(
+        "User",
+        foreign_keys=[user_id],
+        lazy="selectin",
+        back_populates="payments",
+        passive_deletes=True,
+    )
 
     amount: Mapped[int] = mapped_column(nullable=False)
     currency: Mapped[str] = mapped_column(String(8), default="RUB")

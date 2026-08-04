@@ -80,7 +80,7 @@ async def test_connect_ssh_os_error(proxy_client_ssh):
         "bot.vpn.utils.amnezia_proxy.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_connect.side_effect = OSError("connection error")
-        with pytest.raises(OSError):
+        with pytest.raises(AmneziaSSHError):
             await proxy_client_ssh.connect()
 
 

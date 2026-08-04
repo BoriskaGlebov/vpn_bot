@@ -1,5 +1,4 @@
 import asyncio
-import datetime
 
 import pytest
 from sqlalchemy import StaticPool, event, select
@@ -8,14 +7,13 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import NullPool
 
 from api.app_error.base_error import SubscriptionNotFoundError
 from api.core.database import Base  # Declarative Base
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.dao import RoleDAO, UserDAO
 from api.users.models import Role, User
-from api.users.schemas import SRole, SSubscription, SUser
+from api.users.schemas import SRole, SUser
 from shared.enums.admin_enum import FilterTypeEnum
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"

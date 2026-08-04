@@ -49,7 +49,9 @@ class Subscription(Base):
     """Модель подписки пользователя.
 
     Хранит статус, дату начала и окончания действия подписки.
-    Связана с пользователем отношением один-к-одному.
+    Связана с пользователем отношением один-ко-многим (с миграции
+    `6a0357aa804b`) — у пользователя может быть несколько записей
+    подписки (история), активна из них обычно одна.
 
     Attributes
         id (int): Уникальный идентификатор записи.
@@ -78,7 +80,7 @@ class Subscription(Base):
         DateTime(timezone=True), nullable=True
     )
 
-    user: Mapped["User"] = relationship(back_populates="subscriptions")
+    user: Mapped["User"] = relationship(back_populates="subscriptions", lazy="selectin")
 
     def __str__(self) -> str:
         """Строковое представление."""
@@ -107,7 +109,8 @@ class Subscription(Base):
         if sub_type == SubscriptionType.TRIAL:
             if self.user.has_used_trial:
                 raise TrialAlreadyUsedError(
-                    "Пользователь уже использовал триал-подписку"
+                    user_id=self.user.id,
+                    username=self.user.username,
                 )
             self.user.has_used_trial = True
         self.type = sub_type
@@ -178,7 +181,3 @@ class Subscription(Base):
             return None
         delta = self.end_date - datetime.datetime.now(tz=datetime.UTC)
         return max(delta.days, 0)
-
-
-if __name__ == "__main__":
-    print(SubscriptionType.PREMIUM.value)

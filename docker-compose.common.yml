@@ -28,7 +28,7 @@ services:
       TZ: Europe/Moscow
     volumes:
       - api_bot_logs:/vpn_bot/api/logs
-      - static_files1:/vpn_bot/.venv/lib/python3.12/site-packages/sqladmin
+      - static_files1:/vpn_bot/.venv/lib/python3.12/site-packages/sqladmin/statics
       - static_files2:/vpn_bot/api/templates
     deploy:
       resources:

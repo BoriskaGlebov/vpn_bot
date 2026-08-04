@@ -1,29 +1,27 @@
-from fastapi import APIRouter, Depends
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from api.admin.dependencies import check_admin_role
-from api.core.dependencies import get_current_user, get_session
+from api.core.dependencies import get_current_user, get_session, verify_internal_secret
+from api.core.openapi_responses import ADMIN_RESPONSES, AUTH_RESPONSES
+from api.payment.dependencies import get_payment_service
+from api.payment.model import PaymentSource
 from api.payment.schemas import (
-    SCancelPayment,
-    SCancelPaymentIn,
-    SConfirmPayment,
-    SConfirmPaymentIn,
+    SAttachProviderPayment,
     SConfirmPaymentResponse,
     SCreateManualPaymentTransaction,
     SPaymentTransactionResponse,
+    STransactionIDFilter,
 )
 from api.payment.services import PaymentService
-from api.referrals.schemas import GrantReferralBonusResponse
-from api.referrals.services import ReferralService
-from api.subscription.services import SubscriptionService
 from api.users.models import User
 
-# TODO нужно не забыть про документацию для api
 router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
 
 
-#
 @router.post(
     "/transaction",
     response_model=SPaymentTransactionResponse,
@@ -33,33 +31,26 @@ router = APIRouter(prefix="/payment", tags=["bot", "PAYMENT"])
         "Создает новую платежную транзакцию для текущего авторизованного пользователя."
     ),
     response_description="Созданная платежная транзакция.",
+    responses=AUTH_RESPONSES,
 )
 async def create_transaction(
     transaction: SCreateManualPaymentTransaction,
-    service: PaymentService = Depends(PaymentService),
+    service: PaymentService = Depends(get_payment_service),
     user_auth: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> SPaymentTransactionResponse:
-    """Создание новой платежной транзакции.
+    """Создаёт новую платежную транзакцию.
 
-    Endpoint используется для создания платежа
-    текущим авторизованным пользователем.
+    Endpoint используется для создания платежа текущим авторизованным пользователем.
 
     Args:
-        transaction:
-            Данные создаваемой транзакции.
-
-        service:
-            Сервис платежных транзакций.
-
-        user_auth:
-            Текущий авторизованный пользователь.
-
-        session:
-            Асинхронная SQLAlchemy-сессия.
+        transaction: Данные создаваемой платежной транзакции.
+        service: Сервис бизнес-логики платежей.
+        user_auth: Авторизованный пользователь.
+        session: Асинхронная SQLAlchemy-сессия.
 
     Returns
-        Созданная платежная транзакция.
+        SPaymentTransactionResponse: Созданная платежная транзакция.
 
     """
     res = await service.create_transaction(
@@ -68,80 +59,261 @@ async def create_transaction(
     return res
 
 
+@router.get(
+    "/transaction",
+    response_model=SPaymentTransactionResponse,
+    summary="Получение транзакции по gateway ID",
+    description=(
+        "Возвращает платежную транзакцию по идентификатору платёжного шлюза "
+        "(gateway_transaction_id). Используется для синхронизации статусов "
+        "платежей с внешними провайдерами."
+    ),
+    response_description="Найденная платежная транзакция.",
+    responses=AUTH_RESPONSES,
+)
+async def get_by_gateway_id(
+    gateway_transaction_id: str = Query(...),
+    service: PaymentService = Depends(get_payment_service),
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(verify_internal_secret),
+) -> SPaymentTransactionResponse:
+    """Получение платежной транзакции по идентификатору платежного шлюза.
+
+    Выполняет поиск транзакции в базе данных по `gateway_transaction_id`,
+    который был получен от внешнего платежного провайдера (например, Stripe,
+    YooKassa и др.).
+
+    Args:
+        gateway_transaction_id:
+            Уникальный идентификатор транзакции в платежном шлюзе.
+            Используется для поиска и синхронизации статуса платежа.
+
+        service:
+            Сервис, содержащий бизнес-логику работы с платежами.
+
+        session:
+            Асинхронная SQLAlchemy-сессия для доступа к базе данных.
+
+        _:
+            Проверка X-Internal-Secret (см. verify_internal_secret).
+
+    Returns
+        SPaymentTransactionResponse:
+            Объект платежной транзакции, если найден.
+
+    Raises
+        HTTPException:
+            404 — если транзакция с указанным gateway_transaction_id не найдена.
+
+    """
+    return await service.get_by_gateway_id(
+        session=session,
+        gateway_transaction_id=gateway_transaction_id,
+    )
+
+
 @router.post(
-    "/transaction/confirm",
+    "/transaction/{transaction_id}/provider",
+    response_model=SPaymentTransactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Привязка платежного провайдера к транзакции",
+    description=(
+        "Привязывает внешнего платёжного провайдера (gateway/provider) к "
+        "существующей платежной транзакции. Используется для фиксации "
+        "идентификатора транзакции во внешней платёжной системе и "
+        "синхронизации статусов оплаты."
+    ),
+    response_description="Обновлённая платежная транзакция с привязанным провайдером.",
+    responses=AUTH_RESPONSES,
+)
+async def attach_provider_payment(
+    transaction_id: UUID,
+    payload: SAttachProviderPayment,
+    service: PaymentService = Depends(get_payment_service),
+    session: AsyncSession = Depends(get_session),
+    user_auth: User = Depends(get_current_user),
+) -> SPaymentTransactionResponse:
+    """Привязка платежного провайдера к существующей транзакции.
+
+    Выполняет связывание внутренней платежной транзакции с внешним
+    платёжным провайдером (gateway/provider), используя идентификатор
+    транзакции во внешней системе.
+
+    Этот endpoint используется после создания платежа, когда внешний
+    провайдер возвращает `gateway_transaction_id`, который необходимо
+    сохранить для дальнейшей синхронизации статусов оплаты.
+
+    Args:
+        transaction_id:
+            Внутренний UUID платежной транзакции в системе.
+
+        payload:
+            Данные внешнего платёжного провайдера, включая
+            `gateway_transaction_id` и связанные параметры.
+
+        service:
+            Сервис бизнес-логики платежей.
+
+        session:
+            Асинхронная SQLAlchemy-сессия.
+
+        user_auth:
+            Текущий авторизованный пользователь (используется для
+            проверки прав доступа и безопасности операции).
+
+    Returns
+        SPaymentTransactionResponse:
+            Обновлённая платежная транзакция с привязанным provider/gateway.
+
+    Raises
+        PaymentTransactionNotFoundError: Если транзакция не найдена.
+
+    """
+    return await service.attach_provider_payment(
+        session=session, transaction_id=transaction_id, gateway_info=payload
+    )
+
+
+@router.post(
+    "/transaction/{transaction_id}/paid",
+    response_model=SPaymentTransactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Отметка начала обработки платежа",
+    description="Фиксирует начало обработки платежа по транзакции.",
+    responses=AUTH_RESPONSES,
+)
+async def mark_payment_started(
+    transaction_id: UUID,
+    service: PaymentService = Depends(get_payment_service),
+    session: AsyncSession = Depends(get_session),
+    user_auth: User = Depends(get_current_user),
+) -> SPaymentTransactionResponse:
+    """Фиксирует начало обработки платежа.
+
+    Помечает транзакцию как находящуюся в процессе оплаты.
+
+    Args:
+        transaction_id: UUID транзакции.
+        service: Сервис платежей.
+        session: Асинхронная SQLAlchemy-сессия.
+        user_auth: Авторизованный пользователь.
+
+    Returns
+        SPaymentTransactionResponse: Обновлённая транзакция.
+
+    """
+    return await service.mark_payment_started(
+        session=session,
+        transaction_id=transaction_id,
+    )
+
+
+@router.post(
+    "/transaction/admin/confirm",
     response_model=SConfirmPaymentResponse,
     status_code=status.HTTP_200_OK,
-    summary="Подтверждение платежа",
+    summary="Подтверждение платежа администратором",
     description=(
-        "Подтверждает платежную транзакцию администратором, "
-        "активирует подписку пользователя и начисляет "
-        "реферальный бонус при наличии реферальной связи."
+        "Подтверждает платежную транзакцию, активирует подписку пользователя "
+        "и начисляет реферальный бонус при наличии реферальной связи."
     ),
-    response_description=(
-        "Результат подтверждения платежа, активации подписки и начисления бонуса."
-    ),
+    response_description="Результат обработки платежа, подписки и реферального бонуса.",
+    responses=ADMIN_RESPONSES,
 )
-async def confirm_transaction(
-    data: SConfirmPaymentIn,
-    service: PaymentService = Depends(PaymentService),
-    sub_service: SubscriptionService = Depends(SubscriptionService),
-    ref_service: ReferralService = Depends(ReferralService),
+async def admin_confirm_transaction(
+    data: STransactionIDFilter,
+    service: PaymentService = Depends(get_payment_service),
     admin_auth: User = Depends(check_admin_role),
     session: AsyncSession = Depends(get_session),
 ) -> SConfirmPaymentResponse:
-    """Подтверждение платежной транзакции.
+    """Подтверждает платеж администратором.
 
-    После подтверждения:
+    После успешного подтверждения выполняется:
+        - перевод транзакции в статус PAID;
+        - активация подписки пользователя;
+        - начисление реферального бонуса (если применимо).
+
+    Args:
+        data: Данные транзакции.
+        service: Сервис платежей.
+        admin_auth: Авторизованный администратор.
+        session: Асинхронная SQLAlchemy-сессия.
+
+    Returns
+        SConfirmPaymentResponse: Результат подтверждения платежа.
+
+    """
+    return await service.confirm_payment_flow(
+        session=session,
+        data=data,
+        payment_source=PaymentSource.MANUAL,
+        admin_id=admin_auth.id,
+    )
+
+
+@router.post(
+    "/transaction/webhook/confirm",
+    response_model=SConfirmPaymentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Подтверждение платежа через webhook",
+    description=(
+        "Подтверждает платежную транзакцию через webhook внешнего "
+        "платёжного провайдера. После подтверждения автоматически "
+        "активируется подписка пользователя и начисляется "
+        "реферальный бонус при наличии реферальной связи."
+    ),
+    response_description=(
+        "Результат подтверждения платежа, активации подписки "
+        "и обработки реферального бонуса."
+    ),
+    responses=AUTH_RESPONSES,
+)
+async def webhook_confirm_transaction(
+    data: STransactionIDFilter,
+    service: PaymentService = Depends(get_payment_service),
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(verify_internal_secret),
+) -> SConfirmPaymentResponse:
+    """Подтверждает платежную транзакцию через webhook.
+
+    Endpoint используется внешними платёжными провайдерами
+    для уведомления системы об успешной оплате.
+
+    После успешного подтверждения:
         - транзакция переводится в статус ``PAID``;
         - активируется подписка пользователя;
-        - начисляется реферальный бонус.
+        - начисляется реферальный бонус (если применимо).
 
     Args:
         data:
             Данные подтверждаемой транзакции.
 
         service:
-            Сервис платежных транзакций.
-
-        sub_service:
-            Сервис подписок.
-
-        ref_service:
-            Сервис реферальной системы.
-
-        admin_auth:
-            Текущий администратор.
+            Сервис бизнес-логики платежей.
 
         session:
             Асинхронная SQLAlchemy-сессия.
 
+        _:
+            Проверка X-Internal-Secret (см. verify_internal_secret).
+
     Returns
-        Результат подтверждения платежа.
+        SConfirmPaymentResponse:
+            Результат подтверждения платежа, активации подписки
+            и обработки реферального бонуса.
+
+    Raises
+        PaymentTransactionNotFoundError:
+            Если транзакция не найдена.
+
+        PaymentAlreadyProcessedError:
+            Если транзакция уже была обработана.
 
     """
-    conf_payment = SConfirmPayment(
-        admin_id=admin_auth.id, transaction_id=data.transaction_id
-    )
-    tx = await service.confirm_transaction(session=session, data=conf_payment)
-    sub_res = await sub_service.activate_paid_subscription(
+    return await service.confirm_payment_flow(
         session=session,
-        user_id=tx.tg_id,
-        months=tx.subscription_months,
-        premium=tx.is_premium,
-    )
-    ref_res, inviter, message = await ref_service.grant_referral_bonus(
-        session=session,
-        invited_user=sub_res,
-    )
-    return SConfirmPaymentResponse(
-        transaction_res=tx,
-        subscription_res=sub_res,
-        referral_res=GrantReferralBonusResponse(
-            success=ref_res,
-            inviter_telegram_id=inviter,
-            message=message,
-        ),
+        data=data,
+        payment_source=PaymentSource.GATEWAY,
     )
 
 
@@ -150,18 +322,20 @@ async def confirm_transaction(
     response_model=SPaymentTransactionResponse,
     status_code=status.HTTP_200_OK,
     summary="Отмена платежной транзакции",
-    description=("Отменяет платежную транзакцию. Доступно только администраторам."),
-    response_description="Обновленная платежная транзакция.",
+    description="Отменяет платежную транзакцию и переводит её в статус ``CANCELED``.",
+    response_description="Обновлённая платежная транзакция.",
+    responses=AUTH_RESPONSES,
 )
 async def cancel_transaction(
-    data: SCancelPaymentIn,
-    service: PaymentService = Depends(PaymentService),
-    admin_auth: User = Depends(check_admin_role),
+    data: STransactionIDFilter,
+    service: PaymentService = Depends(get_payment_service),
+    user_auth: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> SPaymentTransactionResponse:
-    """Отмена платежной транзакции.
+    """Отменяет платежную транзакцию.
 
-    Endpoint переводит транзакцию
+    Endpoint используется для отмены платежной транзакции.
+    После успешной обработки транзакция переводится
     в статус ``CANCELED``.
 
     Args:
@@ -169,22 +343,27 @@ async def cancel_transaction(
             Данные отменяемой транзакции.
 
         service:
-            Сервис платежных транзакций.
+            Сервис бизнес-логики платежей.
 
-        admin_auth:
-            Текущий администратор.
+        user_auth:
+            Авторизованный пользователь.
 
         session:
             Асинхронная SQLAlchemy-сессия.
 
     Returns
-        Обновленная платежная транзакция.
+        SPaymentTransactionResponse:
+            Обновлённая платежная транзакция.
+
+    Raises
+        PaymentTransactionNotFoundError:
+            Если транзакция не найдена.
+
+        PaymentAlreadyProcessedError:
+            Если транзакция уже была обработана.
 
     """
-    cancel_data = SCancelPayment(
-        transaction_id=data.transaction_id,
-        admin_id=admin_auth.id,
-    )
+    cancel_data = data
 
     res = await service.cancel_transaction(
         session=session,
@@ -192,3 +371,61 @@ async def cancel_transaction(
     )
 
     return res
+
+
+@router.post(
+    "/transaction/webhook/cancel",
+    response_model=SPaymentTransactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Отмена платежной транзакции через webhook",
+    description=(
+        "Отменяет платежную транзакцию по уведомлению внешнего платёжного "
+        "провайдера (CANCELED/CHARGEBACKED). Без Telegram-контекста "
+        "пользователя — вебхук приходит напрямую от платёжного шлюза, а не "
+        "от бота от имени пользователя, поэтому `/transaction/cancel` "
+        "(требует `X-Telegram-Id`) для этого случая не подходит."
+    ),
+    response_description="Обновлённая платежная транзакция.",
+    responses=AUTH_RESPONSES,
+)
+async def webhook_cancel_transaction(
+    data: STransactionIDFilter,
+    service: PaymentService = Depends(get_payment_service),
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(verify_internal_secret),
+) -> SPaymentTransactionResponse:
+    """Отменяет платежную транзакцию по вебхуку платёжного провайдера.
+
+    Endpoint используется для отмены транзакции при получении от
+    платёжного провайдера статуса CANCELED/CHARGEBACKED — аналог
+    `webhook_confirm_transaction`, но для неуспешного платежа.
+
+    Args:
+        data:
+            Данные отменяемой транзакции.
+
+        service:
+            Сервис бизнес-логики платежей.
+
+        session:
+            Асинхронная SQLAlchemy-сессия.
+
+        _:
+            Проверка X-Internal-Secret (см. verify_internal_secret).
+
+    Returns
+        SPaymentTransactionResponse:
+            Обновлённая платежная транзакция.
+
+    Raises
+        PaymentTransactionNotFoundError:
+            Если транзакция не найдена.
+
+        PaymentAlreadyProcessedError:
+            Если транзакция уже была обработана.
+
+    """
+    return await service.cancel_transaction(
+        session=session,
+        data=data,
+    )

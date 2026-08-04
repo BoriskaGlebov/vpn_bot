@@ -214,4 +214,6 @@ __marimo__/
 /backup/
 /.env.dev
 /app_config.local.toml
-/.claude/
+
+# Claude Code runtime state (launch.json конфиг стоит коммитить, lock-файлы — нет)
+.claude/

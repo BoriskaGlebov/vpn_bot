@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from functools import wraps
-from typing import Annotated, Any, TypeVar, cast
+from typing import Annotated, Any, Literal, TypeVar, cast
 
 from sqlalchemy import func, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,7 +22,10 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 F = TypeVar("F", bound=Callable[..., Awaitable[Any]])
 
 
-def connection(isolation_level: str | None = None) -> Callable[[F], F]:
+IsolationLevel = Literal["READ COMMITTED", "REPEATABLE READ", "SERIALIZABLE"]
+
+
+def connection(isolation_level: IsolationLevel | None = None) -> Callable[[F], F]:
     """Декоратор для автоматического управления асинхронной сессией базы данных и транзакцией.
 
     Этот декоратор создаёт сессию `AsyncSession`, оборачивает выполнение функции в транзакцию,
@@ -114,3 +117,17 @@ class Base(AsyncAttrs, DeclarativeBase):
 
         """
         return {c.name: getattr(self, c.name) for c in self.__mapper__.columns}
+
+    def __repr__(self) -> str:
+        """Возвращает строковое debug-представление модели."""
+        fields = []
+
+        for column in self.__table__.columns:
+            value = getattr(self, column.name)
+            fields.append(f"{column.name}={value!r}")
+
+        return f"<{self.__class__.__name__} {' '.join(fields)}>"
+
+    def __str__(self) -> str:
+        """Возвращает человекочитаемое представление модели."""
+        return self.__repr__()

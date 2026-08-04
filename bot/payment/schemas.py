@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -15,7 +15,7 @@ class SCreateManualPaymentTransactionIn(BaseModel):
     Используется для формирования запроса на создание платежа через API.
 
     Attributes
-        amount (int): Сумма платежа в минимальных единицах (например, копейки). Должна быть > 0.
+        amount (int): Сумма платежа в рублях (целое число, не копейки). Должна быть > 0.
         currency (Literal): Валюта платежа (например, RUB).
         subscription_months (int): Количество месяцев подписки. Должно быть > 0.
         is_premium (bool): Признак премиум-подписки.
@@ -79,7 +79,6 @@ class SCancelPaymentIn(BaseModel):
     transaction_id: UUID
 
 
-# TODO Можно укоротить
 class SPaymentTransactionResponse(BaseModel):
     """Ответ API с данными платежной транзакции.
 
@@ -112,6 +111,7 @@ class SPaymentTransactionResponse(BaseModel):
     id: UUID
 
     user_id: int
+    tg_id: int
 
     amount: int
     currency: str
@@ -132,6 +132,20 @@ class SPaymentTransactionResponse(BaseModel):
 
     confirmed_at: datetime | None
     paid_at: datetime | None
+
+
+class SCreatePayment(SPaymentTransactionResponse):
+    """Ответ на создание транзакции со ссылкой на оплату."""
+
+    payment_url: str | None
+
+
+class SAttachProviderPaymentIn(BaseModel):
+    """Схема привязки внешнего provider payment."""
+
+    # transaction_id: UUID
+    gateway_transaction_id: str
+    gateway_payload: dict[Any, Any] | None
 
 
 class SConfirmPaymentResponse(BaseModel):

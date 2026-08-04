@@ -47,13 +47,13 @@ class VPNService:
         if not user or not user.current_subscription:
             logger.warning("Пользователь или подписка не найдены tg_id={}", tg_id)
             raise UserNotFoundError(tg_id=tg_id)
-
+        subscription = user.current_subscription
         can_add = await VPNConfigDAO.can_add_config(
             session=session,
             user_id=user.id,
         )
 
-        limit = DEVICE_LIMITS.get(user.current_subscription.type, 0)
+        limit = DEVICE_LIMITS.get(subscription.type, 0)
         current = len(user.vpn_configs)
         logger.info(
             "Проверка лимита VPN tg_id={} can_add={} current={} limit={}",

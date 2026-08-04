@@ -6,32 +6,72 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from starlette import status
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.app_error.api_error import (
-    AdminNotFoundHeaderError,
-    MissingTelegramHeaderError,
-    UserNotFoundHeaderError,
+    APIError,
 )
+from api.core.exceptions.handlers.business import log_cause, unexpected_exception_logger
+from api.core.exceptions.schema import ErrorDetail, ErrorEnvelope
+
+
+async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Обрабатывает пользовательские API-исключения приложения.
+
+    Хендлер предназначен для обработки всех исключений,
+    наследующихся от `APIError`, и преобразования их
+    в унифицированный JSON-ответ API.
+
+    Если исключение не относится к типу `APIError`,
+    управление передаётся в обработчик непредвиденных ошибок.
+
+    Args:
+        request: Текущий HTTP-запрос.
+        exc: Обрабатываемое исключение.
+
+    Returns
+        JSONResponse: HTTP-ответ с сериализованной ошибкой API.
+
+    """
+    await log_cause(exc=exc)
+    if not isinstance(exc, APIError):
+        return await unexpected_exception_logger(exc=exc)
+
+    logger.warning(
+        "APIError {} path={} code={} message={} details={}",
+        exc.__class__.__name__,
+        request.url.path,
+        exc.code,
+        exc.message,
+        exc.details,
+    )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_envelope().model_dump(),
+    )
 
 
 async def request_validation_handler(
     request: Request,
     exc: RequestValidationError,
 ) -> JSONResponse:
-    """Обрабатывает ошибки валидации входящего HTTP запроса.
+    """Обрабатывает ошибки валидации HTTP-запросов.
 
-    Перехватывает ошибки FastAPI валидации (Pydantic / query / body)
-    и приводит их к единому формату API ответа.
+    Перехватывает ошибки валидации FastAPI / Pydantic,
+    возникающие при обработке query-параметров, path-параметров,
+    заголовков и тела запроса.
+
+    Все ошибки приводятся к единому формату API-ответа.
 
     Args:
-        request (Request): HTTP запрос FastAPI.
-        exc (RequestValidationError): Ошибка валидации запроса.
+        request: Текущий HTTP-запрос.
+        exc: Исключение ошибки валидации FastAPI.
 
     Returns
-        JSONResponse: HTTP 422 ответ с деталями ошибок.
+        JSONResponse: HTTP-ответ со статусом 422 и деталями ошибки.
 
     """
-    # exc = cast(RequestValidationError, exc)
     logger.warning(
         "RequestValidationError path={} errors={}",
         request.url.path,
@@ -40,10 +80,53 @@ async def request_validation_handler(
 
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        content={
-            "detail": "Ошибка валидации запроса",
-            "errors": exc.errors(),
-        },
+        content=ErrorEnvelope(
+            error=ErrorDetail(
+                code="validation_error",
+                message=f"Ошибка валидации запроса {repr(exc)}",
+                details={"exc_type": type(exc).__name__, "errors": exc.errors()},
+            )
+        ).model_dump(),
+    )
+
+
+async def http_exception_handler(
+    request: Request,
+    exc: StarletteHTTPException,
+) -> JSONResponse:
+    """Обрабатывает HTTPException, поднимаемые самим Starlette/FastAPI.
+
+    Без этого хендлера 404 (несуществующий путь), 405 (неверный метод) и
+    другие ошибки маршрутизации, которые framework поднимает сам — до того,
+    как запрос доходит до кода приложения — возвращались бы в формате
+    Starlette по умолчанию (``{"detail": "..."}``), а не в едином формате
+    API (``{"error": {...}}``).
+
+    Args:
+        request: Текущий HTTP-запрос.
+        exc: HTTPException, поднятое Starlette/FastAPI.
+
+    Returns
+        JSONResponse: HTTP-ответ с тем же статус-кодом в едином формате.
+
+    """
+    logger.warning(
+        "HTTPException path={} status_code={} detail={}",
+        request.url.path,
+        exc.status_code,
+        exc.detail,
+    )
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=ErrorEnvelope(
+            error=ErrorDetail(
+                code="http_exception",
+                message=str(exc.detail),
+                details={"status_code": exc.status_code},
+            )
+        ).model_dump(),
+        headers=exc.headers,
     )
 
 
@@ -51,99 +134,57 @@ async def database_exception_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """Обрабатывает ошибки базы данных и возвращает HTTP-ответ.
+    """Обрабатывает ошибки работы с базой данных.
 
-    Хендлер предназначен для перехвата всех исключений, связанных с работой
-    с базой данных (SQLAlchemy), логирования ошибки и возврата безопасного
-    ответа клиенту без раскрытия внутренних деталей.
+    Перехватывает исключения SQLAlchemy, логирует информацию
+    об ошибке и возвращает безопасный HTTP-ответ без раскрытия
+    внутренних деталей реализации базы данных.
 
     Args:
-        request (Request): Объект входящего HTTP-запроса.
-        exc (SQLAlchemyError): Исключение, возникшее при работе с БД.
+        request: Текущий HTTP-запрос.
+        exc: Исключение, связанное с базой данных.
 
     Returns
-        JSONResponse: HTTP-ответ с кодом 500 и обобщённым сообщением об ошибке.
-
-    HTTP статус-коды:
-        500: Внутренняя ошибка сервера (ошибка БД)
+        JSONResponse: HTTP-ответ со статусом 500.
 
     """
     exc = cast(SQLAlchemyError, exc)
-    logger.error(
-        "DatabaseException path={} error={}",
+    logger.exception(
+        "DatabaseException path={} exc_type={}",
         request.url.path,
-        str(exc),
+        type(exc).__name__,
     )
 
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "detail": "Ошибка работы с базой данных",
-        },
+        content=ErrorEnvelope(
+            error=ErrorDetail(
+                code="database_error",
+                message="Внутренняя ошибка базы данных",
+                details={"exc_type": type(exc).__name__},
+            )
+        ).model_dump(),
     )
 
 
-async def missing_telegram_header_handler(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """Обрабатывает отсутствие заголовка X-Telegram-Id."""
-    exc = cast(MissingTelegramHeaderError, exc)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Обрабатывает все необработанные исключения приложения.
 
-    logger.warning(
-        "MissingTelegramHeaderError: path={} header={}",
-        request.url.path,
-        exc.header_name,
-    )
+    Используется как fallback-хендлер для исключений,
+    которые не были обработаны специализированными
+    exception handlers.
 
-    return JSONResponse(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        content={
-            "detail": str(exc),
-            "error": "missing_telegram_header",
-        },
-    )
+    Traceback и путь запроса логируются внутри `unexpected_exception_logger` —
+    здесь их логировать повторно не нужно (иначе на одно исключение в
+    error.log попадали бы две записи).
 
+    Args:
+        request: Текущий HTTP-запрос.
+        exc: Необработанное исключение.
 
-async def unregistered_user_handler(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """Обрабатывает незарегистрированного пользователя."""
-    exc = cast(UserNotFoundHeaderError, exc)
+    Returns
+        JSONResponse: HTTP-ответ со статусом 500.
 
-    logger.warning(
-        "MissingTelegramHeaderError: path={} header={}",
-        request.url.path,
-        exc.tg_id,
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        content={
-            "detail": str(exc),
-            "error": "unregistered_user_handler",
-        },
-    )
-
-
-async def user_not_admin_handler(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """Обрабатывает запрос от не админа."""
-    exc = cast(AdminNotFoundHeaderError, exc)
-
-    logger.warning(
-        "MissingTelegramHeaderError: path={} header={}",
-        request.url.path,
-        exc.tg_id,
-    )
-
-    return JSONResponse(
-        status_code=status.HTTP_403_FORBIDDEN,
-        content={
-            "detail": str(exc),
-            "error": "user_not_admin_handler",
-        },
-    )
+    """
+    await log_cause(exc=exc)
+    return await unexpected_exception_logger(exc=exc, path=request.url.path)

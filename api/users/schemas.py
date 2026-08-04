@@ -33,7 +33,10 @@ class SUser(SUserTelegramID):
     first_name: str | None = Field(None, description="Имя пользователя")
     last_name: str | None = Field(None, description="Фамилия пользователя")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid",
+    )
 
 
 class SRole(BaseModel):
@@ -48,7 +51,10 @@ class SRole(BaseModel):
     name: str = Field(..., description="Уникальное имя роли")
     description: str | None = Field(default=None, description="Описание роли")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid",
+    )
 
 
 class SSubscription(BaseModel):
@@ -60,7 +66,10 @@ class SSubscription(BaseModel):
     """
 
     user_id: int = Field(..., description="Идентификатор пользователя")
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid",
+    )
 
 
 class SRoleOut(BaseModel):
@@ -70,7 +79,10 @@ class SRoleOut(BaseModel):
     name: str = Field(..., description="Имя роли")
     description: str | None = Field(None, description="Описание роли")
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        extra="forbid",
+    )
 
     def __str__(self) -> str:
         """Строковое представление как в модели SRole."""

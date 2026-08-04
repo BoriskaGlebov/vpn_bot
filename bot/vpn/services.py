@@ -8,15 +8,22 @@ from aiogram.types import User as TGUser
 from loguru import logger
 
 from bot.app_error.api_error import APIClientError
-from bot.app_error.base_error import AppError, VPNLimitError
-from bot.core.config import VPNNode
+from bot.app_error.base_error import (
+    AppError,
+    SubscriptionNotFoundError,
+    VPNConfigDeletionFailedError,
+    VPNLimitError,
+)
+from bot.core.config import VPNNode, settings_bot
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.schemas import SUser, SUserOut
+from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from bot.vpn.adapter import VPNAPIAdapter
+from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN, AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
 from bot.vpn.utils.x_ray_config import XRayRegistry
+from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError, ThreeXUIError
 
 ssh_lock = asyncio.Lock()
 xray_lock = asyncio.Lock()
@@ -86,7 +93,7 @@ class VPNService:
                 limit.limit,
             )
             raise VPNLimitError(
-                user_id=user.telegram_id,
+                tg_id=user.telegram_id,
                 limit=limit.limit,
                 username=user.username or "",
             )
@@ -227,6 +234,7 @@ class VPNService:
 
         Raises
             VPNLimitError: Если превышен лимит конфигураций.
+            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
             APIClientError: При ошибке сохранения конфигурации в БД.
             RuntimeError: Если адаптер не вернул subscription ID.
 
@@ -236,9 +244,13 @@ class VPNService:
         user: SUserOut = await self._limit_and_user_inf(tg_user)
 
         sub = user.current_subscription
-        now = datetime.now(UTC)
+        if sub is None or not sub.is_active:
+            # 0 дней 3x-ui трактует как "бессрочно" — нельзя допустить, чтобы
+            # пользователь без активной подписки получил такой конфиг.
+            raise SubscriptionNotFoundError(tg_id=tg_user.id)
 
-        end = sub.end_date if sub else None
+        now = datetime.now(UTC)
+        end = sub.end_date
         if end and end.tzinfo is None:
             end = end.replace(tzinfo=UTC)
 
@@ -277,3 +289,289 @@ class VPNService:
             raise
 
         return sub_url
+
+    @staticmethod
+    def _collect_xray_config_ids(configs: list[SVPNConfigOut]) -> set[str]:
+        """Собирает `config_id` всех XRay-конфигов пользователя.
+
+        `pub_key` у XRay-конфигов — JSON-список `config_id` (по одному на
+        каждый inbound, см. `ThreeXUIAdapter.add_new_config`); у WireGuard —
+        сырой публичный ключ, который как JSON не парсится, поэтому такие
+        конфиги просто пропускаются (WireGuard не хранит срок действия на
+        сервере — продлевать там нечего).
+
+        Args:
+            configs: Список VPN-конфигов пользователя.
+
+        Returns
+            set[str]: Объединённое множество `config_id` по всем XRay-конфигам.
+
+        """
+        config_ids: set[str] = set()
+        for config in configs:
+            try:
+                ids = json.loads(config.pub_key)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(ids, list):
+                config_ids.update(ids)
+        return config_ids
+
+    async def extend_user_xray_subscription(self, user: SUserOut) -> list[str]:
+        """Продлевает существующие XRay-конфигурации пользователя на всех нодах.
+
+        Вызывается при продлении/активации платной подписки: сама подписка
+        живёт в БД `api/`, но выданные ранее XRay-конфиги на панелях 3x-ui
+        хранят свой собственный `expiryTime` и не продлеваются вместе с ней
+        автоматически — без этого метода пользователь после оплаты продления
+        всё равно терял бы доступ по старому сроку.
+
+        Не создаёт новых конфигов (в отличие от `generate_xray_subscription`) —
+        только обновляет `expiryTime` уже существующих, поэтому у
+        пользователя без активной подписки или без XRay-конфигов — это no-op.
+
+        Args:
+            user: Пользователь с уже применённой (продлённой) подпиской —
+                `current_subscription.end_date` используется как новая точка
+                отсчёта оставшихся дней.
+
+        Returns
+            list[str]: `config_id` продлённых XRay-конфигураций. Пустой
+                список, если у пользователя нет активной подписки или
+                XRay-конфигов — это не ошибка.
+
+        Raises
+            ThreeXUIError: Если у пользователя есть XRay-конфиги, но продлить
+                их не удалось ни на одной из зарегистрированных нод.
+
+        """
+        sub = user.current_subscription
+        if sub is None or not sub.is_active:
+            logger.debug(
+                "Нет активной подписки — пропуск продления XRay tg_id={}",
+                user.telegram_id,
+            )
+            return []
+
+        now = datetime.now(UTC)
+        end = sub.end_date
+        if end and end.tzinfo is None:
+            end = end.replace(tzinfo=UTC)
+        days_left = max((end - now).days, 0) if end else 0
+
+        if days_left <= 0:
+            logger.debug(
+                "Подписка истекает сегодня/бессрочная — пропуск продления XRay tg_id={}",
+                user.telegram_id,
+            )
+            return []
+
+        pending = self._collect_xray_config_ids(user.vpn_configs)
+        if not pending:
+            logger.debug(
+                "У пользователя tg_id={} нет XRay-конфигов для продления",
+                user.telegram_id,
+            )
+            return []
+
+        logger.info(
+            "Продление XRay-конфигов tg_id={} config_ids={} days={}",
+            user.telegram_id,
+            pending,
+            days_left,
+        )
+
+        extended: list[str] = []
+        last_error: ThreeXUIError | None = None
+
+        async with xray_lock:
+            for adapter in self.xray_registry.all():
+                if not pending:
+                    break
+                try:
+                    done = await adapter.extend_config(
+                        config_ids=list(pending), days=days_left
+                    )
+                except ThreeXUIConfigNotFoundError:
+                    continue
+                except ThreeXUIError as exc:
+                    logger.warning(
+                        "Ошибка продления XRay-конфигов tg_id={} на {}: {}",
+                        user.telegram_id,
+                        adapter,
+                        exc,
+                    )
+                    last_error = exc
+                    continue
+                extended.extend(done)
+                pending.difference_update(done)
+
+        if pending:
+            logger.error(
+                "Не удалось продлить часть XRay-конфигов tg_id={} config_ids={}",
+                user.telegram_id,
+                pending,
+            )
+            raise last_error or ThreeXUIConfigNotFoundError(config_ids=list(pending))
+
+        logger.info(
+            "XRay-конфиги продлены tg_id={} config_ids={}",
+            user.telegram_id,
+            extended,
+        )
+        return extended
+
+    async def _delete_from_ssh_nodes(
+        self, pub_key: str, file_name: str
+    ) -> tuple[bool, bool]:
+        """Пытается удалить конфиг WireGuard на всех Amnezia-нодах.
+
+        Для каждой ноды пробует только те версии контейнера, которые для
+        неё реально настроены в `settings_bot.vpn.nodes` (`container` —
+        всегда, `container_old` — только если задан), а не обе версии
+        вслепую по умолчанию классов. Раньше код всегда пробовал оба
+        клиента (`AsyncSSHClientWG`/`AsyncSSHClientWG2`) с их именами
+        контейнеров "по умолчанию" — из-за этого на нодах без старого
+        контейнера (например, там, где `container_old` не задан) попытка
+        гарантированно проваливалась ошибкой подключения к
+        несуществующему контейнеру, и это ошибочно считалось реальным
+        сбоем, блокируя сценарий "конфига уже нигде нет — можно чистить БД".
+
+        Args:
+            pub_key: Публичный ключ WireGuard-клиента.
+            file_name: Имя файла — только для логирования.
+
+        Returns
+            tuple[bool, bool]: (найден_и_удалён, была_ошибка_соединения).
+
+        """
+        had_error = False
+        for server_info in settings_bot.vpn.nodes.values():
+            attempts: list[tuple[type[AsyncSSHClientWG], str]] = [
+                (AsyncSSHClientWG2, server_info.container)
+            ]
+            if server_info.container_old:
+                attempts.append((AsyncSSHClientWG, server_info.container_old))
+
+            for client_cls, container in attempts:
+                try:
+                    async with client_cls(
+                        host=server_info.host,
+                        username=server_info.username,
+                        container=container,
+                        use_local=server_info.use_local,
+                        location_prefix=server_info.location_prefix,
+                    ) as ssh_client:
+                        if await ssh_client.full_delete_user(public_key=pub_key):
+                            logger.info(
+                                "Конфиг {} удалён через {} ({}) на {}",
+                                file_name,
+                                client_cls.__name__,
+                                container,
+                                server_info.host,
+                            )
+                            return True, False
+                except (AmneziaError, BrokenPipeError) as e:
+                    logger.warning(
+                        "Не удалось удалить {} через {} ({}) на {}: {}",
+                        file_name,
+                        client_cls.__name__,
+                        container,
+                        server_info.host,
+                        e,
+                    )
+                    had_error = True
+        return False, had_error
+
+    async def _delete_from_xray(
+        self, pub_key: str, file_name: str
+    ) -> tuple[bool, bool]:
+        """Пытается удалить конфиг XRay на всех зарегистрированных нодах 3x-ui.
+
+        `pub_key` для XRay-конфигов — это JSON-список `config_id` (по одному
+        на каждый inbound); если он не парсится как JSON, значит это не
+        XRay-конфиг вовсе (WireGuard хранит там сырой публичный ключ).
+
+        Args:
+            pub_key: Публичный ключ (для XRay — JSON-список config_id).
+            file_name: Имя файла — только для логирования.
+
+        Returns
+            tuple[bool, bool]: (найден_и_удалён, была_ошибка_запроса).
+
+        """
+        try:
+            config_ids = json.loads(pub_key)
+        except json.JSONDecodeError:
+            return False, False
+
+        deleted_any = False
+        had_error = False
+        for adapter in self.xray_registry.all():
+            for config_id in config_ids:
+                try:
+                    if await adapter.delete_config(config_id=config_id):
+                        deleted_any = True
+                except APIClientError as e:
+                    logger.warning(
+                        "Ошибка удаления config_id={} в {}: {}",
+                        config_id,
+                        adapter,
+                        e,
+                    )
+                    had_error = True
+        if deleted_any:
+            logger.info("Конфиг {} удалён через 3x-ui", file_name)
+        return deleted_any, had_error
+
+    async def delete_user_config(self, tg_id: int, config: SVPNConfigOut) -> bool:
+        """Удаляет конфиг пользователя из внешнего сервиса и из БД.
+
+        Пробует удалить конфиг сначала как WireGuard (Amnezia, по SSH, все
+        ноды и обе версии контейнера), затем, если не найден — как XRay
+        (3x-ui, по всем зарегистрированным нодам). Если конфиг не найден
+        нигде, но и ошибок соединения не было — считаем его уже отсутствующим
+        и всё равно удаляем запись из БД. Если были реальные ошибки — запись
+        в БД не трогаем, чтобы не потерять её без фактического удаления.
+
+        Args:
+            tg_id: Telegram ID владельца конфига (для атрибуции в API).
+            config: Конфиг для удаления.
+
+        Returns
+            bool: True, если конфиг был реально найден и удалён на внешнем
+            сервисе; False, если он нигде не был найден (но запись в БД
+            всё равно удалена).
+
+        Raises
+            VPNConfigDeletionFailedError: Если при удалении произошла ошибка
+                соединения и небезопасно удалять запись из БД.
+
+        """
+        async with ssh_lock:
+            deleted, had_error = await self._delete_from_ssh_nodes(
+                config.pub_key, config.file_name
+            )
+
+        if not deleted:
+            async with xray_lock:
+                deleted, xray_error = await self._delete_from_xray(
+                    config.pub_key, config.file_name
+                )
+                had_error = had_error or xray_error
+
+        if not deleted and had_error:
+            raise VPNConfigDeletionFailedError(file_name=config.file_name)
+
+        if not deleted:
+            logger.warning(
+                "Конфиг {} не найден ни в Amnezia, ни в 3x-ui — удаляю только из БД",
+                config.file_name,
+            )
+
+        await self.api_adapter.delete_config(
+            file_name=config.file_name,
+            pub_key=config.pub_key,
+            tg_id=tg_id,
+        )
+        return deleted

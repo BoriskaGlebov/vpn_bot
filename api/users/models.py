@@ -5,6 +5,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base, int_pk, str_null_true, str_uniq
+from api.payment.model import PaymentTransaction
 from api.referrals.models import Referral
 from api.subscription.models import Subscription
 from api.vpn.models import VPNConfig
@@ -70,7 +71,7 @@ class User(Base):
         foreign_keys=[Referral.inviter_id],
         back_populates="inviter",
         lazy="selectin",
-        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
     invited_by: Mapped["Referral | None"] = relationship(
@@ -79,6 +80,15 @@ class User(Base):
         back_populates="invited",
         uselist=False,
         lazy="selectin",
+        passive_deletes=True,
+    )
+    payments: Mapped[list["PaymentTransaction"]] = relationship(
+        "PaymentTransaction",
+        foreign_keys="PaymentTransaction.user_id",
+        back_populates="user",
+        lazy="selectin",
+        order_by="PaymentTransaction.created_at.desc()",
+        passive_deletes=True,
     )
 
     def __str__(self) -> str:
@@ -134,6 +144,37 @@ class User(Base):
         return (
             select(func.count(VPNConfig.id))
             .where(VPNConfig.user_id == cls.id)
+            .correlate(cls)
+            .scalar_subquery()
+        )
+
+    @hybrid_property
+    def payments_count(self) -> int:
+        """Возвращает количество платёжных транзакций пользователя.
+
+        Returns
+            int: Количество платежей пользователя.
+
+        """
+        return len(self.payments)
+
+    @payments_count.expression  # type: ignore[no-redef]
+    def payments_count(cls) -> ScalarSelect[Any]:
+        """SQL-выражение для подсчёта платежей.
+
+        Используется в ORM-запросах для сортировки и фильтрации без загрузки
+        связанных объектов.
+
+        Args:
+            cls: Класс модели User (SQLAlchemy ORM context).
+
+        Returns
+            ScalarSelect[int]: Подзапрос с COUNT(PaymentTransaction.id).
+
+        """
+        return (
+            select(func.count(PaymentTransaction.id))
+            .where(PaymentTransaction.user_id == cls.id)
             .correlate(cls)
             .scalar_subquery()
         )

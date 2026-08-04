@@ -2,8 +2,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import (
-    ActiveSubscriptionExistsError,
-    AppError,
+    SubscriptionNotFoundError,
     TrialAlreadyUsedError,
     UserNotFoundError,
 )
@@ -51,17 +50,23 @@ class SubscriptionService:
         if not user_model:
             logger.warning("Пользователь не найден: tg_id={}", tg_id)
             raise UserNotFoundError(tg_id=tg_id)
-        if user_model.current_subscription is None:
-            logger.error("Отсутствует current_subscription: tg_id={}", tg_id)
-            raise AppError(message="Некорректно распаковал подписку!")
-        premium = user_model.current_subscription.type
+        subscription = user_model.current_subscription
+        if subscription is None:
+            # Ожидаемая ситуация (у пользователя ещё нет подписки), а не
+            # системная ошибка — уровень как у соседнего "не найден" выше.
+            logger.warning("Отсутствует current_subscription: tg_id={}", tg_id)
+            raise SubscriptionNotFoundError(
+                user_id=user_model.id, username=user_model.username
+            )
+
+        premium = subscription.type
         founder = user_model.role
-        is_active_sbscr = bool(user_model.current_subscription.is_active)
+        is_active_sbscr = bool(subscription.is_active)
         logger.info(
             "Проверка premium завершена: tg_id={}, premium={}, active={}",
             tg_id,
-            user_model.current_subscription.type,
-            user_model.current_subscription.is_active,
+            subscription.type,
+            subscription.is_active,
         )
         if premium and premium == ToggleSubscriptionMode.PREMIUM:
             return (
@@ -105,48 +110,48 @@ class SubscriptionService:
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user, options=UserDAO.base_options
         )
-        try:
-            if (
-                user_model
-                and user_model.current_subscription
-                and user_model.current_subscription.is_active
-                and not user_model.has_used_trial
-            ):
-                logger.debug("Обнаружена активная подписка: tg_id={}", tg_id)
-                user_model.current_subscription.extend(days=days)
-                user_model.has_used_trial = True
-                logger.info(
-                    "Trial подписка продлена за счет активной: tg_id={}, days={}",
-                    tg_id,
-                    days,
-                )
-                return
-            if (
-                user_model
-                and user_model.current_subscription
-                and user_model.current_subscription.is_active
-            ):
-                logger.warning(
-                    "Невозможно активировать trial — уже есть активная подписка: tg_id={}",
-                    tg_id,
-                )
-                raise ActiveSubscriptionExistsError()
-            if user_model and user_model.has_used_trial:
-                logger.warning("Trial уже был использован: tg_id={}", tg_id)
-                raise TrialAlreadyUsedError()
+        if not user_model:
+            logger.warning("Пользователь не найден: tg_id={}", tg_id)
+            raise UserNotFoundError(tg_id=tg_id)
+        subscription = user_model.current_subscription
 
-            await SubscriptionDAO.activate_subscription(
-                session=session,
-                stelegram_id=schema_user,
-                days=days,
-                sub_type=SubscriptionType.TRIAL,
+        if subscription and subscription.is_active and not user_model.has_used_trial:
+            logger.debug("Продление trial через активную подписку: tg_id={}", tg_id)
+
+            subscription.extend(days=days)
+            user_model.has_used_trial = True
+
+            logger.info(
+                "Trial продлён через активную подписку: tg_id={}, days={}",
+                tg_id,
+                days,
             )
-            await session.refresh(
-                user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
+            return
+        if subscription and subscription.is_active and user_model.has_used_trial:
+            logger.warning(
+                "Нельзя активировать trial — уже был использован: tg_id={}",
+                tg_id,
             )
-            logger.debug("Обновление данных подписки завершено: tg_id={}", tg_id)
-        except (TrialAlreadyUsedError, AppError):
-            raise
+            raise TrialAlreadyUsedError(
+                user_id=user_model.id, username=user_model.username
+            )
+
+        if user_model.has_used_trial:
+            logger.warning("Trial уже использован: tg_id={}", tg_id)
+            raise TrialAlreadyUsedError(
+                user_id=user_model.id, username=user_model.username
+            )
+
+        await SubscriptionDAO.activate_subscription(
+            session=session,
+            stelegram_id=schema_user,
+            days=days,
+            sub_type=SubscriptionType.TRIAL,
+        )
+        await session.refresh(
+            user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
+        )
+        logger.debug("Trial подписка активирована: tg_id={}", tg_id)
 
     @staticmethod
     async def activate_paid_subscription(
