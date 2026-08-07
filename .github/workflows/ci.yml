@@ -133,120 +133,120 @@ jobs:
           API_KEY: "test-api-key"
         run: poetry run pytest -vs -m integration .
 
-  deploy_develop:
-    needs: [ lint, test, integration-test ]
-    runs-on: ubuntu-latest
-    environment: develop
-    if: github.ref == 'refs/heads/develop'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Deploy to server (DEV)
-        uses: webfactory/ssh-agent@v0.5.3
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Add known hosts
-        run: echo "${{ secrets.SERVER_IP }} $(ssh-keyscan -H ${{ secrets.SERVER_IP }})" >> ~/.ssh/known_hosts
-
-      - name: Test SSH  connection
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET # Проверка подключения
-
-      - name: Recreate .env and restart containers
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
-            set -e
-
-            # ===== ИСПОЛЬЗУЕМ ПЕРСИСТЕНТНЫЙ SSH-AGENT (systemd, см. deploy/systemd/ssh-agent.service) =====
-            # Агент живёт постоянно на фиксированном пути и переживает рестарт
-            # контейнеров/ребут хоста (в отличие от ad-hoc `eval $(ssh-agent)`).
-            export SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket
-            if [ ! -S "$SSH_AUTH_SOCK" ]; then
-              echo "ERROR: persistent ssh-agent socket not found at $SSH_AUTH_SOCK"
-              echo "Проверьте на хосте: systemctl --user status ssh-agent.service"
-              exit 1
-            fi
-
-            # Добавляем ключи (idempotent self-heal поверх ExecStartPost юнита)
-            if [ -f ~/.ssh/help_blocks ]; then
-              ssh-add ~/.ssh/help_blocks < /dev/null 2>/dev/null
-              echo "SSH key added"
-            fi
-
-            # Добавляем ключи
-            if [ -f ~/.ssh/xray_boriska ]; then
-              ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
-              echo "SSH key added"
-            fi
-
-            # Проверяем что ключи добавились
-            ssh-add -l
-            # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====
-
-            cd /home/prod_server/production/vpn_bot || exit 1
-            echo "Pull latest code..."
-            git checkout develop
-            git fetch origin develop
-            git reset --hard origin/develop
-            git clean -fd
-
-            echo "Recreate .env.dev file..."
-            rm -f .env.dev
-
-            cat <<ENV_EOF > .env.dev
-
-          # == STAGE ==
-
-          STAGE=develop
-
-          # == CORE ==
-
-          BOT_TOKEN=${{ secrets.BOT_TOKEN }}
-
-          # == API ==
-
-          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-
-          # ==X-RAY ==
-
-          SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
-
-
-          # == DATABASE ==
-
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-
-          # == REDIS ==
-
-          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-
-          # == STORAGE ==
-
-          ACCESS_KEY=${{ secrets.ACCESS_KEY }}
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-
-          # == AI ==
-          ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
-          SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
-          SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
-
-          # == PAYMENT ==
-          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
-          API_KEY=${{ secrets.API_KEY }}
-          ENV_EOF
-
-            echo "SSH_AUTH_SOCK добавляю в .env.dev"
-            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
-            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> .env.dev
-            echo "Restart Docker containers..."
-            make compose-down
-            make compose-up
-
-            docker restart nginx
-          SSH_EOF
-
+#  deploy_develop:
+#    needs: [ lint, test, integration-test ]
+#    runs-on: ubuntu-latest
+#    environment: develop
+#    if: github.ref == 'refs/heads/develop'
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#
+#      - name: Deploy to server (DEV)
+#        uses: webfactory/ssh-agent@v0.5.3
+#        with:
+#          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+#
+#      - name: Add known hosts
+#        run: echo "${{ secrets.SERVER_IP }} $(ssh-keyscan -H ${{ secrets.SERVER_IP }})" >> ~/.ssh/known_hosts
+#
+#      - name: Test SSH  connection
+#        run: |
+#          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET # Проверка подключения
+#
+#      - name: Recreate .env and restart containers
+#        run: |
+#          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
+#            set -e
+#
+#            # ===== ИСПОЛЬЗУЕМ ПЕРСИСТЕНТНЫЙ SSH-AGENT (systemd, см. deploy/systemd/ssh-agent.service) =====
+#            # Агент живёт постоянно на фиксированном пути и переживает рестарт
+#            # контейнеров/ребут хоста (в отличие от ad-hoc `eval $(ssh-agent)`).
+#            export SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket
+#            if [ ! -S "$SSH_AUTH_SOCK" ]; then
+#              echo "ERROR: persistent ssh-agent socket not found at $SSH_AUTH_SOCK"
+#              echo "Проверьте на хосте: systemctl --user status ssh-agent.service"
+#              exit 1
+#            fi
+#
+#            # Добавляем ключи (idempotent self-heal поверх ExecStartPost юнита)
+#            if [ -f ~/.ssh/help_blocks ]; then
+#              ssh-add ~/.ssh/help_blocks < /dev/null 2>/dev/null
+#              echo "SSH key added"
+#            fi
+#
+#            # Добавляем ключи
+#            if [ -f ~/.ssh/xray_boriska ]; then
+#              ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
+#              echo "SSH key added"
+#            fi
+#
+#            # Проверяем что ключи добавились
+#            ssh-add -l
+#            # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====
+#
+#            cd /home/prod_server/production/vpn_bot || exit 1
+#            echo "Pull latest code..."
+#            git checkout develop
+#            git fetch origin develop
+#            git reset --hard origin/develop
+#            git clean -fd
+#
+#            echo "Recreate .env.dev file..."
+#            rm -f .env.dev
+#
+#            cat <<ENV_EOF > .env.dev
+#
+#          # == STAGE ==
+#
+#          STAGE=develop
+#
+#          # == CORE ==
+#
+#          BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+#
+#          # == API ==
+#
+#          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+#
+#          # ==X-RAY ==
+#
+#          SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
+#
+#
+#          # == DATABASE ==
+#
+#          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+#
+#          # == REDIS ==
+#
+#          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+#
+#          # == STORAGE ==
+#
+#          ACCESS_KEY=${{ secrets.ACCESS_KEY }}
+#          SECRET_KEY=${{ secrets.SECRET_KEY }}
+#
+#          # == AI ==
+#          ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
+#          SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
+#          SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+#
+#          # == PAYMENT ==
+#          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
+#          API_KEY=${{ secrets.API_KEY }}
+#          ENV_EOF
+#
+#            echo "SSH_AUTH_SOCK добавляю в .env.dev"
+#            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+#            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> .env.dev
+#            echo "Restart Docker containers..."
+#            make compose-down
+#            make compose-up
+#
+#            docker restart nginx
+#          SSH_EOF
+#
 
   deploy_prod:
     needs: [ lint, test, integration-test ]
@@ -376,75 +376,3 @@ jobs:
             make compose-down STAGE=prod
             make compose-up STAGE=prod
           SSH_EOF
-
-  deploy_nginx:
-    runs-on: ubuntu-latest
-    environment: production
-    if: github.ref == 'refs/heads/nginx'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Deploy to server (DEV)
-        uses: webfactory/ssh-agent@v0.5.3
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Add known hosts
-        run: echo "${{ secrets.SERVER_IP }} $(ssh-keyscan -H ${{ secrets.SERVER_IP }})" >> ~/.ssh/known_hosts  # Добавление сервера в known_hosts
-
-      - name: Test SSH connection
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET # Проверка подключения
-
-      - name: Recreate .env and restart containers
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << EOF
-            set -e
-            cd /home/prod_server/test_zone/vpn_bot || exit 1
-            echo "Pull latest code..."
-            git checkout nginx
-            git fetch origin nginx
-            git reset --hard origin/nginx
-            git clean -fd
-
-            echo "Recreate .env.local file..."
-            rm -f .env.local
-            echo "BOT_TOKEN=${{ secrets.BOT_TOKEN }}" >> .env.local
-
-            echo "VPN_HOST=${{ secrets.VPN_HOST }}" >> .env.local
-            echo "VPN_USERNAME=${{ secrets.VPN_USERNAME }}" >> .env.local
-            echo "VPN_CONTAINER=${{ secrets.VPN_CONTAINER }}" >> .env.local
-            echo "MAX_CONFIGS_PER_USER=${{ vars.MAX_CONFIGS_PER_USER }}" >> .env.local
-
-            echo "ADMIN_IDS=${{ secrets.ADMIN_IDS }}" >> .env.local
-
-            echo "PRICE_MAP=${{ vars.PRICE_MAP }}" >> .env.local
-
-            echo "BASE_SITE=${{ vars.BASE_SITE }}" >> .env.local
-
-            echo "DB_USER=${{ secrets.DB_USER }}" >> .env.local
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env.local
-            echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env.local
-
-            echo "REDIS_USER=${{ secrets.REDIS_USER }}" >> .env.local
-            echo "REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}" >> .env.local
-
-            echo "USE_POLLING=${{ vars.USE_POLLING }}" >> .env.local
-
-            echo "BUCKET_NAME=${{ vars.BUCKET_NAME }}" >> .env.local
-            echo "PREFIX=${{ vars.PREFIX }}" >> .env.local
-            echo "ENDPOINT_URL=${{ secrets.ENDPOINT_URL }}" >> .env.local
-            echo "ACCESS_KEY=${{ secrets.ACCESS_KEY }}" >> .env.local
-            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" >> .env.local
-            echo "USE_LOCAL=${{ vars.USE_LOCAL }}" >> .env.local
-
-            echo "MERCHANT_ID=${{ secrets.MERCHANT_ID }}" >> .env.local
-            echo "API_KEY=${{ secrets.API_KEY }}" >> .env.local
-
-
-            echo "Restart Docker containers..."
-            make compose-down
-            make compose-up
-
-          EOF
