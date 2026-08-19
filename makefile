@@ -16,15 +16,21 @@ COMPOSE_PROD   = $(COMPOSE_COMMON) -f docker-compose.prod.yml
 COMPOSE_LOCAL  = $(COMPOSE_COMMON) -f docker-compose.local.yml
 
 
+# На проде nginx_vpn_bot не поднимается (общий edge-nginx снаружи, см.
+# nginx.conf) — сервис спрятан за профилем standalone-nginx, который
+# активируем только для local/develop.
 ifeq ($(STAGE),prod)
   COMPOSE_FILES = $(COMPOSE_PROD)
   ENV_FILE = .env
+  PROFILE_FLAG =
 else ifeq ($(STAGE),local)
   COMPOSE_FILES = $(COMPOSE_LOCAL)
   ENV_FILE = .env.local
+  PROFILE_FLAG = --profile standalone-nginx
 else
   COMPOSE_FILES = $(COMPOSE_DEV)
   ENV_FILE = .env.dev
+  PROFILE_FLAG = --profile standalone-nginx
 endif
 
 
@@ -64,11 +70,11 @@ help:
 
 compose-up:
 	@echo "🚀 Поднимаем контейнеры..."
-	$(DC) $(COMPOSE_FILES) --env-file $(ENV_FILE) up -d --build
+	$(DC) $(COMPOSE_FILES) --env-file $(ENV_FILE) $(PROFILE_FLAG) up -d --build
 
 compose-down:
 	@echo "🛑 Останавливаем контейнеры..."
-	$(DC) $(COMPOSE_FILES) --env-file $(ENV_FILE) down
+	$(DC) $(COMPOSE_FILES) --env-file $(ENV_FILE) $(PROFILE_FLAG) down
 
 
 # ===================== Alembic =====================

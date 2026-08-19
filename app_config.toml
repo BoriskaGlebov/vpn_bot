@@ -24,7 +24,7 @@ reload_fast_api = false
 [bot]
 
 # ! Базовый URL сайта (например, для webhook)
-base_site = "https://help-blocks.ru/bot"
+base_site = "https://vpn-bot.help-blocks.ru/bot"
 # *Использовать webhook или polling по умолчанию polling false
 use_polling = false
 

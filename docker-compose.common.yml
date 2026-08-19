@@ -42,6 +42,11 @@ services:
     image: nginx:latest
     container_name: nginx_vpn_bot
     restart: always
+    # На проде используется общий edge-nginx (boriska_guard_infra), свой
+    # nginx там не поднимается — сервис активен только под этим профилем
+    # (local/develop через PROFILE_FLAG в makefile).
+    profiles:
+      - standalone-nginx
     deploy:
       resources:
         limits:

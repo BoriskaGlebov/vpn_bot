@@ -269,25 +269,16 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET
 
-      - name: Update telemt.toml with secret
+      - name: Pull latest code
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
             set -e
-            cd /home/vpn_user/test_zone/vpn_bot || exit 1
+            cd /opt/vpn_bot || exit 1
 
             git checkout main
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
-
-            TELEMT_SECRET_HELLO="${{ secrets.TELEMT_SECRET_HELLO }}"
-            TOML_FILE="./telemt-config/telemt.toml"
-
-            if grep -q '^hello\s*=' "$TOML_FILE"; then
-              sed -i "s/^hello\s*=.*/hello = \"$TELEMT_SECRET_HELLO\"/" "$TOML_FILE"
-            else
-              echo "hello = \"$TELEMT_SECRET_HELLO\"" >> "$TOML_FILE"
-            fi
           EOF
 
       - name: Recreate .env and restart containers
@@ -321,7 +312,7 @@ jobs:
             # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====
 
 
-            cd /home/vpn_user/test_zone/vpn_bot || exit 1
+            cd /opt/vpn_bot/ || exit 1
 
             echo "Recreate .env file..."
             rm -f .env
@@ -375,4 +366,15 @@ jobs:
             echo "Restart Docker containers..."
             make compose-down STAGE=prod
             make compose-up STAGE=prod
+          SSH_EOF
+
+      - name: Deploy nginx config to shared edge-nginx and reload
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
+            "cat > /opt/nginx-edge/conf.d/vpn-bot.conf" < nginx.conf
+
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
+            set -e
+            docker exec nginx_edge nginx -t
+            docker exec nginx_edge nginx -s reload
           SSH_EOF
