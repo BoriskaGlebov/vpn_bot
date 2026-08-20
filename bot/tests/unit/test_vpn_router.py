@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from bot.core.config import settings_bot
 from bot.subscription.router import SubscriptionStates
 from bot.vpn.router import VPNRouter
 
@@ -144,11 +145,12 @@ async def test_get_config_amnezia_wg_success(
 ):
     router.redis.set.return_value = True
 
-    # чтобы не падало на определении локации
+    # чтобы не падало на определении локации; "main" — единственная нода,
+    # гарантированно сконфигурированная всегда (в отличие от опциональной "fi")
     mocker.patch.object(
         router,
         "_get_location_server",
-        return_value="fi",
+        return_value="main",
     )
 
     status_msg = mocker.MagicMock()
@@ -243,6 +245,14 @@ async def test_create_free_proxy_url_success(
     state,
 ):
     router.redis.set.return_value = True
+
+    # create_free_proxy_url всегда обращается к ноде "fi", а она опциональна
+    # и может быть не сконфигурирована в текущем окружении (см.
+    # VPNRegistry.fi) — подменяем get(), чтобы тест не зависел от того,
+    # поднята ли реальная fi-нода в app_config сейчас. Патчим класс, а не
+    # инстанс — pydantic-модели не дают mocker корректно откатить патч
+    # на самом инстансе (кастомный __delattr__ на BaseModel).
+    mocker.patch.object(type(settings_bot.vpn), "get", return_value=mocker.MagicMock())
 
     router.vpn_service.get_mtproto_url = mocker.AsyncMock(
         return_value="tg://proxy",
