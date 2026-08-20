@@ -50,8 +50,8 @@ jobs:
         run: poetry run mypy .
 
   test:
-    # ВРЕМЕННО отключено, см. комментарий в job lint выше.
-    if: false
+    # См. комментарий про хотфикс-байпас в job lint выше.
+    if: ${{ !contains(github.event.head_commit.message, '[hotfix]') }}
     runs-on: ubuntu-latest
     needs: lint
     environment: test
@@ -100,8 +100,8 @@ jobs:
     # workflow-запусках, триггернутых Dependabot, поэтому для них job
     # пропускается целиком, а не падает. Не входит в required status checks,
     # т.е. не блокирует мерж Dependabot PR.
-    # ВРЕМЕННО отключено, см. комментарий в job lint выше.
-    if: false
+    # См. комментарий про хотфикс-байпас в job lint выше.
+    if: ${{ !contains(github.event.head_commit.message, '[hotfix]') }}
     runs-on: ubuntu-latest
     needs: [ lint, test ]
     environment: test
@@ -253,12 +253,18 @@ jobs:
 #
 
   deploy_prod:
-    # needs временно убран — lint/test/integration-test отключены (if: false)
-    # и остались бы "skipped", из-за чего deploy_prod тоже скипался бы.
-    # Верни `needs: [ lint, test, integration-test ]`, когда включишь тесты обратно.
+    needs: [ lint, test, integration-test ]
     runs-on: ubuntu-latest
     environment: production
-    if: github.ref == 'refs/heads/main'
+    # needs.*.result допускает и 'success', и 'skipped' — второе бывает,
+    # только когда коммит помечен "[hotfix]" (см. job lint) и проверки
+    # сознательно пропущены. Любой 'failure'/'cancelled' блокирует деплой.
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.integration-test.result == 'success' || needs.integration-test.result == 'skipped')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
