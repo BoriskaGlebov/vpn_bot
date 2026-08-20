@@ -18,7 +18,7 @@ from bot.scheduler.schemas import (
     EventBase,
     UserNotifyEventSchema,
 )
-from bot.users.enums import Location, PremiumLocation
+from bot.users.enums import PremiumLocation, available_locations
 from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import ssh_lock
@@ -27,7 +27,10 @@ from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 m_subscription_local = settings_bot.messages.modes.subscription
-ALL_LOCATIONS = (*Location, *PremiumLocation)
+# available_locations() (не Location) — иначе перебор попадёт на локацию без
+# реально сконфигурированной ноды (например "fi", пока она отключена) и
+# settings_bot.vpn.get()/xray_registry.get() ниже упадут с исключением.
+ALL_LOCATIONS = (*available_locations(), *PremiumLocation)
 
 
 @dataclass
