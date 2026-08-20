@@ -120,6 +120,9 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             case "subscription_not_found":
                 return "⚠️ Подписка не найдена."
 
+            case "vpn_node_not_found":
+                return "⚠️ Эта локация сейчас недоступна, мы уже работаем над этим."
+
             case "telegram_retry_after":
                 retry = details.get("retry_after", "?")
                 return f"⚠️ Слишком много запросов. Попробуйте через {retry} секунд."

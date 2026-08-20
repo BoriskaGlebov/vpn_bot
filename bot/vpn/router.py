@@ -25,7 +25,12 @@ from bot.subscription.keyboards.inline_kb import subscription_options_kb
 from bot.subscription.router import SubscriptionStates
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.enums import Location, MainMenuText, PremiumLocation, VPNProtocol
+from bot.users.enums import (
+    MainMenuText,
+    PremiumLocation,
+    VPNProtocol,
+    available_locations,
+)
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
 from bot.vpn.keyboards.inline_kb import proxy_url_button, xray_url_kb
@@ -51,11 +56,6 @@ class VPNStates(StatesGroup):  # type: ignore[misc]
 class VPNRouter(BaseRouter):
     """Роутер для обработки команд VPN."""
 
-    main_vpn = settings_bot.vpn.main
-    fi_vpn = settings_bot.vpn.fi
-    main_proxy = settings_bot.vpn.main.require_proxy()
-    fi_proxy = settings_bot.vpn.fi.require_proxy()
-
     def __init__(
         self,
         bot: Bot,
@@ -75,7 +75,7 @@ class VPNRouter(BaseRouter):
         """Регистрация хендлеров."""
         is_premium = IsPremium(user_adapter=self.user_adapter)
 
-        for location in Location:
+        for location in available_locations():
             self.router.message.register(
                 self.get_config_amnezia_wg,
                 F.text == vpn_button_text(VPNProtocol.AMNEZIA, location),
@@ -380,7 +380,10 @@ class VPNRouter(BaseRouter):
             user=user,
             state=state,
             redis_key=redis_key,
-            server_info=settings_bot.vpn.fi,
+            # .get() (не .fi) — нода опциональна, при отсутствии кидает
+            # VPNNodeNotFoundError, который ErrorHandlerMiddleware превращает
+            # в понятное сообщение пользователю вместо падения хендлера.
+            server_info=settings_bot.vpn.get(name="fi"),
             use_free=True,
         )
 

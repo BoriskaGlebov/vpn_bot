@@ -285,6 +285,26 @@ class VPNRegistry(SettingsCommon):
         except KeyError as exc:
             raise VPNNodeNotFoundError(name) from exc
 
+    def get_optional(self, name: str) -> VPNNode | None:
+        """Возвращает ноду по имени или None, если она не сконфигурирована.
+
+        В отличие от `get`, не бросает исключение. Используется для нод,
+        которые допустимо временно не поднимать (например, ещё не
+        развёрнутая при масштабировании локация) — вызывающий код сам
+        решает, как деградировать при отсутствии ноды.
+
+        Args:
+            name (str): Имя ноды.
+
+        Returns
+            VPNNode | None: Найденная нода либо None.
+
+        """
+        return self.nodes.get(name)
+
+    def __contains__(self, name: str) -> bool:
+        return name in self.nodes
+
     @property
     def main(self) -> VPNNode:
         """Основная нода."""
@@ -296,9 +316,13 @@ class VPNRegistry(SettingsCommon):
         return self.get("sof")
 
     @property
-    def fi(self) -> VPNNode:
-        """Нода FI."""
-        return self.get("fi")
+    def fi(self) -> VPNNode | None:
+        """Нода FI.
+
+        В отличие от `main`/`sof` может быть не сконфигурирована —
+        вызывающий код обязан проверять на None перед использованием.
+        """
+        return self.get_optional("fi")
 
 
 class VPNSettingsMain(SettingsCommon):

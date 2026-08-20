@@ -64,7 +64,34 @@ class Location(str, Enum):
 
     MAIN = settings_bot.vpn.main.location_prefix.lower()
     # FRANCE = "FR"
-    FINLAND = settings_bot.vpn.fi.location_prefix.lower()
+    # fi-нода опциональна (см. VPNRegistry.fi) — если она ещё не поднята,
+    # используем префикс-заглушку, чтобы импорт модуля не падал; сам член
+    # enum при этом не попадёт в available_locations().
+    FINLAND = (
+        settings_bot.vpn.fi.location_prefix.lower()
+        if settings_bot.vpn.fi is not None
+        else "fi"
+    )
+
+
+def available_locations() -> list["Location"]:
+    """Локации, для которых реально сконфигурирована VPN-нода.
+
+    `Location` объявлен статически (набор локаций фиксирован в коде), а
+    стоящая за конкретной локацией нода может быть временно не настроена
+    в app_config.toml (см. `settings_bot.vpn.fi`). Используйте эту функцию
+    вместо прямого перебора `Location` везде, где для локации нужна
+    реальная нода (клавиатуры, регистрация хендлеров, генерация конфигов) —
+    иначе можно получить VPNNodeNotFoundError на локации-заглушке.
+
+    Returns
+        list[Location]: подмножество Location с реально сконфигурированными нодами.
+
+    """
+    configured_prefixes = {
+        node.location_prefix.lower() for node in settings_bot.vpn.nodes.values()
+    }
+    return [loc for loc in Location if loc.value in configured_prefixes]
 
 
 class PremiumLocation(str, Enum):
