@@ -8,9 +8,11 @@ on:
 
 jobs:
   lint:
-    # ВРЕМЕННО отключено для ускорения деплоя (нужно для отладки nginx/CI на
-    # проде) — верни `if: github.ref != 'refs/heads/nginx'`, когда закончим.
-    if: false
+    # Хотфикс-байпас: если сообщение коммита содержит "[hotfix]", lint/test/
+    # integration-test пропускаются (result = skipped), а deploy_prod это
+    # допускает (см. его `if:` ниже) — деплой не ждёт полный прогон.
+    # Без маркера — обычный путь: все проверки гоняются перед деплоем.
+    if: ${{ !contains(github.event.head_commit.message, '[hotfix]') }}
     strategy:
       fail-fast: false
       matrix:
@@ -78,11 +80,6 @@ jobs:
       - name: Run tests
         env:
           ENV_FILE: .env.test
-          # Юнит-тесты не делают реальных сетевых вызовов — только синтаксически
-          # валидные значения для конструирования Bot/SecretStr при коллекции
-          # (Dependabot PR не получает доступ к repository secrets, поэтому эти
-          # поля не должны зависеть от secrets.*). Интеграционный тест с реальным
-          # Telegram API вынесен в отдельный job integration-test.
           BOT_TOKEN: "123456:TEST-DUMMY-TOKEN-NOT-REAL-00000000000"
           DB_PASSWORD: ${{ vars.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ vars.REDIS_PASSWORD }}
@@ -95,12 +92,6 @@ jobs:
         run: poetry run pytest -vs -m "not integration" .
 
   integration-test:
-    # Требует настоящего BOT_TOKEN (реальный вызов Telegram API в
-    # bot/tests/integration/test_start_stop.py) — secrets недоступны в
-    # workflow-запусках, триггернутых Dependabot, поэтому для них job
-    # пропускается целиком, а не падает. Не входит в required status checks,
-    # т.е. не блокирует мерж Dependabot PR.
-    # См. комментарий про хотфикс-байпас в job lint выше.
     if: ${{ !contains(github.event.head_commit.message, '[hotfix]') }}
     runs-on: ubuntu-latest
     needs: [ lint, test ]
@@ -256,9 +247,6 @@ jobs:
     needs: [ lint, test, integration-test ]
     runs-on: ubuntu-latest
     environment: production
-    # needs.*.result допускает и 'success', и 'skipped' — второе бывает,
-    # только когда коммит помечен "[hotfix]" (см. job lint) и проверки
-    # сознательно пропущены. Любой 'failure'/'cancelled' блокирует деплой.
     if: |
       always() &&
       github.ref == 'refs/heads/main' &&
@@ -397,11 +385,6 @@ jobs:
             sleep 5
           done
 
-      # nginx.conf — не отдельный сервис в docker-compose, а фрагмент конфига
-      # для общего edge-nginx (boriska_guard_infra, контейнер nginx_edge на
-      # том же сервере). Кладём его в conf.d ПОСЛЕ рестарта vpn_bot/api
-      # (предыдущий шаг), чтобы к моменту reload контейнеры уже были в сети
-      # edge_net и nginx смог зарезолвить их по имени.
       - name: Deploy nginx config to shared edge-nginx and reload
         run: |
           for i in 1 2 3 4 5; do
