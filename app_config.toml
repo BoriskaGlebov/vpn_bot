@@ -59,14 +59,14 @@ use_local = true
 location_prefix= "FR"
 flag="🇫🇷"
 
-[vpn.nodes.fi]
-host = "vpn-boriska.ru"
-username = "prod_server"
-container = "amnezia-awg2"
-#Сервер с допольнительным ВПН только подключение через ssh
-use_local = false
-location_prefix= "FI"
-flag= "🇫🇮"
+#[vpn.nodes.fi]
+#host = "vpn-boriska.ru"
+#username = "prod_server"
+#container = "amnezia-awg2"
+##Сервер с допольнительным ВПН только подключение через ssh
+#use_local = false
+#location_prefix= "FI"
+#flag= "🇫🇮"
 
 [vpn.nodes.sof]
 host = "x-ray-boriska.pro"
@@ -78,18 +78,18 @@ location_prefix= "SOF"
 flag= "🇧🇬"
 
 
-# === PROXY ===
-[vpn.nodes.main.proxy]
-prefix = "proxy-help"
-container = "telemt"
-# по умолчанию порт 443 налр испльзовать его
-port = 443
-
-[vpn.nodes.fi.proxy]
-prefix = "proxy-boriska"
-container = "telemt"
-# по умолчанию порт 443 налр испльзовать его
-port = 443
+## === PROXY ===
+#[vpn.nodes.main.proxy]
+#prefix = "proxy-help"
+#container = "telemt"
+## по умолчанию порт 443 налр испльзовать его
+#port = 443
+#
+#[vpn.nodes.fi.proxy]
+#prefix = "proxy-boriska"
+#container = "telemt"
+## по умолчанию порт 443 налр испльзовать его
+#port = 443
 
 #[vpn.nodes.sof.proxy]
 #prefix = "proxy-boriska"
@@ -114,22 +114,22 @@ name = "🇫🇷 | XHTTP"
 [[vpn.nodes.main.xray.inbounds]]
 port = 9443
 name = "🇫🇷 | TCP Reality"
-
-[vpn.nodes.fi.xray]
-host = "vpn-boriska.ru"
-panel_prefix = "panel-78gh98"
-subscription_prefix = "sub-gh456hg"
-panel_port = 5443
-subscription_port = 2096
-username = "admin"
-
-[[vpn.nodes.fi.xray.inbounds]]
-port = 8443
-name = "🇫🇮 | XHTTP"
-
-[[vpn.nodes.fi.xray.inbounds]]
-port = 9443
-name = "🇫🇮 | TCP Reality"
+#
+#[vpn.nodes.fi.xray]
+#host = "vpn-boriska.ru"
+#panel_prefix = "panel-78gh98"
+#subscription_prefix = "sub-gh456hg"
+#panel_port = 5443
+#subscription_port = 2096
+#username = "admin"
+#
+#[[vpn.nodes.fi.xray.inbounds]]
+#port = 8443
+#name = "🇫🇮 | XHTTP"
+#
+#[[vpn.nodes.fi.xray.inbounds]]
+#port = 9443
+#name = "🇫🇮 | TCP Reality"
 
 [vpn.nodes.sof.xray]
 host = "x-ray-boriska.pro"
