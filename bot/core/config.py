@@ -324,6 +324,11 @@ class VPNRegistry(SettingsCommon):
         """
         return self.get_optional("fi")
 
+    @property
+    def waw(self) -> VPNNode | None:
+        """Нода WAW."""
+        return self.get_optional("waw")
+
 
 class VPNSettingsMain(SettingsCommon):
     host: str

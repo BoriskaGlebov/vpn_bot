@@ -77,6 +77,15 @@ use_local = false
 location_prefix= "SOF"
 flag= "🇧🇬"
 
+[vpn.nodes.waw]
+host = "boris-guard.space"
+username = "boris_user"
+container = "amnezia-awg2"
+#Сервер с допольнительным ВПН только подключение через ssh
+use_local = false
+location_prefix= "WAW"
+flag= "🇵🇱"
+
 
 ## === PROXY ===
 #[vpn.nodes.main.proxy]
@@ -148,6 +157,21 @@ port = 8443
 name = "🇧🇬 | TCP Reality"
 
 
+[vpn.nodes.waw.xray]
+host = "boris-guard.space"
+panel_prefix = "panel-df06dg"
+subscription_prefix = "sub-dk-34gs"
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+
+[[vpn.nodes.waw.xray.inbounds]]
+port = 443
+name = "🇵🇱 | XHTTP"
+
+[[vpn.nodes.waw.xray.inbounds]]
+port = 8443
+name = "🇵🇱 | TCP Reality"
 
 # === DB ===
 [db]

@@ -72,6 +72,11 @@ class Location(str, Enum):
         if settings_bot.vpn.fi is not None
         else "fi"
     )
+    POLAND = (
+        settings_bot.vpn.waw.location_prefix.lower()
+        if settings_bot.vpn.waw is not None
+        else "waw"
+    )
 
 
 def available_locations() -> list["Location"]:
