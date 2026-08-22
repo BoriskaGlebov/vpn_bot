@@ -59,20 +59,17 @@ class Location(str, Enum):
         MAIN (str): основная VPN-локация (значение берётся из settings_bot.vpn.main).
         FINLAND (str): финская VPN-локация (settings_bot.vpn.fi).
         SOFIA (str): софийская VPN-локация (settings_bot.vpn.sof).
+        WAW (str): варшавская VPN-локация (settings_bot.vpn.waw).
 
     """
 
     MAIN = settings_bot.vpn.main.location_prefix.lower()
-    # FRANCE = "FR"
-    # fi-нода опциональна (см. VPNRegistry.fi) — если она ещё не поднята,
-    # используем префикс-заглушку, чтобы импорт модуля не падал; сам член
-    # enum при этом не попадёт в available_locations().
     FINLAND = (
         settings_bot.vpn.fi.location_prefix.lower()
         if settings_bot.vpn.fi is not None
         else "fi"
     )
-    POLAND = (
+    WAW = (
         settings_bot.vpn.waw.location_prefix.lower()
         if settings_bot.vpn.waw is not None
         else "waw"
