@@ -321,6 +321,11 @@ jobs:
               echo "SSH key added"
             fi
 
+            if [ -f ~/.ssh/guard_boriska ]; then
+              ssh-add ~/.ssh/guard_boriska < /dev/null 2>/dev/null
+              echo "SSH key added"
+            fi
+
             # Проверяем что ключи добавились
             ssh-add -l
             # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====

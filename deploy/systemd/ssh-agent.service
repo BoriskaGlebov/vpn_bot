@@ -11,9 +11,10 @@
 # Сокет создаёт сам ssh-agent по фиксированному пути %t/ssh-agent.socket,
 # который не меняется между рестартами контейнеров и ребутами хоста.
 #
-# ExecStartPost ниже подставить под конкретный хост при первичной установке:
+# ExecStartPost ниже подставить под конкретный хост при первичной установке
+# (добавить/убрать строки ExecStartPost под фактический набор ключей хоста):
 #   develop-хост: %h/.ssh/help_blocks и %h/.ssh/xray_boriska
-#   prod-хост:    %h/.ssh/vpn_boriska и %h/.ssh/xray_boriska
+#   prod-хост:    %h/.ssh/vpn_boriska, %h/.ssh/xray_boriska и %h/.ssh/guard_boriska (waw-node)
 # Ключи должны быть без passphrase — иначе автозагрузка тут молча не сработает.
 
 [Unit]

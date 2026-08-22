@@ -368,7 +368,7 @@ openssl rand -hex 16
 | Хост | Пользователь | Путь репозитория | SSH-ключи (без passphrase) |
 |---|---|---|---|
 | develop | `prod_server` | `/home/prod_server/production/vpn_bot` | `~/.ssh/help_blocks`, `~/.ssh/xray_boriska` |
-| prod | `vpn_user` | `/home/vpn_user/test_zone/vpn_bot` | `~/.ssh/vpn_boriska`, `~/.ssh/xray_boriska` |
+| prod | `vpn_user` | `/home/vpn_user/test_zone/vpn_bot` | `~/.ssh/vpn_boriska`, `~/.ssh/xray_boriska`, `~/.ssh/guard_boriska` |
 
 Ключи должны быть **без passphrase** — автозагрузка ключей при старте агента (`ExecStartPost` в unit-файле) выполняется неинтерактивно; ключ с паролем будет молча пропущен и не подхватится после ребута до ручного `ssh-add`.
 
