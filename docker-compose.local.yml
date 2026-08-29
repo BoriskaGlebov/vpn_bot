@@ -34,7 +34,7 @@ services:
 
   nginx_vpn_bot:
     volumes:
-      - ./nginx_test.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx_local.conf:/etc/nginx/nginx.conf:ro
       - /var/www/certbot:/var/www/certbot:ro   # Монтируем директорию с хоста
       - /etc/letsencrypt:/etc/letsencrypt:ro # Путь к сертификатам, если используете Certbot
       - /etc/ssl/private/dhparam.pem:/etc/ssl/private/dhparam.pem:ro  # Монтируем файл DH параметров

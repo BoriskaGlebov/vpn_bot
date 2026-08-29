@@ -128,120 +128,160 @@ jobs:
           API_KEY: "test-api-key"
         run: poetry run pytest -vs -m integration .
 
-#  deploy_develop:
-#    needs: [ lint, test, integration-test ]
-#    runs-on: ubuntu-latest
-#    environment: develop
-#    if: github.ref == 'refs/heads/develop'
-#    steps:
-#      - name: Checkout repository
-#        uses: actions/checkout@v4
-#
-#      - name: Deploy to server (DEV)
-#        uses: webfactory/ssh-agent@v0.5.3
-#        with:
-#          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-#
-#      - name: Add known hosts
-#        run: echo "${{ secrets.SERVER_IP }} $(ssh-keyscan -H ${{ secrets.SERVER_IP }})" >> ~/.ssh/known_hosts
-#
-#      - name: Test SSH  connection
-#        run: |
-#          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET # Проверка подключения
-#
-#      - name: Recreate .env and restart containers
-#        run: |
-#          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF'
-#            set -e
-#
-#            # ===== ИСПОЛЬЗУЕМ ПЕРСИСТЕНТНЫЙ SSH-AGENT (systemd, см. deploy/systemd/ssh-agent.service) =====
-#            # Агент живёт постоянно на фиксированном пути и переживает рестарт
-#            # контейнеров/ребут хоста (в отличие от ad-hoc `eval $(ssh-agent)`).
-#            export SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket
-#            if [ ! -S "$SSH_AUTH_SOCK" ]; then
-#              echo "ERROR: persistent ssh-agent socket not found at $SSH_AUTH_SOCK"
-#              echo "Проверьте на хосте: systemctl --user status ssh-agent.service"
-#              exit 1
-#            fi
-#
-#            # Добавляем ключи (idempotent self-heal поверх ExecStartPost юнита)
-#            if [ -f ~/.ssh/help_blocks ]; then
-#              ssh-add ~/.ssh/help_blocks < /dev/null 2>/dev/null
-#              echo "SSH key added"
-#            fi
-#
-#            # Добавляем ключи
-#            if [ -f ~/.ssh/xray_boriska ]; then
-#              ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
-#              echo "SSH key added"
-#            fi
-#
-#            # Проверяем что ключи добавились
-#            ssh-add -l
-#            # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====
-#
-#            cd /home/prod_server/production/vpn_bot || exit 1
-#            echo "Pull latest code..."
-#            git checkout develop
-#            git fetch origin develop
-#            git reset --hard origin/develop
-#            git clean -fd
-#
-#            echo "Recreate .env.dev file..."
-#            rm -f .env.dev
-#
-#            cat <<ENV_EOF > .env.dev
-#
-#          # == STAGE ==
-#
-#          STAGE=develop
-#
-#          # == CORE ==
-#
-#          BOT_TOKEN=${{ secrets.BOT_TOKEN }}
-#
-#          # == API ==
-#
-#          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
-#
-#          # ==X-RAY ==
-#
-#          SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
-#
-#
-#          # == DATABASE ==
-#
-#          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-#
-#          # == REDIS ==
-#
-#          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-#
-#          # == STORAGE ==
-#
-#          ACCESS_KEY=${{ secrets.ACCESS_KEY }}
-#          SECRET_KEY=${{ secrets.SECRET_KEY }}
-#
-#          # == AI ==
-#          ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
-#          SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
-#          SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
-#
-#          # == PAYMENT ==
-#          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
-#          API_KEY=${{ secrets.API_KEY }}
-#          ENV_EOF
-#
-#            echo "SSH_AUTH_SOCK добавляю в .env.dev"
-#            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
-#            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> .env.dev
-#            echo "Restart Docker containers..."
-#            make compose-down
-#            make compose-up
-#
-#            docker restart nginx
-#          SSH_EOF
-#
+  deploy_develop:
+    needs: [ lint, test, integration-test ]
+    runs-on: ubuntu-latest
+    environment: develop
+    if: |
+      always() &&
+      github.ref == 'refs/heads/develop' &&
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.integration-test.result == 'success' || needs.integration-test.result == 'skipped')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to server (DEV)
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add known hosts
+        run: echo "${{ secrets.SERVER_IP }} $(ssh-keyscan -H ${{ secrets.SERVER_IP }})" >> ~/.ssh/known_hosts
+
+      # См. комментарий в deploy_prod — та же сетевая нестабильность возможна на любом хосте.
+      - name: Test SSH connection
+        run: |
+          for i in 1 2 3 4 5; do
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "whoami" && echo PRIVET && break
+            echo "Попытка $i не удалась, повтор через 5с..."
+            sleep 5
+          done
+
+      - name: Pull latest code
+        run: |
+          for i in 1 2 3 4 5; do
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'EOF' && break
+            set -e
+            cd /opt/vpn_bot || exit 1
+
+            git checkout develop
+            git fetch origin develop
+            git reset --hard origin/develop
+            git clean -fd
+          EOF
+            echo "Попытка $i не удалась, повтор через 5с..."
+            sleep 5
+          done
+
+      - name: Recreate .env.dev and restart containers
+        run: |
+          for i in 1 2 3 4 5; do
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF' && break
+            set -e
+
+            # ===== ИСПОЛЬЗУЕМ ПЕРСИСТЕНТНЫЙ SSH-AGENT (systemd, см. deploy/systemd/ssh-agent.service) =====
+            # Агент живёт постоянно на фиксированном пути и переживает рестарт
+            # контейнеров/ребут хоста (в отличие от ad-hoc `eval $(ssh-agent)`).
+            export SSH_AUTH_SOCK=/run/user/$(id -u)/ssh-agent.socket
+            if [ ! -S "$SSH_AUTH_SOCK" ]; then
+              echo "ERROR: persistent ssh-agent socket not found at $SSH_AUTH_SOCK"
+              echo "Проверьте на хосте: systemctl --user status ssh-agent.service"
+              exit 1
+            fi
+
+            # main-нода теперь use_local (amn-boris.ru — тот же хост, что и бот),
+            # свой ключ ей не нужен — управление через docker exec по docker.sock.
+            # sof-нода (x-ray-boriska.pro) остаётся удалённой, ключ нужен.
+            if [ -f ~/.ssh/xray_boriska ]; then
+              ssh-add ~/.ssh/xray_boriska < /dev/null 2>/dev/null
+              echo "SSH key added"
+            fi
+
+            # Проверяем что ключи добавились
+            ssh-add -l
+            # ===== КОНЕЦ НАСТРОЙКИ АГЕНТА =====
+
+            cd /opt/vpn_bot/ || exit 1
+
+            echo "Recreate .env.dev file..."
+            rm -f .env.dev
+
+            cat <<ENV_EOF > .env.dev
+
+          # == STAGE ==
+
+          STAGE=develop
+
+          # == CORE ==
+
+          BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+
+          # == API ==
+
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+
+          # ==X-RAY ==
+
+          SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
+
+
+          # == DATABASE ==
+
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+
+          # == REDIS ==
+
+          REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+
+          # == STORAGE ==
+
+          ACCESS_KEY=${{ secrets.ACCESS_KEY }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+
+          # == AI ==
+          ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
+          SECRET_KEY_AI=${{ secrets.SECRET_KEY_AI }}
+          SKIP_AI_INIT=${{ vars.SKIP_AI_INIT }}
+
+          # == PAYMENT ==
+          MERCHANT_ID=${{ secrets.MERCHANT_ID }}
+          API_KEY=${{ secrets.API_KEY }}
+          ENV_EOF
+
+            echo "SSH_AUTH_SOCK добавляю в .env.dev"
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+            echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> .env.dev
+
+            echo "Restart Docker containers..."
+            make compose-down STAGE=develop
+            make compose-up STAGE=develop
+          SSH_EOF
+            echo "Попытка $i не удалась, повтор через 5с..."
+            sleep 5
+          done
+
+      - name: Deploy nginx config to shared edge-nginx and reload
+        run: |
+          for i in 1 2 3 4 5; do
+            ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} \
+              "cat > /opt/nginx-edge/conf.d/vpn-bot.conf" < nginx_test.conf && break
+            echo "Попытка $i не удалась, повтор через 5с..."
+            sleep 5
+          done
+
+          for i in 1 2 3 4 5; do
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} << 'SSH_EOF' && break
+            set -e
+            # nginx -t перед reload — чтобы битый конфиг не уронил общий
+            # edge-nginx, который обслуживает не только этот проект.
+            docker exec nginx_edge nginx -t
+            docker exec nginx_edge nginx -s reload
+          SSH_EOF
+            echo "Попытка $i не удалась, повтор через 5с..."
+            sleep 5
+          done
 
   deploy_prod:
     needs: [ lint, test, integration-test ]

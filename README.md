@@ -367,8 +367,8 @@ openssl rand -hex 16
 
 | Хост | Пользователь | Путь репозитория | SSH-ключи (без passphrase) |
 |---|---|---|---|
-| develop | `prod_server` | `/home/prod_server/production/vpn_bot` | `~/.ssh/help_blocks`, `~/.ssh/xray_boriska` |
-| prod | `vpn_user` | `/home/vpn_user/test_zone/vpn_bot` | `~/.ssh/vpn_boriska`, `~/.ssh/xray_boriska`, `~/.ssh/guard_boriska` |
+| develop (vps-01, amn-boris.ru) | `prod_server` | `/opt/vpn_bot` | `~/.ssh/xray_boriska` (main-нода — `use_local`, отдельный ключ не нужен) |
+| prod (vps-02, help-blocks.ru) | `vpn_user` | `/opt/vpn_bot` | `~/.ssh/vpn_boriska`, `~/.ssh/xray_boriska`, `~/.ssh/guard_boriska` |
 
 Ключи должны быть **без passphrase** — автозагрузка ключей при старте агента (`ExecStartPost` в unit-файле) выполняется неинтерактивно; ключ с паролем будет молча пропущен и не подхватится после ребута до ручного `ssh-add`.
 
@@ -416,7 +416,13 @@ ssh <user>@<host> 'systemctl --user status ssh-agent.service && SSH_AUTH_SOCK=/r
 
 ## Nginx
 
-Примеры конфигураций для проксирования обоих FastAPI-сервисов (включая Telegram- и payment-вебхуки) — `nginx.conf` (прод) и `nginx_test.conf` (тест-стенд).
+`nginx.conf` (prod, vps-02/help-blocks.ru) и `nginx_test.conf` (develop, vps-01/amn-boris.ru) —
+это НЕ полноценные nginx.conf, а conf.d-фрагменты для общего edge-nginx
+(boriska_guard_infra, roles/nginx_edge), уже поднятого на обоих хостах через ansible.
+CI (`deploy_prod`/`deploy_develop`) кладёт нужный файл на сервер в
+`/opt/nginx-edge/conf.d/vpn-bot.conf` и перезагружает `nginx_edge`. Для чистой
+локальной разработки (`docker-compose.local.yml`, `STAGE=local`) используется
+отдельный `nginx_local.conf` — полноценный standalone nginx.conf со своим TLS.
 
 ## Эксплуатационные заметки
 

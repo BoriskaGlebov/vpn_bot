@@ -25,7 +25,7 @@ reload_fast_api = false
 [bot]
 
 # ! Базовый URL сайта (например, для webhook)
-base_site = "https://vpn-boriska.ru/bot"
+base_site = "https://vpn-bot.amn-boris.ru/bot"
 # *Использовать webhook или polling по умолчанию polling false
 use_polling = false
 
@@ -53,13 +53,13 @@ port = 8089
 # === VPN SERVERS ===
 [vpn.nodes.main]
 #Сервер на котором крутится бот потому для него он локально может подключиться
-host = "vpn-boriska.ru"
+host = "amn-boris.ru"
 username = "prod_server"
 container_old="amnezia-awg"
 container = "amnezia-awg2"
 use_local = true
-location_prefix= "FI"
-flag= "🇫🇮"
+location_prefix= "DE"
+flag= "🇩🇪"
 #
 #[vpn.nodes.fi]
 #host = "vpn-boriska.ru"
@@ -102,7 +102,7 @@ flag= "🇧🇬"
 # === X-RAY ===
 
 [vpn.nodes.main.xray]
-host = "vpn-boriska.ru"
+host = "amn-boris.ru"
 panel_prefix = "panel-78gh98"
 subscription_prefix = "sub-gh456hg"
 panel_port = 5443
@@ -111,11 +111,11 @@ username = "admin"
 
 [[vpn.nodes.main.xray.inbounds]]
 port = 2054
-name = "🇫🇮 | XHTTP Test"
+name = "🇩🇪 | XHTTP Test"
 
 [[vpn.nodes.main.xray.inbounds]]
 port = 2055
-name = "🇫🇮 | TCP Reality Test"
+name = "🇩🇪 | TCP Reality Test"
 
 #
 #[vpn.nodes.fi.xray]

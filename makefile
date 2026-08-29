@@ -30,7 +30,9 @@ else ifeq ($(STAGE),local)
 else
   COMPOSE_FILES = $(COMPOSE_DEV)
   ENV_FILE = .env.dev
-  PROFILE_FLAG = --profile standalone-nginx
+  # На develop bot/api теперь живут за общим edge-nginx (vps-01, amn-boris.ru,
+  # см. nginx_test.conf) — свой standalone-nginx здесь не нужен, как и на prod.
+  PROFILE_FLAG =
 endif
 
 
