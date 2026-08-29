@@ -23,7 +23,6 @@ reload_fast_api = false
 
 # === BOT ===
 [bot]
-
 # ! Базовый URL сайта (например, для webhook)
 base_site = "https://vpn-bot.amn-boris.ru/bot"
 # *Использовать webhook или polling по умолчанию polling false
