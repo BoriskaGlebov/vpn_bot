@@ -373,6 +373,9 @@ class BucketSettings(SettingsCommon):
         endpoint_url (str): URL S3-совместимого сервиса, например 'https://storage.yandexcloud.net'.
         access_key (SecretStr): Секретный ключ доступа к сервису S3 (Access Key).
         secret_key (SecretStr): Секретный ключ доступа к сервису S3 (Secret Key).
+        backup_encryption_key (SecretStr | None): Fernet-ключ для шифрования бэкапов
+            конфигураций VPN-контейнеров перед загрузкой в S3 (в них приватные ключи
+            WireGuard). Генерируется один раз: `Fernet.generate_key()`.
 
     """
 
@@ -381,6 +384,7 @@ class BucketSettings(SettingsCommon):
     endpoint_url: str
     access_key: SecretStr
     secret_key: SecretStr
+    backup_encryption_key: SecretStr | None = None
 
 
 class PaymentSettings(SettingsCommon):
