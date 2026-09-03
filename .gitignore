@@ -217,3 +217,4 @@ __marimo__/
 
 # Claude Code runtime state (launch.json конфиг стоит коммитить, lock-файлы — нет)
 .claude/
+/bot/vpn/utils/restore.tar.gz

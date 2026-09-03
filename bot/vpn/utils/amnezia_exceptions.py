@@ -89,6 +89,18 @@ class AmneziaConfigError(AmneziaError):
         self.stderr = stderr
 
 
+class AmneziaBackupError(AmneziaError):
+    """Ошибка при бэкапе контейнера Amnezia (шифрование, загрузка в S3).
+
+    Args:
+        message (str): Описание ошибки.
+        cause (Optional[Exception]): Исходное исключение, если это обертка.
+
+    """
+
+    code = "amnezia_backup_error"
+
+
 class AmneziaUserError(AmneziaError):
     """Ошибка связанная с пользователем (добавление/удаление).
 
