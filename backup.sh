@@ -23,8 +23,8 @@ with open("${CONFIG_FILE}", "rb") as f:
 db = cfg["db"]
 core = cfg["core"]
 
-#print(f"DB_HOST={db['host']}")
-print(f"DB_PORT={db['port']}")
+print(f"DB_HOST={db.get('host','localhost')}")
+print(f"DB_PORT={db.get('port', 5432)}")
 print(f"DB_USER={db['user']}")
 print(f"DB_DATABASE={db['database']}")
 
@@ -70,7 +70,7 @@ notify_success() {
     -H "Content-Type: application/json" \
     -d "{
       \"chat_id\": \"${ADMIN_IDS}\",
-      \"text\": \"✅ Бэкап БД выполнен успешно\n\n📦 Файл: ${BACKUP_NAME}\n🕒 Время: ${DATE}\"
+      \"text\": \"✅ Бэкап БД и конфигов VPN-нод выполнен успешно\n\n📦 Файл БД: ${BACKUP_NAME}\n🕒 Время: ${DATE}\n\nАрхивы контейнеров:\n$1\"
     }"
 }
 
@@ -80,6 +80,15 @@ notify_error() {
     -d "{
       \"chat_id\": \"${ADMIN_IDS}\",
       \"text\": \"❌ Ошибка бэкапа БД\n\n📦 Файл: ${BACKUP_NAME}\n🕒 Время: ${DATE}\n📄 Детали: $1\"
+    }"
+}
+
+notify_containers_error() {
+  curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"chat_id\": \"${ADMIN_IDS}\",
+      \"text\": \"❌ Ошибка бэкапа VPN-контейнеров\n\n🕒 Время: ${DATE}\n📄 Детали: $1\"
     }"
 }
 
@@ -121,5 +130,21 @@ unset AWS_ACCESS_KEY_ID
 unset AWS_SECRET_ACCESS_KEY
 unset AWS_DEFAULT_REGION
 
-notify_success
+echo "[INFO] Backing up VPN container configs (Amnezia)..."
+if ! CONTAINER_BACKUP_OUTPUT="$(poetry run python -m bot.vpn.utils.backup_containers)"; then
+  notify_containers_error "не удалось создать/загрузить бэкап конфигов VPN-нод"
+  exit 1
+fi
+echo "$CONTAINER_BACKUP_OUTPUT"
+
+CONTAINERS_TEXT=""
+while IFS= read -r line; do
+  case "$line" in
+    BACKUP_KEY::*)
+      CONTAINERS_TEXT="${CONTAINERS_TEXT}📦 ${line#BACKUP_KEY::}\n"
+      ;;
+  esac
+done <<< "$CONTAINER_BACKUP_OUTPUT"
+
+notify_success "$CONTAINERS_TEXT"
 echo "[INFO] Backup finished successfully"

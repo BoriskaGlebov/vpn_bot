@@ -239,6 +239,7 @@ jobs:
 
           ACCESS_KEY=${{ secrets.ACCESS_KEY }}
           SECRET_KEY=${{ secrets.SECRET_KEY }}
+          BACKUP_ENCRYPTION_KEY=${{ secrets.BACKUP_ENCRYPTION_KEY }}
 
           # == AI ==
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
@@ -407,6 +408,7 @@ jobs:
 
           ACCESS_KEY=${{ secrets.ACCESS_KEY }}
           SECRET_KEY=${{ secrets.SECRET_KEY }}
+          BACKUP_ENCRYPTION_KEY=${{ secrets.BACKUP_ENCRYPTION_KEY }}
 
           # == AI ==
           ACCESS_KEY_AI=${{ secrets.ACCESS_KEY_AI }}
