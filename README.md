@@ -178,6 +178,7 @@ python api/main.py      # http://localhost:8089/api/docs
 | Database | `DB_PASSWORD` | Пароль PostgreSQL (хост/порт/юзер/имя БД — в `app_config*.toml`, `[db]`) |
 | Redis | `REDIS_PASSWORD` | Пароль Redis (хост/порт/БД — в `app_config*.toml`, `[redis]`) |
 | Object Storage | `ACCESS_KEY`, `SECRET_KEY` | Доступ к S3-совместимому бакету для медиа справки |
+| Backup | `BACKUP_ENCRYPTION_KEY` | Fernet-ключ шифрования бэкапов конфигов VPN-контейнеров (`backup.sh` → `bot/vpn/utils/backup_containers.py`) перед загрузкой в S3; генерируется один раз `Fernet.generate_key()` |
 | AI (опционально) | `SECRET_KEY_AI`, `YANDEX_FOLDER_ID` | Yandex AI Studio; актуально только при локальной разработке AI-части |
 | API service | `SESSION_SECRET` | Ключ сессий админ-панели (SQLAdmin) |
 | API service | `SKIP_INIT` (в `.env.example `) / `SKIP_AI_INIT` (в CI, `.github/workflows/ci.yml`) | Флаг пропуска тяжёлой инициализации AI-зависимостей при старте; имя в этих двух местах расходится — при добавлении в свой `.env` стоит свериться с тем, что реально читает код на момент использования |
