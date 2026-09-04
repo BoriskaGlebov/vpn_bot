@@ -23,7 +23,7 @@ with open("${CONFIG_FILE}", "rb") as f:
 db = cfg["db"]
 core = cfg["core"]
 
-print(f"DB_HOST={db.get('host','localhost')}")
+#print(f"DB_HOST={db.get('host','localhost')}")
 print(f"DB_PORT={db.get('port', 5432)}")
 print(f"DB_USER={db['user']}")
 print(f"DB_DATABASE={db['database']}")
@@ -131,7 +131,7 @@ unset AWS_SECRET_ACCESS_KEY
 unset AWS_DEFAULT_REGION
 
 echo "[INFO] Backing up VPN container configs (Amnezia)..."
-if ! CONTAINER_BACKUP_OUTPUT="$(poetry run python -m bot.vpn.utils.backup_containers)"; then
+if ! CONTAINER_BACKUP_OUTPUT="$(docker exec vpn_bot python -m bot.vpn.utils.backup_containers)"; then
   notify_containers_error "не удалось создать/загрузить бэкап конфигов VPN-нод"
   exit 1
 fi
