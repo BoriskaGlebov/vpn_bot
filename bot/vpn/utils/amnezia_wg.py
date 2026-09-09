@@ -635,6 +635,46 @@ class AsyncSSHClientWG:
                     )
         return True
 
+    async def _sync_interface(self) -> None:
+        """Применяет текущий `wg0.conf`/`awg0.conf` к интерфейсу без разрыва соединений.
+
+        В отличие от `_reboot_interface` (`wg-quick down` + `up`, полное
+        пересоздание интерфейса), использует `awg-quick strip` + `awg syncconf`
+        — это штатный механизм WireGuard/AmneziaWG для «горячего» применения
+        разницы по пирам (кто добавлен, кто удалён) без отключения уже
+        установленных туннелей других пользователей. Именно полный down/up
+        под живым трафиком — задокументированная причина дедлока в
+        `amneziawg-go` (гонка между teardown и приёмом пакета), которую
+        `_sync_interface` не может спровоцировать, так как не трогает уже
+        существующие соединения вообще.
+
+        Имя интерфейса берётся из имени файла `WG_CONF` (`awg0.conf` -> `awg0`)
+        — совпадает с тем, что реально видно в контейнере (`ip link`, `awg show`).
+
+        Raises
+            AmneziaSSHError: Если `awg-quick strip`/`awg syncconf` завершились
+                с ошибкой.
+
+        """
+        interface = Path(self.WG_CONF).stem
+        tmp_path = f"{self.WG_DIR}/.sync_{uuid.uuid4().hex[:8]}.conf"
+        sync_cmd = (
+            f"awg-quick strip {self.WG_CONF} > {tmp_path} "
+            f"&& awg syncconf {interface} {tmp_path}"
+        )
+        stdout, stderr, exit_code, _ = await self.write_single_cmd(sync_cmd)
+        await self.write_single_cmd(f"rm -f {tmp_path}")
+        if exit_code:
+            raise AmneziaSSHError(
+                message=f"Ошибка синхронизации интерфейса: {stderr}",
+                cmd=sync_cmd,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        logger.bind(user=self.username).success(
+            f"Интерфейс {interface} синхронизирован без разрыва соединений"
+        )
+
     async def _save_wg_config(
         self,
         filename: str,
@@ -925,7 +965,8 @@ class AsyncSSHClientWG:
             7. Добавляется запись в clientsTable.
             8. Сохраняется конфигурационный файл пользователя.
             9. Удаляются временные файлы ключей.
-            10. Перезапускается интерфейс WireGuard.
+            10. Интерфейс синхронизируется «на горячую» (без разрыва
+                соединений остальных пользователей).
 
         Args:
             file_name (str): Имя файлов .conf .vpn и для нового пользователя.
@@ -986,7 +1027,7 @@ class AsyncSSHClientWG:
             if file2:
                 logger.bind(user=self.username).success(f"Создан файл конфиг: {file2}")
             await self._delete_temp_files()
-            await self._reboot_interface()
+            await self._sync_interface()
             return file1, file2, pub_key
         except AmneziaError as e:
             logger.error(e)
@@ -1194,14 +1235,15 @@ class AsyncSSHClientWG:
 
         Метод пытается удалить пользователя с заданным публичным ключом
         из конфигурационного файла `wg0.conf` и из таблицы клиентов.
-        После успешного удаления интерфейс WireGuard перезапускается.
+        После успешного удаления интерфейс синхронизируется «на горячую»
+        (`_sync_interface`) — без разрыва соединений остальных пользователей.
 
         Args:
             public_key (str): Публичный ключ клиента (`clientId`), который нужно удалить.
 
         Returns
             bool:
-                - True, если пользователь был успешно удалён и интерфейс перезапущен.
+                - True, если пользователь был успешно удалён и интерфейс синхронизирован.
                 - False, если произошла ошибка удаления или пользователь не найден.
 
         Raises
@@ -1215,7 +1257,8 @@ class AsyncSSHClientWG:
                 logger.success(
                     "Пользователь полностью удален из конфигурации и таблицы клиентов."
                 )
-                return await self._reboot_interface() or False
+                await self._sync_interface()
+                return True
             else:
                 return False
         except AmneziaError as e:

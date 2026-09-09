@@ -565,6 +565,48 @@ async def test_reboot_interface_error(ssh_client):
 
 @pytest.mark.vpn
 @pytest.mark.vpn
+async def test_sync_interface_success(ssh_client):
+    calls = []
+
+    async def mock_write_single_cmd(cmd):
+        calls.append(cmd)
+        return "", "", 0, cmd
+
+    ssh_client.write_single_cmd = mock_write_single_cmd
+
+    await ssh_client._sync_interface()
+
+    assert len(calls) == 2
+    assert "awg-quick strip /opt/amnezia/awg/wg0.conf" in calls[0]
+    assert "awg syncconf wg0" in calls[0]
+    assert calls[1].startswith("rm -f")
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_sync_interface_error(ssh_client):
+    cleanup_calls = []
+
+    async def mock_write_single_cmd(cmd):
+        if cmd.startswith("rm -f"):
+            cleanup_calls.append(cmd)
+            return "", "", 0, cmd
+        return "", "Fatal sync error", 1, cmd
+
+    ssh_client.write_single_cmd = mock_write_single_cmd
+
+    with pytest.raises(AmneziaSSHError) as excinfo:
+        await ssh_client._sync_interface()
+
+    err = excinfo.value
+    assert "Ошибка синхронизации интерфейса" in str(err)
+    assert err.stderr == "Fatal sync error"
+    # Временный файл подчищается даже если syncconf упал с ошибкой.
+    assert len(cleanup_calls) == 1
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_save_wg_config_success(ssh_client):
     ssh_client._generate_wg_config = AsyncMock(
         return_value="[Interface]\nAddress=10.0.0.2/32"
@@ -845,7 +887,7 @@ async def test_add_new_user_gen_config_success(ssh_client):
 
     ssh_client._save_wg_config = AsyncMock(return_value=True)
     ssh_client._delete_temp_files = AsyncMock()
-    ssh_client._reboot_interface = AsyncMock()
+    ssh_client._sync_interface = AsyncMock()
 
     await ssh_client.add_new_user_gen_config("user.conf")
 
@@ -861,7 +903,7 @@ async def test_add_new_user_gen_config_success(ssh_client):
     ssh_client._save_wg_config_bundle.assert_awaited_once()
 
     ssh_client._delete_temp_files.assert_awaited_once()
-    ssh_client._reboot_interface.assert_awaited_once()
+    ssh_client._sync_interface.assert_awaited_once()
 
 
 @pytest.mark.vpn
@@ -1031,13 +1073,13 @@ async def test_delete_from_clients_table_write_error(ssh_client):
 async def test_full_delete_user_success(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(return_value=True)
     ssh_client._delete_from_clients_table = AsyncMock(return_value=True)
-    ssh_client._reboot_interface = AsyncMock(return_value=True)
+    ssh_client._sync_interface = AsyncMock(return_value=None)
 
     result = await ssh_client.full_delete_user("PUB_KEY")
     assert result is True
     ssh_client._delete_user_wg0.assert_awaited_once_with("PUB_KEY")
     ssh_client._delete_from_clients_table.assert_awaited_once_with("PUB_KEY")
-    ssh_client._reboot_interface.assert_awaited_once()
+    ssh_client._sync_interface.assert_awaited_once()
 
 
 @pytest.mark.vpn
@@ -1045,11 +1087,11 @@ async def test_full_delete_user_success(ssh_client):
 async def test_full_delete_user_not_found(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(return_value=True)
     ssh_client._delete_from_clients_table = AsyncMock(return_value=False)
-    ssh_client._reboot_interface = AsyncMock()
+    ssh_client._sync_interface = AsyncMock()
 
     result = await ssh_client.full_delete_user("PUB_KEY")
     assert result is False
-    ssh_client._reboot_interface.assert_not_awaited()
+    ssh_client._sync_interface.assert_not_awaited()
 
 
 @pytest.mark.vpn
@@ -1057,12 +1099,12 @@ async def test_full_delete_user_not_found(ssh_client):
 async def test_full_delete_user_exception(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(side_effect=AmneziaError("Ошибка"))
     ssh_client._delete_from_clients_table = AsyncMock()
-    ssh_client._reboot_interface = AsyncMock()
+    ssh_client._sync_interface = AsyncMock()
 
     with pytest.raises(AmneziaError):
         await ssh_client.full_delete_user("PUB_KEY")
     ssh_client._delete_from_clients_table.assert_not_awaited()
-    ssh_client._reboot_interface.assert_not_awaited()
+    ssh_client._sync_interface.assert_not_awaited()
 
 
 @pytest.mark.vpn
