@@ -3,7 +3,9 @@ import base64
 import ipaddress
 import json
 import shlex
+import struct
 import uuid
+import zlib
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
@@ -44,6 +46,7 @@ class AsyncSSHClientWG:
     WG_DIR = "/opt/amnezia/awg"
     WG_CONF = f"{WG_DIR}/wg0.conf"
     WG_CLIENTS_TABLE = f"{WG_DIR}/clientsTable"
+    DNS_SERVERS = "1.1.1.1, 1.0.0.1"
 
     def __init__(
         self,
@@ -521,10 +524,23 @@ class AsyncSSHClientWG:
                 )
         return None
 
-    async def _generate_wg_config(
+    async def _build_wg_config(
         self, new_ip: str, private_key: str, pub_server_key: str, preshared_key: str
-    ) -> str:
-        """Создает содержимое пользовательского файла конфигурации WireGuard.
+    ) -> tuple[str, dict[str, str], int]:
+        """Строит `.conf` для AmneziaWG и его же поля.
+
+        Возвращает готовый текст `.conf`, плоский словарь всех его полей и
+        `listen_port` отдельным `int` — чтобы вызывающему не приходилось потом
+        заново парсить текст или значение `Endpoint` (`host:port`) обратно
+        в структуру (см. `_save_vpn_config`).
+
+        Всё, что отличается между версиями протокола (DNS, набор параметров
+        обфускации), приходит через точки расширения — `self.DNS_SERVERS` и
+        `self._get_vpn_params_config()` — обе переопределяются в подклассах
+        (`AsyncSSHClientWG2` и далее), поэтому сам этот метод для них не
+        переопределяется, а наследуется как есть. Переопределять его имеет
+        смысл только если у новой версии протокола реально другая структура
+        `.conf` (другие секции/поля), а не просто другие значения.
 
         Args:
             new_ip (str): корректный IP-адрес для пользователя
@@ -533,7 +549,10 @@ class AsyncSSHClientWG:
             preshared_key (str): PSK ключ сервера
 
         Returns
-            str: Текст конфигурации WireGuard.
+            tuple[str, dict[str, str], int]: текст конфигурации, словарь его
+                полей (Address, DNS, PrivateKey, Jc/Jmin/... и т.д., PublicKey,
+                PresharedKey, AllowedIPs, Endpoint, PersistentKeepalive) и
+                порт, на котором слушает сервер.
 
         """
         vpn_config = await self._get_vpn_params_config()
@@ -542,7 +561,7 @@ class AsyncSSHClientWG:
         vpn_params, listen_port = vpn_config
         interface_data = {
             "Address": new_ip,
-            "DNS": "1.1.1.1, 1.0.0.1",
+            "DNS": self.DNS_SERVERS,
             "PrivateKey": private_key,
         }
         interface_data.update(vpn_params)
@@ -560,7 +579,27 @@ class AsyncSSHClientWG:
         lines.append("[Peer]")
         for key, value in peer_data.items():
             lines.append(f"{key} = {value}")
-        return "\n".join(lines)
+        return "\n".join(lines), {**interface_data, **peer_data}, listen_port
+
+    async def _generate_wg_config(
+        self, new_ip: str, private_key: str, pub_server_key: str, preshared_key: str
+    ) -> str:
+        """Создает содержимое пользовательского файла конфигурации WireGuard.
+
+        Args:
+            new_ip (str): корректный IP-адрес для пользователя
+            private_key (str): приватный ключ пользователя
+            pub_server_key (str): публичный ключ сервера
+            preshared_key (str): PSK ключ сервера
+
+        Returns
+            str: Текст конфигурации WireGuard.
+
+        """
+        config_text, _, _ = await self._build_wg_config(
+            new_ip, private_key, pub_server_key, preshared_key
+        )
+        return config_text
 
     async def _reboot_interface(self) -> bool | None:
         """Перезапускает интерфейс WireGuard внутри контейнера.
@@ -630,6 +669,27 @@ class AsyncSSHClientWG:
             await f.write(config_text)
         return file_cfg
 
+    @staticmethod
+    def _encode_vpn_uri(payload: dict[str, Any]) -> str:
+        """Кодирует JSON-конфиг в формат ссылки/файла AmneziaVPN (``vpn://...``).
+
+        Повторяет формат официального клиента: JSON сериализуется, сжимается
+        через zlib с 4-байтовым big-endian префиксом длины несжатых данных
+        (формат Qt ``qCompress``, который использует сам клиент) и
+        кодируется в URL-safe base64.
+
+        Args:
+            payload (dict[str, Any]): Структура конфигурации AmneziaVPN.
+
+        Returns
+            str: Строка вида ``vpn://<base64>``.
+
+        """
+        raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        compressed = struct.pack(">I", len(raw)) + zlib.compress(raw)
+        encoded = base64.urlsafe_b64encode(compressed).decode().rstrip("=")
+        return f"vpn://{encoded}"
+
     async def _save_vpn_config(
         self,
         filename: str,
@@ -651,10 +711,66 @@ class AsyncSSHClientWG:
             file_path (Path): путь к временному файл для его удаления
 
         """
-        config_text = await self._generate_wg_config(
+        config_text, fields, listen_port = await self._build_wg_config(
             new_ip, private_key, pub_server_key, preshared_key
         )
-        encode_conf = base64.b64encode(config_text.encode()).decode()
+
+        dns1, _, dns2 = self.DNS_SERVERS.partition(", ")
+
+        last_config: dict[str, Any] = {
+            "config": config_text,
+            "hostName": self.host,
+            "port": listen_port,
+            "client_priv_key": fields.get("PrivateKey", ""),
+            "client_ip": fields.get("Address", ""),
+            "server_pub_key": fields.get("PublicKey", ""),
+            "allowed_ips": [
+                ip.strip()
+                for ip in fields.get("AllowedIPs", "").split(",")
+                if ip.strip()
+            ],
+        }
+        psk = fields.get("PresharedKey") or fields.get("PreSharedKey")
+        if psk:
+            last_config["psk_key"] = psk
+        if "PersistentKeepalive" in fields:
+            last_config["persistent_keep_alive"] = fields["PersistentKeepalive"]
+
+        known_fields = {
+            "Address",
+            "DNS",
+            "PrivateKey",
+            "PublicKey",
+            "PresharedKey",
+            "PreSharedKey",
+            "AllowedIPs",
+            "Endpoint",
+            "PersistentKeepalive",
+        }
+        for key, value in fields.items():
+            if key not in known_fields:
+                last_config[key] = value
+
+        payload = {
+            "defaultContainer": self.container,
+            "description": self.location_prefix,
+            "dns1": dns1 or "1.1.1.1",
+            "dns2": dns2 or "1.0.0.1",
+            "hostName": self.host,
+            "containers": [
+                {
+                    "container": self.container,
+                    "awg": {
+                        "last_config": json.dumps(last_config, ensure_ascii=False),
+                        "isThirdPartyConfig": True,
+                        "port": str(listen_port),
+                        "transport_proto": "udp",
+                    },
+                }
+            ],
+        }
+        vpn_uri = self._encode_vpn_uri(payload)
+
         if not filename.endswith(".conf"):
             filename = f"VPN{self.location_prefix}{filename}.vpn"
         file_dir = Path(__file__).resolve().parent / "user_cfg"
@@ -662,8 +778,7 @@ class AsyncSSHClientWG:
         file_cfg = file_dir / filename
 
         async with aiofiles.open(file_cfg, "w") as f:
-            await f.write("vpn://\n")
-            await f.write(encode_conf)
+            await f.write(vpn_uri)
 
         return file_cfg
 
@@ -1162,6 +1277,9 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
 
     WG_DIR = "/opt/amnezia/awg"
     WG_CONF = f"{WG_DIR}/awg0.conf"
+    # Первым — AmneziaDNS, собственный DNS-резолвер Amnezia в их
+    # инфраструктуре, Cloudflare (1.0.0.1) — только как резервный.
+    DNS_SERVERS = "172.29.172.254, 1.0.0.1"
 
     def __init__(
         self,
@@ -1247,44 +1365,3 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
             )
 
         return None
-
-    async def _generate_wg_config(
-        self, new_ip: str, private_key: str, pub_server_key: str, preshared_key: str
-    ) -> str:
-        """Создает содержимое пользовательского файла конфигурации WireGuard.
-
-        Args:
-            new_ip (str): корректный IP-адрес для пользователя
-            private_key (str): приватный ключ пользователя
-            pub_server_key (str): публичный ключ сервера
-            preshared_key (str): PSK ключ сервера
-
-        Returns
-            str: Текст конфигурации WireGuard.
-
-        """
-        vpn_config = await self._get_vpn_params_config()
-        if vpn_config is None:
-            raise AmneziaConfigError(message="Не удалось получить параметры VPN")
-        vpn_params, listen_port = vpn_config
-        interface_data = {
-            "Address": new_ip,
-            "DNS": "172.29.172.254, 1.0.0.1",
-            "PrivateKey": private_key,
-        }
-        interface_data.update(vpn_params)
-        peer_data = {
-            "PublicKey": pub_server_key,
-            "PresharedKey": preshared_key,
-            "AllowedIPs": "0.0.0.0/0, ::/0",
-            "Endpoint": f"{self.host}:{listen_port}",
-            "PersistentKeepalive": "25",
-        }
-        lines = ["[Interface]"]
-        for key, value in interface_data.items():
-            lines.append(f"{key} = {value}")
-        lines.append("")
-        lines.append("[Peer]")
-        for key, value in peer_data.items():
-            lines.append(f"{key} = {value}")
-        return "\n".join(lines)

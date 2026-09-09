@@ -27,6 +27,7 @@ class VPNConfigStatus(str, Enum):
     DELETED = "deleted"
 
 
+# TODO наверно лучше сдлеать отдельное поле с именами локации что б по ней можно было ходить, но встает вопрос масштабирования
 class VPNConfig(Base):
     """Модель VPN-конфигурации (WireGuard, AmneziaWG).
 

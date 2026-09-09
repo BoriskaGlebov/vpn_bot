@@ -1,4 +1,6 @@
+import base64
 import json
+import zlib
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -534,6 +536,92 @@ async def test_save_wg_config_auto_conf_extension(ssh_client):
         mock_aiofiles_open.assert_called_once_with(result, "w", encoding="utf-8")
         mock_file.write.assert_awaited_once_with("[Interface]\nAddress=10.0.0.3/32")
         result.unlink(missing_ok=True)
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_save_vpn_config_produces_valid_amnezia_uri(ssh_client):
+    config_text = (
+        "[Interface]\n"
+        "Address = 10.0.0.2/32\n"
+        "DNS = 1.1.1.1, 1.0.0.1\n"
+        "PrivateKey = CLIENT_PRIVATE_KEY\n"
+        "Jc = 4\n"
+        "Jmin = 10\n"
+        "Jmax = 30\n"
+        "\n"
+        "[Peer]\n"
+        "PublicKey = SERVER_PUBLIC_KEY\n"
+        "PresharedKey = PSK_KEY\n"
+        "AllowedIPs = 0.0.0.0/0, ::/0\n"
+        "Endpoint = 127.0.0.1:51820\n"
+        "PersistentKeepalive = 25"
+    )
+    fields = {
+        "Address": "10.0.0.2/32",
+        "DNS": "1.1.1.1, 1.0.0.1",
+        "PrivateKey": "CLIENT_PRIVATE_KEY",
+        "Jc": "4",
+        "Jmin": "10",
+        "Jmax": "30",
+        "PublicKey": "SERVER_PUBLIC_KEY",
+        "PresharedKey": "PSK_KEY",
+        "AllowedIPs": "0.0.0.0/0, ::/0",
+        "Endpoint": "127.0.0.1:51820",
+        "PersistentKeepalive": "25",
+    }
+    ssh_client._build_wg_config = AsyncMock(return_value=(config_text, fields, 51820))
+
+    with patch(
+        "bot.vpn.utils.amnezia_wg.aiofiles.open", create=True
+    ) as mock_aiofiles_open:
+        mock_file = AsyncMock()
+        mock_aiofiles_open.return_value.__aenter__.return_value = mock_file
+
+        result = await ssh_client._save_vpn_config(
+            filename="user_config",
+            new_ip="10.0.0.2/32",
+            private_key="PRIVATE_KEY",
+            pub_server_key="PUB_KEY",
+            preshared_key="PSK_KEY",
+        )
+
+        assert isinstance(result, Path)
+        assert result.suffix == ".vpn"
+
+        written = mock_file.write.await_args.args[0]
+        result.unlink(missing_ok=True)
+
+    assert written.startswith("vpn://")
+
+    # Декодируем ровно так же, как это делает официальный клиент AmneziaVPN.
+    compressed = base64.urlsafe_b64decode(written[len("vpn://") :] + "==")
+    payload = json.loads(zlib.decompress(compressed[4:]))
+
+    assert payload["hostName"] == ssh_client.host
+    assert payload["defaultContainer"] == ssh_client.container
+    assert payload["dns1"] == "1.1.1.1"
+    assert payload["dns2"] == "1.0.0.1"
+
+    container_entry = payload["containers"][0]
+    assert container_entry["container"] == ssh_client.container
+    assert container_entry["awg"]["isThirdPartyConfig"] is True
+    assert container_entry["awg"]["port"] == "51820"
+    assert container_entry["awg"]["transport_proto"] == "udp"
+
+    inner_config = json.loads(container_entry["awg"]["last_config"])
+    assert "Address = 10.0.0.2/32" in inner_config["config"]
+    assert inner_config["hostName"] == "127.0.0.1"
+    assert inner_config["port"] == 51820
+    assert inner_config["client_priv_key"] == "CLIENT_PRIVATE_KEY"
+    assert inner_config["client_ip"] == "10.0.0.2/32"
+    assert inner_config["server_pub_key"] == "SERVER_PUBLIC_KEY"
+    assert inner_config["psk_key"] == "PSK_KEY"
+    assert inner_config["persistent_keep_alive"] == "25"
+    assert inner_config["allowed_ips"] == ["0.0.0.0/0", "::/0"]
+    assert inner_config["Jc"] == "4"
+    assert inner_config["Jmin"] == "10"
+    assert inner_config["Jmax"] == "30"
 
 
 @pytest.mark.vpn
