@@ -754,6 +754,51 @@ async def test_save_vpn_config_produces_valid_amnezia_uri(ssh_client):
 
 @pytest.mark.vpn
 @pytest.mark.vpn
+async def test_save_qr_code_generates_valid_png(ssh_client):
+    result = await ssh_client._save_qr_code(
+        filename="user_config", config_text="[Interface]\nAddress = 10.0.0.2/32"
+    )
+
+    assert isinstance(result, Path)
+    assert result.suffix == ".png"
+    assert result.exists()
+
+    from PIL import Image
+
+    with Image.open(result) as img:
+        assert img.format == "PNG"
+
+    result.unlink(missing_ok=True)
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_save_wg_config_bundle_returns_three_files(ssh_client, tmp_path):
+    conf_file = tmp_path / "user.conf"
+    conf_file.write_text("[Interface]\nAddress = 10.0.0.2/32", encoding="utf-8")
+    vpn_file = tmp_path / "user.vpn"
+    qr_file = tmp_path / "user.png"
+
+    ssh_client._save_wg_config = AsyncMock(return_value=conf_file)
+    ssh_client._save_vpn_config = AsyncMock(return_value=vpn_file)
+    ssh_client._save_qr_code = AsyncMock(return_value=qr_file)
+
+    result = await ssh_client._save_wg_config_bundle(
+        filename="user",
+        new_ip="10.0.0.2/32",
+        private_key="PRIVATE_KEY",
+        pub_server_key="PUB_KEY",
+        preshared_key="PSK_KEY",
+    )
+
+    assert result == (conf_file, vpn_file, qr_file)
+    ssh_client._save_qr_code.assert_awaited_once_with(
+        "user", "[Interface]\nAddress = 10.0.0.2/32"
+    )
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_add_to_clients_table_success(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(
         return_value=(json.dumps([]), "", 0, f"cat {ssh_client.WG_CLIENTS_TABLE}")
@@ -882,7 +927,7 @@ async def test_add_new_user_gen_config_success(ssh_client):
     ssh_client._add_to_clients_table = AsyncMock(return_value=True)
 
     ssh_client._save_wg_config_bundle = AsyncMock(
-        return_value=("file1.conf", "file2.vpn")
+        return_value=("file1.conf", "file2.vpn", "file3.png")
     )
 
     ssh_client._save_wg_config = AsyncMock(return_value=True)

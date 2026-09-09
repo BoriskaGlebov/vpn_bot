@@ -193,6 +193,7 @@ class VPNRouter(BaseRouter):
                 (
                     file_path1,
                     file_path2,
+                    file_path3,
                     pub_key,
                 ) = await self.vpn_service.generate_user_config(
                     tg_user=user,
@@ -209,11 +210,18 @@ class VPNRouter(BaseRouter):
                             InputMediaDocument(media=FSInputFile(file_path2)),
                         ]
                     )
+                    # QR — отдельным сообщением: Telegram не даёт мешать
+                    # документы и фото в одной media group.
+                    await message.answer_photo(
+                        photo=FSInputFile(file_path3),
+                        caption=m_vpn.qr_caption,
+                    )
                 finally:
                     # Файлы с приватными ключами не должны оставаться на диске,
                     # даже если отправка пользователю не удалась.
                     file_path1.unlink(missing_ok=True)
                     file_path2.unlink(missing_ok=True)
+                    file_path3.unlink(missing_ok=True)
 
             finally:
                 await state.clear()

@@ -135,7 +135,7 @@ class VPNService:
         tg_user: TGUser,
         ssh_client_factory: SSHClientFactory,
         server_info: VPNNode,
-    ) -> tuple[Path, Path, str]:
+    ) -> tuple[Path, Path, Path, str]:
         """Генерирует VPN-конфигурацию пользователя через SSH и сохраняет её в БД.
 
         Алгоритм работы:
@@ -154,9 +154,9 @@ class VPNService:
                 Конфигурация VPN-сервера.
 
         Returns
-            tuple[Path,Path, str]:
+            tuple[Path, Path, Path, str]:
                 Кортеж:
-                    - путь к конфигурационным файлам .conf .vpn
+                    - путь к конфигурационным файлам .conf, .vpn, QR-код
                     - публичный ключ или идентификатор конфигурации
 
         Raises
@@ -178,24 +178,23 @@ class VPNService:
                 use_local=server_info.use_local,
                 location_prefix=server_info.location_prefix,
             ) as ssh:
-                file_path1, file_path2, pub_key = await ssh.add_new_user_gen_config(
-                    file_name=user.username
-                )
-                logger.info(
-                    "Создал VPN конфиг file_name={} через {}",
-                    file_path1.name,
-                    ssh.__class__.__name__,
-                )
-                logger.info(
-                    "Создал VPN конфиг file_name={} через {}",
-                    file_path2.name,
-                    ssh.__class__.__name__,
-                )
+                (
+                    file_path1,
+                    file_path2,
+                    file_path3,
+                    pub_key,
+                ) = await ssh.add_new_user_gen_config(file_name=user.username)
+                for file_path in (file_path1, file_path2, file_path3):
+                    logger.info(
+                        "Создал VPN конфиг file_name={} через {}",
+                        file_path.name,
+                        ssh.__class__.__name__,
+                    )
 
         try:
             await self.api_adapter.add_config(
                 tg_id=user.telegram_id,
-                file_name=f"{file_path1.name} / {file_path2.name}",
+                file_name=f"{file_path1.name} / {file_path2.name} / {file_path3.name}",
                 pub_key=pub_key,
             )
             logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
@@ -209,7 +208,7 @@ class VPNService:
             await ssh.full_delete_user(public_key=pub_key)
             raise
 
-        return file_path1, file_path2, pub_key
+        return file_path1, file_path2, file_path3, pub_key
 
     async def get_mtproto_url(
         self, ssh_client_factory: type[HostDockerSSHClient], server_info: VPNNode

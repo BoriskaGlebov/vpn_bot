@@ -14,6 +14,7 @@ from typing import Any
 
 import aiofiles
 import asyncssh
+import qrcode
 
 from bot.core.config import logger, settings_bot
 from bot.vpn.utils.amnezia_exceptions import (
@@ -822,6 +823,39 @@ class AsyncSSHClientWG:
 
         return file_cfg
 
+    async def _save_qr_code(self, filename: str, config_text: str) -> Path:
+        """Генерирует QR-код с конфигом AmneziaWG и сохраняет его как PNG.
+
+        QR кодирует тот же самый текст `.conf` (`[Interface]`/`[Peer]`), что
+        уже пишется в файл — без сжатия и без обёртки `vpn://`. Именно так
+        генерирует QR для AmneziaWG сам клиент AmneziaVPN — см.
+        `exportController.cpp::generateAwgConfig` в исходниках amnezia-client:
+        там для QR тоже берётся сырой текст конфига, а не JSON/`vpn://`
+        (последний используется только для QR полного доступа к серверу).
+
+        Args:
+            filename (str): Название файла.
+            config_text (str): Текст WireGuard-конфигурации.
+
+        Returns
+            Path: путь к временному PNG-файлу для его последующего удаления.
+
+        """
+        if not filename.endswith(".png"):
+            filename = f"QR{self.location_prefix}{filename}.png"
+        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir.mkdir(parents=True, exist_ok=True)
+        file_cfg = file_dir / filename
+
+        def _build_and_save() -> None:
+            image = qrcode.make(
+                config_text, error_correction=qrcode.constants.ERROR_CORRECT_L
+            )
+            image.save(file_cfg)
+
+        await asyncio.to_thread(_build_and_save)
+        return file_cfg
+
     async def _save_wg_config_bundle(
         self,
         filename: str,
@@ -829,15 +863,18 @@ class AsyncSSHClientWG:
         private_key: str,
         pub_server_key: str,
         preshared_key: str,
-    ) -> tuple[Path, Path]:
+    ) -> tuple[Path, Path, Path]:
         wg_file = await self._save_wg_config(
             filename, new_ip, private_key, pub_server_key, preshared_key
         )
         vpn_file = await self._save_vpn_config(
             filename, new_ip, private_key, pub_server_key, preshared_key
         )
+        async with aiofiles.open(wg_file, encoding="utf-8") as f:
+            config_text = await f.read()
+        qr_file = await self._save_qr_code(filename, config_text)
 
-        return wg_file, vpn_file
+        return wg_file, vpn_file, qr_file
 
     async def _add_to_clients_table(self, public_key: str, client_name: str) -> bool:
         """Добавляет запись в clientsTable Amnezia.
@@ -952,7 +989,9 @@ class AsyncSSHClientWG:
                     stderr=stderr,
                 )
 
-    async def add_new_user_gen_config(self, file_name: str) -> tuple[Path, Path, str]:
+    async def add_new_user_gen_config(
+        self, file_name: str
+    ) -> tuple[Path, Path, Path, str]:
         """Добавляет нового пользователя и генерирует конфигурационный файл WireGuard.
 
         Последовательно выполняются следующие шаги:
@@ -963,13 +1002,13 @@ class AsyncSSHClientWG:
             5. Получает Preshared Key (PSK).
             6. Добавляется запись в wg0.conf.
             7. Добавляется запись в clientsTable.
-            8. Сохраняется конфигурационный файл пользователя.
+            8. Сохраняются конфигурационные файлы пользователя (.conf, .vpn, QR-код).
             9. Удаляются временные файлы ключей.
             10. Интерфейс синхронизируется «на горячую» (без разрыва
                 соединений остальных пользователей).
 
         Args:
-            file_name (str): Имя файлов .conf .vpn и для нового пользователя.
+            file_name (str): Имя файлов .conf, .vpn, QR-кода для нового пользователя.
 
         Raises
             AmneziaError: Если произошла любая ошибка при работе с контейнером,
@@ -1018,7 +1057,7 @@ class AsyncSSHClientWG:
                 logger.bind(user=self.username).success(
                     "Новый клиент добавлен в clientsTable"
                 )
-            file1, file2 = await self._save_wg_config_bundle(
+            file1, file2, file3 = await self._save_wg_config_bundle(
                 filename, correct_ip, private_key, pub_server_key, psk
             )
 
@@ -1026,9 +1065,11 @@ class AsyncSSHClientWG:
                 logger.bind(user=self.username).success(f"Создан файл конфиг: {file1}")
             if file2:
                 logger.bind(user=self.username).success(f"Создан файл конфиг: {file2}")
+            if file3:
+                logger.bind(user=self.username).success(f"Создан файл конфиг: {file3}")
             await self._delete_temp_files()
             await self._sync_interface()
-            return file1, file2, pub_key
+            return file1, file2, file3, pub_key
         except AmneziaError as e:
             logger.error(e)
             raise
