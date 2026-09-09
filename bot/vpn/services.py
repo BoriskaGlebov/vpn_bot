@@ -20,7 +20,11 @@ from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN, AsyncSSHClientVPN2
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
+from bot.vpn.utils.amnezia_wg import (
+    AsyncSSHClientWG,
+    AsyncSSHClientWG2,
+    AsyncSSHClientWG3,
+)
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
 from bot.vpn.utils.x_ray_config import XRayRegistry
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError, ThreeXUIError
@@ -29,8 +33,33 @@ ssh_lock = asyncio.Lock()
 xray_lock = asyncio.Lock()
 
 SSHClientFactory = Callable[
-    ..., AsyncSSHClientVPN2 | AsyncSSHClientWG2 | AsyncSSHClientVPN | AsyncSSHClientWG
+    ...,
+    AsyncSSHClientVPN2
+    | AsyncSSHClientWG2
+    | AsyncSSHClientWG3
+    | AsyncSSHClientVPN
+    | AsyncSSHClientWG,
 ]
+
+_WG_CLIENT_BY_PROTOCOL_VERSION: dict[str, type[AsyncSSHClientWG]] = {
+    "v1": AsyncSSHClientWG,
+    "v2": AsyncSSHClientWG2,
+    "v3": AsyncSSHClientWG3,
+}
+
+
+def ssh_client_factory_for(node: VPNNode) -> type[AsyncSSHClientWG]:
+    """Выбирает класс SSH-клиента для генерации AmneziaWG-конфига под ноду.
+
+    Args:
+        node (VPNNode): Конфигурация ноды с полем `protocol_version`.
+
+    Returns
+        type[AsyncSSHClientWG]: `AsyncSSHClientWG`/`WG2`/`WG3` — тот, что
+            умеет генерировать конфиг для протокола этой ноды.
+
+    """
+    return _WG_CLIENT_BY_PROTOCOL_VERSION[node.protocol_version]
 
 
 class VPNService:
@@ -106,7 +135,7 @@ class VPNService:
         tg_user: TGUser,
         ssh_client_factory: SSHClientFactory,
         server_info: VPNNode,
-    ) -> tuple[Path, Path, str]:
+    ) -> tuple[Path, Path, Path, str]:
         """Генерирует VPN-конфигурацию пользователя через SSH и сохраняет её в БД.
 
         Алгоритм работы:
@@ -125,9 +154,9 @@ class VPNService:
                 Конфигурация VPN-сервера.
 
         Returns
-            tuple[Path,Path, str]:
+            tuple[Path, Path, Path, str]:
                 Кортеж:
-                    - путь к конфигурационным файлам .conf .vpn
+                    - путь к конфигурационным файлам .conf, .vpn, QR-код
                     - публичный ключ или идентификатор конфигурации
 
         Raises
@@ -149,24 +178,23 @@ class VPNService:
                 use_local=server_info.use_local,
                 location_prefix=server_info.location_prefix,
             ) as ssh:
-                file_path1, file_path2, pub_key = await ssh.add_new_user_gen_config(
-                    file_name=user.username
-                )
-                logger.info(
-                    "Создал VPN конфиг file_name={} через {}",
-                    file_path1.name,
-                    ssh.__class__.__name__,
-                )
-                logger.info(
-                    "Создал VPN конфиг file_name={} через {}",
-                    file_path2.name,
-                    ssh.__class__.__name__,
-                )
+                (
+                    file_path1,
+                    file_path2,
+                    file_path3,
+                    pub_key,
+                ) = await ssh.add_new_user_gen_config(file_name=user.username)
+                for file_path in (file_path1, file_path2, file_path3):
+                    logger.info(
+                        "Создал VPN конфиг file_name={} через {}",
+                        file_path.name,
+                        ssh.__class__.__name__,
+                    )
 
         try:
             await self.api_adapter.add_config(
                 tg_id=user.telegram_id,
-                file_name=f"{file_path1.name} / {file_path2.name}",
+                file_name=f"{file_path1.name} / {file_path2.name} / {file_path3.name}",
                 pub_key=pub_key,
             )
             logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
@@ -180,7 +208,7 @@ class VPNService:
             await ssh.full_delete_user(public_key=pub_key)
             raise
 
-        return file_path1, file_path2, pub_key
+        return file_path1, file_path2, file_path3, pub_key
 
     async def get_mtproto_url(
         self, ssh_client_factory: type[HostDockerSSHClient], server_info: VPNNode

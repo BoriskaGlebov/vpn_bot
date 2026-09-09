@@ -42,6 +42,7 @@ async def test_generate_user_config_success(mocker, user_out):
     ssh_instance.add_new_user_gen_config.return_value = (
         Path("/tmp/test.conf"),
         Path("/tmp/test.vpn"),
+        Path("/tmp/test.png"),
         "pubkey123",
     )
 
@@ -64,7 +65,7 @@ async def test_generate_user_config_success(mocker, user_out):
         xray_registry=xray_registry,
     )
 
-    file_path1, file_path2, pub_key = await service.generate_user_config(
+    file_path1, file_path2, file_path3, pub_key = await service.generate_user_config(
         tg_user=tg_user,
         ssh_client_factory=ssh_factory,
         server_info=server_info,
@@ -72,6 +73,7 @@ async def test_generate_user_config_success(mocker, user_out):
 
     assert file_path1.name == "test.conf"
     assert file_path2.name == "test.vpn"
+    assert file_path3.name == "test.png"
     assert pub_key == "pubkey123"
 
     api_adapter.check_limit.assert_awaited_once_with(tg_id=123)
@@ -82,7 +84,7 @@ async def test_generate_user_config_success(mocker, user_out):
 
     api_adapter.add_config.assert_awaited_once_with(
         tg_id=123456,
-        file_name="test.conf / test.vpn",
+        file_name="test.conf / test.vpn / test.png",
         pub_key="pubkey123",
     )
 
@@ -162,6 +164,7 @@ async def test_generate_user_config_db_error_rollback(mocker, user_out):
     ssh_instance.add_new_user_gen_config.return_value = (
         Path("/tmp/test.conf"),
         Path("/tmp/test.vpn"),
+        Path("/tmp/test.png"),
         "pubkey123",
     )
 

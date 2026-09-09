@@ -1,4 +1,6 @@
+import base64
 import json
+import zlib
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -437,6 +439,92 @@ async def test_generate_wg_config_success(ssh_client):
 
 @pytest.mark.vpn
 @pytest.mark.vpn
+async def test_get_vpn_params_config_wg3_parses_v3_obfuscation(ssh_client_wg3):
+    # Реальный awg0.conf с VPS04 (amn-boris.ru, контейнер amnezia-awg2,
+    # протокол AmneziaWG 3.x) — параметры обфускации другие, чем у v2.
+    ssh_client_wg3.write_single_cmd = AsyncMock(
+        return_value=(
+            "[Interface]\n"
+            "PrivateKey = SOO+iuQQflHIMX2KmOv8TeRdNmhZAhIpIIhzcJTIOUk=\n"
+            "Address = 10.8.1.0/24\n"
+            "ListenPort = 42548\n"
+            "Jc = 4\n"
+            "Jmin = 10\n"
+            "Jmax = 50\n"
+            "S1 = 113\n"
+            "S2 = 137\n"
+            "S3 = 15\n"
+            "S4 = 12\n"
+            "H1 = 1\n"
+            "H2 = 2\n"
+            "H3 = 3\n"
+            "H4 = 4\n"
+            "HeaderProtectionKey = G/x8oEKyCE+pcjl/6bmwYlJL28hm1oxFpzvtW3ua4b0=\n"
+            "ContentPaddingAddition = 10-100\n"
+            "RekeyAfterTime = 100-120\n"
+            "RekeyTimeout = 3-7\n"
+            "RejectAfterTime = 150-180\n"
+            "KeepaliveTimeout = 5-15\n"
+            "MaxHandshakeAttempts = 15-20\n"
+            "RandomTrailers = on\n"
+            "DisableCookies = on\n"
+            "[Peer]\n"
+            "PublicKey = 5kFKABK3jcBjW5DeTfeH7XtrdratGaK85EAb0QQavVg=\n"
+            "AllowedIPs = 10.8.1.1/32",
+            "",
+            0,
+            f"cat {ssh_client_wg3.WG_CONF}",
+        )
+    )
+
+    params, listen_port = await ssh_client_wg3._get_vpn_params_config()
+
+    assert listen_port == 42548
+    assert params == {
+        "Jc": "4",
+        "Jmin": "10",
+        "Jmax": "50",
+        "S1": "113",
+        "S2": "137",
+        "S3": "15",
+        "S4": "12",
+        "H1": "1",
+        "H2": "2",
+        "H3": "3",
+        "H4": "4",
+        "HeaderProtectionKey": "G/x8oEKyCE+pcjl/6bmwYlJL28hm1oxFpzvtW3ua4b0=",
+        "ContentPaddingAddition": "10-100",
+        "RekeyAfterTime": "100-120",
+        "RekeyTimeout": "3-7",
+        "RejectAfterTime": "150-180",
+        "KeepaliveTimeout": "5-15",
+        "MaxHandshakeAttempts": "15-20",
+        "RandomTrailers": "on",
+        "DisableCookies": "on",
+    }
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_build_wg_config_wg3_is_inherited_unchanged(ssh_client_wg3):
+    ssh_client_wg3._get_vpn_params_config = AsyncMock(
+        return_value=({"Jc": "4", "HeaderProtectionKey": "KEY"}, 42548)
+    )
+
+    config_text, fields, listen_port = await ssh_client_wg3._build_wg_config(
+        "10.8.1.7/32", "PRIVATE_KEY", "PUB_SERVER_KEY", "PSK_KEY"
+    )
+
+    assert listen_port == 42548
+    assert "Jc = 4" in config_text
+    assert "HeaderProtectionKey = KEY" in config_text
+    assert f"DNS = {ssh_client_wg3.DNS_SERVERS}" in config_text
+    assert fields["Jc"] == "4"
+    assert fields["HeaderProtectionKey"] == "KEY"
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_reboot_interface_success(ssh_client):
     async def mock_gen(cmds):
         yield "Interface restarted", "", 0, cmds[-1]
@@ -473,6 +561,48 @@ async def test_reboot_interface_error(ssh_client):
     err = excinfo.value
     assert "Ошибка при перезапуске интерфейса" in str(err)
     assert err.stderr == "Fatal error"
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_sync_interface_success(ssh_client):
+    calls = []
+
+    async def mock_write_single_cmd(cmd):
+        calls.append(cmd)
+        return "", "", 0, cmd
+
+    ssh_client.write_single_cmd = mock_write_single_cmd
+
+    await ssh_client._sync_interface()
+
+    assert len(calls) == 2
+    assert "awg-quick strip /opt/amnezia/awg/wg0.conf" in calls[0]
+    assert "awg syncconf wg0" in calls[0]
+    assert calls[1].startswith("rm -f")
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_sync_interface_error(ssh_client):
+    cleanup_calls = []
+
+    async def mock_write_single_cmd(cmd):
+        if cmd.startswith("rm -f"):
+            cleanup_calls.append(cmd)
+            return "", "", 0, cmd
+        return "", "Fatal sync error", 1, cmd
+
+    ssh_client.write_single_cmd = mock_write_single_cmd
+
+    with pytest.raises(AmneziaSSHError) as excinfo:
+        await ssh_client._sync_interface()
+
+    err = excinfo.value
+    assert "Ошибка синхронизации интерфейса" in str(err)
+    assert err.stderr == "Fatal sync error"
+    # Временный файл подчищается даже если syncconf упал с ошибкой.
+    assert len(cleanup_calls) == 1
 
 
 @pytest.mark.vpn
@@ -534,6 +664,137 @@ async def test_save_wg_config_auto_conf_extension(ssh_client):
         mock_aiofiles_open.assert_called_once_with(result, "w", encoding="utf-8")
         mock_file.write.assert_awaited_once_with("[Interface]\nAddress=10.0.0.3/32")
         result.unlink(missing_ok=True)
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_save_vpn_config_produces_valid_amnezia_uri(ssh_client):
+    config_text = (
+        "[Interface]\n"
+        "Address = 10.0.0.2/32\n"
+        "DNS = 1.1.1.1, 1.0.0.1\n"
+        "PrivateKey = CLIENT_PRIVATE_KEY\n"
+        "Jc = 4\n"
+        "Jmin = 10\n"
+        "Jmax = 30\n"
+        "\n"
+        "[Peer]\n"
+        "PublicKey = SERVER_PUBLIC_KEY\n"
+        "PresharedKey = PSK_KEY\n"
+        "AllowedIPs = 0.0.0.0/0, ::/0\n"
+        "Endpoint = 127.0.0.1:51820\n"
+        "PersistentKeepalive = 25"
+    )
+    fields = {
+        "Address": "10.0.0.2/32",
+        "DNS": "1.1.1.1, 1.0.0.1",
+        "PrivateKey": "CLIENT_PRIVATE_KEY",
+        "Jc": "4",
+        "Jmin": "10",
+        "Jmax": "30",
+        "PublicKey": "SERVER_PUBLIC_KEY",
+        "PresharedKey": "PSK_KEY",
+        "AllowedIPs": "0.0.0.0/0, ::/0",
+        "Endpoint": "127.0.0.1:51820",
+        "PersistentKeepalive": "25",
+    }
+    ssh_client._build_wg_config = AsyncMock(return_value=(config_text, fields, 51820))
+
+    with patch(
+        "bot.vpn.utils.amnezia_wg.aiofiles.open", create=True
+    ) as mock_aiofiles_open:
+        mock_file = AsyncMock()
+        mock_aiofiles_open.return_value.__aenter__.return_value = mock_file
+
+        result = await ssh_client._save_vpn_config(
+            filename="user_config",
+            new_ip="10.0.0.2/32",
+            private_key="PRIVATE_KEY",
+            pub_server_key="PUB_KEY",
+            preshared_key="PSK_KEY",
+        )
+
+        assert isinstance(result, Path)
+        assert result.suffix == ".vpn"
+
+        written = mock_file.write.await_args.args[0]
+        result.unlink(missing_ok=True)
+
+    assert written.startswith("vpn://")
+
+    # Декодируем ровно так же, как это делает официальный клиент AmneziaVPN.
+    compressed = base64.urlsafe_b64decode(written[len("vpn://") :] + "==")
+    payload = json.loads(zlib.decompress(compressed[4:]))
+
+    assert payload["hostName"] == ssh_client.host
+    assert payload["defaultContainer"] == ssh_client.container
+    assert payload["dns1"] == "1.1.1.1"
+    assert payload["dns2"] == "1.0.0.1"
+
+    container_entry = payload["containers"][0]
+    assert container_entry["container"] == ssh_client.container
+    assert container_entry["awg"]["isThirdPartyConfig"] is True
+    assert container_entry["awg"]["port"] == "51820"
+    assert container_entry["awg"]["transport_proto"] == "udp"
+
+    inner_config = json.loads(container_entry["awg"]["last_config"])
+    assert "Address = 10.0.0.2/32" in inner_config["config"]
+    assert inner_config["hostName"] == "127.0.0.1"
+    assert inner_config["port"] == 51820
+    assert inner_config["client_priv_key"] == "CLIENT_PRIVATE_KEY"
+    assert inner_config["client_ip"] == "10.0.0.2/32"
+    assert inner_config["server_pub_key"] == "SERVER_PUBLIC_KEY"
+    assert inner_config["psk_key"] == "PSK_KEY"
+    assert inner_config["persistent_keep_alive"] == "25"
+    assert inner_config["allowed_ips"] == ["0.0.0.0/0", "::/0"]
+    assert inner_config["Jc"] == "4"
+    assert inner_config["Jmin"] == "10"
+    assert inner_config["Jmax"] == "30"
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_save_qr_code_generates_valid_png(ssh_client):
+    result = await ssh_client._save_qr_code(
+        filename="user_config", config_text="[Interface]\nAddress = 10.0.0.2/32"
+    )
+
+    assert isinstance(result, Path)
+    assert result.suffix == ".png"
+    assert result.exists()
+
+    from PIL import Image
+
+    with Image.open(result) as img:
+        assert img.format == "PNG"
+
+    result.unlink(missing_ok=True)
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_save_wg_config_bundle_returns_three_files(ssh_client, tmp_path):
+    conf_file = tmp_path / "user.conf"
+    conf_file.write_text("[Interface]\nAddress = 10.0.0.2/32", encoding="utf-8")
+    vpn_file = tmp_path / "user.vpn"
+    qr_file = tmp_path / "user.png"
+
+    ssh_client._save_wg_config = AsyncMock(return_value=conf_file)
+    ssh_client._save_vpn_config = AsyncMock(return_value=vpn_file)
+    ssh_client._save_qr_code = AsyncMock(return_value=qr_file)
+
+    result = await ssh_client._save_wg_config_bundle(
+        filename="user",
+        new_ip="10.0.0.2/32",
+        private_key="PRIVATE_KEY",
+        pub_server_key="PUB_KEY",
+        preshared_key="PSK_KEY",
+    )
+
+    assert result == (conf_file, vpn_file, qr_file)
+    ssh_client._save_qr_code.assert_awaited_once_with(
+        "user", "[Interface]\nAddress = 10.0.0.2/32"
+    )
 
 
 @pytest.mark.vpn
@@ -666,12 +927,12 @@ async def test_add_new_user_gen_config_success(ssh_client):
     ssh_client._add_to_clients_table = AsyncMock(return_value=True)
 
     ssh_client._save_wg_config_bundle = AsyncMock(
-        return_value=("file1.conf", "file2.vpn")
+        return_value=("file1.conf", "file2.vpn", "file3.png")
     )
 
     ssh_client._save_wg_config = AsyncMock(return_value=True)
     ssh_client._delete_temp_files = AsyncMock()
-    ssh_client._reboot_interface = AsyncMock()
+    ssh_client._sync_interface = AsyncMock()
 
     await ssh_client.add_new_user_gen_config("user.conf")
 
@@ -687,7 +948,7 @@ async def test_add_new_user_gen_config_success(ssh_client):
     ssh_client._save_wg_config_bundle.assert_awaited_once()
 
     ssh_client._delete_temp_files.assert_awaited_once()
-    ssh_client._reboot_interface.assert_awaited_once()
+    ssh_client._sync_interface.assert_awaited_once()
 
 
 @pytest.mark.vpn
@@ -857,13 +1118,13 @@ async def test_delete_from_clients_table_write_error(ssh_client):
 async def test_full_delete_user_success(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(return_value=True)
     ssh_client._delete_from_clients_table = AsyncMock(return_value=True)
-    ssh_client._reboot_interface = AsyncMock(return_value=True)
+    ssh_client._sync_interface = AsyncMock(return_value=None)
 
     result = await ssh_client.full_delete_user("PUB_KEY")
     assert result is True
     ssh_client._delete_user_wg0.assert_awaited_once_with("PUB_KEY")
     ssh_client._delete_from_clients_table.assert_awaited_once_with("PUB_KEY")
-    ssh_client._reboot_interface.assert_awaited_once()
+    ssh_client._sync_interface.assert_awaited_once()
 
 
 @pytest.mark.vpn
@@ -871,11 +1132,11 @@ async def test_full_delete_user_success(ssh_client):
 async def test_full_delete_user_not_found(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(return_value=True)
     ssh_client._delete_from_clients_table = AsyncMock(return_value=False)
-    ssh_client._reboot_interface = AsyncMock()
+    ssh_client._sync_interface = AsyncMock()
 
     result = await ssh_client.full_delete_user("PUB_KEY")
     assert result is False
-    ssh_client._reboot_interface.assert_not_awaited()
+    ssh_client._sync_interface.assert_not_awaited()
 
 
 @pytest.mark.vpn
@@ -883,12 +1144,12 @@ async def test_full_delete_user_not_found(ssh_client):
 async def test_full_delete_user_exception(ssh_client):
     ssh_client._delete_user_wg0 = AsyncMock(side_effect=AmneziaError("Ошибка"))
     ssh_client._delete_from_clients_table = AsyncMock()
-    ssh_client._reboot_interface = AsyncMock()
+    ssh_client._sync_interface = AsyncMock()
 
     with pytest.raises(AmneziaError):
         await ssh_client.full_delete_user("PUB_KEY")
     ssh_client._delete_from_clients_table.assert_not_awaited()
-    ssh_client._reboot_interface.assert_not_awaited()
+    ssh_client._sync_interface.assert_not_awaited()
 
 
 @pytest.mark.vpn
