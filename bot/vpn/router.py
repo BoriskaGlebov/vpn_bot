@@ -35,8 +35,7 @@ from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
 from bot.vpn.keyboards.inline_kb import proxy_url_button, xray_url_kb
 from bot.vpn.keyboards.markup_kb import premium_locations_kb
-from bot.vpn.services import SSHClientFactory, VPNService
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG2
+from bot.vpn.services import SSHClientFactory, VPNService, ssh_client_factory_for
 from bot.vpn.utils.mtproto import HostDockerSSHClient
 
 if TYPE_CHECKING:
@@ -257,7 +256,7 @@ class VPNRouter(BaseRouter):
             message=message,
             user=user,
             state=state,
-            ssh_client_factory=AsyncSSHClientWG2,
+            ssh_client_factory=ssh_client_factory_for(server_info),
             server_info=server_info,
             redis_key=redis_key,
             start_text=m_vpn.amnezia_wg,

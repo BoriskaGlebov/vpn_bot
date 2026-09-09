@@ -20,7 +20,11 @@ from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN, AsyncSSHClientVPN2
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
+from bot.vpn.utils.amnezia_wg import (
+    AsyncSSHClientWG,
+    AsyncSSHClientWG2,
+    AsyncSSHClientWG3,
+)
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
 from bot.vpn.utils.x_ray_config import XRayRegistry
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError, ThreeXUIError
@@ -29,8 +33,33 @@ ssh_lock = asyncio.Lock()
 xray_lock = asyncio.Lock()
 
 SSHClientFactory = Callable[
-    ..., AsyncSSHClientVPN2 | AsyncSSHClientWG2 | AsyncSSHClientVPN | AsyncSSHClientWG
+    ...,
+    AsyncSSHClientVPN2
+    | AsyncSSHClientWG2
+    | AsyncSSHClientWG3
+    | AsyncSSHClientVPN
+    | AsyncSSHClientWG,
 ]
+
+_WG_CLIENT_BY_PROTOCOL_VERSION: dict[str, type[AsyncSSHClientWG]] = {
+    "v1": AsyncSSHClientWG,
+    "v2": AsyncSSHClientWG2,
+    "v3": AsyncSSHClientWG3,
+}
+
+
+def ssh_client_factory_for(node: VPNNode) -> type[AsyncSSHClientWG]:
+    """Выбирает класс SSH-клиента для генерации AmneziaWG-конфига под ноду.
+
+    Args:
+        node (VPNNode): Конфигурация ноды с полем `protocol_version`.
+
+    Returns
+        type[AsyncSSHClientWG]: `AsyncSSHClientWG`/`WG2`/`WG3` — тот, что
+            умеет генерировать конфиг для протокола этой ноды.
+
+    """
+    return _WG_CLIENT_BY_PROTOCOL_VERSION[node.protocol_version]
 
 
 class VPNService:
