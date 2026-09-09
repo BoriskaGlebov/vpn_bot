@@ -439,6 +439,92 @@ async def test_generate_wg_config_success(ssh_client):
 
 @pytest.mark.vpn
 @pytest.mark.vpn
+async def test_get_vpn_params_config_wg3_parses_v3_obfuscation(ssh_client_wg3):
+    # Реальный awg0.conf с VPS04 (amn-boris.ru, контейнер amnezia-awg2,
+    # протокол AmneziaWG 3.x) — параметры обфускации другие, чем у v2.
+    ssh_client_wg3.write_single_cmd = AsyncMock(
+        return_value=(
+            "[Interface]\n"
+            "PrivateKey = SOO+iuQQflHIMX2KmOv8TeRdNmhZAhIpIIhzcJTIOUk=\n"
+            "Address = 10.8.1.0/24\n"
+            "ListenPort = 42548\n"
+            "Jc = 4\n"
+            "Jmin = 10\n"
+            "Jmax = 50\n"
+            "S1 = 113\n"
+            "S2 = 137\n"
+            "S3 = 15\n"
+            "S4 = 12\n"
+            "H1 = 1\n"
+            "H2 = 2\n"
+            "H3 = 3\n"
+            "H4 = 4\n"
+            "HeaderProtectionKey = G/x8oEKyCE+pcjl/6bmwYlJL28hm1oxFpzvtW3ua4b0=\n"
+            "ContentPaddingAddition = 10-100\n"
+            "RekeyAfterTime = 100-120\n"
+            "RekeyTimeout = 3-7\n"
+            "RejectAfterTime = 150-180\n"
+            "KeepaliveTimeout = 5-15\n"
+            "MaxHandshakeAttempts = 15-20\n"
+            "RandomTrailers = on\n"
+            "DisableCookies = on\n"
+            "[Peer]\n"
+            "PublicKey = 5kFKABK3jcBjW5DeTfeH7XtrdratGaK85EAb0QQavVg=\n"
+            "AllowedIPs = 10.8.1.1/32",
+            "",
+            0,
+            f"cat {ssh_client_wg3.WG_CONF}",
+        )
+    )
+
+    params, listen_port = await ssh_client_wg3._get_vpn_params_config()
+
+    assert listen_port == 42548
+    assert params == {
+        "Jc": "4",
+        "Jmin": "10",
+        "Jmax": "50",
+        "S1": "113",
+        "S2": "137",
+        "S3": "15",
+        "S4": "12",
+        "H1": "1",
+        "H2": "2",
+        "H3": "3",
+        "H4": "4",
+        "HeaderProtectionKey": "G/x8oEKyCE+pcjl/6bmwYlJL28hm1oxFpzvtW3ua4b0=",
+        "ContentPaddingAddition": "10-100",
+        "RekeyAfterTime": "100-120",
+        "RekeyTimeout": "3-7",
+        "RejectAfterTime": "150-180",
+        "KeepaliveTimeout": "5-15",
+        "MaxHandshakeAttempts": "15-20",
+        "RandomTrailers": "on",
+        "DisableCookies": "on",
+    }
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_build_wg_config_wg3_is_inherited_unchanged(ssh_client_wg3):
+    ssh_client_wg3._get_vpn_params_config = AsyncMock(
+        return_value=({"Jc": "4", "HeaderProtectionKey": "KEY"}, 42548)
+    )
+
+    config_text, fields, listen_port = await ssh_client_wg3._build_wg_config(
+        "10.8.1.7/32", "PRIVATE_KEY", "PUB_SERVER_KEY", "PSK_KEY"
+    )
+
+    assert listen_port == 42548
+    assert "Jc = 4" in config_text
+    assert "HeaderProtectionKey = KEY" in config_text
+    assert f"DNS = {ssh_client_wg3.DNS_SERVERS}" in config_text
+    assert fields["Jc"] == "4"
+    assert fields["HeaderProtectionKey"] == "KEY"
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_reboot_interface_success(ssh_client):
     async def mock_gen(cmds):
         yield "Interface restarted", "", 0, cmds[-1]

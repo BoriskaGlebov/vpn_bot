@@ -174,12 +174,12 @@ class AsyncSSHClientWG:
                     "AsyncSSH: соединение закрыто при чтении stdout"
                 ) from e
             raise
-        stdout, _, exit_info = output.rpartition("__EXIT__")
+        stdout_text, _, exit_info = output.rpartition("__EXIT__")
         try:
             exit_code = int(exit_info.split(":")[-1])
         except ValueError:
             exit_code = 0
-        stderr = ""
+        stderr_text = ""
         try:
             while True:
                 line = await asyncio.wait_for(
@@ -187,11 +187,11 @@ class AsyncSSHClientWG:
                 )
                 if not line:
                     break
-                stderr += line
+                stderr_text += line
         except TimeoutError:
             pass
 
-        return stdout.strip(), stderr.strip(), exit_code, cmd
+        return stdout_text.strip(), stderr_text.strip(), exit_code, cmd
 
     async def run_commands_in_container(
         self, commands: list[str]
@@ -371,7 +371,7 @@ class AsyncSSHClientWG:
             if stdout:
                 for line in stdout.splitlines():
                     try:
-                        used_ips.add(ipaddress.ip_address(line.strip()))
+                        used_ips.add(ipaddress.IPv4Address(line.strip()))
                     except ValueError:
                         logger.bind(user=self.username).warning(
                             f"Некорректный IP в конфиге: {line.strip()}"
@@ -858,8 +858,16 @@ class AsyncSSHClientWG:
                 f"docker exec -i {self.container} sh -c {escaped_cmd}"
             )
             stdout, stderr, code, _ = (
-                result.stdout,
-                result.stderr,
+                (
+                    result.stdout.decode()
+                    if isinstance(result.stdout, bytes)
+                    else (result.stdout or "")
+                ),
+                (
+                    result.stderr.decode()
+                    if isinstance(result.stderr, bytes)
+                    else (result.stderr or "")
+                ),
                 result.exit_status,
                 None,
             )
@@ -951,6 +959,12 @@ class AsyncSSHClientWG:
                 raise AmneziaConfigError(
                     message=f"Не удалось получить данные для нового конфига: {', '.join(missing)}"
                 )
+            assert private_key is not None
+            assert pub_key is not None
+            assert pub_server_key is not None
+            assert correct_ip is not None
+            assert psk is not None
+
             stdout = await self._add_user_in_config(pub_key, correct_ip, psk)
             if stdout == "OK":
                 logger.bind(user=self.username).success(
@@ -1057,27 +1071,27 @@ class AsyncSSHClientWG:
                 result = await self._conn.run(
                     f"docker exec -i {self.container} sh -c {escaped_cmd}"
                 )
-                stdout, stderr, code, cmd = (
-                    result.stdout,
-                    result.stderr,
-                    result.exit_status,
-                    cmd.splitlines(),
+                stdout = (
+                    result.stdout.decode()
+                    if isinstance(result.stdout, bytes)
+                    else (result.stdout or "")
                 )
+                stderr = (
+                    result.stderr.decode()
+                    if isinstance(result.stderr, bytes)
+                    else (result.stderr or "")
+                )
+                code = result.exit_status
+                cmd = ",".join(cmd.splitlines())
             if code == 0:
                 logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
                 return True
             else:
-                stdout_str = (
-                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
-                )
-                stderr_str = (
-                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
-                )
                 raise AmneziaSSHError(
-                    message=f"Ошибка записи wg0.conf: {stderr_str}",
-                    cmd=cmd if isinstance(cmd, str) else ",".join(cmd),
-                    stdout=stdout_str,
-                    stderr=stderr_str,
+                    message=f"Ошибка записи wg0.conf: {stderr}",
+                    cmd=cmd,
+                    stdout=stdout,
+                    stderr=stderr,
                 )
 
         elif stderr:
@@ -1152,25 +1166,27 @@ class AsyncSSHClientWG:
             result = await self._conn.run(
                 f"docker exec -i {self.container} sh -c {escaped_cmd}"
             )
-            stdout, stderr, code, cmd = (
-                result.stdout,
-                result.stderr,
-                result.exit_status,
-                cmd.splitlines(),
+            stdout = (
+                result.stdout.decode()
+                if isinstance(result.stdout, bytes)
+                else (result.stdout or "")
             )
+            stderr = (
+                result.stderr.decode()
+                if isinstance(result.stderr, bytes)
+                else (result.stderr or "")
+            )
+            code = result.exit_status
+            cmd = ",".join(cmd.splitlines())
         if code == 0:
             logger.success(f"Ключ успешно удален из {clients_table}")
             return True
         else:
             raise AmneziaSSHError(
                 message=f"Ошибка при удалении ключа из {clients_table}",
-                cmd=cmd if isinstance(cmd, str) else ",".join(cmd),
-                stdout=(
-                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
-                ),
-                stderr=(
-                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
-                ),
+                cmd=cmd,
+                stdout=stdout,
+                stderr=stderr,
             )
 
     async def full_delete_user(self, public_key: str) -> bool:
@@ -1351,6 +1367,132 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
                     }:
                         correct_key = key.split("# ")[1]
                         params[correct_key] = value
+                    elif key in {"ListenPort"}:
+                        try:
+                            listen_port = int(value)
+                        except ValueError:
+                            listen_port = 1
+            return params, listen_port
+        elif stderr:
+            raise AmneziaConfigError(
+                message=f"Ошибка получении конфига параметров VPN: {stderr}",
+                file=self.WG_CONF,
+                stderr=stderr,
+            )
+
+        return None
+
+
+class AsyncSSHClientWG3(AsyncSSHClientWG):
+    """Асинхронный SSH-клиент с поддержкой работы через Docker-контейнер.
+
+    Протокол AmneziaWG 3.x — набор параметров обфускации в `[Interface]`
+    другой, чем у v2: вместо закомментированных `# I1`-`# I5` появились
+    именованные параметры (`HeaderProtectionKey`, `ContentPaddingAddition`,
+    `RekeyAfterTime`, `RekeyTimeout`, `RejectAfterTime`, `KeepaliveTimeout`,
+    `MaxHandshakeAttempts`, `RandomTrailers`, `DisableCookies`). Контейнер,
+    пути к ключам и сам `.conf`-файл — те же, что у v2 (проверено на
+    VPS04, amn-boris.ru, контейнер `amnezia-awg2`), поэтому `WG_DIR`/`WG_CONF`
+    не переопределяются. `_build_wg_config` тоже не переопределяется — он
+    уже ничего не знает про конкретные версии, вся разница уходит в
+    `_get_vpn_params_config` и `DNS_SERVERS`.
+
+    Args:
+        host (str): Адрес сервера (IP или DNS).
+        username (str|None): Имя пользователя приподключении на удаленный хост.
+        port (int, optional): SSH-порт. По умолчанию 22.
+            Если None, будут использоваться ключи из ``~/.ssh``.
+        known_hosts (Optional[str], optional): Путь к файлу ``known_hosts``.
+            Если None, проверка отключается.
+        container (str, optional): Имя контейнера Docker, в котором
+            будут выполняться команды. По умолчанию "amnezia-awg2".
+        use_local (bool): Переменная определяет, если код запущен на одном сервере с ВПН,
+            то подлючение через локальный демон Docker, если False то ппо ssh
+        location_prefix (str): Приставка к названию файла, что б можно было определить локацию.
+
+    """
+
+    WG_DIR = "/opt/amnezia/awg"
+    WG_CONF = f"{WG_DIR}/awg0.conf"
+    # AmneziaDNS по-прежнему в этой же инфраструктуре (контейнер
+    # amnezia-dns виден на VPS04 рядом с amnezia-awg2) — тот же адрес, что
+    # и у v2, Cloudflare (1.0.0.1) как резервный.
+    DNS_SERVERS = "172.29.172.254, 1.0.0.1"
+
+    def __init__(
+        self,
+        host: str = "localhost",
+        username: str | None = None,
+        port: int = 22,
+        known_hosts: str | None = None,
+        container: str = "amnezia-awg2",
+        use_local: bool = True,
+        location_prefix: str = "FR",
+    ) -> None:
+        super().__init__(
+            host, username, port, known_hosts, container, use_local, location_prefix
+        )
+
+    async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
+        """Получает индивидуальные данные для подключения VPN и порт контейнера.
+
+        Считывает файл конфигурации WireGuard (`awg0.conf`) внутри контейнера
+        и возвращает словарь с параметрами интерфейса `[Interface]` и порт `ListenPort`.
+
+        Returns
+            Optional[Tuple[Dict[str, Any], int]]:
+                Кортеж из:
+                - params (dict[str, Any]): Параметры интерфейса AmneziaWG 3.x
+                  (Jc, Jmin, Jmax, S1-S4, H1-H4, HeaderProtectionKey,
+                  ContentPaddingAddition, RekeyAfterTime, RekeyTimeout,
+                  RejectAfterTime, KeepaliveTimeout, MaxHandshakeAttempts,
+                  RandomTrailers, DisableCookies и т.д.).
+                - listen_port (int): Порт прослушивания интерфейса.
+                Возвращает None, если не удалось получить данные.
+
+        Raises
+            AmneziaConfigError: Если не удалось прочитать конфигурацию или получен stderr.
+
+        """
+        cmd = f"cat {self.WG_CONF}"
+        stdout, stderr, *_ = await self.write_single_cmd(cmd)
+        if stdout:
+            in_interface = False
+            params = {}
+            listen_port = 1
+
+            for line in stdout.splitlines():
+                line = line.strip()
+                if line == "[Interface]":
+                    in_interface = True
+                    continue
+                elif line.startswith("[Peer]"):
+                    break
+                if in_interface and "=" in line:
+                    key, value = map(str.strip, line.split("=", 1))
+                    if key in {
+                        "Jc",
+                        "Jmin",
+                        "Jmax",
+                        "S1",
+                        "S2",
+                        "S3",
+                        "S4",
+                        "H1",
+                        "H2",
+                        "H3",
+                        "H4",
+                        "HeaderProtectionKey",
+                        "ContentPaddingAddition",
+                        "RekeyAfterTime",
+                        "RekeyTimeout",
+                        "RejectAfterTime",
+                        "KeepaliveTimeout",
+                        "MaxHandshakeAttempts",
+                        "RandomTrailers",
+                        "DisableCookies",
+                    }:
+                        params[key] = value
                     elif key in {"ListenPort"}:
                         try:
                             listen_port = int(value)
