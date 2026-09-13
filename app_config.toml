@@ -55,6 +55,7 @@ host = "help-blocks.ru"
 username = "vpn_user"
 container_old="amnezia-awg"
 container = "amnezia-awg2"
+protocol_version = "v2"
 use_local = true
 location_prefix= "FR"
 flag="🇫🇷"
@@ -72,6 +73,7 @@ flag="🇫🇷"
 host = "x-ray-boriska.pro"
 username = "xray"
 container = "amnezia-awg2"
+protocol_version = "v2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 location_prefix= "SOF"
@@ -81,6 +83,7 @@ flag= "🇧🇬"
 host = "boris-guard.space"
 username = "boris_user"
 container = "amnezia-awg2"
+protocol_version = "v2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 location_prefix= "WAW"

@@ -158,10 +158,12 @@ async def test_get_config_amnezia_wg_success(
 
     message.answer.return_value = status_msg
     message.answer_media_group = mocker.AsyncMock()
+    message.answer_photo = mocker.AsyncMock()
 
     router.vpn_service.generate_user_config.return_value = (
         Path("/tmp/test_wg.conf"),
         Path("/tmp/test_wg.vpn"),
+        Path("/tmp/test_wg.png"),
         "pubkey",
     )
 
@@ -175,6 +177,7 @@ async def test_get_config_amnezia_wg_success(
     router.vpn_service.generate_user_config.assert_awaited_once()
 
     message.answer_media_group.assert_awaited_once()
+    message.answer_photo.assert_awaited_once()
 
     state.clear.assert_awaited_once()
 

@@ -39,6 +39,7 @@ pgvector = "^0.3.0"
 langchain-postgres = "^0.0.17"
 tenacity = "^9.1.4"
 asyncio = "^4.0.0"
+qrcode = {extras = ["pil"], version = "^8.2"}
 
 
 

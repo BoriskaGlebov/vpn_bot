@@ -22,7 +22,7 @@ from bot.users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 from bot.utils import commands
 from bot.vpn.services import VPNService
 from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG3
 
 
 @pytest.fixture
@@ -529,6 +529,18 @@ def ssh_client_vpn():
         known_hosts=None,
         container="test-container",
         use_local=True,
+    )
+
+
+@pytest.fixture
+def ssh_client_wg3():
+    """Создаёт экземпляр клиента для протокола AmneziaWG 3.x"""
+    return AsyncSSHClientWG3(
+        host="127.0.0.1",
+        username="testuser",
+        known_hosts=None,
+        container="test-container",
+        use_local=False,
     )
 
 
