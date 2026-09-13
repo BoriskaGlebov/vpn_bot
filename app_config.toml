@@ -83,7 +83,7 @@ flag= "🇧🇬"
 host = "boris-guard.space"
 username = "boris_user"
 container = "amnezia-awg2"
-protocol_version = "v2"
+protocol_version = "v3"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 location_prefix= "WAW"
