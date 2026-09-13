@@ -156,7 +156,7 @@ bot:
           android: https://play.google.com/store/apps/details?id=org.amnezia.vpn
           iphone: https://apps.apple.com/us/app/amneziawg/id6478942365
           tv: https://play.google.com/store/apps/details?id=org.amnezia.awg&hl=ru
-          pc: https://m-1-12-3w5hsuiikq-ez.a.run.app/ru/downloads
+          pc: https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_windows_x64.exe
           split: https://m-docs-3w5hsuiikq-ez.a.run.app/ru/documentation/instructions/installing-amneziavpn-on-ios
           happ:
             - https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe
@@ -164,7 +164,36 @@ bot:
             - https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973
             - https://play.google.com/store/apps/details?id=com.happproxy
             - https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb
+        android_apk:
+          choose: |
+            ⬇️ <b>Скачайте приложение AmneziaVPN</b>
+            Если Google Play не открывается — возьмите APK-файл.
+          ask_version: |
+            📥 <b>Установка из APK-файла</b>
 
+            Какая версия Android на вашем телефоне?
+            Посмотреть: <b>Настройки → О телефоне → Версия Android</b>
+          ask_file: |
+            Выберите файл под ваш телефон.
+            Не знаете какой? Жмите <b>первый</b> — он подходит почти всем.
+          versions:
+            11plus:
+              title: "📱 Android 11 и новее"
+              files:
+                "arm64-v8a — почти все телефоны": https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_android11+_arm64-v8a.apk
+                "armeabi-v7a — старые телефоны": https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_android11+_armeabi-v7a.apk
+                "x86 — редкие модели": https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_android11+_x86.apk
+                "x86_64 — эмуляторы и ПК": https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_android11+_x86_64.apk
+            # Ключ в кавычках: без них YAML читает 9_10 как число 910
+            # (подчёркивание — разделитель разрядов) и ключ перестаёт
+            # совпадать со строкой из callback_data.
+            "9_10":
+              title: "📱 Android 9 – 10"
+              files:
+                "arm64-v8a — почти все телефоны": https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_android9-10_arm64-v8a.apk
+                "armeabi-v7a — старые телефоны": https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_android9-10_armeabi-v7a.apk
+                "x86 — редкие модели": https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_android9-10_x86.apk
+                "x86_64 — эмуляторы и ПК": https://github.com/amnezia-vpn/amnezia-client/releases/download/5.0.1.5/AmneziaVPN_5.0.1.5_android9-10_x86_64.apk
 
         android:
           - |

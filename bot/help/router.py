@@ -14,7 +14,15 @@ from loguru._logger import Logger
 
 from bot.core.config import settings_bot
 from bot.help.enums import DeviceEnum
-from bot.help.keyboards.inline_kb import device_keyboard, inline_developer_keyboard
+from bot.help.keyboards.inline_kb import (
+    ApkAction,
+    ApkCB,
+    android_download_kb,
+    apk_files_kb,
+    apk_version_kb,
+    device_keyboard,
+    inline_developer_keyboard,
+)
 from bot.help.utils.android_device import AndroidDevice
 from bot.help.utils.common_device import Device
 from bot.help.utils.happ_device import HappDevice
@@ -81,6 +89,15 @@ class HelpRouter(BaseRouter):
         self.router.callback_query.register(
             self.noop_cb, F.data == "noop", StateFilter(HelpStates.device_state)
         )
+        self.router.callback_query.register(
+            self.apk_choice_cb, ApkCB.filter(F.action == ApkAction.CHOICE)
+        )
+        self.router.callback_query.register(
+            self.apk_versions_cb, ApkCB.filter(F.action == ApkAction.VERSIONS)
+        )
+        self.router.callback_query.register(
+            self.apk_files_cb, ApkCB.filter(F.action == ApkAction.FILES)
+        )
         self.router.message.register(
             self.mistake_handler_user,
             and_f(StateFilter(HelpStates.device_state), ~F.text.startswith("/")),
@@ -123,6 +140,69 @@ class HelpRouter(BaseRouter):
 
         """
         await call.answer()
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def apk_choice_cb(self, call: CallbackQuery, msg: Message) -> None:
+        """Возвращает к выбору способа установки: Google Play или APK.
+
+        Args:
+            call (CallbackQuery): Объект callback-запроса от Telegram.
+            msg (Message): Сообщение-экран выбора APK.
+
+        """
+        await call.answer()
+        apk = m_help.instructions.android_apk
+        await msg.edit_text(
+            text=apk.choose,
+            reply_markup=android_download_kb(m_help.instructions.links.android),
+        )
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def apk_versions_cb(self, call: CallbackQuery, msg: Message) -> None:
+        """Спрашивает версию Android перед выдачей прямых APK-ссылок.
+
+        Сразу показывать все восемь сборок слишком много для рядового
+        пользователя, поэтому сначала сужаем список версией ОС.
+
+        Args:
+            call (CallbackQuery): Объект callback-запроса от Telegram.
+            msg (Message): Сообщение-экран выбора APK.
+
+        """
+        await call.answer()
+        apk = m_help.instructions.android_apk
+        versions = {key: version.title for key, version in apk.versions.items()}
+        await msg.edit_text(text=apk.ask_version, reply_markup=apk_version_kb(versions))
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def apk_files_cb(
+        self,
+        call: CallbackQuery,
+        msg: Message,
+        callback_data: ApkCB,
+    ) -> None:
+        """Отдаёт прямые ссылки на APK для выбранной версии Android.
+
+        Args:
+            call (CallbackQuery): Объект callback-запроса от Telegram.
+            msg (Message): Сообщение-экран выбора APK.
+            callback_data (ApkCB): Данные кнопки (ключ версии Android).
+
+        """
+        apk = m_help.instructions.android_apk
+        version = apk.versions.get(callback_data.version)
+        if not version:
+            # Кнопка из старого сообщения, версии в конфиге уже нет.
+            self.logger.warning(
+                f"Запрошена неизвестная версия Android для APK: {callback_data.version}"
+            )
+            await call.answer(text="Эта версия больше недоступна", show_alert=True)
+            return
+        await call.answer()
+        await msg.edit_text(text=apk.ask_file, reply_markup=apk_files_kb(version.files))
 
     @BaseRouter.log_method
     @BaseRouter.require_message

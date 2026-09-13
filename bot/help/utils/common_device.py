@@ -88,9 +88,28 @@ class Device:
             )
             await asyncio.sleep(cls.CAPTION_SLEEP)
         if link:
-            await send_link_button(
-                bot, chat_id, text="Скачайте приложение по ссылке:", url=link
-            )
+            await cls._send_download_block(bot, chat_id, link)
+
+    @classmethod
+    async def _send_download_block(cls, bot: Bot, chat_id: int, link: str) -> None:
+        """Отправляет финальный блок со ссылкой на установку приложения.
+
+        Хук для подклассов: по умолчанию отправляет одну кнопку-ссылку.
+        Переопределяется там, где вариантов установки несколько
+        (см. `AndroidDevice` — Google Play плюс прямые APK-ссылки).
+
+        Args:
+            bot (Bot): Экземпляр aiogram-бота.
+            chat_id (int): Telegram chat_id пользователя.
+            link (str): Ссылка на установку приложения (`LINK_PATH`).
+
+        Raises
+            TelegramAPIError: при ошибке отправки сообщения в Telegram.
+
+        """
+        await send_link_button(
+            bot, chat_id, text="Скачайте приложение по ссылке:", url=link
+        )
 
     @classmethod
     async def _send_intro_media_final(
