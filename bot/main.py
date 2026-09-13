@@ -40,7 +40,6 @@ tags_metadata: list[dict[str, Any]] = [
 container = Container(bot=bot)
 
 
-# TODO Почему-то бот после перезагрузки compose не стартует при перезагрузке сервера странно
 @asynccontextmanager
 @logger.catch  # type: ignore[misc]
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -316,5 +315,4 @@ if __name__ == "__main__":
         proxy_headers=True,
         forwarded_allow_ips="*",
     )
-# TODO проблема перезапуска бота он не может корректно стартовать из-за того, что в контейнер ключи от  ssh агента не получает
 # TODO отдельного пользвателя на Xray
