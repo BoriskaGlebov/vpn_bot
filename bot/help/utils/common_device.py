@@ -33,9 +33,10 @@ class Device:
     следует переопределять `send_message`, используя `_send_intro_media_final`.
 
     Note:
-        `HappDevice` — исключение: там `LINK_PATH` фактически `list[str]`
-        (несколько ссылок под разные ОС), т.к. он не использует базовый
-        `send_message`/`send_link_button`, а сам форматирует ссылки в тексте
+        `HappDevice` и `IncyDevice` — исключения: там `LINK_PATH` фактически
+        не строка, а набор ссылок под разные ОС (`list[str]` у Happ,
+        `dict[str, str]` у INCY). Они не используют базовый
+        `send_message`/`send_link_button`, а сами форматируют ссылки в тексте
         через `_send_intro_media_final`. Явно не переобъявляем тип атрибута
         в подклассе, чтобы не нарушать контракт базового класса.
 

@@ -26,6 +26,7 @@ from bot.help.keyboards.inline_kb import (
 from bot.help.utils.android_device import AndroidDevice
 from bot.help.utils.common_device import Device
 from bot.help.utils.happ_device import HappDevice
+from bot.help.utils.incy_device import IncyDevice
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
 from bot.help.utils.split_device import SplitDevice
@@ -54,6 +55,7 @@ class HelpRouter(BaseRouter):
         DeviceEnum.TV: TVDevice,
         DeviceEnum.SPLIT: SplitDevice,
         DeviceEnum.HAPP: HappDevice,
+        DeviceEnum.INCY: IncyDevice,
     }
 
     DEVICE_LABELS: dict[str, str] = {
@@ -63,6 +65,7 @@ class HelpRouter(BaseRouter):
         DeviceEnum.TV: "Smart TV",
         DeviceEnum.SPLIT: "раздельное туннелирование",
         DeviceEnum.HAPP: "Happ",
+        DeviceEnum.INCY: "INCY",
         "developer": "связь с разработчиком",
     }
 
