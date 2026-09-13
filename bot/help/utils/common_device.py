@@ -33,9 +33,10 @@ class Device:
     следует переопределять `send_message`, используя `_send_intro_media_final`.
 
     Note:
-        `HappDevice` — исключение: там `LINK_PATH` фактически `list[str]`
-        (несколько ссылок под разные ОС), т.к. он не использует базовый
-        `send_message`/`send_link_button`, а сам форматирует ссылки в тексте
+        `HappDevice` и `IncyDevice` — исключения: там `LINK_PATH` фактически
+        не строка, а набор ссылок под разные ОС (`list[str]` у Happ,
+        `dict[str, str]` у INCY). Они не используют базовый
+        `send_message`/`send_link_button`, а сами форматируют ссылки в тексте
         через `_send_intro_media_final`. Явно не переобъявляем тип атрибута
         в подклассе, чтобы не нарушать контракт базового класса.
 
@@ -88,9 +89,28 @@ class Device:
             )
             await asyncio.sleep(cls.CAPTION_SLEEP)
         if link:
-            await send_link_button(
-                bot, chat_id, text="Скачайте приложение по ссылке:", url=link
-            )
+            await cls._send_download_block(bot, chat_id, link)
+
+    @classmethod
+    async def _send_download_block(cls, bot: Bot, chat_id: int, link: str) -> None:
+        """Отправляет финальный блок со ссылкой на установку приложения.
+
+        Хук для подклассов: по умолчанию отправляет одну кнопку-ссылку.
+        Переопределяется там, где вариантов установки несколько
+        (см. `AndroidDevice` — Google Play плюс прямые APK-ссылки).
+
+        Args:
+            bot (Bot): Экземпляр aiogram-бота.
+            chat_id (int): Telegram chat_id пользователя.
+            link (str): Ссылка на установку приложения (`LINK_PATH`).
+
+        Raises
+            TelegramAPIError: при ошибке отправки сообщения в Telegram.
+
+        """
+        await send_link_button(
+            bot, chat_id, text="Скачайте приложение по ссылке:", url=link
+        )
 
     @classmethod
     async def _send_intro_media_final(
