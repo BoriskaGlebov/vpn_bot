@@ -1,7 +1,7 @@
 import json
 from functools import cached_property
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -210,6 +210,12 @@ class VPNNode(SettingsCommon):
         username (str): Пользователь для подключения.
         container (str): Имя Docker-контейнера.
         container_old (str | None): Старое имя контейнера.
+        protocol_version (Literal["v1", "v2", "v3"]): Версия протокола
+            AmneziaWG, которую реально отдаёт этот сервер (набор параметров
+            обфускации в awg0.conf) — определяет, каким SSH-клиентом
+            (`AsyncSSHClientWG`/`WG2`/`WG3`) генерировать конфиги. НЕ выводится
+            из имени контейнера — на одном и том же `amnezia-awg2` может быть
+            развёрнут как v2, так и v3 (см. `bot/vpn/utils/amnezia_wg.py`).
         use_local (bool): Использовать локальную ноду.
         location_prefix (str): Префикс для определения локации файла, базово Франция
         flag (str): Флаг страны для кнопок.
@@ -222,6 +228,7 @@ class VPNNode(SettingsCommon):
     username: str
     container: str
     container_old: str | None = None
+    protocol_version: Literal["v1", "v2", "v3"] = "v2"
     use_local: bool = False
     location_prefix: str = "FR"
     flag: str = "🏴‍☠️"

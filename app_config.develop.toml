@@ -56,6 +56,7 @@ host = "amn-boris.ru"
 username = "prod_server"
 container_old="amnezia-awg"
 container = "amnezia-awg2"
+protocol_version = "v3"
 use_local = true
 location_prefix= "DE"
 flag= "🇩🇪"
@@ -73,6 +74,7 @@ flag= "🇩🇪"
 host = "x-ray-boriska.pro"
 username = "xray"
 container = "amnezia-awg2"
+protocol_version = "v2"
 #Сервер с допольнительным ВПН только подключение через ssh
 use_local = false
 location_prefix= "SOF"
@@ -102,8 +104,8 @@ flag= "🇧🇬"
 
 [vpn.nodes.main.xray]
 host = "amn-boris.ru"
-panel_prefix = "panel-78gh98"
-subscription_prefix = "sub-gh456hg"
+panel_prefix = "panel-45gh65"
+subscription_prefix = "sub-45gh45"
 panel_port = 5443
 subscription_port = 2096
 username = "admin"
