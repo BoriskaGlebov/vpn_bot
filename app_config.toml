@@ -82,6 +82,7 @@ flag= "🇧🇬"
 [vpn.nodes.waw]
 host = "boris-guard.space"
 username = "boris_user"
+container_old="amnezia-awg"
 container = "amnezia-awg2"
 protocol_version = "v3"
 #Сервер с допольнительным ВПН только подключение через ssh
