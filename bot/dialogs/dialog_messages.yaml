@@ -164,14 +164,16 @@ bot:
             - https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973
             - https://play.google.com/store/apps/details?id=com.happproxy
             - https://github.com/Happ-proxy/happ-desktop/releases/latest/download/Happ.linux.x64.deb
-          # Именованные ключи (а не список, как у happ): подставляются
-          # через `.format(**links)`, поэтому порядок строк в тексте
-          # инструкции можно менять, не ломая ссылки.
           incy:
             android: https://play.google.com/store/apps/details?id=llc.itdev.incy
             ios: https://apps.apple.com/us/app/incy/id6756943388
             windows: https://github.com/INCY-DEV/incy-platforms/releases/download/desktop-v3.8.6/incy-windows-portable.zip
             linux: https://github.com/INCY-DEV/incy-platforms/releases
+          # Кастомную схему нельзя положить в кнопку (Telegram разрешает только
+          # http/https/tg://), поэтому deeplink уходит в текст внутри <code>.
+          # Обновление профиля = замена строки целиком.
+          routing_happ: 'happ://routing/add/ewogICAgIkJsb2NrSXAiOiBbCiAgICBdLAogICAgIkJsb2NrU2l0ZXMiOiBbCiAgICBdLAogICAgIkRpcmVjdElwIjogWwogICAgICAgICIxMC4wLjAuMC84IiwKICAgICAgICAiMTcyLjE2LjAuMC8xMiIsCiAgICAgICAgIjE5Mi4xNjguMC4wLzE2IiwKICAgICAgICAiMTY5LjI1NC4wLjAvMTYiLAogICAgICAgICIyMjQuMC4wLjAvNCIsCiAgICAgICAgIjI1NS4yNTUuMjU1LjI1NSIKICAgIF0sCiAgICAiRGlyZWN0U2l0ZXMiOiBbCiAgICAgICAgImdlb3NpdGU6cHJpdmF0ZSIsCiAgICAgICAgImdlb3NpdGU6Y2F0ZWdvcnktcnUiLAogICAgICAgICJnZW9zaXRlOndoaXRlbGlzdCIsCiAgICAgICAgImdlb3NpdGU6bWljcm9zb2Z0IiwKICAgICAgICAiZ2Vvc2l0ZTphcHBsZSIsCiAgICAgICAgImdlb3NpdGU6ZXBpY2dhbWVzIiwKICAgICAgICAiZ2Vvc2l0ZTpyaW90IiwKICAgICAgICAiZ2Vvc2l0ZTplc2NhcGVmcm9tdGFya292IiwKICAgICAgICAiZ2Vvc2l0ZTpzdGVhbSIsCiAgICAgICAgImdlb3NpdGU6dHdpdGNoIiwKICAgICAgICAiZ2Vvc2l0ZTpwaW50ZXJlc3QiLAogICAgICAgICJnZW9zaXRlOmZhY2VpdCIKICAgIF0sCiAgICAiRG5zSG9zdHMiOiB7CiAgICAgICAgImNsb3VkZmxhcmUtZG5zLmNvbSI6ICIxLjEuMS4xIiwKICAgICAgICAiZG5zLmdvb2dsZSI6ICI4LjguOC44IgogICAgfSwKICAgICJEb21haW5TdHJhdGVneSI6ICJJUElmTm9uTWF0Y2giLAogICAgIkRvbWVzdGljRE5TRG9tYWluIjogImh0dHBzOi8vNzcuODguOC44L2Rucy1xdWVyeSIsCiAgICAiRG9tZXN0aWNETlNJUCI6ICI3Ny44OC44LjgiLAogICAgIkRvbWVzdGljRE5TVHlwZSI6ICJEb0giLAogICAgIkZha2VETlMiOiAiZmFsc2UiLAogICAgIkdlb2lwdXJsIjogImh0dHBzOi8vY2RuLmpzZGVsaXZyLm5ldC9naC9oeWRyYXBvbmlxdWUvcm9zY29tdnBuLWdlb2lwL3JlbGVhc2UvZ2VvaXAuZGF0IiwKICAgICJHZW9zaXRldXJsIjogImh0dHBzOi8vY2RuLmpzZGVsaXZyLm5ldC9naC9oeWRyYXBvbmlxdWUvcm9zY29tdnBuLWdlb3NpdGUvcmVsZWFzZS9nZW9zaXRlLmRhdCIsCiAgICAiR2xvYmFsUHJveHkiOiAidHJ1ZSIsCiAgICAiTGFzdFVwZGF0ZWQiOiAxNzg2NjQ5MzIyLAogICAgIk5hbWUiOiAiVlBOQm9yaXNHdWFyZCIsCiAgICAiUHJveHlJcCI6IFsKICAgIF0sCiAgICAiUHJveHlTaXRlcyI6IFsKICAgICAgICAiZ2Vvc2l0ZTpnb29nbGUtcGxheSIsCiAgICAgICAgImdlb3NpdGU6Z2l0aHViIiwKICAgICAgICAiZ2Vvc2l0ZTp0d2l0Y2gtYWRzIiwKICAgICAgICAiZ2Vvc2l0ZTp5b3V0dWJlIiwKICAgICAgICAiZ2Vvc2l0ZTp0ZWxlZ3JhbSIKICAgIF0sCiAgICAiUmVtb3RlRE5TRG9tYWluIjogImh0dHBzOi8vY2xvdWRmbGFyZS1kbnMuY29tL2Rucy1xdWVyeSIsCiAgICAiUmVtb3RlRE5TSVAiOiAiMS4xLjEuMSIsCiAgICAiUmVtb3RlRE5TVHlwZSI6ICJEb0giLAogICAgIlJvdXRlT3JkZXIiOiAiYmxvY2stZGlyZWN0LXByb3h5Igp9Cg=='
+          routing_incy: 'incy://routing/add/eyJOYW1lIjoiVlBOQm9yaXNHdWFyZCIsIkdsb2JhbFByb3h5Ijp0cnVlLCJSZW1vdGVETlNUeXBlIjoiRG9IIiwiUmVtb3RlRE5TRG9tYWluIjoiaHR0cHM6Ly84LjguOC44L2Rucy1xdWVyeSIsIlJlbW90ZUROU0lQIjoiOC44LjguOCIsIkRvbWVzdGljRE5TVHlwZSI6IkRvSCIsIkRvbWVzdGljRE5TRG9tYWluIjoiaHR0cHM6Ly83Ny44OC44LjgvZG5zLXF1ZXJ5IiwiRG9tZXN0aWNETlNJUCI6Ijc3Ljg4LjguOCIsIkZha2VETlMiOmZhbHNlLCJEbnNIb3N0cyI6eyJsa2ZsMi5uYWxvZy5ydSI6IjIxMy4yNC42NC4xNzUiLCJsa25wZC5uYWxvZy5ydSI6IjIxMy4yNC42NC4xODEifSwiUmVtb3RlRG5zIjoiOC44LjguOCIsIkRvbWVzdGljRG5zIjoiNzcuODguOC44IiwiR2VvaXB1cmwiOiJodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvZ2gvaHlkcmFwb25pcXVlL3Jvc2NvbXZwbi1nZW9pcC9yZWxlYXNlL2dlb2lwLmRhdCIsIkdlb3NpdGV1cmwiOiJodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvZ2gvaHlkcmFwb25pcXVlL3Jvc2NvbXZwbi1nZW9zaXRlL3JlbGVhc2UvZ2Vvc2l0ZS5kYXQiLCJMYXN0VXBkYXRlZCI6IjE3ODYxNjI3OTMiLCJHZW9pcEhhc2giOiIzNGIxMmE2MDllNDJlYjlhOTFlYzg2MDg0NDgwZjZlMTI4MWQ1ZGIyMjllYjYwYjdiMWUzODJiMDY2NGIyOTZjIiwiR2Vvc2l0ZUhhc2giOiI3NjViODZlNGI2YWVkNWRhMWEyMDYzMDRiNTUwMGM3NjY4Njg3ZmExZGY4ZTgzMjJjOGE0OTYxZTFiNjcyMTkwIiwiRGlyZWN0U2l0ZXMiOlsiZ2Vvc2l0ZTpwcml2YXRlIiwiZ2Vvc2l0ZTpjYXRlZ29yeS1ydSIsImdlb3NpdGU6d2hpdGVsaXN0IiwiZ2Vvc2l0ZTptaWNyb3NvZnQiLCJnZW9zaXRlOmFwcGxlIiwiZ2Vvc2l0ZTplcGljZ2FtZXMiLCJnZW9zaXRlOnJpb3QiLCJnZW9zaXRlOmVzY2FwZWZyb210YXJrb3YiLCJnZW9zaXRlOnN0ZWFtIiwiZ2Vvc2l0ZTp0d2l0Y2giLCJnZW9zaXRlOnBpbnRlcmVzdCIsImdlb3NpdGU6ZmFjZWl0Il0sIlByb3h5U2l0ZXMiOlsiZ2Vvc2l0ZTpnb29nbGUtcGxheSIsImdlb3NpdGU6Z2l0aHViIiwiZ2Vvc2l0ZTp0d2l0Y2gtYWRzIiwiZ2Vvc2l0ZTp5b3V0dWJlIiwiZ2Vvc2l0ZTp0ZWxlZ3JhbSJdLCJCbG9ja1NpdGVzIjpbImdlb3NpdGU6d2luLXNweSIsImdlb3NpdGU6dG9ycmVudCIsImdlb3NpdGU6Y2F0ZWdvcnktYWRzIl0sIkRpcmVjdElwIjpbImdlb2lwOnByaXZhdGUiLCJnZW9pcDpkaXJlY3QiXSwiUHJveHlJcCI6W10sIkJsb2NrSXAiOltdLCJEb21haW5TdHJhdGVneSI6IklQSWZOb25NYXRjaCIsIlJvdXRlT3JkZXIiOiJibG9jay1wcm94eS1kaXJlY3QiLCJVc2VDaHVua0ZpbGVzIjp0cnVlLCJpc0RlZmF1bHQiOmZhbHNlfQ'
         android_apk:
           choose: |
             ⬇️ <b>Скачайте приложение AmneziaVPN</b>
@@ -483,6 +485,58 @@ bot:
             <a href="{ios}">🍎 iPhone / iPad / macOS</a>
             <a href="{windows}">🪟 Windows</a>
             <a href="{linux}">🐧 Linux</a>
+
+        routing_happ:
+          - |
+            🧭 Профиль маршрутизации для Happ
+
+            Обычно VPN приходится выключать, чтобы зайти на Госуслуги, в банк или на другой российский сайт.
+
+            С профилем маршрутизации этого не нужно: российские сайты идут напрямую, а YouTube, Telegram и другие зарубежные сервисы — через VPN. VPN можно держать включённым всегда.
+
+          - |
+            1️⃣ Откройте Happ и нажмите 📋 «Из буфера» внизу экрана.
+          - |
+            2️⃣ Приложение спросит, к какой подписке привязать профиль.
+
+            Выберите «Список серверов» и нажмите «Готово».
+          - |
+            ✅ Готово
+
+            Профиль применится сразу — можно пользоваться VPN, не выключая его.
+
+            ⚠️ Если какой-то российский сайт всё же не открывается — напишите в поддержку 💬
+
+            Ссылка на профиль, если понадобится ещё раз:
+
+            <code>{link}</code>
+
+        routing_incy:
+          - |
+            🧭 Профиль маршрутизации для INCY
+
+            Обычно VPN приходится выключать, чтобы зайти на Госуслуги, в банк или на другой российский сайт.
+
+            С профилем маршрутизации этого не нужно: российские сайты идут напрямую, а YouTube, Telegram и другие зарубежные сервисы — через VPN. VPN можно держать включённым всегда.
+
+            Заодно режется реклама и трекеры, а личный кабинет налоговой и «Мой налог» снова открываются.
+
+          - |
+            1️⃣ Откройте INCY и нажмите 📋 «Вставить» — профиль подхватится из буфера обмена.
+          - |
+            2️⃣ Профиль «VPNBorisGuard» появится в списке маршрутизации.
+
+            Выберите его — сам он не включается.
+          - |
+            ✅ Готово
+
+            Профиль применится сразу — можно пользоваться VPN, не выключая его.
+
+            ⚠️ Если какой-то российский сайт всё же не открывается — напишите в поддержку 💬
+
+            Ссылка на профиль, если понадобится ещё раз:
+
+            <code>{link}</code>
 
       info: |
         ℹ️ <b>Информация о сервисе</b>

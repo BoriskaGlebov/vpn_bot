@@ -11,3 +11,5 @@ class DeviceEnum(str, Enum):
     SPLIT = "split"
     HAPP = "happ"
     INCY = "incy"
+    ROUTING_HAPP = "routing_happ"
+    ROUTING_INCY = "routing_incy"

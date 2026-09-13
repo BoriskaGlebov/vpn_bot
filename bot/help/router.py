@@ -29,6 +29,7 @@ from bot.help.utils.happ_device import HappDevice
 from bot.help.utils.incy_device import IncyDevice
 from bot.help.utils.iphone_device import IphoneDevice
 from bot.help.utils.pc_device import PCDevice
+from bot.help.utils.routing_device import RoutingHappDevice, RoutingIncyDevice
 from bot.help.utils.split_device import SplitDevice
 from bot.help.utils.tv_device import TVDevice
 from bot.integrations.redis_client import RedisClient
@@ -56,6 +57,8 @@ class HelpRouter(BaseRouter):
         DeviceEnum.SPLIT: SplitDevice,
         DeviceEnum.HAPP: HappDevice,
         DeviceEnum.INCY: IncyDevice,
+        DeviceEnum.ROUTING_HAPP: RoutingHappDevice,
+        DeviceEnum.ROUTING_INCY: RoutingIncyDevice,
     }
 
     DEVICE_LABELS: dict[str, str] = {
@@ -66,6 +69,8 @@ class HelpRouter(BaseRouter):
         DeviceEnum.SPLIT: "раздельное туннелирование",
         DeviceEnum.HAPP: "Happ",
         DeviceEnum.INCY: "INCY",
+        DeviceEnum.ROUTING_HAPP: "профиль маршрутизации для Happ",
+        DeviceEnum.ROUTING_INCY: "профиль маршрутизации для INCY",
         "developer": "связь с разработчиком",
     }
 
