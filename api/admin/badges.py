@@ -21,6 +21,18 @@ PAYMENT_BADGE_COLORS = {
     "CANCELED": "secondary",
 }
 
+VPN_CONFIG_BADGE_COLORS = {
+    "active": "success",
+    "pending_delete": "warning",
+    "deleted": "secondary",
+}
+
+VPN_CONFIG_STATUS_LABELS = {
+    "active": "Активен",
+    "pending_delete": "Ожидает удаления",
+    "deleted": "Удалён",
+}
+
 
 def badge(text: str, color: str) -> Markup:
     """Рендерит цветной Bootstrap/Tabler-бейдж."""

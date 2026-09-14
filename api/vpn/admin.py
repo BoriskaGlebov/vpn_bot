@@ -1,18 +1,18 @@
-from typing import Any
-
+from markupsafe import Markup
 from sqladmin import ModelView
 from sqladmin.filters import ForeignKeyFilter, OperationColumnFilter
 
+from api.admin.badges import VPN_CONFIG_BADGE_COLORS, VPN_CONFIG_STATUS_LABELS, badge
 from api.users.models import User
 from api.vpn.models import VPNConfig
 
 
-def format_user(model_class: type[VPNConfig], value: Any) -> str:
+def format_user(obj: VPNConfig, name: str) -> str:
     """Форматирует отображение пользователя в списке.
 
     Args
-        model_class: Экземпляр VPNConfig.
-        value: Контекст SQLAdmin (не используется).
+        obj: Экземпляр VPNConfig.
+        name: Имя поля (требуется sqladmin, не используется).
 
     Returns
         str: Строка формата
@@ -20,27 +20,44 @@ def format_user(model_class: type[VPNConfig], value: Any) -> str:
             или "-" если пользователь отсутствует.
 
     """
-    if model_class.user is None:
+    if obj.user is None:
         return "-"
-    return f"{model_class.user.username} ({model_class.user.telegram_id})"
+    return f"{obj.user.username} ({obj.user.telegram_id})"
 
 
-def format_pub_key(model_class: type[VPNConfig], value: Any) -> str:
+def format_pub_key(obj: VPNConfig, name: str) -> str:
     """Форматирует публичный ключ для отображения.
 
     Обрезает ключ до 25 символов для компактного вывода.
 
     Args
-        model_class: Экземпляр VPNConfig.
-        value: Контекст SQLAdmin (не используется).
+        obj: Экземпляр VPNConfig.
+        name: Имя поля (требуется sqladmin, не используется).
 
     Returns
         str: Укороченный публичный ключ или "-".
 
     """
-    if not model_class.pub_key:
+    if not obj.pub_key:
         return "-"
-    return f"{model_class.pub_key[:25]}..."
+    return f"{obj.pub_key[:25]}..."
+
+
+def format_status(obj: VPNConfig, name: str) -> Markup:
+    """Форматирует статус конфига цветным бейджем.
+
+    Args
+        obj: Экземпляр VPNConfig.
+        name: Имя поля (требуется sqladmin, не используется).
+
+    Returns
+        Markup с цветным бейджем статуса.
+
+    """
+    status = obj.status.value
+    label = VPN_CONFIG_STATUS_LABELS.get(status, status)
+    color = VPN_CONFIG_BADGE_COLORS.get(status, "dark")
+    return badge(label, color)
 
 
 class VPNConfigAdmin(ModelView, model=VPNConfig):
@@ -81,12 +98,16 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "user",
         "file_name",
         "pub_key",
+        "status",
+        "created_at",
     ]
 
     column_sortable_list = [
         "id",
         "file_name",
         "user_id",
+        "status",
+        "created_at",
     ]
 
     column_searchable_list = [
@@ -98,6 +119,7 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
     column_filters = [
         ForeignKeyFilter(VPNConfig.user_id, User.username, title="Пользователь"),
         OperationColumnFilter(VPNConfig.file_name),
+        OperationColumnFilter(VPNConfig.status),
     ]
 
     form_columns = [
@@ -111,11 +133,14 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "user": "Пользователь",
         "file_name": "Имя файла",
         "pub_key": "Public key",
+        "status": "Статус",
+        "created_at": "Дата создания",
     }
 
     column_formatters = {
-        "user": format_user,
-        "pub_key": format_pub_key,
+        "user": format_user,  # type: ignore[misc, dict-item]
+        "pub_key": format_pub_key,  # type: ignore[misc, dict-item]
+        "status": format_status,  # type: ignore[misc, dict-item]
     }
 
     can_create = True

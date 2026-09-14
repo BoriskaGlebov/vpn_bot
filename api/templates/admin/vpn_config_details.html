@@ -51,6 +51,14 @@
                     <td>{{ model.file_name if model.file_name else "config" }}</td>
                 </tr>
                 <tr>
+                    <th>Статус</th>
+                    <td>
+                        <span class="badge bg-{{ vpn_config_badge_colors.get(model.status.value, 'dark') }}">
+                            {{ vpn_config_status_labels.get(model.status.value, model.status.value) }}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
                     <th>Создан</th>
                     <td>{{ model.created_at.strftime("%Y-%m-%d %H:%M") if model.created_at else "-" }}</td>
                 </tr>
