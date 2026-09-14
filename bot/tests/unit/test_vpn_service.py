@@ -598,6 +598,78 @@ async def test_delete_user_config_raises_on_connection_error(mocker):
 
 
 @pytest.mark.asyncio
+async def test_delete_user_config_known_xray_backend_skips_ssh(mocker):
+    """`backend="xray"` известен заранее — SSH (Amnezia) вообще не пробуем."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+    ssh_mock = mocker.patch.object(service, "_delete_from_ssh_nodes")
+    mocker.patch.object(service, "_delete_from_xray", return_value=(True, False))
+
+    config = SVPNConfigOut(
+        id=1,
+        file_name="loc_user_123",
+        pub_key='["cfg1"]',
+        backend="xray",
+        node_name="sof",
+    )
+
+    result = await service.delete_user_config(tg_id=123, config=config)
+
+    assert result is True
+    ssh_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_user_config_known_amnezia_backend_skips_xray(mocker):
+    """`backend="amnezia"` известен заранее — 3x-ui вообще не пробуем."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+    mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(False, False))
+    xray_mock = mocker.patch.object(service, "_delete_from_xray")
+
+    config = SVPNConfigOut(
+        id=1,
+        file_name="conf1.conf",
+        pub_key="PUBKEY",
+        backend="amnezia",
+        node_name="main",
+    )
+
+    result = await service.delete_user_config(tg_id=123, config=config)
+
+    assert result is False
+    xray_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_user_config_passes_node_name_through(mocker):
+    """Известный node_name пробрасывается в оба хелпера удаления."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+    ssh_mock = mocker.patch.object(
+        service, "_delete_from_ssh_nodes", return_value=(True, False)
+    )
+    mocker.patch.object(service, "_delete_from_xray")
+
+    config = SVPNConfigOut(
+        id=1, file_name="conf1.conf", pub_key="PUBKEY", node_name="sof"
+    )
+
+    await service.delete_user_config(tg_id=123, config=config)
+
+    ssh_mock.assert_awaited_once_with("PUBKEY", "conf1.conf", node_name="sof")
+
+
+@pytest.mark.asyncio
 async def test_extend_user_xray_subscription_no_active_subscription(mocker, user_out):
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
@@ -669,6 +741,45 @@ async def test_extend_user_xray_subscription_success(mocker, user_out):
     called_kwargs = xray_adapter.extend_config.await_args.kwargs
     assert set(called_kwargs["config_ids"]) == {"cfg1", "cfg2"}
     assert called_kwargs["days"] > 0
+
+
+@pytest.mark.asyncio
+async def test_extend_user_xray_subscription_direct_node_lookup(mocker, user_out):
+    """node_name известен — идём сразу на нужную ноду, без перебора всех."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+
+    xray_adapter = mocker.AsyncMock()
+    xray_adapter.extend_config.return_value = ["cfg1", "cfg2"]
+    xray_registry = mocker.Mock()
+    xray_registry.get_optional.return_value = xray_adapter
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = user_out.model_copy(
+        update={
+            "telegram_id": 123,
+            "current_subscription": SimpleNamespace(
+                is_active=True, end_date=datetime(2999, 1, 1)
+            ),
+            "vpn_configs": [
+                SVPNConfigOut(
+                    id=1,
+                    file_name="loc_user_123",
+                    pub_key='["cfg1", "cfg2"]',
+                    backend="xray",
+                    node_name="sof",
+                    config_ids=["cfg1", "cfg2"],
+                )
+            ],
+        }
+    )
+
+    result = await service.extend_user_xray_subscription(user=user)
+
+    assert set(result) == {"cfg1", "cfg2"}
+    xray_registry.get_optional.assert_called_once_with("sof")
+    xray_registry.all.assert_not_called()
 
 
 @pytest.mark.asyncio

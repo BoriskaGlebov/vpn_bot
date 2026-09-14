@@ -670,6 +670,26 @@ class XRayRegistry:
         """
         return list(self._adapters.values())
 
+    def get_optional(self, name: str | None) -> ThreeXUIAdapter | None:
+        """Возвращает адаптер по имени ноды либо None, если не найден.
+
+        В отличие от `get`, не бросает исключение — используется там, где
+        `name` мог прийти из `VPNConfig.node_name` старой записи (ещё не
+        заполненной на этапе создания) или из ноды, которая с тех пор была
+        удалена из конфигурации: вызывающий код сам решает, как деградировать
+        (обычно — перебором через `all()`).
+
+        Args:
+            name (str | None): Имя VPN-ноды.
+
+        Returns
+            ThreeXUIAdapter | None: Адаптер, если найден, иначе None.
+
+        """
+        if name is None:
+            return None
+        return self._adapters.get(name)
+
     def __repr__(self) -> str:
         """Строковое представление экземпляра класса."""
         return f"XRayRegistry(adapters={list(self._adapters.keys())})"

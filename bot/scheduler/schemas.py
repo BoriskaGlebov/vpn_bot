@@ -44,11 +44,18 @@ class DeletedVPNConfigSchema(BaseModel):
     Attributes
         file_name (str): Имя файла конфигурации VPN.
         pub_key (str): Публичный ключ VPN-конфига.
+        node_name (str | None): Имя ноды/локации — позволяет удалить конфиг
+            напрямую на нужном сервере вместо перебора всех локаций.
+        backend (str | None): Бэкенд конфига ("amnezia" | "xray").
+        config_ids (list[str] | None): Для XRay — uuid клиентов на панели.
 
     """
 
     file_name: str
     pub_key: str
+    node_name: str | None = None
+    backend: str | None = None
+    config_ids: list[str] | None = None
 
 
 class DeleteVPNConfigsEventSchema(EventBase):

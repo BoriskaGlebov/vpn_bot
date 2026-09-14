@@ -7,6 +7,7 @@ from aiogram.exceptions import TelegramForbiddenError
 
 from bot.app_error.api_error import APIClientError
 from bot.app_error.schema import ErrorDetail
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.scheduler.adapter import SchedulerAPIAdapter
 from bot.scheduler.enums import DeleteStatus, SubscriptionEventType
@@ -33,6 +34,9 @@ def service():
 
     xray_registry = MagicMock()
     xray_registry.get.return_value = xray_adapter
+    # По умолчанию нода "неизвестна" — тесты без явного node_name должны
+    # попадать в старую ветку с перебором ALL_LOCATIONS, как раньше.
+    xray_registry.get_optional.return_value = None
     bot = AsyncMock(spec=Bot)
 
     return SchedulerBotService(
@@ -206,7 +210,7 @@ class FakeSSH(AsyncSSHClientWG):
 
 @pytest.mark.asyncio
 async def test_delete_from_ssh_success(service):
-    cfg = MagicMock(pub_key="key", file_name="file")
+    cfg = MagicMock(pub_key="key", file_name="file", backend=None, node_name=None)
 
     result = await service._delete_from_ssh(
         cfg,
@@ -234,7 +238,7 @@ class FakeSSHFail(FakeSSH):
 
 @pytest.mark.asyncio
 async def test_delete_from_ssh_not_found(service):
-    cfg = MagicMock(pub_key="key", file_name="file")
+    cfg = MagicMock(pub_key="key", file_name="file", backend=None, node_name=None)
 
     result = await service._delete_from_ssh(
         cfg,
@@ -250,11 +254,56 @@ async def test_delete_from_ssh_not_found(service):
 async def test_fallback_delete_3xui(service):
     cfg = MagicMock()
     cfg.pub_key = '["id1","id2"]'
+    cfg.node_name = None
+    cfg.config_ids = None
 
     await service._fallback_delete_3xui(cfg)
 
     adapter = service.xray_registry.get.return_value
     assert adapter.delete_config.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_from_ssh_known_xray_backend_skips_ssh(service):
+    """backend="xray" известен заранее — SSH вообще не пробуем."""
+    cfg = MagicMock(pub_key="key", file_name="file", backend="xray", node_name="sof")
+
+    result = await service._delete_from_ssh(cfg, [FakeSSH])
+
+    assert result == DeleteStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_delete_from_ssh_known_node_name_used_directly(service, mocker):
+    """node_name известен — обращаемся сразу к этой ноде, без перебора всех."""
+    cfg = MagicMock(pub_key="key", file_name="file", backend=None, node_name="sof")
+    get_spy = mocker.spy(type(settings_bot.vpn), "get")
+
+    result = await service._delete_from_ssh(cfg, [FakeSSH])
+
+    assert result == DeleteStatus.DELETED
+    called_locations = [c.args[-1] for c in get_spy.call_args_list]
+    assert called_locations == ["sof"]
+
+
+@pytest.mark.asyncio
+async def test_fallback_delete_3xui_known_node_name_used_directly(service):
+    """node_name известен и адаптер для него найден — обращаемся только к нему."""
+    cfg = MagicMock()
+    cfg.pub_key = '["id1","id2"]'
+    cfg.node_name = "sof"
+    cfg.config_ids = None
+
+    known_adapter = AsyncMock()
+    known_adapter.delete_config = AsyncMock(return_value=True)
+    service.xray_registry.get_optional.return_value = known_adapter
+    service.xray_registry.get.return_value = known_adapter
+
+    result = await service._fallback_delete_3xui(cfg)
+
+    assert result == DeleteStatus.DELETED
+    service.xray_registry.get.assert_called_once_with("sof")
+    assert known_adapter.delete_config.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -369,7 +418,7 @@ async def test_fallback_delete_3xui_invalid_json(service):
     до `xray_registry`/`adapter.delete_config` — исход не должен зависеть от
     их поведения, поэтому здесь именно `ERROR`, а не "любой из двух".
     """
-    cfg = MagicMock(pub_key="not_json")
+    cfg = MagicMock(pub_key="not_json", node_name=None, config_ids=None)
 
     result = await service._fallback_delete_3xui(cfg)
 

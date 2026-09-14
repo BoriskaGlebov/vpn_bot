@@ -155,7 +155,13 @@ class SubscriptionScheduler:
 
                 if deleted_configs:
                     files = [
-                        DeletedVPNConfigSchema(file_name=c.file_name, pub_key=c.pub_key)
+                        DeletedVPNConfigSchema(
+                            file_name=c.file_name,
+                            pub_key=c.pub_key,
+                            node_name=c.node_name,
+                            backend=c.backend,
+                            config_ids=c.config_ids,
+                        )
                         for c in deleted_configs
                     ]
                     events.append(
@@ -306,6 +312,9 @@ class SubscriptionScheduler:
             DeletedVPNConfigSchema(
                 file_name=c.file_name,
                 pub_key=c.pub_key,
+                node_name=c.node_name,
+                backend=c.backend,
+                config_ids=c.config_ids,
             )
             for c in deleted_configs
         ]
@@ -348,7 +357,13 @@ class SubscriptionScheduler:
         for cfg in configs:
             cfg.status = VPNConfigStatus.PENDING_DELETE
             deleted.append(
-                DeletedVPNConfig(file_name=cfg.file_name, pub_key=cfg.pub_key)
+                DeletedVPNConfig(
+                    file_name=cfg.file_name,
+                    pub_key=cfg.pub_key,
+                    node_name=cfg.node_name,
+                    backend=cfg.backend,
+                    config_ids=cfg.config_ids,
+                )
             )
         return deleted
 
