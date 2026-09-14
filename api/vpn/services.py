@@ -74,6 +74,10 @@ class VPNService:
         tg_id: int,
         file_name: str,
         pub_key: str,
+        node_name: str | None = None,
+        backend: str | None = None,
+        protocol: str | None = None,
+        config_ids: list[str] | None = None,
     ) -> SVPNCreateResponse:
         """Создаёт и сохраняет новый VPN конфиг для пользователя.
 
@@ -82,6 +86,10 @@ class VPNService:
             tg_id (int): Telegram ID пользователя.
             file_name (str): Название файла конфигурации.
             pub_key (str): Публичный ключ пользователя.
+            node_name (str | None): Имя ноды/локации.
+            backend (str | None): Бэкенд конфига ("amnezia" | "xray").
+            protocol (str | None): Конкретный протокол/версия внутри бэкенда.
+            config_ids (list[str] | None): Для XRay — uuid клиентов на панели.
 
         Raises
             UserNotFoundError: Если пользователь не найден.
@@ -106,6 +114,10 @@ class VPNService:
             user_id=user.id,
             file_name=file_name,
             pub_key=pub_key,
+            node_name=node_name,
+            backend=backend,
+            protocol=protocol,
+            config_ids=config_ids,
         )
         logger.info("Создан VPN конфиг tg_id={} file_name={}", tg_id, file_name)
 

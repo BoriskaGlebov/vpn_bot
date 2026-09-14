@@ -135,6 +135,7 @@ class VPNService:
         tg_user: TGUser,
         ssh_client_factory: SSHClientFactory,
         server_info: VPNNode,
+        node_name: str,
     ) -> tuple[Path, Path, Path, str]:
         """Генерирует VPN-конфигурацию пользователя через SSH и сохраняет её в БД.
 
@@ -152,6 +153,10 @@ class VPNService:
                 Фабрика SSH-клиентов для подключения к VPN-серверу.
             server_info:
                 Конфигурация VPN-сервера.
+            node_name:
+                Имя ноды (ключ в settings_bot.vpn.nodes) — сохраняется в
+                VPNConfig.node_name, чтобы scheduler мог обращаться сразу
+                к нужному серверу без перебора всех локаций.
 
         Returns
             tuple[Path, Path, Path, str]:
@@ -196,6 +201,9 @@ class VPNService:
                 tg_id=user.telegram_id,
                 file_name=f"{file_path1.name} / {file_path2.name} / {file_path3.name}",
                 pub_key=pub_key,
+                node_name=node_name,
+                backend="amnezia",
+                protocol=f"wg_{server_info.protocol_version}",
             )
             logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
 
@@ -294,6 +302,7 @@ class VPNService:
 
         sub_ids = sub_info.get("sub_ids", [])
         config_ids = sub_info.get("config_ids", [])
+        protocols = sub_info.get("protocols", [])
 
         if not sub_ids:
             raise RuntimeError("sub_ids пуст")
@@ -306,6 +315,10 @@ class VPNService:
                 tg_id=user.telegram_id,
                 file_name=file_name,
                 pub_key=pub_key,
+                node_name=location,
+                backend="xray",
+                protocol=",".join(protocols),
+                config_ids=config_ids,
             )
         except APIClientError:
             logger.error("Ошибка XRay tg_id={} rollback", tg_user.id)

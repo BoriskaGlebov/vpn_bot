@@ -57,6 +57,7 @@ async def test_generate_user_config_success(mocker, user_out):
         container="vpn",
         use_local=True,
         location_prefix="ru_",
+        protocol_version="v2",
     )
 
     service = VPNService(
@@ -69,6 +70,7 @@ async def test_generate_user_config_success(mocker, user_out):
         tg_user=tg_user,
         ssh_client_factory=ssh_factory,
         server_info=server_info,
+        node_name="ru",
     )
 
     assert file_path1.name == "test.conf"
@@ -86,6 +88,9 @@ async def test_generate_user_config_success(mocker, user_out):
         tg_id=123456,
         file_name="test.conf / test.vpn / test.png",
         pub_key="pubkey123",
+        node_name="ru",
+        backend="amnezia",
+        protocol="wg_v2",
     )
 
 
@@ -129,6 +134,7 @@ async def test_generate_user_config_limit_reached(mocker, user_out):
             tg_user=tg_user,
             ssh_client_factory=ssh_factory,
             server_info=server_info,
+            node_name="ru",
         )
 
     err = exc.value
@@ -190,6 +196,7 @@ async def test_generate_user_config_db_error_rollback(mocker, user_out):
         container="vpn",
         use_local=True,
         location_prefix="ru_",
+        protocol_version="v2",
     )
 
     with pytest.raises(APIClientError):
@@ -197,6 +204,7 @@ async def test_generate_user_config_db_error_rollback(mocker, user_out):
             tg_user=tg_user,
             ssh_client_factory=ssh_factory,
             server_info=server_info,
+            node_name="ru",
         )
 
     ssh_instance.full_delete_user.assert_awaited_once_with(public_key="pubkey123")
@@ -224,7 +232,11 @@ async def test_generate_xray_subscription_success(mocker, tg_user):
     )
 
     xray_adapter.add_new_config.return_value = (
-        {"sub_ids": ["sub123"], "config_ids": ["cfg1", "cfg2"]},
+        {
+            "sub_ids": ["sub123"],
+            "config_ids": ["cfg1", "cfg2"],
+            "protocols": ["vless_reality_tcp", "vless_reality_xhttp"],
+        },
         "http://sub.url",
     )
 
@@ -241,6 +253,10 @@ async def test_generate_xray_subscription_success(mocker, tg_user):
         tg_id=123,
         file_name="sub123",
         pub_key='["cfg1", "cfg2"]',
+        node_name="ru",
+        backend="xray",
+        protocol="vless_reality_tcp,vless_reality_xhttp",
+        config_ids=["cfg1", "cfg2"],
     )
 
 
