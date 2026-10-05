@@ -21,9 +21,9 @@ from bot.scheduler.schemas import (
 from bot.users.enums import PremiumLocation, available_locations
 from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.adapter import VPNAPIAdapter
-from bot.vpn.services import ssh_lock
+from bot.vpn.services import ssh_client_factory_for, ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -347,75 +347,77 @@ class SchedulerBotService:
     async def _delete_from_ssh(
         self,
         cfg: DeletedVPNConfigSchema,
-        ssh_clients: list[type[AsyncSSHClientWG]],
     ) -> DeleteStatus:
-        """Пытается удалить конфиг через SSH на всех Amnezia-клиентах и локациях.
+        """Пытается удалить конфиг через SSH на всех Amnezia-локациях.
 
-        Перебирает все переданные классы SSH-клиентов и все локации
-        (`ALL_LOCATIONS`), пока конфиг не будет удалён либо не закончатся
-        варианты подключения.
+        Перебирает все локации (`ALL_LOCATIONS`), и для каждой берёт ровно
+        тот SSH-клиент, который соответствует протоколу именно этой ноды
+        (`ssh_client_factory_for`, та же маршрутизация, что при создании
+        конфига в `bot.vpn.services`) — конфиг физически лежит на одной
+        конкретной ноде, перебирать там протоколы других нод бессмысленно и
+        только маскирует NOT_FOUND. Раньше здесь перебирались все классы
+        клиентов (включая устаревший `AsyncSSHClientWG` под контейнер
+        `amnezia-awg`, которого давно нет ни на одной ноде) против всех
+        локаций — гарантированная ошибка "No such container" на первом же
+        клиенте навсегда переводила итог в ERROR и блокировала удаление из
+        БД для всех конфигов.
 
         Args:
             cfg: Данные удаляемого VPN-конфига (имя файла и публичный ключ).
-            ssh_clients: Классы SSH-клиентов, которые нужно перебрать
-                (например, `AsyncSSHClientWG`, `AsyncSSHClientWG2`).
 
         Returns
-            DeleteStatus: `DELETED`, если конфиг удалён хотя бы одним клиентом;
-                `NOT_FOUND`, если ни на одном сервере не было ошибок, но конфиг
+            DeleteStatus: `DELETED`, если конфиг удалён хотя бы на одной ноде;
+                `NOT_FOUND`, если ни на одной ноде не было ошибок, но конфиг
                 нигде не найден; `ERROR`, если хотя бы одна попытка завершилась
                 ошибкой подключения.
 
         """
         deletion_statistic = []
-        for client_cls in ssh_clients:
-            for loc_prefix in ALL_LOCATIONS:
-                if loc_prefix.name.lower() == "main":
-                    server_info = settings_bot.vpn.get("main")
-                else:
-                    server_info = settings_bot.vpn.get(loc_prefix.value)
-                ssh_client: AsyncSSHClientWG | None = None
-                try:
-                    async with client_cls(
-                        host=server_info.host,
-                        username=server_info.username,
-                        use_local=server_info.use_local,
-                        location_prefix=server_info.location_prefix,
-                    ) as ssh_client:
-                        result = await ssh_client.full_delete_user(
-                            public_key=cfg.pub_key
+        for loc_prefix in ALL_LOCATIONS:
+            if loc_prefix.name.lower() == "main":
+                server_info = settings_bot.vpn.get("main")
+            else:
+                server_info = settings_bot.vpn.get(loc_prefix.value)
+            client_cls = ssh_client_factory_for(server_info)
+            ssh_client: AsyncSSHClientWG | None = None
+            try:
+                async with client_cls(
+                    host=server_info.host,
+                    username=server_info.username,
+                    use_local=server_info.use_local,
+                    location_prefix=server_info.location_prefix,
+                ) as ssh_client:
+                    result = await ssh_client.full_delete_user(public_key=cfg.pub_key)
+                    if result:
+                        logger.info(
+                            "Конфиг удален {} через {}",
+                            cfg.file_name,
+                            client_cls.__name__,
                         )
-                        if result:
-                            logger.info(
-                                "Конфиг удален {} через {}",
-                                cfg.file_name,
-                                client_cls.__name__,
-                            )
-                            return DeleteStatus.DELETED
+                        return DeleteStatus.DELETED
 
-                except AmneziaError as e:
-                    logger.error("SSH deletion error ({}): {}", client_cls.__name__, e)
-                    deletion_statistic.append(DeleteStatus.ERROR)
+            except AmneziaError as e:
+                logger.error("SSH deletion error ({}): {}", client_cls.__name__, e)
+                deletion_statistic.append(DeleteStatus.ERROR)
 
-                except BrokenPipeError as e:
-                    # ssh_client может быть не присвоен, если BrokenPipeError
-                    # произошёл на этапе подключения (до входа в `async with`).
-                    await self._handle_broken_pipe(
-                        ssh_client or client_cls, cfg.file_name, e
-                    )
-                    deletion_statistic.append(DeleteStatus.ERROR)
-        else:
-            return (
-                DeleteStatus.NOT_FOUND
-                if DeleteStatus.ERROR not in deletion_statistic
-                else DeleteStatus.ERROR
-            )
+            except BrokenPipeError as e:
+                # ssh_client может быть не присвоен, если BrokenPipeError
+                # произошёл на этапе подключения (до входа в `async with`).
+                await self._handle_broken_pipe(
+                    ssh_client or client_cls, cfg.file_name, e
+                )
+                deletion_statistic.append(DeleteStatus.ERROR)
+
+        return (
+            DeleteStatus.NOT_FOUND
+            if DeleteStatus.ERROR not in deletion_statistic
+            else DeleteStatus.ERROR
+        )
 
     async def _trigger_config_deletion(
         self,
         tg_id: int,
         configs: list[DeletedVPNConfigSchema],
-        ssh_clients: list[type[AsyncSSHClientWG]],
     ) -> int:
         """Оркестрирует последовательное удаление VPN-конфигов пользователя.
 
@@ -429,7 +431,6 @@ class SchedulerBotService:
         Args:
             tg_id: Telegram ID пользователя, которому принадлежат конфиги.
             configs: Список конфигов на удаление.
-            ssh_clients: Классы SSH-клиентов для перебора в `_delete_from_ssh`.
 
         Returns
             int: Количество фактически удалённых конфигов.
@@ -440,7 +441,7 @@ class SchedulerBotService:
         count_deleted = 0
         async with ssh_lock:
             for cfg in configs:
-                ssh_status = await self._delete_from_ssh(cfg, ssh_clients)
+                ssh_status = await self._delete_from_ssh(cfg)
 
                 if ssh_status == DeleteStatus.DELETED:
                     await self._delete_from_db(cfg)
@@ -521,7 +522,7 @@ class SchedulerBotService:
 
         for event in delete_events:
             count_deleted = await self._trigger_config_deletion(
-                event.user_id, event.configs, [AsyncSSHClientWG, AsyncSSHClientWG2]
+                event.user_id, event.configs
             )
             stats.configs_deleted += count_deleted
             if count_deleted > 0:
