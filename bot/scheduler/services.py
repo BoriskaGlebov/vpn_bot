@@ -289,8 +289,10 @@ class SchedulerBotService:
         Returns
             DeleteStatus: `DELETED`, если все config_id успешно удалены в
                 какой-то одной локации; `NOT_FOUND`, если ошибок не было, но
-                удалить нечего; `ERROR`, если `pub_key` не распарсился как
-                JSON или удаление хотя бы одного config_id завершилось ошибкой.
+                удалить нечего (включая случай, когда `pub_key` не является
+                JSON — это WG-ключ, а значит конфига в 3x-ui не может быть
+                по формату); `ERROR`, если удаление хотя бы одного config_id
+                завершилось ошибкой.
 
         """
         logger.info("Fallback: проверка 3x-ui")
@@ -333,8 +335,14 @@ class SchedulerBotService:
             )
 
         except json.JSONDecodeError:
-            logger.error("Ошибка десериализации pub_key: {}", cfg.pub_key)
-            return DeleteStatus.ERROR
+            # pub_key не JSON — значит это WG-ключ, а не список config_id
+            # 3x-ui, т.е. такого конфига в 3x-ui не может быть по формату.
+            # Это не ошибка, а детерминированный "не найдено".
+            logger.debug(
+                "pub_key не похож на 3x-ui (не JSON) — конфиг {} не из 3x-ui",
+                cfg.file_name,
+            )
+            return DeleteStatus.NOT_FOUND
 
     async def _delete_from_ssh(
         self,
