@@ -363,17 +363,19 @@ async def test_trigger_config_deletion_both_not_found_cleans_up_db(service, mock
 
 @pytest.mark.asyncio
 async def test_fallback_delete_3xui_invalid_json(service):
-    """Невалидный pub_key (не JSON-список config_id) — детерминированно ERROR.
+    """Невалидный pub_key (не JSON-список config_id) — это WG-ключ, не 3x-ui.
 
     `json.loads` бросает `JSONDecodeError` до того, как код успевает дойти
-    до `xray_registry`/`adapter.delete_config` — исход не должен зависеть от
-    их поведения, поэтому здесь именно `ERROR`, а не "любой из двух".
+    до `xray_registry`/`adapter.delete_config`. Такой pub_key по формату не
+    может быть конфигом 3x-ui, поэтому результат — детерминированный
+    NOT_FOUND (а не ERROR), чтобы `_trigger_config_deletion` корректно
+    удалил запись из БД, а не слал ложное уведомление об ошибке.
     """
     cfg = MagicMock(pub_key="not_json")
 
     result = await service._fallback_delete_3xui(cfg)
 
-    assert result == DeleteStatus.ERROR
+    assert result == DeleteStatus.NOT_FOUND
     service.xray_registry.get.assert_not_called()
 
 
