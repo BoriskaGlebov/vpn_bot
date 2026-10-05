@@ -205,15 +205,13 @@ class FakeSSH(AsyncSSHClientWG):
 
 
 @pytest.mark.asyncio
-async def test_delete_from_ssh_success(service):
+async def test_delete_from_ssh_success(service, monkeypatch):
     cfg = MagicMock(pub_key="key", file_name="file")
-
-    result = await service._delete_from_ssh(
-        cfg,
-        [
-            FakeSSH,
-        ],
+    monkeypatch.setattr(
+        "bot.scheduler.services.ssh_client_factory_for", lambda node: FakeSSH
     )
+
+    result = await service._delete_from_ssh(cfg)
 
     assert result == DeleteStatus.DELETED
 
@@ -233,15 +231,13 @@ class FakeSSHFail(FakeSSH):
 
 
 @pytest.mark.asyncio
-async def test_delete_from_ssh_not_found(service):
+async def test_delete_from_ssh_not_found(service, monkeypatch):
     cfg = MagicMock(pub_key="key", file_name="file")
-
-    result = await service._delete_from_ssh(
-        cfg,
-        [
-            FakeSSHFail,
-        ],
+    monkeypatch.setattr(
+        "bot.scheduler.services.ssh_client_factory_for", lambda node: FakeSSHFail
     )
+
+    result = await service._delete_from_ssh(cfg)
 
     assert result == DeleteStatus.NOT_FOUND
 
@@ -282,9 +278,7 @@ async def test_trigger_config_deletion_both_backends_error_notifies_admins(
         service, "_notify_deletion_failed", new=AsyncMock()
     )
 
-    count = await service._trigger_config_deletion(
-        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
-    )
+    count = await service._trigger_config_deletion(tg_id=123, configs=[cfg])
 
     assert count == 0
     mock_delete_db.assert_not_called()
@@ -318,9 +312,7 @@ async def test_trigger_config_deletion_ssh_error_xray_not_found_still_notifies(
         service, "_notify_deletion_failed", new=AsyncMock()
     )
 
-    count = await service._trigger_config_deletion(
-        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
-    )
+    count = await service._trigger_config_deletion(tg_id=123, configs=[cfg])
 
     assert count == 0
     mock_delete_db.assert_not_called()
@@ -352,9 +344,7 @@ async def test_trigger_config_deletion_both_not_found_cleans_up_db(service, mock
         service, "_notify_deletion_failed", new=AsyncMock()
     )
 
-    count = await service._trigger_config_deletion(
-        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
-    )
+    count = await service._trigger_config_deletion(tg_id=123, configs=[cfg])
 
     assert count == 1
     mock_delete_db.assert_awaited_once_with(cfg)
