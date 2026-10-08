@@ -128,10 +128,10 @@ class AsyncDockerSSHClient:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await process.communicate()
+            raw_stdout, raw_stderr = await process.communicate()
             return (
-                stdout.decode().strip(),
-                stderr.decode().strip(),
+                raw_stdout.decode().strip(),
+                raw_stderr.decode().strip(),
                 process.returncode,
                 cmd,
             )

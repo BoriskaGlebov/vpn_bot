@@ -110,8 +110,16 @@ async def test_get_subscription_info(api_client):
                 "subscription_type": "PREMIUM",
                 "remaining": "10",
                 "configs": [
-                    {"file_name": "config1.conf"},
-                    {"file_name": "config2.conf"},
+                    {
+                        "file_name": "config1.conf",
+                        "node_name": "main",
+                        "created_at": "2026-01-01T00:00:00",
+                    },
+                    {
+                        "file_name": "config2.conf",
+                        "node_name": "sof",
+                        "created_at": "2026-01-02T00:00:00",
+                    },
                 ],
                 "end_date": "2026-01-01",
             },

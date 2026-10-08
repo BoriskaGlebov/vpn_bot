@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
+from shared.enums.vpn_enum import VPNBackend
+
 
 class SVPNCreateRequest(BaseModel):
     """Схема запроса на создание нового VPN-конфига.
@@ -9,8 +11,10 @@ class SVPNCreateRequest(BaseModel):
         file_name (str): Имя файла конфигурации VPN.
         pub_key (str): Публичный ключ пользователя.
         node_name (str | None): Имя ноды/локации (ключ в settings_bot.vpn.nodes).
-        backend (str | None): Бэкенд конфига ("amnezia" | "xray").
-        protocol (str | None): Конкретный протокол/версия внутри бэкенда.
+        backend (VPNBackend | None): Бэкенд конфига.
+        protocol (str | None): Протокол/версия внутри бэкенда — одно или
+            несколько значений `VPNProtocol` через запятую (у XRay-подписки
+            это несколько inbound сразу).
         config_ids (list[str] | None): Для XRay — uuid клиентов на панели.
 
     """
@@ -19,7 +23,7 @@ class SVPNCreateRequest(BaseModel):
     file_name: str
     pub_key: str
     node_name: str | None = None
-    backend: str | None = None
+    backend: VPNBackend | None = None
     protocol: str | None = None
     config_ids: list[str] | None = None
 

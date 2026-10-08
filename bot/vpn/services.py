@@ -28,6 +28,7 @@ from bot.vpn.utils.amnezia_wg import (
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
 from bot.vpn.utils.x_ray_config import XRayRegistry
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError, ThreeXUIError
+from shared.enums.vpn_enum import VPNBackend, VPNProtocol
 
 ssh_lock = asyncio.Lock()
 xray_lock = asyncio.Lock()
@@ -202,8 +203,8 @@ class VPNService:
                 file_name=f"{file_path1.name} / {file_path2.name} / {file_path3.name}",
                 pub_key=pub_key,
                 node_name=node_name,
-                backend="amnezia",
-                protocol=f"wg_{server_info.protocol_version}",
+                backend=VPNBackend.AMNEZIA,
+                protocol=VPNProtocol.for_wg(server_info.protocol_version),
             )
             logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
 
@@ -316,7 +317,7 @@ class VPNService:
                 file_name=file_name,
                 pub_key=pub_key,
                 node_name=location,
-                backend="xray",
+                backend=VPNBackend.XRAY,
                 protocol=",".join(protocols),
                 config_ids=config_ids,
             )
@@ -363,7 +364,7 @@ class VPNService:
         by_node: dict[str, set[str]] = {}
         legacy: set[str] = set()
         for config in configs:
-            if config.backend and config.backend != "xray":
+            if config.backend and config.backend != VPNBackend.XRAY:
                 continue
             ids = config.config_ids
             if ids is None:
@@ -687,13 +688,13 @@ class VPNService:
         deleted = False
         had_error = False
 
-        if config.backend != "xray":
+        if config.backend != VPNBackend.XRAY:
             async with ssh_lock:
                 deleted, had_error = await self._delete_from_ssh_nodes(
                     config.pub_key, config.file_name, node_name=config.node_name
                 )
 
-        if not deleted and config.backend != "amnezia":
+        if not deleted and config.backend != VPNBackend.AMNEZIA:
             async with xray_lock:
                 deleted, xray_error = await self._delete_from_xray(
                     config.pub_key,

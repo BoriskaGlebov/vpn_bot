@@ -804,10 +804,12 @@ bot:
       config_delete:
         confirm: |
           ❗ Удалить конфиг «{file_name}»?
+          Локация: {location}
+          Создан: {created_at}
 
           Вы потеряете доступ к VPN по этому файлу. Отменить это действие будет нельзя.
         deleting: Удаляю…
-        success: "✅ Конфиг «{file_name}» удалён."
+        success: "✅ Конфиг «{file_name}» (локация: {location}, создан: {created_at}) удалён."
         cancelled: Отменено
     referrals:
       invite: |

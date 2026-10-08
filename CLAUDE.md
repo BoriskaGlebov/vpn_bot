@@ -48,7 +48,7 @@ poetry run ruff format --check .
 poetry run mypy .
 ```
 
-`ruff.toml` and `pyproject.toml`'s `[tool.mypy]` both exclude `*/migrations/*`, `bot/tests/`, `api/tests/`, and `bot/vpn/utils/` (mypy only) from checks — don't expect those directories to be clean under mypy.
+`ruff.toml` and `pyproject.toml`'s `[tool.mypy]` both exclude `*/migrations/*`, `bot/tests/`, and `api/tests/` from checks — don't expect those directories to be clean under mypy.
 
 ### Database migrations
 

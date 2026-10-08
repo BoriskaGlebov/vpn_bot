@@ -167,8 +167,12 @@ async def test_get_subscription_info_active(mocker):
         subscription_type="premium",
         remaining="10 дней",
         configs=[
-            SVPNConfig(file_name="conf1"),
-            SVPNConfig(file_name="conf2"),
+            SVPNConfig(
+                file_name="conf1", node_name="main", created_at=datetime(2026, 1, 1)
+            ),
+            SVPNConfig(
+                file_name="conf2", node_name="sof", created_at=datetime(2026, 1, 2)
+            ),
         ],
         end_date=datetime(2026, 1, 1),
     )
@@ -182,8 +186,10 @@ async def test_get_subscription_info_active(mocker):
     assert "✅ Активна" in result
     assert "<b>PREMIUM</b>" in result
     assert "10 дней до (2026-01-01)" in result
-    assert "📌 conf1" in result
-    assert "📌 conf2" in result
+    assert "📌 <b>conf1</b>" in result
+    assert "📌 <b>conf2</b>" in result
+    assert "Создан: 2026-01-01" in result
+    assert "Создан: 2026-01-02" in result
 
 
 @pytest.mark.asyncio

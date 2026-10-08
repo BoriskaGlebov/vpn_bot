@@ -27,28 +27,11 @@ class VPNConfigStatus(str, Enum):
     DELETED = "deleted"
 
 
-class VPNBackend(str, Enum):
-    """Бэкенд, которым обслуживается конфигурация.
-
-    Определяет, какой адаптер (SSH-клиент Amnezia или ThreeXUIAdapter)
-    нужно использовать для продления/удаления конфига.
-
-    Attributes
-        AMNEZIA: WireGuard/AmneziaWG, управление через SSH.
-        XRAY: XRay/VLESS через панель 3x-ui.
-
-    """
-
-    AMNEZIA = "amnezia"
-    XRAY = "xray"
-
-
 # node_name и protocol — не SQLEnum (postgres native enum), а обычные строки.
 # node_name валидируется на уровне кода по settings_bot.vpn.nodes, чтобы не
 # дублировать список серверов в БД. protocol хранит конкретный протокол/версию
-# (wg_v2, wg_v3, vless_reality_tcp, vless_reality_xhttp, hysteria2, ...) —
-# список будет расти, а native enum потребовал бы ALTER TYPE на каждое
-# новое значение.
+# (значения `VPNProtocol`: wg_v2, wg_v3, vless_reality_tcp, ...) — список будет
+# расти, а native enum потребовал бы ALTER TYPE на каждое новое значение.
 class VPNConfig(Base):
     """Модель VPN-конфигурации (WireGuard/AmneziaWG, XRay/3x-ui).
 
@@ -60,8 +43,10 @@ class VPNConfig(Base):
         node_name (str | None): Имя ноды/локации (ключ в settings_bot.vpn.nodes,
             например "main", "sof", "fi", "waw"). Позволяет обращаться сразу
             к нужному серверу вместо перебора всех локаций.
-        backend (VPNBackend | None): Каким адаптером обслуживается конфиг.
-        protocol (str | None): Конкретный протокол/версия внутри бэкенда.
+        backend (str | None): Каким адаптером обслуживается конфиг, значения
+            из `VPNBackend`.
+        protocol (str | None): Конкретный протокол/версия внутри бэкенда,
+            значения из `VPNProtocol`.
         config_ids (list | None): Для XRay — список uuid клиентов на панели
             (по одному на каждый inbound этой подписки), нужен для точечного
             удаления/продления без перебора.

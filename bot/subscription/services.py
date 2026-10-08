@@ -17,6 +17,7 @@ from bot.subscription.adapter import (
 from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
+from bot.utils.formatting import format_vpn_config_date, format_vpn_location
 from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
 from shared.enums.admin_enum import RoleEnum
@@ -272,7 +273,12 @@ class SubscriptionService:
 
         remaining_text = f"{data.remaining} до ({end_date})"
 
-        conf_list = "\n\n".join([f"📌 {conf.file_name}" for conf in data.configs])
+        conf_list = "\n\n".join(
+            f"📌 <b>{conf.file_name}</b>\n"
+            f"   Локация: {format_vpn_location(conf.node_name)}\n"
+            f"   Создан: {format_vpn_config_date(conf.created_at)}"
+            for conf in data.configs
+        )
 
         return f"{status} {sbs_type} — {remaining_text}\n\n{conf_list}"
 

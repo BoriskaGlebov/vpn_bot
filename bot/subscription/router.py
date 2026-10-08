@@ -51,7 +51,12 @@ from bot.subscription.utils.sub_utils import get_correct_price_map, get_correct_
 from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
-from bot.utils.formatting import format_subscription_end_date, format_username
+from bot.utils.formatting import (
+    format_subscription_end_date,
+    format_username,
+    format_vpn_config_date,
+    format_vpn_location,
+)
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
 from bot.vpn.keyboards.inline_kb import (
     ConfigDeleteAction,
@@ -292,7 +297,9 @@ class SubscriptionRouter(BaseRouter):
 
         await msg.edit_text(
             text=m_subscription.config_delete.confirm.format(
-                file_name=config.file_name
+                file_name=config.file_name,
+                location=format_vpn_location(config.node_name),
+                created_at=format_vpn_config_date(config.created_at),
             ),
             reply_markup=confirm_delete_config_kb(config_id=config.id),
         )
@@ -327,7 +334,9 @@ class SubscriptionRouter(BaseRouter):
 
         info_text, keyboard = await self._build_my_subscription_view(tg_id)
         success_text = m_subscription.config_delete.success.format(
-            file_name=config.file_name
+            file_name=config.file_name,
+            location=format_vpn_location(config.node_name),
+            created_at=format_vpn_config_date(config.created_at),
         )
         await msg.edit_text(
             text=f"{success_text}\n\n{info_text}",

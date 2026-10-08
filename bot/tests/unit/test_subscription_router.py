@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
@@ -56,8 +57,20 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
     service_mock = mocker.AsyncMock()
     service_mock.get_subscription_and_referral_info.return_value = "info text"
     service_mock.get_user_vpn_configs.return_value = [
-        SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1"),
-        SVPNConfigOut(id=2, file_name="conf2.conf", pub_key="PUBKEY2"),
+        SVPNConfigOut(
+            id=1,
+            file_name="conf1.conf",
+            pub_key="PUBKEY1",
+            node_name="main",
+            created_at=datetime(2026, 1, 1),
+        ),
+        SVPNConfigOut(
+            id=2,
+            file_name="conf2.conf",
+            pub_key="PUBKEY2",
+            node_name="sof",
+            created_at=datetime(2026, 1, 2),
+        ),
     ]
 
     router = SubscriptionRouter(
@@ -81,8 +94,8 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
     assert kwargs["text"] == "info text"
     buttons = [b for row in kwargs["reply_markup"].inline_keyboard for b in row]
     assert any(b.text == "🔄 Оформить / продлить подписку" for b in buttons)
-    assert any(b.text == "🗑 conf1.conf" for b in buttons)
-    assert any(b.text == "🗑 conf2.conf" for b in buttons)
+    assert any("2026-01-01" in b.text and "#1" in b.text for b in buttons)
+    assert any("2026-01-02" in b.text and "#2" in b.text for b in buttons)
 
 
 @pytest.mark.asyncio
@@ -94,7 +107,12 @@ async def test_config_delete_confirm_shows_confirmation(mocker):
 
     service_mock = mocker.AsyncMock()
     service_mock.get_user_vpn_configs.return_value = [
-        SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1"),
+        SVPNConfigOut(
+            id=1,
+            file_name="conf1.conf",
+            pub_key="PUBKEY1",
+            created_at=datetime(2026, 1, 1),
+        ),
     ]
 
     router = SubscriptionRouter(
@@ -152,7 +170,9 @@ async def test_config_delete_execute_deletes_and_refreshes(mocker):
     query_mock.message = msg_mock
     query_mock.from_user = Mock(id=123, username="user")
 
-    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1")
+    config = SVPNConfigOut(
+        id=1, file_name="conf1.conf", pub_key="PUBKEY1", created_at=datetime(2026, 1, 1)
+    )
     service_mock = mocker.AsyncMock()
     service_mock.get_user_vpn_configs.return_value = [config]
     service_mock.get_subscription_and_referral_info.return_value = "info text"

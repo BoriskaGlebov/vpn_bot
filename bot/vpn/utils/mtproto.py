@@ -10,6 +10,21 @@ from bot.vpn.utils.amnezia_proxy import AsyncDockerSSHClient
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
 
 
+def _decode_stream(stream: str | bytes | None) -> str:
+    """Приводит stdout/stderr результата asyncssh к строке.
+
+    Args:
+        stream (str | bytes | None): Поток вывода команды.
+
+    Returns
+        str: Декодированный вывод, либо пустая строка, если потока нет.
+
+    """
+    if stream is None:
+        return ""
+    return stream if isinstance(stream, str) else stream.decode()
+
+
 # TODO Когда долго контейнер поднят он не логирует ключ доступа и невозможно подключиться
 # к контейнеру, надо перезагружать иногда или где-то отдельно хранить ключ доступа или ссылку на подключение
 class HostDockerSSHClient(AsyncDockerSSHClient):
@@ -108,10 +123,10 @@ class HostDockerSSHClient(AsyncDockerSSHClient):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await process.communicate()
+            raw_stdout, raw_stderr = await process.communicate()
             return (
-                stdout.decode().strip(),
-                stderr.decode().strip(),
+                raw_stdout.decode().strip(),
+                raw_stderr.decode().strip(),
                 process.returncode,
                 cmd,
             )
@@ -120,13 +135,12 @@ class HostDockerSSHClient(AsyncDockerSSHClient):
             raise AmneziaSSHError("SSH-соединение не установлено. Вызови connect()")
 
         result = await self._conn.run(cmd)
-        stdout = (
-            result.stdout if isinstance(result.stdout, str) else result.stdout.decode()
+        return (
+            _decode_stream(result.stdout).strip(),
+            _decode_stream(result.stderr).strip(),
+            result.exit_status,
+            cmd,
         )
-        stderr = (
-            result.stderr if isinstance(result.stderr, str) else result.stderr.decode()
-        )
-        return stdout.strip(), stderr.strip(), result.exit_status, cmd
 
 
 class MTProtoProxy:

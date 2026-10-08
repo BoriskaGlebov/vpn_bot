@@ -527,7 +527,9 @@ async def test_delete_user_config_found_via_ssh(mocker):
     mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(True, False))
     delete_xray_mock = mocker.patch.object(service, "_delete_from_xray")
 
-    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY")
+    config = SVPNConfigOut(
+        id=1, file_name="conf1.conf", pub_key="PUBKEY", created_at=datetime(2026, 1, 1)
+    )
 
     result = await service.delete_user_config(tg_id=123, config=config)
 
@@ -548,7 +550,12 @@ async def test_delete_user_config_found_via_xray_fallback(mocker):
     mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(False, False))
     mocker.patch.object(service, "_delete_from_xray", return_value=(True, False))
 
-    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key='["cfg1"]')
+    config = SVPNConfigOut(
+        id=1,
+        file_name="conf1.conf",
+        pub_key='["cfg1"]',
+        created_at=datetime(2026, 1, 1),
+    )
 
     result = await service.delete_user_config(tg_id=123, config=config)
 
@@ -568,7 +575,9 @@ async def test_delete_user_config_not_found_anywhere_still_cleans_db(mocker):
     mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(False, False))
     mocker.patch.object(service, "_delete_from_xray", return_value=(False, False))
 
-    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY")
+    config = SVPNConfigOut(
+        id=1, file_name="conf1.conf", pub_key="PUBKEY", created_at=datetime(2026, 1, 1)
+    )
 
     result = await service.delete_user_config(tg_id=123, config=config)
 
@@ -589,7 +598,9 @@ async def test_delete_user_config_raises_on_connection_error(mocker):
     mocker.patch.object(service, "_delete_from_ssh_nodes", return_value=(False, True))
     mocker.patch.object(service, "_delete_from_xray", return_value=(False, False))
 
-    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY")
+    config = SVPNConfigOut(
+        id=1, file_name="conf1.conf", pub_key="PUBKEY", created_at=datetime(2026, 1, 1)
+    )
 
     with pytest.raises(VPNConfigDeletionFailedError):
         await service.delete_user_config(tg_id=123, config=config)
@@ -614,6 +625,7 @@ async def test_delete_user_config_known_xray_backend_skips_ssh(mocker):
         pub_key='["cfg1"]',
         backend="xray",
         node_name="sof",
+        created_at=datetime(2026, 1, 1),
     )
 
     result = await service.delete_user_config(tg_id=123, config=config)
@@ -639,6 +651,7 @@ async def test_delete_user_config_known_amnezia_backend_skips_xray(mocker):
         pub_key="PUBKEY",
         backend="amnezia",
         node_name="main",
+        created_at=datetime(2026, 1, 1),
     )
 
     result = await service.delete_user_config(tg_id=123, config=config)
@@ -661,7 +674,11 @@ async def test_delete_user_config_passes_node_name_through(mocker):
     mocker.patch.object(service, "_delete_from_xray")
 
     config = SVPNConfigOut(
-        id=1, file_name="conf1.conf", pub_key="PUBKEY", node_name="sof"
+        id=1,
+        file_name="conf1.conf",
+        pub_key="PUBKEY",
+        node_name="sof",
+        created_at=datetime(2026, 1, 1),
     )
 
     await service.delete_user_config(tg_id=123, config=config)
@@ -697,7 +714,12 @@ async def test_extend_user_xray_subscription_no_xray_configs(mocker, user_out):
                 is_active=True, end_date=datetime(2999, 1, 1)
             ),
             "vpn_configs": [
-                SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="raw-wg-pubkey")
+                SVPNConfigOut(
+                    id=1,
+                    file_name="conf1.conf",
+                    pub_key="raw-wg-pubkey",
+                    created_at=datetime(2026, 1, 1),
+                )
             ],
         }
     )
@@ -728,7 +750,10 @@ async def test_extend_user_xray_subscription_success(mocker, user_out):
             ),
             "vpn_configs": [
                 SVPNConfigOut(
-                    id=1, file_name="loc_user_123", pub_key='["cfg1", "cfg2"]'
+                    id=1,
+                    file_name="loc_user_123",
+                    pub_key='["cfg1", "cfg2"]',
+                    created_at=datetime(2026, 1, 1),
                 )
             ],
         }
@@ -770,6 +795,7 @@ async def test_extend_user_xray_subscription_direct_node_lookup(mocker, user_out
                     backend="xray",
                     node_name="sof",
                     config_ids=["cfg1", "cfg2"],
+                    created_at=datetime(2026, 1, 1),
                 )
             ],
         }
@@ -806,7 +832,12 @@ async def test_extend_user_xray_subscription_not_found_anywhere_raises(
                 is_active=True, end_date=datetime(2999, 1, 1)
             ),
             "vpn_configs": [
-                SVPNConfigOut(id=1, file_name="loc_user_123", pub_key='["cfg1"]')
+                SVPNConfigOut(
+                    id=1,
+                    file_name="loc_user_123",
+                    pub_key='["cfg1"]',
+                    created_at=datetime(2026, 1, 1),
+                )
             ],
         }
     )

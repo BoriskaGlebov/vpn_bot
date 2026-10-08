@@ -25,6 +25,7 @@ from bot.vpn.services import ssh_client_factory_for, ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
+from shared.enums.vpn_enum import VPNBackend
 
 m_subscription_local = settings_bot.messages.modes.subscription
 # available_locations() (не Location) — иначе перебор попадёт на локацию без
@@ -393,7 +394,7 @@ class SchedulerBotService:
                 подключения.
 
         """
-        if cfg.backend == "xray":
+        if cfg.backend == VPNBackend.XRAY:
             return DeleteStatus.NOT_FOUND
 
         if cfg.node_name and cfg.node_name in settings_bot.vpn.nodes:
