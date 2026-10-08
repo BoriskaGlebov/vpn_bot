@@ -9,9 +9,10 @@
 По умолчанию — dry-run (только печатает, что было бы изменено). Реальная
 запись в БД — только с флагом --apply.
 
-Запуск:
-    poetry run python scripts/backfill_vpn_config_fields.py            # dry-run
-    poetry run python scripts/backfill_vpn_config_fields.py --apply    # применить
+Запускать как модуль (из корня репозитория) — иначе `api`/`bot`/`shared`
+не попадут в sys.path:
+    poetry run python -m scripts.backfill_vpn_config_fields            # dry-run
+    poetry run python -m scripts.backfill_vpn_config_fields --apply    # применить
 """
 
 import argparse
@@ -157,6 +158,13 @@ async def run(apply: bool) -> None:
             updated += 1
             print(f"  id={config.id} file_name={config.file_name!r} -> {fields}")
 
+        if skipped:
+            print("\nНе удалось распознать (нужен ручной разбор):")
+            for config in skipped:
+                print(
+                    f"  id={config.id} file_name={config.file_name!r} pub_key={config.pub_key!r}"
+                )
+
         if apply:
             await session.commit()
             print(f"Применено: обновлено {updated}, пропущено {len(skipped)}")
@@ -165,13 +173,6 @@ async def run(apply: bool) -> None:
             print(
                 f"Dry-run: было бы обновлено {updated}, пропущено {len(skipped)} "
                 f"(запустите с --apply, чтобы применить)"
-            )
-
-    if skipped:
-        print("\nНе удалось распознать (нужен ручной разбор):")
-        for config in skipped:
-            print(
-                f"  id={config.id} file_name={config.file_name!r} pub_key={config.pub_key!r}"
             )
 
 
