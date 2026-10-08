@@ -68,6 +68,10 @@ def test_vpn_add_config_success(client, service_mock):
         tg_id=123,
         file_name="test.conf",
         pub_key="key",
+        node_name=None,
+        backend=None,
+        protocol=None,
+        config_ids=None,
     )
 
 

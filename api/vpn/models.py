@@ -1,6 +1,7 @@
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from sqlalchemy import JSON
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -9,7 +10,6 @@ from api.core.database import Base, int_pk
 
 if TYPE_CHECKING:
     from api.users.models import User
-# TODO Мне нужна новая модель для хранения конфиг файлов 3xui
 
 
 class VPNConfigStatus(str, Enum):
@@ -27,15 +27,44 @@ class VPNConfigStatus(str, Enum):
     DELETED = "deleted"
 
 
-# TODO наверно лучше сдлеать отдельное поле с именами локации что б по ней можно было ходить, но встает вопрос масштабирования
+class VPNBackend(str, Enum):
+    """Бэкенд, которым обслуживается конфигурация.
+
+    Определяет, какой адаптер (SSH-клиент Amnezia или ThreeXUIAdapter)
+    нужно использовать для продления/удаления конфига.
+
+    Attributes
+        AMNEZIA: WireGuard/AmneziaWG, управление через SSH.
+        XRAY: XRay/VLESS через панель 3x-ui.
+
+    """
+
+    AMNEZIA = "amnezia"
+    XRAY = "xray"
+
+
+# node_name и protocol — не SQLEnum (postgres native enum), а обычные строки.
+# node_name валидируется на уровне кода по settings_bot.vpn.nodes, чтобы не
+# дублировать список серверов в БД. protocol хранит конкретный протокол/версию
+# (wg_v2, wg_v3, vless_reality_tcp, vless_reality_xhttp, hysteria2, ...) —
+# список будет расти, а native enum потребовал бы ALTER TYPE на каждое
+# новое значение.
 class VPNConfig(Base):
-    """Модель VPN-конфигурации (WireGuard, AmneziaWG).
+    """Модель VPN-конфигурации (WireGuard/AmneziaWG, XRay/3x-ui).
 
     Attributes
         id (int): Уникальный идентификатор записи.
         user_id (int): Внешний ключ на пользователя.
         file_name (str): Название файла конфига (например, `amnezia_wg_abc123.conf`).
         pub_key (str): Публичный ключ WireGuard пользователя.
+        node_name (str | None): Имя ноды/локации (ключ в settings_bot.vpn.nodes,
+            например "main", "sof", "fi", "waw"). Позволяет обращаться сразу
+            к нужному серверу вместо перебора всех локаций.
+        backend (VPNBackend | None): Каким адаптером обслуживается конфиг.
+        protocol (str | None): Конкретный протокол/версия внутри бэкенда.
+        config_ids (list | None): Для XRay — список uuid клиентов на панели
+            (по одному на каждый inbound этой подписки), нужен для точечного
+            удаления/продления без перебора.
         created_at (datetime): Дата и время создания конфига.
         user (User): Пользователь, которому принадлежит конфиг.
 
@@ -53,6 +82,10 @@ class VPNConfig(Base):
         default=VPNConfigStatus.ACTIVE,
         nullable=False,
     )
+    node_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    backend: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    protocol: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    config_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     user: Mapped["User"] = relationship(
         "User", back_populates="vpn_configs", lazy="selectin"
     )

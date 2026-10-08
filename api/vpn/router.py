@@ -78,6 +78,10 @@ async def add_config(
         tg_id=data.tg_id,
         file_name=data.file_name,
         pub_key=data.pub_key,
+        node_name=data.node_name,
+        backend=data.backend,
+        protocol=data.protocol,
+        config_ids=data.config_ids,
     )
 
 

@@ -163,6 +163,7 @@ class VPNRouter(BaseRouter):
         state: FSMContext,
         ssh_client_factory: SSHClientFactory,
         server_info: VPNNode,
+        node_name: str,
         redis_key: str,
         start_text: str,
     ) -> None:
@@ -174,6 +175,7 @@ class VPNRouter(BaseRouter):
             state (FSMContext): FSM состояние.
             ssh_client_factory (SSHClientFactory): фабрика SSH клиента.
             server_info (VPNNode): конфигурация сервера VPN.
+            node_name (str): имя ноды (ключ в settings_bot.vpn.nodes).
             redis_key (str): ключ блокировки генерации.
             start_text (str): текст начала процесса.
 
@@ -199,6 +201,7 @@ class VPNRouter(BaseRouter):
                     tg_user=user,
                     ssh_client_factory=ssh_client_factory,
                     server_info=server_info,
+                    node_name=node_name,
                 )
 
                 try:
@@ -266,6 +269,7 @@ class VPNRouter(BaseRouter):
             state=state,
             ssh_client_factory=ssh_client_factory_for(server_info),
             server_info=server_info,
+            node_name=location,
             redis_key=redis_key,
             start_text=m_vpn.amnezia_wg,
         )

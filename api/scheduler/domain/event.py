@@ -103,11 +103,17 @@ class DeletedVPNConfig:
     Attributes
         file_name: Имя файла конфигурации.
         pub_key: Публичный ключ конфигурации.
+        node_name: Имя ноды/локации, если известно.
+        backend: Бэкенд конфига ("amnezia" | "xray"), если известен.
+        config_ids: Для XRay — uuid клиентов на панели, если известны.
 
     """
 
     file_name: str
     pub_key: str
+    node_name: str | None = None
+    backend: str | None = None
+    config_ids: list[str] | None = None
 
 
 type SubscriptionEvent = (

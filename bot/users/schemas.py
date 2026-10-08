@@ -98,6 +98,12 @@ class SVPNConfigOut(BaseModel):
     id: int = Field(..., description="ID конфига")
     file_name: str = Field(..., description="Имя файла/конфига")
     pub_key: str = Field(..., description="Публичный ключ")
+    node_name: str | None = Field(None, description="Имя ноды/локации")
+    backend: str | None = Field(None, description='Бэкенд ("amnezia" | "xray")')
+    protocol: str | None = Field(None, description="Протокол/версия внутри бэкенда")
+    config_ids: list[str] | None = Field(
+        None, description="Для XRay — uuid клиентов на панели"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

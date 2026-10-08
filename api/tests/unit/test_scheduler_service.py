@@ -86,6 +86,9 @@ def vpn_config():
         pub_key="pubkey123",
         created_at=datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=10),
         status=None,
+        node_name=None,
+        backend=None,
+        config_ids=None,
     )
 
 
@@ -145,6 +148,9 @@ async def test_handle_active_limit_exceeded(
             pub_key=f"key{i}",
             created_at=now - datetime.timedelta(days=i),
             status=None,
+            node_name=None,
+            backend=None,
+            config_ids=None,
         )
         for i in range(3)
     ]

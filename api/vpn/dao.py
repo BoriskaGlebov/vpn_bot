@@ -68,7 +68,15 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
 
     @classmethod
     async def add_config(
-        cls, session: AsyncSession, user_id: int, file_name: str, pub_key: str
+        cls,
+        session: AsyncSession,
+        user_id: int,
+        file_name: str,
+        pub_key: str,
+        node_name: str | None = None,
+        backend: str | None = None,
+        protocol: str | None = None,
+        config_ids: list[str] | None = None,
     ) -> VPNConfig:
         """Создаёт новый VPN конфиг для пользователя.
 
@@ -79,6 +87,10 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             user_id (int): ID пользователя.
             file_name (str): Название файла конфигурации.
             pub_key (str): Публичный ключ пользователя.
+            node_name (str | None): Имя ноды/локации.
+            backend (str | None): Бэкенд конфига ("amnezia" | "xray").
+            protocol (str | None): Конкретный протокол/версия внутри бэкенда.
+            config_ids (list[str] | None): Для XRay — uuid клиентов на панели.
 
         Raises
             ValueError: Если пользователь достиг лимита конфигов.
@@ -110,7 +122,15 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                     username=user.username if user else "unknown_username",
                 )
 
-            config = VPNConfig(user_id=user_id, file_name=file_name, pub_key=pub_key)
+            config = VPNConfig(
+                user_id=user_id,
+                file_name=file_name,
+                pub_key=pub_key,
+                node_name=node_name,
+                backend=backend,
+                protocol=protocol,
+                config_ids=config_ids,
+            )
             session.add(config)
             logger.success(
                 f"[DAO] Создан новый VPNConfig id={config.id} для пользователя {user_id} (файл='{file_name}')",
