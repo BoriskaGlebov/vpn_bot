@@ -1,7 +1,10 @@
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
+
 from api.vpn.models import VPNConfig
+from bot.core.config import VPNNode, settings_bot
 from scripts.backfill_vpn_config_fields import build_prefix_to_node, infer_fields
 
 
@@ -9,14 +12,42 @@ def _config(file_name: str, pub_key: str) -> VPNConfig:
     return cast(VPNConfig, SimpleNamespace(id=1, file_name=file_name, pub_key=pub_key))
 
 
-def test_build_prefix_to_node_from_real_settings() -> None:
+@pytest.fixture
+def fake_nodes(monkeypatch: pytest.MonkeyPatch) -> dict[str, VPNNode]:
+    """Детерминированный набор нод, не зависящий от STAGE/окружения CI.
+
+    `app_config.toml` (CI) и `app_config.develop.toml` (локально) задают
+    разные location_prefix/protocol_version для ноды "main" — тесты не
+    должны зависеть от того, какой из них сейчас реально загружен.
+    """
+    nodes = {
+        "main": VPNNode(
+            host="main.example.com",
+            username="user",
+            container="amnezia-awg2",
+            protocol_version="v3",
+            location_prefix="DE",
+        ),
+        "sof": VPNNode(
+            host="sof.example.com",
+            username="user",
+            container="amnezia-awg2",
+            protocol_version="v2",
+            location_prefix="SOF",
+        ),
+    }
+    monkeypatch.setattr(settings_bot.vpn, "nodes", nodes)
+    return nodes
+
+
+def test_build_prefix_to_node(fake_nodes: dict[str, VPNNode]) -> None:
     prefix_to_node = build_prefix_to_node()
 
     assert prefix_to_node["DE"] == "main"
     assert prefix_to_node["SOF"] == "sof"
 
 
-def test_infer_fields_amnezia() -> None:
+def test_infer_fields_amnezia(fake_nodes: dict[str, VPNNode]) -> None:
     prefix_to_node = {"DE": "main"}
     config = _config(
         file_name="WGDEc52645.conf / VPNDEc52645.vpn / QRDEc52645.png",
