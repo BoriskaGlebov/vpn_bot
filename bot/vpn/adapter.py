@@ -8,6 +8,7 @@ from bot.vpn.schemas import (
     SVPNDeleteRequest,
     SVPNDeleteResponse,
 )
+from shared.enums.vpn_enum import VPNBackend
 
 
 class VPNAPIAdapter:
@@ -31,7 +32,7 @@ class VPNAPIAdapter:
         file_name: str,
         pub_key: str,
         node_name: str | None = None,
-        backend: str | None = None,
+        backend: VPNBackend | None = None,
         protocol: str | None = None,
         config_ids: list[str] | None = None,
     ) -> SVPNCreateResponse:

@@ -17,6 +17,7 @@ from bot.vpn.utils.x_ray_exceptions import (
     ThreeXUIInvalidExpiryError,
     ThreeXUIRequestError,
 )
+from shared.enums.vpn_enum import VPNProtocol
 
 
 class ThreeXUIAdapter:
@@ -460,7 +461,9 @@ class ThreeXUIAdapter:
             user_add_info["config_ids"].add(user_add.id)
             user_add_info["sub_ids"].add(user_add.subId)
             user_add_info["protocols"].add(
-                "vless_reality_tcp" if is_tcp_reality else "vless_reality_xhttp"
+                VPNProtocol.VLESS_REALITY_TCP
+                if is_tcp_reality
+                else VPNProtocol.VLESS_REALITY_XHTTP
             )
             await self._add_user(inbound_id=inb.id, user_add=user_add)
 
