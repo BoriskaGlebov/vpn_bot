@@ -277,14 +277,20 @@ class SchedulerBotService:
     ) -> DeleteStatus:
         """Удаляет конфиг через панели 3x-ui, если не найден/не удалён по SSH.
 
-        `cfg.pub_key` в этом сценарии — не WG-публичный ключ, а JSON-список
-        `config_id` в 3x-ui (перегрузка одного поля под два бэкенда, см.
-        `DeletedVPNConfigSchema`). Перебирает все локации (`ALL_LOCATIONS`) и
-        удаляет там все `config_id` из списка.
+        Если `cfg.node_name` известен и такая нода реально зарегистрирована —
+        удаляет только там, без перебора остальных локаций. Иначе (старая
+        запись без `node_name`, либо нода с тех пор пропала из реестра) —
+        перебирает все локации (`ALL_LOCATIONS`), как раньше.
+
+        `cfg.config_ids`, если заполнен, используется напрямую; иначе (старые
+        записи) парсится из `cfg.pub_key`, который в этом сценарии — не
+        WG-публичный ключ, а JSON-список `config_id` в 3x-ui (перегрузка
+        одного поля под два бэкенда, см. `DeletedVPNConfigSchema`).
 
         Args:
             cfg: Данные удаляемого конфига; `pub_key` ожидается как
-                JSON-массив идентификаторов конфигов в 3x-ui.
+                JSON-массив идентификаторов конфигов в 3x-ui, если
+                `config_ids` не заполнен.
 
         Returns
             DeleteStatus: `DELETED`, если все config_id успешно удалены в
@@ -297,70 +303,84 @@ class SchedulerBotService:
         """
         logger.info("Fallback: проверка 3x-ui")
         deletion_statistic = []
-        try:
-            all_configs = json.loads(cfg.pub_key)
-            for serv_loc in ALL_LOCATIONS:
-                adapter = self.xray_registry.get(
-                    serv_loc.value if serv_loc.name.lower() != "main" else "main"
+
+        if cfg.config_ids is not None:
+            all_configs = cfg.config_ids
+        else:
+            try:
+                all_configs = json.loads(cfg.pub_key)
+            except json.JSONDecodeError:
+                # pub_key не JSON — значит это WG-ключ, а не список config_id
+                # 3x-ui, т.е. такого конфига в 3x-ui не может быть по формату.
+                # Это не ошибка, а детерминированный "не найдено".
+                logger.debug(
+                    "pub_key не похож на 3x-ui (не JSON) — конфиг {} не из 3x-ui",
+                    cfg.file_name,
                 )
-                results = []
-                for config_id in all_configs:
-                    try:
-                        is_deleted = await adapter.delete_config(config_id=config_id)
-                        results.append(is_deleted)
+                return DeleteStatus.NOT_FOUND
 
-                    except APIClientError as e:
-                        logger.warning(
-                            "Ошибка удаления config_id={} в {}: {}",
-                            config_id,
-                            serv_loc,
-                            e,
-                        )
-                        results.append(False)
-                        deletion_statistic.append(DeleteStatus.ERROR)
-                        await self._handle_xray_error(
-                            client_cls=adapter,
-                            error=e,
-                            config_id=config_id,
-                            serv_loc=serv_loc,
-                        )
+        known_adapter = self.xray_registry.get_optional(cfg.node_name)
+        locations: list[str] = (
+            [cfg.node_name]
+            if known_adapter is not None and cfg.node_name is not None
+            else [
+                serv_loc.value if serv_loc.name.lower() != "main" else "main"
+                for serv_loc in ALL_LOCATIONS
+            ]
+        )
 
-                if all(results):
-                    return DeleteStatus.DELETED
+        for serv_loc in locations:
+            adapter = self.xray_registry.get(serv_loc)
+            results = []
+            for config_id in all_configs:
+                try:
+                    is_deleted = await adapter.delete_config(config_id=config_id)
+                    results.append(is_deleted)
 
-            return (
-                DeleteStatus.NOT_FOUND
-                if DeleteStatus.ERROR not in deletion_statistic
-                else DeleteStatus.ERROR
-            )
+                except APIClientError as e:
+                    logger.warning(
+                        "Ошибка удаления config_id={} в {}: {}",
+                        config_id,
+                        serv_loc,
+                        e,
+                    )
+                    results.append(False)
+                    deletion_statistic.append(DeleteStatus.ERROR)
+                    await self._handle_xray_error(
+                        client_cls=adapter,
+                        error=e,
+                        config_id=config_id,
+                        serv_loc=serv_loc,
+                    )
 
-        except json.JSONDecodeError:
-            # pub_key не JSON — значит это WG-ключ, а не список config_id
-            # 3x-ui, т.е. такого конфига в 3x-ui не может быть по формату.
-            # Это не ошибка, а детерминированный "не найдено".
-            logger.debug(
-                "pub_key не похож на 3x-ui (не JSON) — конфиг {} не из 3x-ui",
-                cfg.file_name,
-            )
-            return DeleteStatus.NOT_FOUND
+            if all(results):
+                return DeleteStatus.DELETED
+
+        return (
+            DeleteStatus.NOT_FOUND
+            if DeleteStatus.ERROR not in deletion_statistic
+            else DeleteStatus.ERROR
+        )
 
     async def _delete_from_ssh(
         self,
         cfg: DeletedVPNConfigSchema,
     ) -> DeleteStatus:
-        """Пытается удалить конфиг через SSH на всех Amnezia-локациях.
+        """Пытается удалить конфиг через SSH на Amnezia-клиентах.
 
-        Перебирает все локации (`ALL_LOCATIONS`), и для каждой берёт ровно
-        тот SSH-клиент, который соответствует протоколу именно этой ноды
-        (`ssh_client_factory_for`, та же маршрутизация, что при создании
+        Если `cfg.backend` уже известен и это точно не Amnezia (`"xray"`) —
+        SSH вообще не пробуем, сразу `NOT_FOUND` (см. `_trigger_config_deletion`,
+        который в этом случае перейдёт к `_fallback_delete_3xui`).
+
+        Если `cfg.node_name` известен и такая нода реально сконфигурирована —
+        пробует удалить только на ней. Иначе (старая запись без `node_name`,
+        либо нода с тех пор пропала из конфигурации) — перебирает все
+        локации (`ALL_LOCATIONS`), как раньше. Для каждой локации берётся
+        ровно тот SSH-клиент, который соответствует протоколу именно этой
+        ноды (`ssh_client_factory_for`, та же маршрутизация, что при создании
         конфига в `bot.vpn.services`) — конфиг физически лежит на одной
         конкретной ноде, перебирать там протоколы других нод бессмысленно и
-        только маскирует NOT_FOUND. Раньше здесь перебирались все классы
-        клиентов (включая устаревший `AsyncSSHClientWG` под контейнер
-        `amnezia-awg`, которого давно нет ни на одной ноде) против всех
-        локаций — гарантированная ошибка "No such container" на первом же
-        клиенте навсегда переводила итог в ERROR и блокировала удаление из
-        БД для всех конфигов.
+        только маскирует NOT_FOUND.
 
         Args:
             cfg: Данные удаляемого VPN-конфига (имя файла и публичный ключ).
@@ -368,16 +388,25 @@ class SchedulerBotService:
         Returns
             DeleteStatus: `DELETED`, если конфиг удалён хотя бы на одной ноде;
                 `NOT_FOUND`, если ни на одной ноде не было ошибок, но конфиг
-                нигде не найден; `ERROR`, если хотя бы одна попытка завершилась
-                ошибкой подключения.
+                нигде не найден (либо `cfg.backend` заведомо не "amnezia");
+                `ERROR`, если хотя бы одна попытка завершилась ошибкой
+                подключения.
 
         """
+        if cfg.backend == "xray":
+            return DeleteStatus.NOT_FOUND
+
+        if cfg.node_name and cfg.node_name in settings_bot.vpn.nodes:
+            locations: list[str] = [cfg.node_name]
+        else:
+            locations = [
+                "main" if loc_prefix.name.lower() == "main" else loc_prefix.value
+                for loc_prefix in ALL_LOCATIONS
+            ]
+
         deletion_statistic = []
-        for loc_prefix in ALL_LOCATIONS:
-            if loc_prefix.name.lower() == "main":
-                server_info = settings_bot.vpn.get("main")
-            else:
-                server_info = settings_bot.vpn.get(loc_prefix.value)
+        for loc in locations:
+            server_info = settings_bot.vpn.get(loc)
             client_cls = ssh_client_factory_for(server_info)
             ssh_client: AsyncSSHClientWG | None = None
             try:

@@ -30,12 +30,22 @@ class VPNAPIAdapter:
         tg_id: int,
         file_name: str,
         pub_key: str,
+        node_name: str | None = None,
+        backend: str | None = None,
+        protocol: str | None = None,
+        config_ids: list[str] | None = None,
     ) -> SVPNCreateResponse:
         """Сохраняет конфиг."""
         data, _ = await self.client.post(
             "/api/vpn/config",
             json=SVPNCreateRequest(
-                tg_id=tg_id, file_name=file_name, pub_key=pub_key
+                tg_id=tg_id,
+                file_name=file_name,
+                pub_key=pub_key,
+                node_name=node_name,
+                backend=backend,
+                protocol=protocol,
+                config_ids=config_ids,
             ).model_dump(),
         )
 

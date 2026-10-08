@@ -401,7 +401,8 @@ class ThreeXUIAdapter:
             tuple: (
                 dict: {
                     "config_ids": list[str],
-                    "sub_ids": list[str]
+                    "sub_ids": list[str],
+                    "protocols": list[str]
                 },
                 subscription_url: str
             )
@@ -419,7 +420,19 @@ class ThreeXUIAdapter:
         )
         await self._login(user_credentials=credentials)
         inbounds_correct = await self._get_inbound(inbounds_cfg=self.inbounds_name)
-        user_add_info = {"config_ids": set(), "sub_ids": set()}
+        # Уникальный suffix на каждый вызов add_new_config — иначе subId
+        # получается детерминированным (одинаковым для user_id+ноды) и
+        # повторная генерация просто доливает клиентов в ту же подписку
+        # панели вместо создания новой. Все inbound внутри ОДНОГО вызова
+        # намеренно делят один subId — это одна подписка с несколькими
+        # протоколами (xhttp/tcp reality) для отказоустойчивости.
+        sub_suffix = str(uuid.uuid4())[:8]
+        sub_id = f"{self.location_prefix}user_{tg_id}_{sub_suffix}"
+        user_add_info: dict[str, set[str]] = {
+            "config_ids": set(),
+            "sub_ids": set(),
+            "protocols": set(),
+        }
         for inb in inbounds_correct:
             uid = str(uuid.uuid4())
             logger.debug("Сгенерирован UUID пользователя: {}", uid)
@@ -429,12 +442,13 @@ class ThreeXUIAdapter:
                 else 0
             )
             # У подключения XHTTP нет параметра flow предается пустая строка.
-            flow = "xtls-rprx-vision" if "XHTTP" not in inb.remark else ""
+            is_tcp_reality = "XHTTP" not in inb.remark
+            flow = "xtls-rprx-vision" if is_tcp_reality else ""
             user_add = S3XuiUSerSettings(
                 id=uid,
                 email=f"user_{tg_id}_{uid[:4]}",
                 tgId=tg_id,
-                subId=f"{self.location_prefix}user_{tg_id}",
+                subId=sub_id,
                 flow=flow,
                 limitIp=0,
                 totalGB=0,
@@ -445,15 +459,19 @@ class ThreeXUIAdapter:
             )
             user_add_info["config_ids"].add(user_add.id)
             user_add_info["sub_ids"].add(user_add.subId)
+            user_add_info["protocols"].add(
+                "vless_reality_tcp" if is_tcp_reality else "vless_reality_xhttp"
+            )
             await self._add_user(inbound_id=inb.id, user_add=user_add)
 
         await self._restart_x_ray()
         await self._logout()
-        url = f"https://{self.host}:{self.sub_port}/{self.sub_prefix}/{self.location_prefix}user_{tg_id}"
+        url = f"https://{self.host}:{self.sub_port}/{self.sub_prefix}/{sub_id}"
         logger.info("Конфигурация успешно создана для tg_id={}", tg_id)
         return {
             "config_ids": list(user_add_info["config_ids"]),
             "sub_ids": list(user_add_info["sub_ids"]),
+            "protocols": sorted(user_add_info["protocols"]),
         }, url
 
     async def extend_config(
@@ -651,6 +669,26 @@ class XRayRegistry:
 
         """
         return list(self._adapters.values())
+
+    def get_optional(self, name: str | None) -> ThreeXUIAdapter | None:
+        """Возвращает адаптер по имени ноды либо None, если не найден.
+
+        В отличие от `get`, не бросает исключение — используется там, где
+        `name` мог прийти из `VPNConfig.node_name` старой записи (ещё не
+        заполненной на этапе создания) или из ноды, которая с тех пор была
+        удалена из конфигурации: вызывающий код сам решает, как деградировать
+        (обычно — перебором через `all()`).
+
+        Args:
+            name (str | None): Имя VPN-ноды.
+
+        Returns
+            ThreeXUIAdapter | None: Адаптер, если найден, иначе None.
+
+        """
+        if name is None:
+            return None
+        return self._adapters.get(name)
 
     def __repr__(self) -> str:
         """Строковое представление экземпляра класса."""

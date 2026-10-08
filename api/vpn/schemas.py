@@ -8,12 +8,20 @@ class SVPNCreateRequest(BaseModel):
         tg_id (int): Telegram ID пользователя.
         file_name (str): Имя файла конфигурации VPN.
         pub_key (str): Публичный ключ пользователя.
+        node_name (str | None): Имя ноды/локации (ключ в settings_bot.vpn.nodes).
+        backend (str | None): Бэкенд конфига ("amnezia" | "xray").
+        protocol (str | None): Конкретный протокол/версия внутри бэкенда.
+        config_ids (list[str] | None): Для XRay — uuid клиентов на панели.
 
     """
 
     tg_id: int
     file_name: str
     pub_key: str
+    node_name: str | None = None
+    backend: str | None = None
+    protocol: str | None = None
+    config_ids: list[str] | None = None
 
 
 class SVPNCreateResponse(BaseModel):

@@ -50,6 +50,10 @@ async def test_add_config(api_client):
             "tg_id": 123,
             "file_name": "test.conf",
             "pub_key": "pubkey123",
+            "node_name": None,
+            "backend": None,
+            "protocol": None,
+            "config_ids": None,
         }
 
         return httpx.Response(
