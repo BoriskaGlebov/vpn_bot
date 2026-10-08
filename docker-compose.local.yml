@@ -42,6 +42,7 @@ services:
       - static_files2:/usr/src/app/templates  # Подключение шаблонов Jinja2
     networks:
       - infrastructure_net
+
 networks:
   infrastructure_net:
     name: infrastructure_net

@@ -209,15 +209,13 @@ class FakeSSH(AsyncSSHClientWG):
 
 
 @pytest.mark.asyncio
-async def test_delete_from_ssh_success(service):
-    cfg = MagicMock(pub_key="key", file_name="file", backend=None, node_name=None)
-
-    result = await service._delete_from_ssh(
-        cfg,
-        [
-            FakeSSH,
-        ],
+async def test_delete_from_ssh_success(service, monkeypatch):
+    cfg = MagicMock(pub_key="key", file_name="file")
+    monkeypatch.setattr(
+        "bot.scheduler.services.ssh_client_factory_for", lambda node: FakeSSH
     )
+
+    result = await service._delete_from_ssh(cfg)
 
     assert result == DeleteStatus.DELETED
 
@@ -237,15 +235,13 @@ class FakeSSHFail(FakeSSH):
 
 
 @pytest.mark.asyncio
-async def test_delete_from_ssh_not_found(service):
-    cfg = MagicMock(pub_key="key", file_name="file", backend=None, node_name=None)
-
-    result = await service._delete_from_ssh(
-        cfg,
-        [
-            FakeSSHFail,
-        ],
+async def test_delete_from_ssh_not_found(service, monkeypatch):
+    cfg = MagicMock(pub_key="key", file_name="file")
+    monkeypatch.setattr(
+        "bot.scheduler.services.ssh_client_factory_for", lambda node: FakeSSHFail
     )
+
+    result = await service._delete_from_ssh(cfg)
 
     assert result == DeleteStatus.NOT_FOUND
 
@@ -254,7 +250,6 @@ async def test_delete_from_ssh_not_found(service):
 async def test_fallback_delete_3xui(service):
     cfg = MagicMock()
     cfg.pub_key = '["id1","id2"]'
-    cfg.node_name = None
     cfg.config_ids = None
 
     await service._fallback_delete_3xui(cfg)
@@ -268,18 +263,23 @@ async def test_delete_from_ssh_known_xray_backend_skips_ssh(service):
     """backend="xray" известен заранее — SSH вообще не пробуем."""
     cfg = MagicMock(pub_key="key", file_name="file", backend="xray", node_name="sof")
 
-    result = await service._delete_from_ssh(cfg, [FakeSSH])
+    result = await service._delete_from_ssh(cfg)
 
     assert result == DeleteStatus.NOT_FOUND
 
 
 @pytest.mark.asyncio
-async def test_delete_from_ssh_known_node_name_used_directly(service, mocker):
+async def test_delete_from_ssh_known_node_name_used_directly(
+    service, mocker, monkeypatch
+):
     """node_name известен — обращаемся сразу к этой ноде, без перебора всех."""
     cfg = MagicMock(pub_key="key", file_name="file", backend=None, node_name="sof")
+    monkeypatch.setattr(
+        "bot.scheduler.services.ssh_client_factory_for", lambda node: FakeSSH
+    )
     get_spy = mocker.spy(type(settings_bot.vpn), "get")
 
-    result = await service._delete_from_ssh(cfg, [FakeSSH])
+    result = await service._delete_from_ssh(cfg)
 
     assert result == DeleteStatus.DELETED
     called_locations = [c.args[-1] for c in get_spy.call_args_list]
@@ -331,9 +331,7 @@ async def test_trigger_config_deletion_both_backends_error_notifies_admins(
         service, "_notify_deletion_failed", new=AsyncMock()
     )
 
-    count = await service._trigger_config_deletion(
-        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
-    )
+    count = await service._trigger_config_deletion(tg_id=123, configs=[cfg])
 
     assert count == 0
     mock_delete_db.assert_not_called()
@@ -367,9 +365,7 @@ async def test_trigger_config_deletion_ssh_error_xray_not_found_still_notifies(
         service, "_notify_deletion_failed", new=AsyncMock()
     )
 
-    count = await service._trigger_config_deletion(
-        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
-    )
+    count = await service._trigger_config_deletion(tg_id=123, configs=[cfg])
 
     assert count == 0
     mock_delete_db.assert_not_called()
@@ -401,9 +397,7 @@ async def test_trigger_config_deletion_both_not_found_cleans_up_db(service, mock
         service, "_notify_deletion_failed", new=AsyncMock()
     )
 
-    count = await service._trigger_config_deletion(
-        tg_id=123, configs=[cfg], ssh_clients=[FakeSSH]
-    )
+    count = await service._trigger_config_deletion(tg_id=123, configs=[cfg])
 
     assert count == 1
     mock_delete_db.assert_awaited_once_with(cfg)
@@ -412,17 +406,19 @@ async def test_trigger_config_deletion_both_not_found_cleans_up_db(service, mock
 
 @pytest.mark.asyncio
 async def test_fallback_delete_3xui_invalid_json(service):
-    """Невалидный pub_key (не JSON-список config_id) — детерминированно ERROR.
+    """Невалидный pub_key (не JSON-список config_id) — это WG-ключ, не 3x-ui.
 
     `json.loads` бросает `JSONDecodeError` до того, как код успевает дойти
-    до `xray_registry`/`adapter.delete_config` — исход не должен зависеть от
-    их поведения, поэтому здесь именно `ERROR`, а не "любой из двух".
+    до `xray_registry`/`adapter.delete_config`. Такой pub_key по формату не
+    может быть конфигом 3x-ui, поэтому результат — детерминированный
+    NOT_FOUND (а не ERROR), чтобы `_trigger_config_deletion` корректно
+    удалил запись из БД, а не слал ложное уведомление об ошибке.
     """
     cfg = MagicMock(pub_key="not_json", node_name=None, config_ids=None)
 
     result = await service._fallback_delete_3xui(cfg)
 
-    assert result == DeleteStatus.ERROR
+    assert result == DeleteStatus.NOT_FOUND
     service.xray_registry.get.assert_not_called()
 
 

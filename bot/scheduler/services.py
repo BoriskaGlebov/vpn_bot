@@ -21,9 +21,9 @@ from bot.scheduler.schemas import (
 from bot.users.enums import PremiumLocation, available_locations
 from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.adapter import VPNAPIAdapter
-from bot.vpn.services import ssh_lock
+from bot.vpn.services import ssh_client_factory_for, ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
-from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG2
+from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -295,8 +295,10 @@ class SchedulerBotService:
         Returns
             DeleteStatus: `DELETED`, если все config_id успешно удалены в
                 какой-то одной локации; `NOT_FOUND`, если ошибок не было, но
-                удалить нечего; `ERROR`, если `pub_key` не распарсился как
-                JSON или удаление хотя бы одного config_id завершилось ошибкой.
+                удалить нечего (включая случай, когда `pub_key` не является
+                JSON — это WG-ключ, а значит конфига в 3x-ui не может быть
+                по формату); `ERROR`, если удаление хотя бы одного config_id
+                завершилось ошибкой.
 
         """
         logger.info("Fallback: проверка 3x-ui")
@@ -308,8 +310,14 @@ class SchedulerBotService:
             try:
                 all_configs = json.loads(cfg.pub_key)
             except json.JSONDecodeError:
-                logger.error("Ошибка десериализации pub_key: {}", cfg.pub_key)
-                return DeleteStatus.ERROR
+                # pub_key не JSON — значит это WG-ключ, а не список config_id
+                # 3x-ui, т.е. такого конфига в 3x-ui не может быть по формату.
+                # Это не ошибка, а детерминированный "не найдено".
+                logger.debug(
+                    "pub_key не похож на 3x-ui (не JSON) — конфиг {} не из 3x-ui",
+                    cfg.file_name,
+                )
+                return DeleteStatus.NOT_FOUND
 
         known_adapter = self.xray_registry.get_optional(cfg.node_name)
         locations: list[str] = (
@@ -357,7 +365,6 @@ class SchedulerBotService:
     async def _delete_from_ssh(
         self,
         cfg: DeletedVPNConfigSchema,
-        ssh_clients: list[type[AsyncSSHClientWG]],
     ) -> DeleteStatus:
         """Пытается удалить конфиг через SSH на Amnezia-клиентах.
 
@@ -366,19 +373,21 @@ class SchedulerBotService:
         который в этом случае перейдёт к `_fallback_delete_3xui`).
 
         Если `cfg.node_name` известен и такая нода реально сконфигурирована —
-        перебирает переданные классы SSH-клиентов только на ней. Иначе
-        (старая запись без `node_name`, либо нода с тех пор пропала из
-        конфигурации) — перебирает все классы клиентов и все локации
-        (`ALL_LOCATIONS`), как раньше.
+        пробует удалить только на ней. Иначе (старая запись без `node_name`,
+        либо нода с тех пор пропала из конфигурации) — перебирает все
+        локации (`ALL_LOCATIONS`), как раньше. Для каждой локации берётся
+        ровно тот SSH-клиент, который соответствует протоколу именно этой
+        ноды (`ssh_client_factory_for`, та же маршрутизация, что при создании
+        конфига в `bot.vpn.services`) — конфиг физически лежит на одной
+        конкретной ноде, перебирать там протоколы других нод бессмысленно и
+        только маскирует NOT_FOUND.
 
         Args:
             cfg: Данные удаляемого VPN-конфига (имя файла и публичный ключ).
-            ssh_clients: Классы SSH-клиентов, которые нужно перебрать
-                (например, `AsyncSSHClientWG`, `AsyncSSHClientWG2`).
 
         Returns
-            DeleteStatus: `DELETED`, если конфиг удалён хотя бы одним клиентом;
-                `NOT_FOUND`, если ни на одном сервере не было ошибок, но конфиг
+            DeleteStatus: `DELETED`, если конфиг удалён хотя бы на одной ноде;
+                `NOT_FOUND`, если ни на одной ноде не было ошибок, но конфиг
                 нигде не найден (либо `cfg.backend` заведомо не "amnezia");
                 `ERROR`, если хотя бы одна попытка завершилась ошибкой
                 подключения.
@@ -396,51 +405,48 @@ class SchedulerBotService:
             ]
 
         deletion_statistic = []
-        for client_cls in ssh_clients:
-            for loc in locations:
-                server_info = settings_bot.vpn.get(loc)
-                ssh_client: AsyncSSHClientWG | None = None
-                try:
-                    async with client_cls(
-                        host=server_info.host,
-                        username=server_info.username,
-                        use_local=server_info.use_local,
-                        location_prefix=server_info.location_prefix,
-                    ) as ssh_client:
-                        result = await ssh_client.full_delete_user(
-                            public_key=cfg.pub_key
+        for loc in locations:
+            server_info = settings_bot.vpn.get(loc)
+            client_cls = ssh_client_factory_for(server_info)
+            ssh_client: AsyncSSHClientWG | None = None
+            try:
+                async with client_cls(
+                    host=server_info.host,
+                    username=server_info.username,
+                    use_local=server_info.use_local,
+                    location_prefix=server_info.location_prefix,
+                ) as ssh_client:
+                    result = await ssh_client.full_delete_user(public_key=cfg.pub_key)
+                    if result:
+                        logger.info(
+                            "Конфиг удален {} через {}",
+                            cfg.file_name,
+                            client_cls.__name__,
                         )
-                        if result:
-                            logger.info(
-                                "Конфиг удален {} через {}",
-                                cfg.file_name,
-                                client_cls.__name__,
-                            )
-                            return DeleteStatus.DELETED
+                        return DeleteStatus.DELETED
 
-                except AmneziaError as e:
-                    logger.error("SSH deletion error ({}): {}", client_cls.__name__, e)
-                    deletion_statistic.append(DeleteStatus.ERROR)
+            except AmneziaError as e:
+                logger.error("SSH deletion error ({}): {}", client_cls.__name__, e)
+                deletion_statistic.append(DeleteStatus.ERROR)
 
-                except BrokenPipeError as e:
-                    # ssh_client может быть не присвоен, если BrokenPipeError
-                    # произошёл на этапе подключения (до входа в `async with`).
-                    await self._handle_broken_pipe(
-                        ssh_client or client_cls, cfg.file_name, e
-                    )
-                    deletion_statistic.append(DeleteStatus.ERROR)
-        else:
-            return (
-                DeleteStatus.NOT_FOUND
-                if DeleteStatus.ERROR not in deletion_statistic
-                else DeleteStatus.ERROR
-            )
+            except BrokenPipeError as e:
+                # ssh_client может быть не присвоен, если BrokenPipeError
+                # произошёл на этапе подключения (до входа в `async with`).
+                await self._handle_broken_pipe(
+                    ssh_client or client_cls, cfg.file_name, e
+                )
+                deletion_statistic.append(DeleteStatus.ERROR)
+
+        return (
+            DeleteStatus.NOT_FOUND
+            if DeleteStatus.ERROR not in deletion_statistic
+            else DeleteStatus.ERROR
+        )
 
     async def _trigger_config_deletion(
         self,
         tg_id: int,
         configs: list[DeletedVPNConfigSchema],
-        ssh_clients: list[type[AsyncSSHClientWG]],
     ) -> int:
         """Оркестрирует последовательное удаление VPN-конфигов пользователя.
 
@@ -454,7 +460,6 @@ class SchedulerBotService:
         Args:
             tg_id: Telegram ID пользователя, которому принадлежат конфиги.
             configs: Список конфигов на удаление.
-            ssh_clients: Классы SSH-клиентов для перебора в `_delete_from_ssh`.
 
         Returns
             int: Количество фактически удалённых конфигов.
@@ -465,7 +470,7 @@ class SchedulerBotService:
         count_deleted = 0
         async with ssh_lock:
             for cfg in configs:
-                ssh_status = await self._delete_from_ssh(cfg, ssh_clients)
+                ssh_status = await self._delete_from_ssh(cfg)
 
                 if ssh_status == DeleteStatus.DELETED:
                     await self._delete_from_db(cfg)
@@ -546,7 +551,7 @@ class SchedulerBotService:
 
         for event in delete_events:
             count_deleted = await self._trigger_config_deletion(
-                event.user_id, event.configs, [AsyncSSHClientWG, AsyncSSHClientWG2]
+                event.user_id, event.configs
             )
             stats.configs_deleted += count_deleted
             if count_deleted > 0:
