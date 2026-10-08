@@ -126,6 +126,7 @@ class SVPNConfigOut(BaseModel):
     config_ids: list[str] | None = Field(
         None, description="Для XRay — uuid клиентов на панели"
     )
+    created_at: datetime = Field(..., description="Дата и время создания конфига")
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -297,5 +297,12 @@ class SubscriptionService:
             subscription_type=subscription.type.value if subscription.type else None,
             remaining=remaining,
             end_date=subscription.end_date if subscription.end_date else None,
-            configs=[SVPNConfig(file_name=c.file_name) for c in user.vpn_configs],
+            configs=[
+                SVPNConfig(
+                    file_name=c.file_name,
+                    node_name=c.node_name,
+                    created_at=c.created_at,
+                )
+                for c in user.vpn_configs
+            ],
         )

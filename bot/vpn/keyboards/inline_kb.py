@@ -5,6 +5,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.users.schemas import SVPNConfigOut
+from bot.utils.formatting import format_vpn_config_date, format_vpn_location
 
 
 class ConfigDeleteAction(StrEnum):
@@ -45,13 +46,18 @@ def my_configs_kb(configs: list[SVPNConfigOut]) -> InlineKeyboardMarkup:
         configs: Список VPN-конфигов пользователя.
 
     Returns
-        InlineKeyboardMarkup: По одной кнопке "🗑 {file_name}" на конфиг.
+        InlineKeyboardMarkup: По одной кнопке "🗑 {локация} · {дата} · #{id}" на
+            конфиг — локация и дата вместо file_name, чтобы кнопки не повторялись
+            один в один при нескольких конфигах на одной ноде; id добавлен, чтобы
+            конфиг с совпадающей локацией/датой всё равно было можно опознать.
 
     """
     builder = InlineKeyboardBuilder()
     for config in configs:
+        location = format_vpn_location(config.node_name)
+        created_at = format_vpn_config_date(config.created_at)
         builder.button(
-            text=f"🗑 {config.file_name}",
+            text=f"🗑 {location} · {created_at} · #{config.id}",
             callback_data=ConfigDeleteCB(
                 action=ConfigDeleteAction.CONFIRM, config_id=config.id
             ),

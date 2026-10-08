@@ -78,10 +78,14 @@ class SVPNConfig(BaseModel):
 
     Attributes
         file_name (str): Имя файла конфигурации.
+        node_name (str | None): Имя ноды/локации (ключ в settings_bot.vpn.nodes).
+        created_at (datetime): Дата и время создания конфига.
 
     """
 
     file_name: str
+    node_name: str | None = None
+    created_at: datetime
 
 
 class SSubscriptionInfo(BaseModel):
