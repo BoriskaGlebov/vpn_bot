@@ -1,0 +1,39 @@
+name: ✨ Фича
+description: Новая возможность для пользователей бота
+title: "[FEATURE]: "
+labels: ["feature"]
+assignees: ["BoriskaGlebov"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую проблему пользователя решаем
+      description: >
+        Начни с пользователя, а не с решения. «Не понимает, какой локации конфиг» —
+        это проблема; «добавить колонку location» — уже решение.
+      placeholder: Пользователь не может оплатить подписку, если Telegram заблокирован.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Что предлагается сделать
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Как понять, что готово
+      description: Что пользователь сможет сделать после этого, чего не мог раньше.
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Дополнительно
+      description: Ограничения, зависимости от других задач, ссылки.
+    validations:
+      required: false
