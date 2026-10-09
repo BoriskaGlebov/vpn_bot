@@ -1,0 +1,53 @@
+name: 🐛 Баг
+description: Что-то работает не так, как должно
+title: "[BUG]: "
+labels: ["bug"]
+assignees: ["BoriskaGlebov"]
+body:
+  - type: textarea
+    id: actual
+    attributes:
+      label: Что происходит
+      description: Наблюдаемое поведение. Если есть текст ошибки или лог — приложи.
+      placeholder: Кнопка «Прокси» есть в меню, но при нажатии конфиг не выдаётся.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что должно происходить
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как воспроизвести
+      description: Шаги, при которых это видно. Если воспроизводится не всегда — напиши, при каких условиях.
+      placeholder: |
+        1. /start
+        2. Меню → Прокси
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: where
+    attributes:
+      label: Где в коде
+      description: Модуль или файлы, если известно. Не знаешь — так и напиши.
+      placeholder: bot/vpn/utils/amnezia_proxy.py
+    validations:
+      required: false
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Кого задевает
+      options:
+        - Живых пользователей прямо сейчас
+        - Только админку
+        - Только разработку / CI
+    validations:
+      required: true
