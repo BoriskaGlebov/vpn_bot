@@ -218,7 +218,8 @@ async def test_delete_config_not_found(adapter):
     result = await adapter.delete_config("missing-id")
 
     assert result is False
-    adapter._logout.assert_not_called()
+    # _session() гарантирует logout даже при раннем return (config не найден).
+    adapter._logout.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,8 @@
 import json
 import time
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from loguru import logger
@@ -163,6 +165,26 @@ class ThreeXUIAdapter:
         except APIClientError as e:
             logger.info("Logout response обработан как successful: {}", e)
         logger.info("Сессия завершена (logout)")
+
+    @asynccontextmanager
+    async def _session(self) -> AsyncIterator[None]:
+        """Открывает сессию в панели 3x-ui и гарантированно закрывает её.
+
+        Оборачивает `_login`/`_logout` в try/finally — исключение внутри
+        блока (ошибка API, доменная ошибка) не оставляет сессию открытой
+        на панели, как было бы при ручной последовательности вызовов.
+
+        Raises
+            APIClientConnectionError: При ошибке соединения с API.
+            ThreeXUIAuthError: Если панель отклонила учётные данные.
+
+        """
+        credentials = S3XuiCredentials(username=self.username, password=self.password)
+        await self._login(user_credentials=credentials)
+        try:
+            yield
+        finally:
+            await self._logout()
 
     async def _get_all_inbounds(self) -> list[Inbound]:
         """Получает все inbound-конфигурации из панели.
@@ -415,12 +437,6 @@ class ThreeXUIAdapter:
 
         """
         logger.info("Создание новой конфигурации для tg_id={} на {} дней", tg_id, days)
-        credentials = S3XuiCredentials(
-            username=self.username,
-            password=self.password,
-        )
-        await self._login(user_credentials=credentials)
-        inbounds_correct = await self._get_inbound(inbounds_cfg=self.inbounds_name)
         # Уникальный suffix на каждый вызов add_new_config — иначе subId
         # получается детерминированным (одинаковым для user_id+ноды) и
         # повторная генерация просто доливает клиентов в ту же подписку
@@ -434,41 +450,42 @@ class ThreeXUIAdapter:
             "sub_ids": set(),
             "protocols": set(),
         }
-        for inb in inbounds_correct:
-            uid = str(uuid.uuid4())
-            logger.debug("Сгенерирован UUID пользователя: {}", uid)
-            remaining_days = (
-                (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
-                if days > 0
-                else 0
-            )
-            # У подключения XHTTP нет параметра flow предается пустая строка.
-            is_tcp_reality = "XHTTP" not in inb.remark
-            flow = "xtls-rprx-vision" if is_tcp_reality else ""
-            user_add = S3XuiUSerSettings(
-                id=uid,
-                email=f"user_{tg_id}_{uid[:4]}",
-                tgId=tg_id,
-                subId=sub_id,
-                flow=flow,
-                limitIp=0,
-                totalGB=0,
-                expiryTime=remaining_days,
-                reset=0,
-                enable=True,
-                comment="Пользователь добавил конфиг через бота",
-            )
-            user_add_info["config_ids"].add(user_add.id)
-            user_add_info["sub_ids"].add(user_add.subId)
-            user_add_info["protocols"].add(
-                VPNProtocol.VLESS_REALITY_TCP
-                if is_tcp_reality
-                else VPNProtocol.VLESS_REALITY_XHTTP
-            )
-            await self._add_user(inbound_id=inb.id, user_add=user_add)
+        async with self._session():
+            inbounds_correct = await self._get_inbound(inbounds_cfg=self.inbounds_name)
+            for inb in inbounds_correct:
+                uid = str(uuid.uuid4())
+                logger.debug("Сгенерирован UUID пользователя: {}", uid)
+                remaining_days = (
+                    (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
+                    if days > 0
+                    else 0
+                )
+                # У подключения XHTTP нет параметра flow предается пустая строка.
+                is_tcp_reality = "XHTTP" not in inb.remark
+                flow = "xtls-rprx-vision" if is_tcp_reality else ""
+                user_add = S3XuiUSerSettings(
+                    id=uid,
+                    email=f"user_{tg_id}_{uid[:4]}",
+                    tgId=tg_id,
+                    subId=sub_id,
+                    flow=flow,
+                    limitIp=0,
+                    totalGB=0,
+                    expiryTime=remaining_days,
+                    reset=0,
+                    enable=True,
+                    comment="Пользователь добавил конфиг через бота",
+                )
+                user_add_info["config_ids"].add(user_add.id)
+                user_add_info["sub_ids"].add(user_add.subId)
+                user_add_info["protocols"].add(
+                    VPNProtocol.VLESS_REALITY_TCP
+                    if is_tcp_reality
+                    else VPNProtocol.VLESS_REALITY_XHTTP
+                )
+                await self._add_user(inbound_id=inb.id, user_add=user_add)
 
-        await self._restart_x_ray()
-        await self._logout()
+            await self._restart_x_ray()
         url = f"https://{self.host}:{self.sub_port}/{self.sub_prefix}/{sub_id}"
         logger.info("Конфигурация успешно создана для tg_id={}", tg_id)
         return {
@@ -530,35 +547,30 @@ class ThreeXUIAdapter:
 
         logger.info("Продление конфигураций {} на {} дней", config_ids, days)
 
-        credentials = S3XuiCredentials(
-            username=self.username,
-            password=self.password,
-        )
-        await self._login(user_credentials=credentials)
-        inbounds_correct = await self._get_inbound(inbounds_cfg=self.inbounds_name)
         new_expiry = (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
 
         pending = set(config_ids)
         extended: list[str] = []
 
-        for inb in inbounds_correct:
-            if not pending:
-                break
-            clients = await self._get_inbound_clients(inb.id)
-            for client in clients:
-                client_id = client.get("id")
-                if client_id not in pending:
-                    continue
-                client["expiryTime"] = new_expiry
-                client["enable"] = True
-                await self._update_client(
-                    inbound_id=inb.id, client_id=client_id, client=client
-                )
-                extended.append(client_id)
-                pending.discard(client_id)
+        async with self._session():
+            inbounds_correct = await self._get_inbound(inbounds_cfg=self.inbounds_name)
+            for inb in inbounds_correct:
+                if not pending:
+                    break
+                clients = await self._get_inbound_clients(inb.id)
+                for client in clients:
+                    client_id = client.get("id")
+                    if client_id not in pending:
+                        continue
+                    client["expiryTime"] = new_expiry
+                    client["enable"] = True
+                    await self._update_client(
+                        inbound_id=inb.id, client_id=client_id, client=client
+                    )
+                    extended.append(client_id)
+                    pending.discard(client_id)
 
-        await self._restart_x_ray()
-        await self._logout()
+            await self._restart_x_ray()
 
         if not extended:
             raise ThreeXUIConfigNotFoundError(config_ids=config_ids)
@@ -588,21 +600,16 @@ class ThreeXUIAdapter:
             APIClientError: При ошибке API.
 
         """
-        cred = S3XuiCredentials(
-            username=self.username,
-            password=self.password,
-        )
-        await self._login(user_credentials=cred)
-        user_id = await self._get_all_users()
-        if UserUUID(conf_uuid=config_id) not in user_id:
-            logger.debug(f"{config_id} -  нет такого на этом сервер.")
-            return False
-        correct_inbounds = await self._get_inbound(inbounds_cfg=self.inbounds_name)
-        for inb in correct_inbounds:
-            await self.api.post(
-                url=f"{self.prefix}/panel/api/inbounds/{inb.id}/delClient/{config_id}",
-            )
-        await self._logout()
+        async with self._session():
+            user_id = await self._get_all_users()
+            if UserUUID(conf_uuid=config_id) not in user_id:
+                logger.debug(f"{config_id} -  нет такого на этом сервер.")
+                return False
+            correct_inbounds = await self._get_inbound(inbounds_cfg=self.inbounds_name)
+            for inb in correct_inbounds:
+                await self.api.post(
+                    url=f"{self.prefix}/panel/api/inbounds/{inb.id}/delClient/{config_id}",
+                )
         return True
 
     def __repr__(self) -> str:
