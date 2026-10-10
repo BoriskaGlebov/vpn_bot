@@ -1,181 +1,18 @@
 import asyncio
 import shlex
-from collections.abc import AsyncGenerator
-from types import TracebackType
 
-import asyncssh
 from loguru import logger
 
-from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
-from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
+from bot.vpn.utils.amnezia_exceptions import AmneziaSSHError
+from bot.vpn.utils.ssh_transport import AsyncContainerShellClient
 
 
-class AsyncDockerSSHClient:
+class AsyncDockerSSHClient(AsyncContainerShellClient):
     """Асинхронный клиент для выполнения команд в Docker-контейнере.
 
-    Поддерживает два режима работы:
-        1. Локальный — через docker CLI / Docker SDK.
-        2. Удалённый — через SSH с использованием asyncssh.
-
-    Attributes
-        container (str): Имя Docker-контейнера.
-        use_local (bool): Флаг использования локального режима.
-        host (str): SSH-хост.
-        username (str | None): SSH-пользователь.
-        port (int): SSH-порт.
-        known_hosts (str | None): Путь к known_hosts.
-        _conn (asyncssh.SSHClientConnection | None): SSH-соединение.
-        _process (asyncssh.SSHClientProcess[str] | None):
-            Открытая shell-сессия внутри контейнера.
-
+    Транспорт (подключение, выполнение команд) — в `AsyncContainerShellClient`,
+    здесь только `restart_container`, специфичный для прокси.
     """
-
-    def __init__(
-        self,
-        host: str = "localhost",
-        username: str | None = None,
-        port: int = 22,
-        known_hosts: str | None = None,
-        container: str = "amnezia-awg",
-        use_local: bool = True,
-    ) -> None:
-        self.container = container
-        self.use_local = use_local
-        if not use_local:
-            if username is None:
-                raise AmneziaError(message="Username обязательное поле")
-        self.host = host
-        self.username = username
-        self.port = port
-        self.known_hosts = known_hosts
-
-        self._conn: asyncssh.SSHClientConnection | None = None
-        self._process: asyncssh.SSHClientProcess[str] | None = None
-
-    async def connect(self) -> None:
-        """Устанавливает SSH-соединение и открывает shell-сессию.
-
-        Raises
-           OSError: Ошибка на уровне сокета или ОС.
-           Asyncssh.Error: Ошибка внутри библиотеки ``asyncssh``.
-
-        """
-        if self.use_local:
-            return
-
-        if self._conn is not None:
-            logger.bind(user=self.username).debug("AsyncSSH: уже подключён")
-            return
-
-        try:
-            self._conn = await asyncio.wait_for(
-                asyncssh.connect(
-                    host=self.host,
-                    port=self.port,
-                    username=self.username,
-                    known_hosts=self.known_hosts,
-                    agent_forwarding=True,
-                ),
-                timeout=CONNECT_TIMEOUT,
-            )
-            self._process = await asyncio.wait_for(
-                self._conn.create_process(f"docker exec -i {self.container} sh;\n"),
-                timeout=CONNECT_TIMEOUT,
-            )
-            logger.bind(user=self.username).debug(
-                f"AsyncSSH: подключение и shell-сессия установлены к {self.host}"
-            )
-        except TimeoutError:
-            logger.bind(user=self.username).error(
-                f"AsyncSSH: таймаут подключения к {self.host}"
-            )
-            raise AmneziaSSHError(
-                message=f"SSH timeout при подключении к {self.host}:{self.port}"
-            ) from TimeoutError
-
-        except (OSError, asyncssh.Error) as exc:
-            logger.bind(user=self.username).error(
-                f"AsyncSSH: ошибка подключения: {exc}"
-            )
-            raise AmneziaSSHError(
-                message=f"AsyncSSH: ошибка подключения: {exc}"
-            ) from exc
-
-    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int | None, str]:
-        """Выполняет одну команду внутри контейнера.
-
-        Args:
-            cmd (str): Команда для выполнения.
-
-        Returns
-            Tuple[str, str, int, str]: Кортеж:
-                - stdout (str): Стандартный вывод команды.
-                - stderr (str): Стандартный поток ошибок.
-                - exit_code (int): Код возврата команды.
-                - cmd (str): Выполненная команда.
-
-        Raises
-            RuntimeError: Если shell-сессия не запущена.
-
-        """
-        if self.use_local:
-            full_cmd = f"docker exec -i {self.container} sh -c {shlex.quote(cmd)}"
-            process = await asyncio.create_subprocess_shell(
-                full_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            raw_stdout, raw_stderr = await process.communicate()
-            return (
-                raw_stdout.decode().strip(),
-                raw_stderr.decode().strip(),
-                process.returncode,
-                cmd,
-            )
-        if self._process is None:
-            raise AmneziaSSHError(
-                message="AsyncSSH: shell-сессия не запущена. Вызови connect()"
-            )
-        marker = "__EXIT__"
-        self._process.stdin.write(f"{cmd}; echo {marker}:$?\n")
-        await self._process.stdin.drain()
-        output = await self._process.stdout.readuntil("\n")
-        while marker not in output:
-            output += await self._process.stdout.readuntil("\n")
-        stdout, _, exit_info = output.rpartition("__EXIT__")
-        try:
-            exit_code = int(exit_info.split(":")[-1])
-        except ValueError:
-            exit_code = 0
-        stderr = ""
-        try:
-            while True:
-                line = await asyncio.wait_for(
-                    self._process.stderr.readline(), timeout=0.1
-                )
-                if not line:
-                    break
-                stderr += line
-        except TimeoutError:
-            pass
-
-        return stdout.strip(), stderr.strip(), exit_code, cmd
-
-    async def run_commands_in_container(
-        self, commands: list[str]
-    ) -> AsyncGenerator[tuple[str, str, int | None, str], None]:
-        """Выполняет список команд внутри контейнера.
-
-        Args:
-            commands (List[str]): Список команд для выполнения.
-
-        Yields
-            Tuple[str, str, int, str]: stdout, stderr, exit_code, команда.
-
-        """
-        for cmd in commands:
-            stdout, stderr, exit_code, cmd = await self.write_single_cmd(cmd)
-            yield stdout, stderr, exit_code, cmd
 
     async def restart_container(self) -> bool:
         """Перезапускает Docker-контейнер.
@@ -230,40 +67,6 @@ class AsyncDockerSSHClient:
             stderr=str(stderr),
         )
 
-    async def close(self) -> None:
-        """Закрывает shell-сессию и соединение."""
-        if self._process is not None:
-            try:
-                self._process.close()
-                await self._process.wait_closed()
-            except (BrokenPipeError, OSError):
-                logger.debug("Shell-сессия уже закрыта")
-
-        if self._conn is not None:
-            self._conn.close()
-            await self._conn.wait_closed()
-            logger.bind(user=self.username).debug("AsyncSSH: соединение закрыто")
-            self._conn = None
-
-    async def __aenter__(self) -> "AsyncDockerSSHClient":
-        """Открывает соединение в асинхронном контекстном менеджере.
-
-        Returns
-           AsyncSSHClient: Текущий экземпляр клиента.
-
-        """
-        await self.connect()
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Закрывает соединение в асинхронном контекстном менеджере."""
-        await self.close()
-
 
 class AmneziaProxy:
     """Сервис управления пользователями 3proxy внутри Docker-контейнера.
@@ -289,17 +92,7 @@ class AmneziaProxy:
             AmneziaSSHError: Если контейнер недоступен или команда не вернула "root".
 
         """
-        stdout, stderr, _, cmd = await self.client.write_single_cmd("whoami")
-        if stdout == "root":
-            logger.debug("Проверка контейнера прошла успешно")
-            return True
-        else:
-            raise AmneziaSSHError(
-                f"Контейнер {self.client.container} недоступен или не запущен",
-                cmd=cmd,
-                stdout=stdout,
-                stderr=stderr,
-            )
+        return await self.client._check_container()
 
     def _build_tg_link(self, username: str, password: str) -> str:
         """Формирует Telegram socks-ссылку."""

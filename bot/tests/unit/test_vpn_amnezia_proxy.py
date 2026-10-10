@@ -48,7 +48,7 @@ async def test_connect_ssh_success(proxy_client_ssh):
     mock_conn = AsyncMock()
     mock_process = AsyncMock()
     with patch(
-        "bot.vpn.utils.amnezia_proxy.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.ssh_transport.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_connect.return_value = mock_conn
         mock_conn.create_process.return_value = mock_process
@@ -62,7 +62,7 @@ async def test_connect_ssh_success(proxy_client_ssh):
 @pytest.mark.vpn
 async def test_connect_ssh_timeout(proxy_client_ssh):
     with patch(
-        "bot.vpn.utils.amnezia_proxy.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.ssh_transport.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
 
         async def delayed(*args, **kwargs):
@@ -77,7 +77,7 @@ async def test_connect_ssh_timeout(proxy_client_ssh):
 @pytest.mark.vpn
 async def test_connect_ssh_os_error(proxy_client_ssh):
     with patch(
-        "bot.vpn.utils.amnezia_proxy.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.ssh_transport.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_connect.side_effect = OSError("connection error")
         with pytest.raises(AmneziaSSHError):
@@ -212,24 +212,23 @@ async def test_restart_container_ssh_not_connected(proxy_client_ssh):
 
 @pytest.mark.vpn
 async def test_close_handles_process_and_conn(proxy_client_ssh):
-    proc = AsyncMock()
-    proc.close = MagicMock()
-    proc.wait_closed = AsyncMock()
+    mock_stdin = MagicMock()
+    mock_stdin.drain = AsyncMock()
+    proxy_client_ssh._process = MagicMock()
+    proxy_client_ssh._process.stdin = mock_stdin
 
-    conn = AsyncMock()
-    conn.close = MagicMock()
+    conn = MagicMock()
     conn.wait_closed = AsyncMock()
-
-    proxy_client_ssh._process = proc
     proxy_client_ssh._conn = conn
 
     await proxy_client_ssh.close()
 
-    proc.close.assert_called_once()
-    proc.wait_closed.assert_awaited_once()
+    mock_stdin.write.assert_called_once_with("exit\n")
+    mock_stdin.drain.assert_awaited_once()
     conn.close.assert_called_once()
     conn.wait_closed.assert_awaited_once()
     assert proxy_client_ssh._conn is None
+    assert proxy_client_ssh._process is None
 
 
 @pytest.mark.vpn

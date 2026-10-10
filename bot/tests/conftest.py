@@ -498,7 +498,7 @@ def make_query_photo(make_fake_photo):
 def mock_asyncssh_connect():
     """Мок для asyncssh.connect"""
     with patch(
-        "bot.vpn.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.ssh_transport.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_conn = AsyncMock()
         mock_process = AsyncMock()

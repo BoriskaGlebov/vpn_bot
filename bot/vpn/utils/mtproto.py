@@ -7,7 +7,7 @@ from loguru import logger
 
 from bot.vpn.utils.amnezia_exceptions import AmneziaSSHError
 from bot.vpn.utils.amnezia_proxy import AsyncDockerSSHClient
-from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
+from bot.vpn.utils.ssh_transport import CONNECT_TIMEOUT
 
 
 def _decode_stream(stream: str | bytes | None) -> str:
