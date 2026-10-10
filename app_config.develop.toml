@@ -113,10 +113,12 @@ username = "admin"
 [[vpn.nodes.main.xray.inbounds]]
 port = 2054
 name = "🇩🇪 | XHTTP Test"
+protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.main.xray.inbounds]]
 port = 2055
 name = "🇩🇪 | TCP Reality Test"
+protocol = "vless_reality_tcp"
 
 #
 #[vpn.nodes.fi.xray]
@@ -130,10 +132,12 @@ name = "🇩🇪 | TCP Reality Test"
 #[[vpn.nodes.fi.xray.inbounds]]
 #port = 2054
 #name = "🇫🇮 | XHTTP Test"
+#protocol = "vless_reality_xhttp"
 #
 #[[vpn.nodes.fi.xray.inbounds]]
 #port = 2055
 #name = "🇫🇮 | TCP Reality Test"
+#protocol = "vless_reality_tcp"
 
 
 [vpn.nodes.sof.xray]
@@ -147,10 +151,12 @@ username = "admin"
 [[vpn.nodes.sof.xray.inbounds]]
 port = 2054
 name = "🇧🇬 | XHTTP Test"
+protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.sof.xray.inbounds]]
 port = 2055
 name = "🇧🇬 | TCP Reality Test"
+protocol = "vless_reality_tcp"
 
 
 

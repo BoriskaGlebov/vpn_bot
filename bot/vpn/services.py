@@ -643,7 +643,7 @@ class VPNService:
                 try:
                     if await adapter.delete_config(config_id=config_id):
                         deleted_any = True
-                except APIClientError as e:
+                except (APIClientError, ThreeXUIError) as e:
                     logger.warning(
                         "Ошибка удаления config_id={} в {}: {}",
                         config_id,

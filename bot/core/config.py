@@ -1,4 +1,5 @@
 import json
+import tempfile
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal
@@ -20,6 +21,7 @@ from bot.app_error.base_error import (
 from shared.config.app_config import SettingsApp, SettingsCommon, load_toml_config
 from shared.config.db_config import RedisSettings
 from shared.config.logger_config import LoggerConfig
+from shared.enums.vpn_enum import VPNProtocol
 
 __all__ = ["logger", "settings_bot", "bot", "dp"]
 
@@ -32,11 +34,16 @@ class SInbound(BaseModel):
     Attributes
         port (int): Порт, на котором слушает inbound.
         name (str): Человекочитаемое имя inbound (например, с флагом страны).
+        protocol (VPNProtocol): Протокол/вариант подключения этого inbound
+            (`vless_reality_tcp`/`vless_reality_xhttp`). Явное поле конфигурации,
+            а не вывод из `name` по подстроке — переименование inbound в панели
+            не должно влиять на то, какой `flow` выдаётся клиенту.
 
     """
 
     port: int
     name: str
+    protocol: VPNProtocol
 
 
 class BotSettings(SettingsCommon):
@@ -269,10 +276,16 @@ class VPNRegistry(SettingsCommon):
 
     Attributes
         nodes (dict[str, VPNNode]): Словарь нод по имени.
+        user_cfg_dir (Path): Каталог для временных пользовательских файлов
+            конфигов (.conf/.vpn/QR-код), генерируемых в `amnezia_wg.py`.
+            По умолчанию — системный временный каталог; роутер удаляет эти
+            файлы сразу после отправки пользователю, поэтому постоянное
+            хранилище не требуется.
 
     """
 
     nodes: dict[str, VPNNode]
+    user_cfg_dir: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()))
 
     def get(self, name: str) -> VPNNode:
         """Возвращает ноду по имени.

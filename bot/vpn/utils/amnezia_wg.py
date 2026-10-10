@@ -24,6 +24,11 @@ from bot.vpn.utils.amnezia_exceptions import (
 )
 
 CONNECT_TIMEOUT = settings_bot.core.common_timeout
+# Временные пользовательские файлы (.conf/.vpn/QR-код) — не внутрь пакета
+# (Path(__file__)): в контейнере это слой образа, содержимое теряется при
+# пересборке, а при read-only ФС запись упадёт. bot/vpn/router.py удаляет
+# эти файлы сразу после отправки пользователю, постоянное хранилище не нужно.
+USER_CFG_DIR = settings_bot.vpn.user_cfg_dir
 
 
 class AsyncSSHClientWG:
@@ -48,6 +53,16 @@ class AsyncSSHClientWG:
     WG_CONF = f"{WG_DIR}/wg0.conf"
     WG_CLIENTS_TABLE = f"{WG_DIR}/clientsTable"
     DNS_SERVERS = "1.1.1.1, 1.0.0.1"
+    # Допустимые ключи секции [Interface] (кроме Address/DNS/PrivateKey,
+    # которые задаёт сам _build_wg_config) — отличаются между версиями
+    # протокола, переопределяются в подклассах.
+    INTERFACE_PARAM_KEYS: frozenset[str] = frozenset(
+        {"Jc", "Jmin", "Jmax", "S1", "S2", "H1", "H2", "H3", "H4"}
+    )
+    # Ключи, которые в конфиге закомментированы (`# I1 = ...`) — у v2 это
+    # часть протокола обфускации, а не отключённая настройка. Пусто у
+    # версий, где таких строк нет.
+    COMMENTED_PARAM_KEYS: frozenset[str] = frozenset()
 
     def __init__(
         self,
@@ -178,8 +193,15 @@ class AsyncSSHClientWG:
         stdout_text, _, exit_info = output.rpartition("__EXIT__")
         try:
             exit_code = int(exit_info.split(":")[-1])
-        except ValueError:
-            exit_code = 0
+        except ValueError as e:
+            # Неразборчивый код возврата — сбой протокола общения с shell
+            # (маркер искажён/не найден), а не успех по умолчанию.
+            raise AmneziaSSHError(
+                message=f"Не удалось разобрать код возврата команды: {exit_info!r}",
+                cmd=cmd,
+                stdout=stdout_text.strip(),
+                cause=e,
+            ) from e
         stderr_text = ""
         try:
             while True:
@@ -232,123 +254,164 @@ class AsyncSSHClientWG:
                 stderr=stderr,
             )
 
-    async def _generate_private_key(self) -> str | None:
+    async def _generate_private_key(self) -> str:
         """Генерирует приватный ключ в контейнере.
 
         Returns
-           Optional[str]: Приватный ключ или None, если не удалось получить.
+           str: Приватный ключ.
 
         Raises
-            AmneziaSSHError: Если произошла ошибка при генерации ключа.
+            AmneziaSSHError: Если хотя бы одна команда завершилась с
+                ненулевым кодом возврата.
+            AmneziaConfigError: Если все команды прошли успешно, но вывод
+                пуст.
+
+        Notes
+            Путь к файлу абсолютный (`{WG_DIR}/privatekey`), а не `cd` +
+            относительный путь. В local-режиме каждая команда списка `cmd`
+            выполняется в своём отдельном `docker exec` (см.
+            `write_single_cmd`), и `cd` из одной команды не действует на
+            следующую — ключ писался бы в `WORKDIR` контейнера, а
+            `_delete_temp_files` удалял бы по абсолютному пути, где файла
+            нет, оставляя ключ в контейнере навсегда.
 
         """
         cmd = [
-            f"cd {self.WG_DIR}",
-            "wg genkey > privatekey",
-            "cat privatekey",
+            f"wg genkey > {self.WG_DIR}/privatekey",
+            f"cat {self.WG_DIR}/privatekey",
         ]
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
-            if stdout:
-                return stdout
-            elif stderr:
-                if "Warning" in stderr:
-                    logger.bind(user=self.username).warning(
-                        f"Предупреждение при генерации ключа, можно продолжать: {stderr}"
-                    )
-                else:
-                    raise AmneziaSSHError(
-                        message=f"Ошибка при генерации "
-                        f"приватного ключа "
-                        f"пользователя: {stderr}",
-                        cmd=";".join(cmd),
-                        stderr=stderr,
-                    )
-        return None
+        stdout = ""
+        async for stdout, stderr, exit_code, cur_cmd in self.run_commands_in_container(
+            cmd
+        ):
+            if exit_code:
+                raise AmneziaSSHError(
+                    message=f"Ошибка при генерации приватного ключа пользователя: {stderr}",
+                    cmd=cur_cmd,
+                    stdout=stdout,
+                    stderr=stderr,
+                )
+        if not stdout:
+            raise AmneziaConfigError(
+                message="Пустой результат генерации приватного ключа"
+            )
+        return stdout
 
-    async def _generate_public_key(self) -> str | None:
+    async def _generate_public_key(self) -> str:
         """Генерирует публичный ключ из приватного.
 
         Returns
-            Optional[str]: Публичный ключ или None, если не удалось получить.
+            str: Публичный ключ.
 
         Raises
-            AmneziaSSHError: Если произошла ошибка при генерации ключа.
+            AmneziaSSHError: Если хотя бы одна команда завершилась с
+                ненулевым кодом возврата.
+            AmneziaConfigError: Если все команды прошли успешно, но вывод
+                пуст.
+
+        Notes
+            Абсолютные пути — см. `_generate_private_key`: приватный ключ,
+            из которого строится публичный, пишется по абсолютному пути,
+            относительный `privatekey` его в local-режиме не найдёт.
 
         """
         cmd = [
-            "cat privatekey | wg pubkey > publickey",
-            "cat publickey",
+            f"cat {self.WG_DIR}/privatekey | wg pubkey > {self.WG_DIR}/publickey",
+            f"cat {self.WG_DIR}/publickey",
         ]
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
-            if stdout:
-                return stdout
-            elif stderr:
+        stdout = ""
+        async for stdout, stderr, exit_code, cur_cmd in self.run_commands_in_container(
+            cmd
+        ):
+            if exit_code:
                 raise AmneziaSSHError(
                     message=f"Ошибка при генерации публичного ключа: {stderr}",
-                    cmd=";".join(cmd),
+                    cmd=cur_cmd,
+                    stdout=stdout,
                     stderr=stderr,
                 )
-        return None
+        if not stdout:
+            raise AmneziaConfigError(
+                message="Пустой результат генерации публичного ключа"
+            )
+        return stdout
 
-    async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
-        """Получает индивидуальные данные для подключения VPN и порт контейнера.
+    async def _cat_wg_conf(self) -> str:
+        """Читает `wg0.conf`/`awg0.conf` целиком одной командой.
 
-        Считывает файл конфигурации WireGuard (`wg0.conf`) внутри контейнера
-        и возвращает словарь с параметрами интерфейса `[Interface]` и порт `ListenPort`.
+        Единая точка чтения файла для `_get_vpn_params_config`,
+        `_get_used_ips` и `_find_free_ip` — раньше каждый парсил файл
+        своим способом (один — через `write_single_cmd` + Python, два
+        других — через `grep`/`awk` пайпы), хотя файл один и тот же.
 
         Returns
-            Optional[Tuple[Dict[str, Any], int]]:
-                Кортеж из:
-                - params (dict[str, Any]): Параметры интерфейса WireGuard (например, Jc, Jmin, H1 и т.д.).
-                - listen_port (int): Порт прослушивания интерфейса.
-                Возвращает None, если не удалось получить данные.
+            str: Содержимое файла.
 
         Raises
-            AmneziaConfigError: Если не удалось прочитать конфигурацию или получен stderr.
+            AmneziaConfigError: Если команда завершилась с ошибкой или
+                результат пуст.
 
         """
-        cmd = f"cat {self.WG_CONF}"
-        stdout, stderr, *_ = await self.write_single_cmd(cmd)
-        if stdout:
-            in_interface = False
-            params = {}
-            listen_port = 1
-
-            for line in stdout.splitlines():
-                line = line.strip()
-                if line == "[Interface]":
-                    in_interface = True
-                    continue
-                elif line.startswith("[Peer]"):
-                    break
-                if in_interface and "=" in line:
-                    key, value = map(str.strip, line.split("=", 1))
-                    if key in {
-                        "Jc",
-                        "Jmin",
-                        "Jmax",
-                        "S1",
-                        "S2",
-                        "H1",
-                        "H2",
-                        "H3",
-                        "H4",
-                    }:
-                        params[key] = value
-                    elif key in {"ListenPort"}:
-                        try:
-                            listen_port = int(value)
-                        except ValueError:
-                            listen_port = 1
-            return params, listen_port
-        elif stderr:
+        stdout, stderr, exit_code, _ = await self.write_single_cmd(
+            f"cat {self.WG_CONF}"
+        )
+        if exit_code or not stdout:
             raise AmneziaConfigError(
-                message=f"Ошибка получении конфига параметров VPN: {stderr}",
+                message=f"Ошибка при чтении {self.WG_CONF}: {stderr}",
                 file=self.WG_CONF,
                 stderr=stderr,
             )
+        return stdout
 
-        return None
+    async def _get_vpn_params_config(self) -> tuple[dict[str, str], int]:
+        """Получает индивидуальные данные для подключения VPN и порт контейнера.
+
+        Разбирает секцию `[Interface]` файла конфигурации WireGuard. Набор
+        допустимых ключей — `self.INTERFACE_PARAM_KEYS`/`self.COMMENTED_PARAM_KEYS`,
+        задаются подклассами под конкретную версию протокола; сам парсер
+        один для всех версий.
+
+        Returns
+            tuple[dict[str, str], int]:
+                - params: Параметры интерфейса WireGuard (Jc, Jmin, H1 и т.д.).
+                - listen_port: Порт прослушивания интерфейса.
+
+        Raises
+            AmneziaConfigError: Если не удалось прочитать конфигурацию, либо
+                `ListenPort` отсутствует или нечислов.
+
+        """
+        stdout = await self._cat_wg_conf()
+        in_interface = False
+        params: dict[str, str] = {}
+        listen_port: int | None = None
+
+        for line in stdout.splitlines():
+            line = line.strip()
+            if line == "[Interface]":
+                in_interface = True
+                continue
+            elif line.startswith("[Peer]"):
+                break
+            if in_interface and "=" in line:
+                key, value = map(str.strip, line.split("=", 1))
+                if key in self.INTERFACE_PARAM_KEYS:
+                    params[key] = value
+                elif key.startswith("# ") and key[2:] in self.COMMENTED_PARAM_KEYS:
+                    params[key[2:]] = value
+                elif key == "ListenPort":
+                    try:
+                        listen_port = int(value)
+                    except ValueError as e:
+                        raise AmneziaConfigError(
+                            message=f"Некорректный ListenPort в {self.WG_CONF}: {value!r}",
+                            file=self.WG_CONF,
+                        ) from e
+        if listen_port is None:
+            raise AmneziaConfigError(
+                message=f"ListenPort не найден в {self.WG_CONF}", file=self.WG_CONF
+            )
+        return params, listen_port
 
     async def _get_used_ips(self) -> set[ipaddress.IPv4Address]:
         """Возвращает множество всех занятых IP из `wg0.conf`.
@@ -362,27 +425,21 @@ class AsyncSSHClientWG:
             AmneziaConfigError: Если произошла ошибка при получении IP или список пуст.
 
         """
-        cmd = [
-            f"cat {self.WG_CONF} | "
-            f"grep 'AllowedIPs =' | "
-            f"awk -F'= ' '{{split($2,a,\",\"); for(i in a){{split(a[i],b,\"/\"); print b[1]}}}}'"
-        ]
+        stdout = await self._cat_wg_conf()
         used_ips: set[ipaddress.IPv4Address] = set()
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
-            if stdout:
-                for line in stdout.splitlines():
-                    try:
-                        used_ips.add(ipaddress.IPv4Address(line.strip()))
-                    except ValueError:
-                        logger.bind(user=self.username).warning(
-                            f"Некорректный IP в конфиге: {line.strip()}"
-                        )
-            if stderr:
-                raise AmneziaConfigError(
-                    message=f"Ошибка при получении IP: {stderr}",
-                    file=self.WG_CONF,
-                    stderr=stderr,
-                )
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line.startswith("AllowedIPs"):
+                continue
+            _, _, value = line.partition("=")
+            for part in value.split(","):
+                ip_str = part.strip().split("/")[0]
+                try:
+                    used_ips.add(ipaddress.IPv4Address(ip_str))
+                except ValueError:
+                    logger.bind(user=self.username).warning(
+                        f"Некорректный IP в конфиге: {ip_str}"
+                    )
         if not used_ips:
             raise AmneziaConfigError(
                 message="Не удалось определить занятые IP", file=self.WG_CONF
@@ -404,18 +461,14 @@ class AsyncSSHClientWG:
             AmneziaConfigError: Если не удалось определить подсеть или нет свободных IP.
 
         """
-        cmd_subnet = [
-            f"grep 'Address' {self.WG_CONF} | head -n1 | awk -F'= ' '{{print $2}}'"
-        ]
+        stdout = await self._cat_wg_conf()
         subnet_ip: str | None = None
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd_subnet):
-            if stdout:
-                subnet_ip = stdout.strip()
-            if stderr:
-                raise AmneziaConfigError(
-                    message=f"Ошибка при получении подсети: {stderr}",
-                    file=self.WG_CONF,
-                )
+        for line in stdout.splitlines():
+            line = line.strip()
+            if line.startswith("Address"):
+                _, _, value = line.partition("=")
+                subnet_ip = value.strip()
+                break
         if not subnet_ip:
             raise AmneziaConfigError(
                 message="Не удалось определить подсеть", file=self.WG_CONF
@@ -435,7 +488,7 @@ class AsyncSSHClientWG:
             message="Нет свободных IP в подсети", file=self.WG_CONF
         )
 
-    async def _get_correct_ip(self) -> str | None:
+    async def _get_correct_ip(self) -> str:
         """Определяет корректный IP-адрес клиента для WireGuard.
 
         Returns
@@ -444,54 +497,53 @@ class AsyncSSHClientWG:
         """
         return await self._find_free_ip()
 
-    async def _get_psk_key(self) -> str | None:
-        """Определяет preshared_key от  WireGuard.
+    async def _get_psk_key(self) -> str:
+        """Определяет preshared_key от WireGuard.
 
         Returns
-           Optional[str]: preshared_key или None.
+           str: preshared_key.
 
         Raises
-            AmnweziaConfigError: Если произошла ошибка при получении PSK.
+            AmneziaConfigError: Если команда завершилась с ошибкой или
+                результат пуст.
 
         """
         psk_key_file = f"{self.WG_DIR}/wireguard_psk.key"
-        stdout, stderr, *_ = await self.write_single_cmd(f"cat {psk_key_file}")
-        if stdout:
-            return stdout
-        elif stderr:
+        stdout, stderr, exit_code, _ = await self.write_single_cmd(
+            f"cat {psk_key_file}"
+        )
+        if exit_code or not stdout:
             raise AmneziaConfigError(
                 message=f"Ошибка при получении PSK: {stderr}",
                 file=psk_key_file,
                 stderr=stderr,
             )
-        return None
+        return stdout
 
-    async def _get_public_server_key(self) -> str | None:
-        """Определяет public_key от  WireGuard сервера.
+    async def _get_public_server_key(self) -> str:
+        """Определяет public_key от WireGuard сервера.
 
         Returns
-           Optional[str]: public_key или None.
+           str: public_key.
 
         Raises
-            AmneziaConfigError: Если произошла ошибка при получении public key сервера.
+            AmneziaConfigError: Если команда завершилась с ошибкой или
+                результат пуст.
 
         """
-        stdout, stderr, *_ = await self.write_single_cmd(
-            f"cat {self.WG_DIR}/wireguard_server_public_key.key"
-        )
-        if stdout:
-            return stdout
-        elif stderr:
+        key_file = f"{self.WG_DIR}/wireguard_server_public_key.key"
+        stdout, stderr, exit_code, _ = await self.write_single_cmd(f"cat {key_file}")
+        if exit_code or not stdout:
             raise AmneziaConfigError(
                 message=f"Ошибка при получении public key сервера: {stderr}",
-                file="wireguard_server_public_key.key",
+                file=key_file,
                 stderr=stderr,
             )
-        return None
+        return stdout
 
     async def _add_user_in_config(
         self, public_server_key: str, correct_ip: str, psk_key: str
-    ) -> str | None:
+    ) -> None:
         """Добавляет конфигурацию пользователя в `wg0.conf`.
 
         Args:
@@ -499,11 +551,9 @@ class AsyncSSHClientWG:
             correct_ip (str): IP-адрес клиента.
             psk_key (str): preshared key сервера.
 
-        Returns
-            Optional[str]: "OK", если успешно, иначе None.
-
         Raises
-            AmneziaConfigError: Если произошла ошибка при добавлении нового пользователя.
+            AmneziaConfigError: Если хотя бы одна команда завершилась с
+                ненулевым кодом возврата.
 
         """
         cmd = [
@@ -512,18 +562,16 @@ class AsyncSSHClientWG:
             f'echo "PublicKey = {public_server_key}" >> {self.WG_CONF}',
             f'echo "PresharedKey = {psk_key}" >> {self.WG_CONF}',
             f'echo "AllowedIPs = {correct_ip}" >> {self.WG_CONF}',
-            "echo OK",
         ]
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
-            if stdout:
-                return stdout
-            elif stderr:
+        async for stdout, stderr, exit_code, cur_cmd in self.run_commands_in_container(
+            cmd
+        ):
+            if exit_code:
                 raise AmneziaConfigError(
                     message=f"Ошибка при добавлении нового пользователя: {stderr}",
                     file=self.WG_CONF,
                     stderr=stderr,
                 )
-        return None
 
     async def _build_wg_config(
         self, new_ip: str, private_key: str, pub_server_key: str, preshared_key: str
@@ -556,10 +604,7 @@ class AsyncSSHClientWG:
                 порт, на котором слушает сервер.
 
         """
-        vpn_config = await self._get_vpn_params_config()
-        if vpn_config is None:
-            raise AmneziaConfigError(message="Не удалось получить параметры VPN")
-        vpn_params, listen_port = vpn_config
+        vpn_params, listen_port = await self._get_vpn_params_config()
         interface_data = {
             "Address": new_ip,
             "DNS": self.DNS_SERVERS,
@@ -602,38 +647,30 @@ class AsyncSSHClientWG:
         )
         return config_text
 
-    async def _reboot_interface(self) -> bool | None:
+    async def _reboot_interface(self) -> bool:
         """Перезапускает интерфейс WireGuard внутри контейнера.
 
         Выполняет команды `wg-quick down` и `wg-quick up` через SSH внутри контейнера.
-        Если команды прошли успешно, возвращается True. Если интерфейс не удалось
-        перезапустить, возвращается None.
 
         Returns
-            Optional[bool]: True, если интерфейс успешно перезапущен, иначе None.
+            bool: True, если интерфейс успешно перезапущен.
 
         Raises
             AmneziaSSHError: Если произошла ошибка при выполнении команд перезапуска интерфейса.
 
         """
         cmd = [f"wg-quick down {self.WG_CONF}", f"wg-quick up {self.WG_CONF}"]
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
-            if stdout:
-                logger.bind(user=self.username).success(
-                    f"Интерфейс выключен/включен:\n{stdout}"
+        async for stdout, stderr, exit_code, cur_cmd in self.run_commands_in_container(
+            cmd
+        ):
+            if exit_code:
+                raise AmneziaSSHError(
+                    message="Ошибка при перезапуске интерфейса",
+                    cmd=cur_cmd,
+                    stdout=stdout,
+                    stderr=stderr,
                 )
-                return True
-            if stderr:
-                if "Warning" in stderr:
-                    logger.bind(user=self.username).warning(
-                        f"Предупреждение при перезапуске интерфейса, можно продолжать: {stderr}"
-                    )
-                else:
-                    raise AmneziaSSHError(
-                        message="Ошибка при перезапуске интерфейса",
-                        cmd=";".join(cmd),
-                        stderr=stderr,
-                    )
+        logger.bind(user=self.username).success("Интерфейс выключен/включен")
         return True
 
     async def _sync_interface(self) -> None:
@@ -702,7 +739,7 @@ class AsyncSSHClientWG:
         )
         if not filename.endswith(".conf"):
             filename = f"WG{self.location_prefix}{filename}.conf"
-        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir = USER_CFG_DIR
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
 
@@ -814,7 +851,7 @@ class AsyncSSHClientWG:
 
         if not filename.endswith(".conf"):
             filename = f"VPN{self.location_prefix}{filename}.vpn"
-        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir = USER_CFG_DIR
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
 
@@ -843,7 +880,7 @@ class AsyncSSHClientWG:
         """
         if not filename.endswith(".png"):
             filename = f"QR{self.location_prefix}{filename}.png"
-        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir = USER_CFG_DIR
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
 
@@ -875,6 +912,60 @@ class AsyncSSHClientWG:
         qr_file = await self._save_qr_code(filename, config_text)
 
         return wg_file, vpn_file, qr_file
+
+    async def _write_container_file(
+        self, path: str, content: str, error_message: str
+    ) -> None:
+        """Записывает содержимое в файл внутри контейнера через heredoc.
+
+        Общий для `_add_to_clients_table`/`_delete_user_wg0`/
+        `_delete_from_clients_table` блок: ветка `use_local`/SSH и
+        нормализация `stdout`/`stderr`/`exit_status` в строки. Ограничитель
+        heredoc случайный (как `tmp_path` в `_sync_interface`) — фиксированный
+        `EOF`/`JSON_EOF` ломает запись, если он совпадает со строкой внутри
+        самого содержимого (для `clientsTable` это JSON, для `awg0.conf` —
+        произвольный текст конфига).
+
+        Args:
+            path: Путь к файлу внутри контейнера.
+            content: Новое содержимое файла.
+            error_message: Сообщение исключения при ненулевом коде возврата —
+                у каждого вызывающего метода свой текст.
+
+        Raises
+            AmneziaSSHError: Если запись завершилась с ненулевым кодом
+                возврата, либо (в SSH-режиме) соединение не установлено.
+
+        """
+        delimiter = f"EOF_{uuid.uuid4().hex[:8]}"
+        cmd = f"cat > {path} <<'{delimiter}'\n{content}\n{delimiter}\n"
+        if self.use_local:
+            stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
+        else:
+            escaped_cmd = shlex.quote(cmd)
+            if self._conn is None:
+                raise AmneziaSSHError(message="SSH-соединение не установлено")
+            result = await self._conn.run(
+                f"docker exec -i {self.container} sh -c {escaped_cmd}"
+            )
+            stdout = (
+                result.stdout.decode()
+                if isinstance(result.stdout, bytes)
+                else (result.stdout or "")
+            )
+            stderr = (
+                result.stderr.decode()
+                if isinstance(result.stderr, bytes)
+                else (result.stderr or "")
+            )
+            code = result.exit_status
+        if code != 0:
+            raise AmneziaSSHError(
+                message=error_message,
+                cmd=path,
+                stdout=stdout,
+                stderr=stderr,
+            )
 
     async def _add_to_clients_table(self, public_key: str, client_name: str) -> bool:
         """Добавляет запись в clientsTable Amnezia.
@@ -924,44 +1015,11 @@ class AsyncSSHClientWG:
         )
         new_json = json.dumps(data, indent=4, ensure_ascii=False)
 
-        cmd = f"cat > {self.WG_CLIENTS_TABLE} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        if self.use_local:
-            stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
-        else:
-            escaped_cmd = shlex.quote(cmd)
-            if self._conn is None:
-                raise AmneziaSSHError(message="SSH-соединение не установлено")
-            result = await self._conn.run(
-                f"docker exec -i {self.container} sh -c {escaped_cmd}"
-            )
-            stdout, stderr, code, _ = (
-                (
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
-                ),
-                (
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
-                ),
-                result.exit_status,
-                None,
-            )
-        if code == 0:
-            logger.success("clientsTable успешно обновлён")
-            return True
-        else:
-            raise AmneziaSSHError(
-                "Ошибка при записи clientsTable",
-                cmd=cmd,
-                stdout=(
-                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
-                ),
-                stderr=(
-                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
-                ),
-            )
+        await self._write_container_file(
+            self.WG_CLIENTS_TABLE, new_json, "Ошибка при записи clientsTable"
+        )
+        logger.success("clientsTable успешно обновлён")
+        return True
 
     async def _delete_temp_files(self) -> None:
         """Удаляет временные файлы ключей внутри контейнера.
@@ -979,13 +1037,14 @@ class AsyncSSHClientWG:
             f"rm -f {self.WG_DIR}/publickey",
             f"rm -f {self.WG_DIR}/lastip",
         ]
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
-            if stdout:
-                logger.debug(f"Удаление временных файлов: {stdout}")
-            if stderr:
+        async for stdout, stderr, exit_code, cur_cmd in self.run_commands_in_container(
+            cmd
+        ):
+            if exit_code:
                 raise AmneziaSSHError(
                     message="Ошибка при удалении временных файлов",
-                    cmd=";".join(cmd),
+                    cmd=cur_cmd,
+                    stdout=stdout,
                     stderr=stderr,
                 )
 
@@ -1018,38 +1077,17 @@ class AsyncSSHClientWG:
         try:
             await self._check_container()
 
+            # Каждый из методов ниже сам бросает AmneziaError, если не смог
+            # получить своё значение — проверять результат на None здесь не
+            # нужно: либо все пять — str, либо выполнение уже прервалось.
             private_key = await self._generate_private_key()
             pub_key = await self._generate_public_key()
             pub_server_key = await self._get_public_server_key()
             correct_ip = await self._get_correct_ip()
             psk = await self._get_psk_key()
 
-            missing = [
-                name
-                for name, value in (
-                    ("private_key", private_key),
-                    ("pub_key", pub_key),
-                    ("pub_server_key", pub_server_key),
-                    ("correct_ip", correct_ip),
-                    ("psk", psk),
-                )
-                if value is None
-            ]
-            if missing:
-                raise AmneziaConfigError(
-                    message=f"Не удалось получить данные для нового конфига: {', '.join(missing)}"
-                )
-            assert private_key is not None
-            assert pub_key is not None
-            assert pub_server_key is not None
-            assert correct_ip is not None
-            assert psk is not None
-
-            stdout = await self._add_user_in_config(pub_key, correct_ip, psk)
-            if stdout == "OK":
-                logger.bind(user=self.username).success(
-                    "Новый конфиг добавлен в wg0.conf"
-                )
+            await self._add_user_in_config(pub_key, correct_ip, psk)
+            logger.bind(user=self.username).success("Новый конфиг добавлен в wg0.conf")
             filename = uuid.uuid4().hex[:6]
             client_name = f"{file_name.rsplit('.', 1)[0]}_{filename}"
             client_table = await self._add_to_clients_table(pub_key, client_name)
@@ -1143,38 +1181,11 @@ class AsyncSSHClientWG:
                 )
                 return False
             new_conf = "\n".join(out_data)
-            cmd = f"cat > {self.WG_CONF} <<'EOF'\n{new_conf}\nEOF\n"
-            if self.use_local:
-                stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
-            else:
-                escaped_cmd = shlex.quote(cmd)
-                if self._conn is None:
-                    raise AmneziaSSHError(message="SSH-соединение не установлено")
-                result = await self._conn.run(
-                    f"docker exec -i {self.container} sh -c {escaped_cmd}"
-                )
-                stdout = (
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
-                )
-                stderr = (
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
-                )
-                code = result.exit_status
-                cmd = ",".join(cmd.splitlines())
-            if code == 0:
-                logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
-                return True
-            else:
-                raise AmneziaSSHError(
-                    message=f"Ошибка записи wg0.conf: {stderr}",
-                    cmd=cmd,
-                    stdout=stdout,
-                    stderr=stderr,
-                )
+            await self._write_container_file(
+                self.WG_CONF, new_conf, "Ошибка записи wg0.conf"
+            )
+            logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
+            return True
 
         elif stderr:
             raise AmneziaConfigError(
@@ -1238,38 +1249,11 @@ class AsyncSSHClientWG:
 
         new_json = json.dumps(new_data, indent=4, ensure_ascii=False)
 
-        cmd = f"cat > {clients_table} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        if self.use_local:
-            stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
-        else:
-            escaped_cmd = shlex.quote(cmd)
-            if self._conn is None:
-                raise AmneziaSSHError(message="SSH-соединение не установлено")
-            result = await self._conn.run(
-                f"docker exec -i {self.container} sh -c {escaped_cmd}"
-            )
-            stdout = (
-                result.stdout.decode()
-                if isinstance(result.stdout, bytes)
-                else (result.stdout or "")
-            )
-            stderr = (
-                result.stderr.decode()
-                if isinstance(result.stderr, bytes)
-                else (result.stderr or "")
-            )
-            code = result.exit_status
-            cmd = ",".join(cmd.splitlines())
-        if code == 0:
-            logger.success(f"Ключ успешно удален из {clients_table}")
-            return True
-        else:
-            raise AmneziaSSHError(
-                message=f"Ошибка при удалении ключа из {clients_table}",
-                cmd=cmd,
-                stdout=stdout,
-                stderr=stderr,
-            )
+        await self._write_container_file(
+            clients_table, new_json, f"Ошибка при удалении ключа из {clients_table}"
+        )
+        logger.success(f"Ключ успешно удален из {clients_table}")
+        return True
 
     async def full_delete_user(self, public_key: str) -> bool:
         """Полностью удаляет пользователя из конфигурации WireGuard и clientsTable.
@@ -1290,15 +1274,24 @@ class AsyncSSHClientWG:
         Raises
             AmneziaError: В случае ошибок при удалении из конфигурации или таблицы клиентов.
 
+        Notes
+            Интерфейс синхронизируется, если изменился `wg0.conf`/`awg0.conf`,
+            независимо от результата по `clientsTable` — иначе при частичном
+            падении (пир удалён из файла, но не найден в таблице, например
+            после предыдущего сбоя) интерфейс продолжил бы работать со
+            старым набором пиров, и удалённый пользователь сохранял бы
+            рабочее соединение.
+
         """
         try:
             deleted_from_config = await self._delete_user_wg0(public_key)
             deleted_from_table = await self._delete_from_clients_table(public_key)
+            if deleted_from_config:
+                await self._sync_interface()
             if deleted_from_table and deleted_from_config:
                 logger.success(
                     "Пользователь полностью удален из конфигурации и таблицы клиентов."
                 )
-                await self._sync_interface()
                 return True
             else:
                 return False
@@ -1380,6 +1373,10 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
     # Первым — AmneziaDNS, собственный DNS-резолвер Amnezia в их
     # инфраструктуре, Cloudflare (1.0.0.1) — только как резервный.
     DNS_SERVERS = "172.29.172.254, 1.0.0.1"
+    INTERFACE_PARAM_KEYS = AsyncSSHClientWG.INTERFACE_PARAM_KEYS | {"S3", "S4"}
+    # Протокол обфускации v2 хранит часть параметров закомментированными —
+    # `_get_vpn_params_config` снимает префикс `# ` и кладёт под именем I1-I5.
+    COMMENTED_PARAM_KEYS = frozenset({"I1", "I2", "I3", "I4", "I5"})
 
     def __init__(
         self,
@@ -1395,79 +1392,8 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
             host, username, port, known_hosts, container, use_local, location_prefix
         )
 
-    async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
-        """Получает индивидуальные данные для подключения VPN и порт контейнера.
 
-        Считывает файл конфигурации WireGuard (`wg0.conf`) внутри контейнера
-        и возвращает словарь с параметрами интерфейса `[Interface]` и порт `ListenPort`.
-
-        Returns
-            Optional[Tuple[Dict[str, Any], int]]:
-                Кортеж из:
-                - params (dict[str, Any]): Параметры интерфейса WireGuard (например, Jc, Jmin, H1 и т.д.).
-                - listen_port (int): Порт прослушивания интерфейса.
-                Возвращает None, если не удалось получить данные.
-
-        Raises
-            AmneziaConfigError: Если не удалось прочитать конфигурацию или получен stderr.
-
-        """
-        cmd = f"cat {self.WG_CONF}"
-        stdout, stderr, *_ = await self.write_single_cmd(cmd)
-        if stdout:
-            in_interface = False
-            params = {}
-            listen_port = 1
-
-            for line in stdout.splitlines():
-                line = line.strip()
-                if line == "[Interface]":
-                    in_interface = True
-                    continue
-                elif line.startswith("[Peer]"):
-                    break
-                if in_interface and "=" in line:
-                    key, value = map(str.strip, line.split("=", 1))
-                    if key in {
-                        "Jc",
-                        "Jmin",
-                        "Jmax",
-                        "S1",
-                        "S2",
-                        "S3",
-                        "S4",
-                        "H1",
-                        "H2",
-                        "H3",
-                        "H4",
-                    }:
-                        params[key] = value
-                    elif key in {
-                        "# I1",
-                        "# I2",
-                        "# I3",
-                        "# I4",
-                        "# I5",
-                    }:
-                        correct_key = key.split("# ")[1]
-                        params[correct_key] = value
-                    elif key in {"ListenPort"}:
-                        try:
-                            listen_port = int(value)
-                        except ValueError:
-                            listen_port = 1
-            return params, listen_port
-        elif stderr:
-            raise AmneziaConfigError(
-                message=f"Ошибка получении конфига параметров VPN: {stderr}",
-                file=self.WG_CONF,
-                stderr=stderr,
-            )
-
-        return None
-
-
-class AsyncSSHClientWG3(AsyncSSHClientWG):
+class AsyncSSHClientWG3(AsyncSSHClientWG2):
     """Асинхронный SSH-клиент с поддержкой работы через Docker-контейнер.
 
     Протокол AmneziaWG 3.x — набор параметров обфускации в `[Interface]`
@@ -1475,11 +1401,10 @@ class AsyncSSHClientWG3(AsyncSSHClientWG):
     именованные параметры (`HeaderProtectionKey`, `ContentPaddingAddition`,
     `RekeyAfterTime`, `RekeyTimeout`, `RejectAfterTime`, `KeepaliveTimeout`,
     `MaxHandshakeAttempts`, `RandomTrailers`, `DisableCookies`). Контейнер,
-    пути к ключам и сам `.conf`-файл — те же, что у v2 (проверено на
-    VPS04, amn-boris.ru, контейнер `amnezia-awg2`), поэтому `WG_DIR`/`WG_CONF`
-    не переопределяются. `_build_wg_config` тоже не переопределяется — он
-    уже ничего не знает про конкретные версии, вся разница уходит в
-    `_get_vpn_params_config` и `DNS_SERVERS`.
+    пути к ключам, сам `.conf`-файл и `DNS_SERVERS` — те же, что у v2
+    (проверено на VPS04, amn-boris.ru, контейнер `amnezia-awg2`), поэтому
+    наследуется от `AsyncSSHClientWG2`, а не от базового класса напрямую —
+    переопределяет только набор ключей `[Interface]`.
 
     Args:
         host (str): Адрес сервера (IP или DNS).
@@ -1496,98 +1421,17 @@ class AsyncSSHClientWG3(AsyncSSHClientWG):
 
     """
 
-    WG_DIR = "/opt/amnezia/awg"
-    WG_CONF = f"{WG_DIR}/awg0.conf"
-    # AmneziaDNS по-прежнему в этой же инфраструктуре (контейнер
-    # amnezia-dns виден на VPS04 рядом с amnezia-awg2) — тот же адрес, что
-    # и у v2, Cloudflare (1.0.0.1) как резервный.
-    DNS_SERVERS = "172.29.172.254, 1.0.0.1"
-
-    def __init__(
-        self,
-        host: str = "localhost",
-        username: str | None = None,
-        port: int = 22,
-        known_hosts: str | None = None,
-        container: str = "amnezia-awg2",
-        use_local: bool = True,
-        location_prefix: str = "FR",
-    ) -> None:
-        super().__init__(
-            host, username, port, known_hosts, container, use_local, location_prefix
-        )
-
-    async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
-        """Получает индивидуальные данные для подключения VPN и порт контейнера.
-
-        Считывает файл конфигурации WireGuard (`awg0.conf`) внутри контейнера
-        и возвращает словарь с параметрами интерфейса `[Interface]` и порт `ListenPort`.
-
-        Returns
-            Optional[Tuple[Dict[str, Any], int]]:
-                Кортеж из:
-                - params (dict[str, Any]): Параметры интерфейса AmneziaWG 3.x
-                  (Jc, Jmin, Jmax, S1-S4, H1-H4, HeaderProtectionKey,
-                  ContentPaddingAddition, RekeyAfterTime, RekeyTimeout,
-                  RejectAfterTime, KeepaliveTimeout, MaxHandshakeAttempts,
-                  RandomTrailers, DisableCookies и т.д.).
-                - listen_port (int): Порт прослушивания интерфейса.
-                Возвращает None, если не удалось получить данные.
-
-        Raises
-            AmneziaConfigError: Если не удалось прочитать конфигурацию или получен stderr.
-
-        """
-        cmd = f"cat {self.WG_CONF}"
-        stdout, stderr, *_ = await self.write_single_cmd(cmd)
-        if stdout:
-            in_interface = False
-            params = {}
-            listen_port = 1
-
-            for line in stdout.splitlines():
-                line = line.strip()
-                if line == "[Interface]":
-                    in_interface = True
-                    continue
-                elif line.startswith("[Peer]"):
-                    break
-                if in_interface and "=" in line:
-                    key, value = map(str.strip, line.split("=", 1))
-                    if key in {
-                        "Jc",
-                        "Jmin",
-                        "Jmax",
-                        "S1",
-                        "S2",
-                        "S3",
-                        "S4",
-                        "H1",
-                        "H2",
-                        "H3",
-                        "H4",
-                        "HeaderProtectionKey",
-                        "ContentPaddingAddition",
-                        "RekeyAfterTime",
-                        "RekeyTimeout",
-                        "RejectAfterTime",
-                        "KeepaliveTimeout",
-                        "MaxHandshakeAttempts",
-                        "RandomTrailers",
-                        "DisableCookies",
-                    }:
-                        params[key] = value
-                    elif key in {"ListenPort"}:
-                        try:
-                            listen_port = int(value)
-                        except ValueError:
-                            listen_port = 1
-            return params, listen_port
-        elif stderr:
-            raise AmneziaConfigError(
-                message=f"Ошибка получении конфига параметров VPN: {stderr}",
-                file=self.WG_CONF,
-                stderr=stderr,
-            )
-
-        return None
+    INTERFACE_PARAM_KEYS = AsyncSSHClientWG2.INTERFACE_PARAM_KEYS | {
+        "HeaderProtectionKey",
+        "ContentPaddingAddition",
+        "RekeyAfterTime",
+        "RekeyTimeout",
+        "RejectAfterTime",
+        "KeepaliveTimeout",
+        "MaxHandshakeAttempts",
+        "RandomTrailers",
+        "DisableCookies",
+    }
+    # В отличие от v2, у v3 нет закомментированных `# I1`-`# I5` —
+    # параметры обфускации именованные, без обёртки в комментарий.
+    COMMENTED_PARAM_KEYS: frozenset[str] = frozenset()
