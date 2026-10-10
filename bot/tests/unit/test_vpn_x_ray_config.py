@@ -6,6 +6,7 @@ import pytest
 from bot.app_error.api_error import APIClientError
 from bot.app_error.schema import ErrorDetail
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
+from shared.enums.vpn_enum import VPNProtocol
 
 
 @pytest.fixture
@@ -88,6 +89,22 @@ async def test_get_all_inbounds(adapter):
 
 
 @pytest.mark.asyncio
+async def test_get_all_inbounds_missing_field_raises(adapter):
+    """Отсутствующее поле у inbound — понятная доменная ошибка, не TypeError позже."""
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
+
+    adapter.api.get = AsyncMock(
+        return_value={
+            "success": True,
+            "obj": [{"id": 1, "enable": True, "port": 1000}],  # нет remark
+        }
+    )
+
+    with pytest.raises(ThreeXUIError):
+        await adapter._get_all_inbounds()
+
+
+@pytest.mark.asyncio
 async def test_get_all_users(adapter):
     adapter.api.get = AsyncMock(
         return_value={
@@ -113,6 +130,7 @@ async def test_get_all_users(adapter):
 class FakeInboundCfg:
     port: int
     name: str
+    protocol: str = "vless_reality_xhttp"
 
 
 @pytest.mark.asyncio
@@ -125,13 +143,15 @@ async def test_get_inbound_success(adapter):
     )
 
     adapter.inbounds_name = [
-        FakeInboundCfg(port=1000, name="A"),
+        FakeInboundCfg(port=1000, name="A", protocol="vless_reality_tcp"),
     ]
 
     result = await adapter._get_inbound(adapter.inbounds_name)
 
     assert len(result) == 1
     assert result[0].id == 1
+    # protocol проставляется из совпавшей конфигурации, а не из remark.
+    assert result[0].protocol == "vless_reality_tcp"
 
 
 @pytest.mark.asyncio
@@ -141,7 +161,11 @@ async def test_add_new_config(adapter):
     adapter._restart_x_ray = AsyncMock()
     adapter._add_user = AsyncMock()
 
-    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1, remark="test")])
+    adapter._get_inbound = AsyncMock(
+        return_value=[
+            MagicMock(id=1, remark="test", protocol=VPNProtocol.VLESS_REALITY_XHTTP)
+        ]
+    )
 
     with (
         patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"),
@@ -168,7 +192,11 @@ async def test_add_new_config_warns_when_restart_failed(adapter):
     adapter._logout = AsyncMock()
     adapter._restart_x_ray = AsyncMock(return_value=None)
     adapter._add_user = AsyncMock()
-    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1, remark="test")])
+    adapter._get_inbound = AsyncMock(
+        return_value=[
+            MagicMock(id=1, remark="test", protocol=VPNProtocol.VLESS_REALITY_XHTTP)
+        ]
+    )
 
     with (
         patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"),

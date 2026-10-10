@@ -123,10 +123,12 @@ username = "admin"
 [[vpn.nodes.main.xray.inbounds]]
 port = 8443
 name = "🇫🇷 | XHTTP"
+protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.main.xray.inbounds]]
 port = 9443
 name = "🇫🇷 | TCP Reality"
+protocol = "vless_reality_tcp"
 #
 #[vpn.nodes.fi.xray]
 #host = "vpn-boriska.ru"
@@ -139,10 +141,12 @@ name = "🇫🇷 | TCP Reality"
 #[[vpn.nodes.fi.xray.inbounds]]
 #port = 8443
 #name = "🇫🇮 | XHTTP"
+#protocol = "vless_reality_xhttp"
 #
 #[[vpn.nodes.fi.xray.inbounds]]
 #port = 9443
 #name = "🇫🇮 | TCP Reality"
+#protocol = "vless_reality_tcp"
 
 [vpn.nodes.sof.xray]
 host = "x-ray-boriska.pro"
@@ -155,10 +159,12 @@ username = "admin"
 [[vpn.nodes.sof.xray.inbounds]]
 port = 443
 name = "🇧🇬 | XHTTP"
+protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.sof.xray.inbounds]]
 port = 8443
 name = "🇧🇬 | TCP Reality"
+protocol = "vless_reality_tcp"
 
 
 [vpn.nodes.waw.xray]
@@ -172,10 +178,12 @@ username = "admin"
 [[vpn.nodes.waw.xray.inbounds]]
 port = 443
 name = "🇵🇱 | XHTTP"
+protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.waw.xray.inbounds]]
 port = 8443
 name = "🇵🇱 | TCP Reality"
+protocol = "vless_reality_tcp"
 
 # === DB ===
 [db]

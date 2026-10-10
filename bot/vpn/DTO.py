@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from shared.enums.vpn_enum import VPNProtocol
+
 
 @dataclass
 class Inbound:
@@ -19,12 +21,19 @@ class Inbound:
         port (int):
             Порт, на котором работает inbound-соединение.
 
+        protocol (VPNProtocol | None):
+            Протокол этого inbound, если он сопоставлен с конфигурацией ноды
+            (`SInbound.protocol`) — см. `ThreeXUIAdapter._get_inbound`. `None`
+            для «сырых» inbound из `_get_all_inbounds`, которые не проверялись
+            на принадлежность настроенному списку.
+
     """
 
     id: int
     remark: str
     enable: bool
     port: int
+    protocol: VPNProtocol | None = None
 
 
 @dataclass

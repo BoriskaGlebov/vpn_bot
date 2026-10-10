@@ -15,6 +15,7 @@ from bot.vpn.schemas import S3XuiCredentials, S3XuiUSerSettings
 from bot.vpn.utils.x_ray_exceptions import (
     ThreeXUIAuthError,
     ThreeXUIConfigNotFoundError,
+    ThreeXUIError,
     ThreeXUIInboundNotFoundError,
     ThreeXUIInvalidExpiryError,
     ThreeXUIRequestError,
@@ -182,6 +183,40 @@ class ThreeXUIAdapter:
         finally:
             await self._logout()
 
+    @staticmethod
+    def _parse_inbound(item: dict[str, Any]) -> Inbound:
+        """Строит `Inbound` из элемента ответа панели `inbounds/list`.
+
+        Поля `Inbound` не `Optional` — доступ через `.get()` без дефолта
+        тихо подставлял `None` при отсутствующем поле, что приводило к
+        `TypeError` в случайном месте позже (например, при поиске подстроки
+        в `remark`), а не к понятной доменной ошибке сразу при разборе.
+
+        Args:
+            item: Один элемент `data["obj"]` ответа панели.
+
+        Returns
+            Inbound: Разобранный inbound.
+
+        Raises
+            ThreeXUIError: Если в ответе панели отсутствует одно из ожидаемых
+                полей (`id`, `remark`, `enable`, `port`).
+
+        """
+        try:
+            return Inbound(
+                id=item["id"],
+                remark=item["remark"],
+                enable=item["enable"],
+                port=item["port"],
+            )
+        except KeyError as exc:
+            raise ThreeXUIError(
+                message=f"Ответ панели не содержит поле {exc} у inbound",
+                details={"item": item},
+                cause=exc,
+            ) from exc
+
     async def _get_all_inbounds(self) -> list[Inbound]:
         """Получает все inbound-конфигурации из панели.
 
@@ -191,6 +226,7 @@ class ThreeXUIAdapter:
         Raises
             APIClientError: При ошибке API.
             ThreeXUIRequestError: Если панель ответила `success: false`.
+            ThreeXUIError: Если ответ панели не содержит ожидаемых полей.
 
         """
         logger.info("Запрос списка inbound-конфигураций")
@@ -198,16 +234,7 @@ class ThreeXUIAdapter:
         self._ensure_success(data, action="get_inbounds_list")
 
         objs = data.get("obj", [])
-
-        inbounds = [
-            Inbound(
-                id=item["id"],
-                remark=item.get("remark"),
-                enable=item.get("enable"),
-                port=item.get("port"),
-            )
-            for item in objs
-        ]
+        inbounds = [self._parse_inbound(item) for item in objs]
 
         logger.info("Получено inbound-конфигураций: {}", len(inbounds))
         return inbounds
@@ -250,6 +277,7 @@ class ThreeXUIAdapter:
         Raises
             APIClientError: При ошибке запроса к API.
             ThreeXUIRequestError: Если панель ответила `success: false`.
+            ThreeXUIError: Если ответ панели не содержит ожидаемых полей.
 
         """
         logger.info("Запрос списка inbound-конфигураций и их клиентов")
@@ -259,12 +287,7 @@ class ThreeXUIAdapter:
         objs = data.get("obj", [])
         result = [
             (
-                Inbound(
-                    id=item["id"],
-                    remark=item.get("remark"),
-                    enable=item.get("enable"),
-                    port=item.get("port"),
-                ),
+                self._parse_inbound(item),
                 {user["uuid"] for user in item.get("clientStats", [])},
             )
             for item in objs
@@ -411,7 +434,10 @@ class ThreeXUIAdapter:
     async def _get_inbound(self, inbounds_cfg: list[SInbound]) -> list[Inbound]:
         """Получает inbound-конфигурации, соответствующие заданным критериям.
 
-        Сопоставление выполняется по портам и имени (remark).
+        Сопоставление выполняется по портам и имени (remark). Найденным
+        inbound проставляется `protocol` из совпавшей конфигурации — он
+        известен только тут, т.к. `_get_all_inbounds` отдаёт «сырые» inbound
+        панели без привязки к `self.inbounds_name`.
 
         Args:
             inbounds_cfg: Список ожидаемых inbound-конфигураций.
@@ -424,8 +450,14 @@ class ThreeXUIAdapter:
 
         """
         all_inbounds = await self._get_all_inbounds()
-        allow_inb = {(cfg.port, cfg.name) for cfg in inbounds_cfg}
-        find_inb = [inb for inb in all_inbounds if (inb.port, inb.remark) in allow_inb]
+        cfg_by_key = {(cfg.port, cfg.name): cfg for cfg in inbounds_cfg}
+        find_inb = []
+        for inb in all_inbounds:
+            cfg = cfg_by_key.get((inb.port, inb.remark))
+            if cfg is None:
+                continue
+            inb.protocol = cfg.protocol
+            find_inb.append(inb)
         if len(find_inb) < len(inbounds_cfg):
             logger.error(f"Не все Inbound найдены.{find_inb}")
             raise ThreeXUIInboundNotFoundError(
@@ -493,9 +525,22 @@ class ThreeXUIAdapter:
                     if days > 0
                     else 0
                 )
-                # У подключения XHTTP нет параметра flow предается пустая строка.
-                is_tcp_reality = "XHTTP" not in inb.remark
-                flow = "xtls-rprx-vision" if is_tcp_reality else ""
+                if inb.protocol is None:
+                    # _get_inbound всегда проставляет protocol из совпавшей
+                    # SInbound — None здесь означает рассинхронизацию между
+                    # методами, а не штатный случай.
+                    raise ThreeXUIError(
+                        message=(
+                            f"Inbound без protocol в конфигурации: "
+                            f"port={inb.port}, remark={inb.remark}"
+                        )
+                    )
+                # У подключения XHTTP нет параметра flow, передаётся пустая строка.
+                flow = (
+                    "xtls-rprx-vision"
+                    if inb.protocol == VPNProtocol.VLESS_REALITY_TCP
+                    else ""
+                )
                 user_add = S3XuiUSerSettings(
                     id=uid,
                     email=f"user_{tg_id}_{uid[:4]}",
@@ -511,11 +556,7 @@ class ThreeXUIAdapter:
                 )
                 user_add_info["config_ids"].add(user_add.id)
                 user_add_info["sub_ids"].add(user_add.subId)
-                user_add_info["protocols"].add(
-                    VPNProtocol.VLESS_REALITY_TCP
-                    if is_tcp_reality
-                    else VPNProtocol.VLESS_REALITY_XHTTP
-                )
+                user_add_info["protocols"].add(inb.protocol)
                 await self._add_user(inbound_id=inb.id, user_add=user_add)
 
             if await self._restart_x_ray() is None:
