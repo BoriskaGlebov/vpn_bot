@@ -151,10 +151,6 @@ class ThreeXUIAdapter:
 
         Ошибки игнорируются, так как операция не критична
         для дальнейшего выполнения.
-
-        Raises
-            APIClientError: Ошибка API игнорируется внутри метода.
-
         """
         try:
             logger.info("Попытка выхода из 3x-ui")
@@ -163,7 +159,7 @@ class ThreeXUIAdapter:
             )
             logger.info("Успешный выход из 3x-ui")
         except APIClientError as e:
-            logger.info("Logout response обработан как successful: {}", e)
+            logger.debug("Logout завершился с ошибкой, игнорируем: {}", e)
         logger.info("Сессия завершена (logout)")
 
     @asynccontextmanager
@@ -522,7 +518,12 @@ class ThreeXUIAdapter:
                 )
                 await self._add_user(inbound_id=inb.id, user_add=user_add)
 
-            await self._restart_x_ray()
+            if await self._restart_x_ray() is None:
+                logger.warning(
+                    "XRay не перезапущен после создания конфигурации tg_id={} — "
+                    "клиент может не применяться до следующего штатного перезапуска",
+                    tg_id,
+                )
         url = f"https://{self.host}:{self.sub_port}/{self.sub_prefix}/{sub_id}"
         logger.info("Конфигурация успешно создана для tg_id={}", tg_id)
         return {
@@ -607,7 +608,13 @@ class ThreeXUIAdapter:
                     extended.append(client_id)
                     pending.discard(client_id)
 
-            await self._restart_x_ray()
+            if await self._restart_x_ray() is None:
+                logger.warning(
+                    "XRay не перезапущен после продления конфигураций {} — "
+                    "новый expiryTime может не применяться до следующего "
+                    "штатного перезапуска",
+                    extended,
+                )
 
         if not extended:
             raise ThreeXUIConfigNotFoundError(config_ids=config_ids)

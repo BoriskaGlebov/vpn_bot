@@ -162,6 +162,26 @@ async def test_add_new_config(adapter):
 
 
 @pytest.mark.asyncio
+async def test_add_new_config_warns_when_restart_failed(adapter):
+    """Неудачный _restart_x_ray (None) не должен ломать создание конфигурации."""
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock(return_value=None)
+    adapter._add_user = AsyncMock()
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1, remark="test")])
+
+    with (
+        patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"),
+        patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000),
+        patch("bot.vpn.utils.x_ray_config.logger") as mock_logger,
+    ):
+        result, url = await adapter.add_new_config(tg_id=123, days=1)
+
+    assert "uuid-1" in result["config_ids"]
+    mock_logger.warning.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_extend_config_invalid_days(adapter):
     from bot.vpn.utils.x_ray_exceptions import ThreeXUIInvalidExpiryError
 
@@ -191,6 +211,26 @@ async def test_extend_config_success(adapter):
     assert adapter._update_client.await_count == 2
     adapter._restart_x_ray.assert_awaited_once()
     adapter._logout.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_extend_config_warns_when_restart_failed(adapter):
+    """Неудачный _restart_x_ray (None) не должен ломать продление конфигураций."""
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock(return_value=None)
+    adapter._update_client = AsyncMock()
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1)])
+    adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "abc"}])
+
+    with (
+        patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000),
+        patch("bot.vpn.utils.x_ray_config.logger") as mock_logger,
+    ):
+        result = await adapter.extend_config(config_ids=["abc"], days=5)
+
+    assert result == ["abc"]
+    mock_logger.warning.assert_called_once()
 
 
 @pytest.mark.asyncio
