@@ -1,0 +1,45 @@
+name: 📋 Задача
+description: Техническая работа — рефакторинг, инфраструктура, тесты, документация
+title: "[TASK]: "
+labels: ["task"]
+assignees: ["BoriskaGlebov"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Что нужно сделать
+      description: Одним-двумя предложениями, в терминах результата, а не процесса.
+      placeholder: Вынести названия протоколов в StrEnum и заменить строковые литералы.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Зачем
+      description: >
+        Что сломается или будет дороже, если не делать. Если ответа нет — задача,
+        скорее всего, не нужна.
+      placeholder: Строки дублируются в четырёх файлах, опечатка не ловится ни линтером, ни тестами.
+    validations:
+      required: true
+
+  - type: textarea
+    id: where
+    attributes:
+      label: Где
+      description: Файлы, модули или эндпоинты, которых это касается.
+      placeholder: |
+        - bot/vpn/services.py
+        - api/vpn/schemas.py
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Как понять, что готово
+      description: Проверяемый критерий, а не «работает». Для рефакторинга — «поведение не изменилось, тесты не правились».
+      placeholder: Литералов нет, mypy и pytest зелёные, тесты не менялись.
+    validations:
+      required: true
