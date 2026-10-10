@@ -88,6 +88,28 @@ async def test_write_single_cmd_success(ssh_client):
 
 @pytest.mark.vpn
 @pytest.mark.vpn
+async def test_write_single_cmd_unparsable_exit_code_raises(ssh_client):
+    """Неразборчивый код возврата — ошибка протокола, а не тихий успех (exit_code=0)."""
+    mock_stdin = MagicMock()
+    mock_stdin.drain = AsyncMock()
+
+    mock_stdout = AsyncMock()
+    mock_stdout.readuntil = AsyncMock(return_value="__EXIT__:???\n")
+
+    mock_stderr = AsyncMock()
+    mock_stderr.readline = AsyncMock(return_value="")
+
+    ssh_client._process = MagicMock()
+    ssh_client._process.stdin = mock_stdin
+    ssh_client._process.stdout = mock_stdout
+    ssh_client._process.stderr = mock_stderr
+
+    with pytest.raises(AmneziaSSHError):
+        await ssh_client.write_single_cmd("echo test")
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
 async def test_check_container_failure_not_root(ssh_client):
     ssh_client.write_single_cmd = AsyncMock(return_value=("ubuntu", "", 0, "whoami"))
 
@@ -166,16 +188,17 @@ async def test_generate_public_key_error_stderr(ssh_client):
 
 @pytest.mark.vpn
 @pytest.mark.vpn
-async def test_generate_public_key_none(ssh_client):
+async def test_generate_public_key_empty_raises(ssh_client):
+    """Пустой stdout без ошибок — доменная ошибка, а не тихий None."""
+
     async def mock_gen(_):
         if False:
             yield
 
     ssh_client.run_commands_in_container = mock_gen
 
-    result = await ssh_client._generate_public_key()
-
-    assert result is None
+    with pytest.raises(AmneziaConfigError):
+        await ssh_client._generate_public_key()
 
 
 @pytest.mark.vpn
@@ -308,11 +331,12 @@ async def test_get_psk_key_stderr(ssh_client):
 
 @pytest.mark.vpn
 @pytest.mark.vpn
-async def test_get_psk_key_none(ssh_client):
+async def test_get_psk_key_empty_raises(ssh_client):
+    """Пустой stdout без ошибки exit_code — доменная ошибка, а не тихий None."""
     ssh_client.write_single_cmd = AsyncMock(return_value=("", "", 0, "cat"))
 
-    result = await ssh_client._get_psk_key()
-    assert result is None
+    with pytest.raises(AmneziaConfigError):
+        await ssh_client._get_psk_key()
 
 
 @pytest.mark.vpn
@@ -342,24 +366,28 @@ async def test_get_public_server_key_stderr(ssh_client):
 
     err = excinfo.value
     assert "Ошибка при получении public key сервера" in str(err)
-    assert err.file == "wireguard_server_public_key.key"
+    assert err.file == f"{ssh_client.WG_DIR}/wireguard_server_public_key.key"
     assert "Ошибка чтения файла" in err.stderr
 
 
 @pytest.mark.vpn
 @pytest.mark.vpn
-async def test_get_public_server_key_none(ssh_client):
+async def test_get_public_server_key_empty_raises(ssh_client):
+    """Пустой stdout без ошибки exit_code — доменная ошибка, а не тихий None."""
     ssh_client.write_single_cmd = AsyncMock(return_value=("", "", 0, "cat"))
 
-    result = await ssh_client._get_public_server_key()
-    assert result is None
+    with pytest.raises(AmneziaConfigError):
+        await ssh_client._get_public_server_key()
 
 
 @pytest.mark.vpn
 @pytest.mark.vpn
 async def test_add_user_in_config_success(ssh_client):
+    """Успех — отсутствие исключения, возвращаемого значения больше нет."""
+
     async def mock_gen(cmd):
-        yield "OK", "", 0, cmd[-1]
+        for c in cmd:
+            yield "", "", 0, c
 
     ssh_client.run_commands_in_container = mock_gen
 
@@ -369,7 +397,7 @@ async def test_add_user_in_config_success(ssh_client):
         psk_key="PSK_KEY",
     )
 
-    assert result == "OK"
+    assert result is None
 
 
 @pytest.mark.vpn
