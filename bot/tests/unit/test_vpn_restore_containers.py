@@ -41,6 +41,7 @@ async def test_restore_node_uses_explicit_key(service, node):
     service._cipher.decrypt.assert_called_once_with(b"encrypted")
     transport_cls.assert_called_once_with(node)
     transport.write_archive.assert_awaited_once_with(b"archive")
+    transport.restart_container.assert_awaited_once()
     assert used_key == "backup/containers/sof/x"
 
 
@@ -58,6 +59,17 @@ async def test_restore_node_resolves_latest_when_key_missing(service, node):
 
     service._storage.latest_backup.assert_awaited_once_with("sof")
     assert used_key == "backup/containers/sof/latest"
+
+
+@pytest.mark.vpn
+async def test_restore_node_rejects_foreign_node_key(service, node):
+    with pytest.raises(AmneziaBackupError, match="sof"):
+        await service.restore_node(
+            "main", node, key="backup/containers/sof/sof_2026-10-01_03-00-00.tar.gz.enc"
+        )
+
+    service._storage.download.assert_not_called()
+    service._cipher.decrypt.assert_not_called()
 
 
 @pytest.mark.vpn

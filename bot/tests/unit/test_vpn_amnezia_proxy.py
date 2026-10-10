@@ -48,7 +48,7 @@ async def test_connect_ssh_success(proxy_client_ssh):
     mock_conn = AsyncMock()
     mock_process = AsyncMock()
     with patch(
-        "bot.vpn.utils.amnezia_proxy.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.ssh_transport.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_connect.return_value = mock_conn
         mock_conn.create_process.return_value = mock_process
@@ -62,7 +62,7 @@ async def test_connect_ssh_success(proxy_client_ssh):
 @pytest.mark.vpn
 async def test_connect_ssh_timeout(proxy_client_ssh):
     with patch(
-        "bot.vpn.utils.amnezia_proxy.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.ssh_transport.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
 
         async def delayed(*args, **kwargs):
@@ -77,7 +77,7 @@ async def test_connect_ssh_timeout(proxy_client_ssh):
 @pytest.mark.vpn
 async def test_connect_ssh_os_error(proxy_client_ssh):
     with patch(
-        "bot.vpn.utils.amnezia_proxy.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.ssh_transport.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_connect.side_effect = OSError("connection error")
         with pytest.raises(AmneziaSSHError):
@@ -141,38 +141,36 @@ async def test_run_commands_in_container_iterates(proxy_client_local, monkeypatc
 
 @pytest.mark.vpn
 async def test_restart_container_local_success(proxy_client_local, monkeypatch):
-    # patch docker SDK client
-    fake_container = MagicMock()
-    fake_container.restart = MagicMock()
-    fake_docker_client = MagicMock()
-    fake_docker_client.containers.get.return_value = fake_container
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(return_value=(b"", b""))
+    proc.returncode = 0
+    create_subprocess_exec = AsyncMock(return_value=proc)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", create_subprocess_exec)
 
-    with patch(
-        "bot.vpn.utils.amnezia_proxy.docker.DockerClient",
-        return_value=fake_docker_client,
-    ):
-        ok = await proxy_client_local.restart_container()
-        assert ok is True
-        fake_docker_client.containers.get.assert_called_once_with("proxy-container")
-        fake_container.restart.assert_called_once()
+    ok = await proxy_client_local.restart_container()
+    assert ok is True
+    create_subprocess_exec.assert_awaited_once_with(
+        "docker",
+        "restart",
+        "proxy-container",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
 
 
 @pytest.mark.vpn
-async def test_restart_container_local_docker_exception(proxy_client_local):
-    from docker.errors import DockerException
+async def test_restart_container_local_error(proxy_client_local, monkeypatch):
+    proc = AsyncMock()
+    proc.communicate = AsyncMock(return_value=(b"", b"boom"))
+    proc.returncode = 1
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", AsyncMock(return_value=proc))
 
-    fake_docker_client = MagicMock()
-    fake_docker_client.containers.get.side_effect = DockerException("boom")
-    with patch(
-        "bot.vpn.utils.amnezia_proxy.docker.DockerClient",
-        return_value=fake_docker_client,
-    ):
-        with pytest.raises(AmneziaSSHError) as exc:
-            await proxy_client_local.restart_container()
-        err = exc.value
-        assert "Ошибка при перезапуске контейнера через Docker API" in str(err)
-        assert err.cmd == "restart proxy-container"
-        assert err.stderr
+    with pytest.raises(AmneziaSSHError) as exc:
+        await proxy_client_local.restart_container()
+    err = exc.value
+    assert "Ошибка при перезапуске контейнера" in str(err)
+    assert err.cmd == "docker restart proxy-container"
+    assert err.stderr == "boom"
 
 
 @pytest.mark.vpn
@@ -205,25 +203,32 @@ async def test_restart_container_ssh_error(proxy_client_ssh):
 
 
 @pytest.mark.vpn
+async def test_restart_container_ssh_not_connected(proxy_client_ssh):
+    proxy_client_ssh._conn = None
+
+    with pytest.raises(AmneziaSSHError, match="соединение не установлено"):
+        await proxy_client_ssh.restart_container()
+
+
+@pytest.mark.vpn
 async def test_close_handles_process_and_conn(proxy_client_ssh):
-    proc = AsyncMock()
-    proc.close = MagicMock()
-    proc.wait_closed = AsyncMock()
+    mock_stdin = MagicMock()
+    mock_stdin.drain = AsyncMock()
+    proxy_client_ssh._process = MagicMock()
+    proxy_client_ssh._process.stdin = mock_stdin
 
-    conn = AsyncMock()
-    conn.close = MagicMock()
+    conn = MagicMock()
     conn.wait_closed = AsyncMock()
-
-    proxy_client_ssh._process = proc
     proxy_client_ssh._conn = conn
 
     await proxy_client_ssh.close()
 
-    proc.close.assert_called_once()
-    proc.wait_closed.assert_awaited_once()
+    mock_stdin.write.assert_called_once_with("exit\n")
+    mock_stdin.drain.assert_awaited_once()
     conn.close.assert_called_once()
     conn.wait_closed.assert_awaited_once()
     assert proxy_client_ssh._conn is None
+    assert proxy_client_ssh._process is None
 
 
 @pytest.mark.vpn

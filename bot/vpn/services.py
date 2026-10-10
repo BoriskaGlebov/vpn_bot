@@ -19,7 +19,6 @@ from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
-from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN, AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import (
     AsyncSSHClientWG,
     AsyncSSHClientWG2,
@@ -35,11 +34,7 @@ xray_lock = asyncio.Lock()
 
 SSHClientFactory = Callable[
     ...,
-    AsyncSSHClientVPN2
-    | AsyncSSHClientWG2
-    | AsyncSSHClientWG3
-    | AsyncSSHClientVPN
-    | AsyncSSHClientWG,
+    AsyncSSHClientWG2 | AsyncSSHClientWG3 | AsyncSSHClientWG,
 ]
 
 _WG_CLIENT_BY_PROTOCOL_VERSION: dict[str, type[AsyncSSHClientWG]] = {
