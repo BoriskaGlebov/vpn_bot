@@ -1130,12 +1130,29 @@ async def test_full_delete_user_success(ssh_client):
 @pytest.mark.vpn
 @pytest.mark.vpn
 async def test_full_delete_user_not_found(ssh_client):
+    """Пир удалён из wg0.conf, но не найден в clientsTable (частичный сбой)."""
     ssh_client._delete_user_wg0 = AsyncMock(return_value=True)
     ssh_client._delete_from_clients_table = AsyncMock(return_value=False)
     ssh_client._sync_interface = AsyncMock()
 
     result = await ssh_client.full_delete_user("PUB_KEY")
     assert result is False
+    # awg0.conf изменился — интерфейс обязан синхронизироваться независимо
+    # от результата по clientsTable, иначе удалённый пир остаётся рабочим.
+    ssh_client._sync_interface.assert_awaited_once()
+
+
+@pytest.mark.vpn
+@pytest.mark.vpn
+async def test_full_delete_user_config_not_found_table_found(ssh_client):
+    """Пира нет в wg0.conf (уже удалён ранее), но запись в clientsTable осталась."""
+    ssh_client._delete_user_wg0 = AsyncMock(return_value=False)
+    ssh_client._delete_from_clients_table = AsyncMock(return_value=True)
+    ssh_client._sync_interface = AsyncMock()
+
+    result = await ssh_client.full_delete_user("PUB_KEY")
+    assert result is False
+    # Файл интерфейса не менялся — синхронизировать нечего.
     ssh_client._sync_interface.assert_not_awaited()
 
 

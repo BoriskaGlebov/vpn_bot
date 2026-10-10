@@ -241,11 +241,19 @@ class AsyncSSHClientWG:
         Raises
             AmneziaSSHError: Если произошла ошибка при генерации ключа.
 
+        Notes
+            Путь к файлу абсолютный (`{WG_DIR}/privatekey`), а не `cd` +
+            относительный путь. В local-режиме каждая команда списка `cmd`
+            выполняется в своём отдельном `docker exec` (см.
+            `write_single_cmd`), и `cd` из одной команды не действует на
+            следующую — ключ писался бы в `WORKDIR` контейнера, а
+            `_delete_temp_files` удалял бы по абсолютному пути, где файла
+            нет, оставляя ключ в контейнере навсегда.
+
         """
         cmd = [
-            f"cd {self.WG_DIR}",
-            "wg genkey > privatekey",
-            "cat privatekey",
+            f"wg genkey > {self.WG_DIR}/privatekey",
+            f"cat {self.WG_DIR}/privatekey",
         ]
         async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
             if stdout:
@@ -274,10 +282,15 @@ class AsyncSSHClientWG:
         Raises
             AmneziaSSHError: Если произошла ошибка при генерации ключа.
 
+        Notes
+            Абсолютные пути — см. `_generate_private_key`: приватный ключ,
+            из которого строится публичный, пишется по абсолютному пути,
+            относительный `privatekey` его в local-режиме не найдёт.
+
         """
         cmd = [
-            "cat privatekey | wg pubkey > publickey",
-            "cat publickey",
+            f"cat {self.WG_DIR}/privatekey | wg pubkey > {self.WG_DIR}/publickey",
+            f"cat {self.WG_DIR}/publickey",
         ]
         async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
             if stdout:
@@ -1290,15 +1303,24 @@ class AsyncSSHClientWG:
         Raises
             AmneziaError: В случае ошибок при удалении из конфигурации или таблицы клиентов.
 
+        Notes
+            Интерфейс синхронизируется, если изменился `wg0.conf`/`awg0.conf`,
+            независимо от результата по `clientsTable` — иначе при частичном
+            падении (пир удалён из файла, но не найден в таблице, например
+            после предыдущего сбоя) интерфейс продолжил бы работать со
+            старым набором пиров, и удалённый пользователь сохранял бы
+            рабочее соединение.
+
         """
         try:
             deleted_from_config = await self._delete_user_wg0(public_key)
             deleted_from_table = await self._delete_from_clients_table(public_key)
+            if deleted_from_config:
+                await self._sync_interface()
             if deleted_from_table and deleted_from_config:
                 logger.success(
                     "Пользователь полностью удален из конфигурации и таблицы клиентов."
                 )
-                await self._sync_interface()
                 return True
             else:
                 return False
