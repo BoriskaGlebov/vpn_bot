@@ -42,10 +42,6 @@ def main_kb(
                 )
             builder.add(*buttons)
         builder.adjust(1, 2)
-    # FIXME  убираю кнопку с прокси, что б людей не путать
-    # builder.row(KeyboardButton(text=MainMenuText.AMNEZIA_PROXY.value))
-    # FIXME  убираю кнопку с прокси, что б людей не путать
-    # builder.row(KeyboardButton(text=MainMenuText.FREE_AMNEZIA_PROXY.value))
     subscription_button_text = (
         MainMenuText.MY_SUBSCRIPTION.value
         if active_subscription

@@ -25,8 +25,6 @@ def _decode_stream(stream: str | bytes | None) -> str:
     return stream if isinstance(stream, str) else stream.decode()
 
 
-# TODO Когда долго контейнер поднят он не логирует ключ доступа и невозможно подключиться
-# к контейнеру, надо перезагружать иногда или где-то отдельно хранить ключ доступа или ссылку на подключение
 class HostDockerSSHClient(AsyncDockerSSHClient):
     """Асинхронный SSH-клиент для выполнения команд на Docker-хосте.
 

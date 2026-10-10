@@ -12,7 +12,6 @@ from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
 from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
 
 
-# FIXME проблема на с прокси так что надо его убрать из всех мест кнопку с прокси
 class AsyncDockerSSHClient:
     """Асинхронный клиент для выполнения команд в Docker-контейнере.
 
