@@ -4,8 +4,6 @@ from collections.abc import AsyncGenerator
 from types import TracebackType
 
 import asyncssh
-import docker
-from docker.errors import DockerException
 from loguru import logger
 
 from bot.vpn.utils.amnezia_exceptions import AmneziaError, AmneziaSSHError
@@ -185,28 +183,39 @@ class AsyncDockerSSHClient:
         Returns
             bool: True если контейнер успешно перезапущен.
 
+        Raises
+            AmneziaSSHError: Если соединение не установлено (удалённый режим)
+                либо команда перезапуска завершилась ошибкой.
+
         """
+        cmd = f"docker restart {self.container}"
         if self.use_local:
-            client_docker = docker.DockerClient(base_url="unix://var/run/docker.sock")
-            try:
-                container = client_docker.containers.get(self.container)
-                container.restart()
-                logger.success(f"Контейнер {self.container} успешно перезапущен")
-                return True
-            except DockerException as e:
-                raise AmneziaSSHError(
-                    message="Ошибка при перезапуске контейнера через Docker API",
-                    cmd=f"restart {self.container}",
-                    stdout="",
-                    stderr=str(e),
-                ) from e
+            # Host-level команда через подпроцесс, а не Docker SDK: тот
+            # синхронный, и container.restart() блокировал бы event loop
+            # бота на всё время перезапуска (секунды).
+            process = await asyncio.create_subprocess_exec(
+                "docker",
+                "restart",
+                self.container,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            raw_stdout, raw_stderr = await process.communicate()
+            stdout, stderr, code = (
+                raw_stdout.decode().strip(),
+                raw_stderr.decode().strip(),
+                process.returncode,
+            )
         else:
-            assert self._conn is not None
-            cmd = f"docker restart {self.container}"
+            if self._conn is None:
+                raise AmneziaSSHError(
+                    message="AsyncSSH: соединение не установлено. Вызови connect()",
+                    cmd=cmd,
+                )
             result = await self._conn.run(cmd)
             stdout, stderr, code = (
-                result.stdout,
-                result.stderr,
+                str(result.stdout),
+                str(result.stderr),
                 result.exit_status,
             )
 
