@@ -6,6 +6,7 @@ from loguru import logger
 from bot.core.config import VPNNode, settings_bot
 from bot.vpn.utils.amnezia_exceptions import AmneziaBackupError
 from bot.vpn.utils.container_archive import (
+    S3_BACKUP_PREFIX,
     ArchiveCipher,
     BackupObject,
     ContainerArchiveTransport,
@@ -57,12 +58,13 @@ class ContainerRestoreService:
             str: Ключ архива, из которого выполнено восстановление.
 
         Raises
-            AmneziaBackupError: Если для ноды нет бэкапов либо расшифровка
-                архива завершилась ошибкой.
+            AmneziaBackupError: Если для ноды нет бэкапов, ключ принадлежит
+                другой ноде, либо расшифровка архива завершилась ошибкой.
             AmneziaSSHError: При ошибке доступа к контейнеру.
 
         """
         backup_key = key or await self._resolve_latest_key(name)
+        self._ensure_key_belongs_to_node(backup_key, name)
         logger.warning(
             f"Восстанавливаю ноду {name} ({node.host}) из {backup_key} — "
             f"текущие файлы в /opt/amnezia контейнера {node.container} будут перезаписаны"
@@ -78,6 +80,25 @@ class ContainerRestoreService:
         if latest is None:
             raise AmneziaBackupError(f"Нет доступных бэкапов для ноды {name}")
         return latest.key
+
+    @staticmethod
+    def _ensure_key_belongs_to_node(key: str, name: str) -> None:
+        """Проверяет, что ключ бэкапа принадлежит восстанавливаемой ноде.
+
+        Ключи имеют вид `{S3_BACKUP_PREFIX}/{node_name}/...` — без этой
+        проверки `--key` из CLI мог развернуть конфигурацию чужой ноды
+        поверх действующей (см. аудит, issue #220).
+
+        Raises
+            AmneziaBackupError: Если ключ принадлежит другой ноде.
+
+        """
+        expected_prefix = f"{S3_BACKUP_PREFIX}/{name}/"
+        if not key.startswith(expected_prefix):
+            raise AmneziaBackupError(
+                f"Ключ бэкапа {key!r} не принадлежит ноде {name!r} "
+                f"(ожидался префикс {expected_prefix!r})"
+            )
 
 
 def _build_service() -> ContainerRestoreService:
