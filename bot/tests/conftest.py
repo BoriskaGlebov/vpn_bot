@@ -21,7 +21,6 @@ from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 from bot.utils import commands
 from bot.vpn.services import VPNService
-from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG3
 
 
@@ -517,18 +516,6 @@ def ssh_client():
         known_hosts=None,
         container="test-container",
         use_local=False,
-    )
-
-
-@pytest.fixture
-def ssh_client_vpn():
-    """Создаёт экземпляр клиента"""
-    return AsyncSSHClientVPN(
-        host="127.0.0.1",
-        username="testuser",
-        known_hosts=None,
-        container="test-container",
-        use_local=True,
     )
 
 
