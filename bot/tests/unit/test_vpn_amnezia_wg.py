@@ -225,24 +225,17 @@ async def test_get_vpn_params_config_error(ssh_client):
     )
     with pytest.raises(AmneziaConfigError) as error:
         await ssh_client._get_vpn_params_config()
-    assert "Ошибка получении конфига параметров VPN" in str(error)
+    assert "Ошибка при чтении" in str(error)
 
 
 @pytest.mark.vpn
 @pytest.mark.vpn
 async def test_get_correct_ip_success(ssh_client):
-    async def mock_run_commands(cmds):
-        cmd = cmds[0]
-        if "AllowedIPs" in cmd:
-            # Возвращаем занятые IP без /32
-            yield "10.0.0.1\n", "", 0, "mocked AllowedIPs"
-        elif "Address" in cmd:
-            # Возвращаем подсеть
-            yield "10.0.0.0/24\n", "", 0, "mocked Address"
-        else:
-            yield "", "", 0, "other mocked"
-
-    ssh_client.run_commands_in_container = mock_run_commands
+    """Address и AllowedIPs разбираются из одного и того же текста конфига."""
+    conf_text = (
+        "[Interface]\nAddress = 10.0.0.0/24\n\n[Peer]\nAllowedIPs = 10.0.0.1/32\n"
+    )
+    ssh_client.write_single_cmd = AsyncMock(return_value=(conf_text, "", 0, "cat"))
 
     result = await ssh_client._get_correct_ip()
 
@@ -252,10 +245,8 @@ async def test_get_correct_ip_success(ssh_client):
 @pytest.mark.vpn
 @pytest.mark.vpn
 async def test_get_correct_ip_invalid_ip(ssh_client):
-    async def mock_gen(_):
-        yield "invalid_ip\n", "", 0, "cat lastip"
-
-    ssh_client.run_commands_in_container = mock_gen
+    conf_text = "[Interface]\nAddress = invalid_ip\n"
+    ssh_client.write_single_cmd = AsyncMock(return_value=(conf_text, "", 0, "cat"))
 
     with pytest.raises(ValueError):
         await ssh_client._get_correct_ip()
@@ -263,20 +254,16 @@ async def test_get_correct_ip_invalid_ip(ssh_client):
 
 @pytest.mark.vpn
 async def test_get_correct_ip_stderr(ssh_client):
-    """Тест обработки ошибки при пустой подсети (Address вернул stderr)."""
-
-    async def mock_run_commands(cmds):
-        # Мокируем команду Address
-        yield "", "Ошибка чтения файла", 1, "mocked command"
-
-    ssh_client.run_commands_in_container = mock_run_commands
+    """Ошибка чтения файла конфига — AmneziaConfigError из _cat_wg_conf."""
+    ssh_client.write_single_cmd = AsyncMock(
+        return_value=("", "Ошибка чтения файла", 1, "cat")
+    )
 
     with pytest.raises(AmneziaConfigError) as excinfo:
         await ssh_client._get_correct_ip()
 
     err = excinfo.value
-    # Проверяем, что текст ошибки содержит реальный префикс и stderr
-    assert "Ошибка при получении подсети" in str(err)
+    assert "Ошибка при чтении" in str(err)
     assert "Ошибка чтения файла" in str(err)
     assert err.file == ssh_client.WG_CONF
 
@@ -284,13 +271,9 @@ async def test_get_correct_ip_stderr(ssh_client):
 @pytest.mark.vpn
 @pytest.mark.vpn
 async def test_get_correct_ip_none(ssh_client):
-    """Тест для случая, когда нет подсети (пустой вывод Address)."""
-
-    async def mock_run_commands(cmds):
-        # Имитация пустого вывода для директивы Address
-        yield "", "", 0, "mocked Address"
-
-    ssh_client.run_commands_in_container = mock_run_commands
+    """Файл непустой, но директивы Address в нём нет."""
+    conf_text = "[Interface]\nPrivateKey = xxx\n"
+    ssh_client.write_single_cmd = AsyncMock(return_value=(conf_text, "", 0, "cat"))
 
     with pytest.raises(AmneziaConfigError) as excinfo:
         await ssh_client._get_correct_ip()
@@ -530,6 +513,84 @@ async def test_get_vpn_params_config_wg3_parses_v3_obfuscation(ssh_client_wg3):
         "RandomTrailers": "on",
         "DisableCookies": "on",
     }
+
+
+@pytest.mark.vpn
+async def test_get_vpn_params_config_wg2_parses_commented_keys():
+    """WG2: параметры I1-I5 хранятся закомментированными (`# I1 = ...`)."""
+    from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG2
+
+    client = AsyncSSHClientWG2(
+        host="127.0.0.1", username="testuser", container="amnezia-awg2"
+    )
+    client.write_single_cmd = AsyncMock(
+        return_value=(
+            "[Interface]\n"
+            "PrivateKey = KEY\n"
+            "ListenPort = 5555\n"
+            "Jc = 4\n"
+            "S3 = 15\n"
+            "S4 = 12\n"
+            "# I1 = 1\n"
+            "# I2 = 2\n"
+            "# I5 = 5\n"
+            "[Peer]\n"
+            "PublicKey = PUB",
+            "",
+            0,
+            f"cat {client.WG_CONF}",
+        )
+    )
+
+    params, listen_port = await client._get_vpn_params_config()
+
+    assert listen_port == 5555
+    assert params == {
+        "Jc": "4",
+        "S3": "15",
+        "S4": "12",
+        "I1": "1",
+        "I2": "2",
+        "I5": "5",
+    }
+
+
+@pytest.mark.vpn
+def test_wg3_inherits_from_wg2():
+    """WG3 наследуется от WG2 (общий WG_DIR/WG_CONF/DNS_SERVERS), не от базы напрямую."""
+    from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG2, AsyncSSHClientWG3
+
+    assert issubclass(AsyncSSHClientWG3, AsyncSSHClientWG2)
+    assert AsyncSSHClientWG3.WG_CONF == AsyncSSHClientWG2.WG_CONF
+    assert AsyncSSHClientWG3.DNS_SERVERS == AsyncSSHClientWG2.DNS_SERVERS
+    assert AsyncSSHClientWG3.COMMENTED_PARAM_KEYS == frozenset()
+
+
+@pytest.mark.vpn
+async def test_get_vpn_params_config_missing_listen_port_raises(ssh_client):
+    """ListenPort отсутствует в конфиге — явная ошибка, а не listen_port=1."""
+    ssh_client.write_single_cmd = AsyncMock(
+        return_value=("[Interface]\nPrivateKey = KEY\n[Peer]\n", "", 0, "cat")
+    )
+
+    with pytest.raises(AmneziaConfigError, match="ListenPort не найден"):
+        await ssh_client._get_vpn_params_config()
+
+
+@pytest.mark.vpn
+async def test_get_vpn_params_config_invalid_listen_port_raises(ssh_client):
+    """ListenPort нечисловой — явная ошибка, а не listen_port=1."""
+    ssh_client.write_single_cmd = AsyncMock(
+        return_value=(
+            "[Interface]\nListenPort = not-a-number\n[Peer]\n",
+            "",
+            0,
+            "cat",
+        )
+    )
+
+    with pytest.raises(AmneziaConfigError, match="Некорректный ListenPort"):
+        await ssh_client._get_vpn_params_config()
 
 
 @pytest.mark.vpn

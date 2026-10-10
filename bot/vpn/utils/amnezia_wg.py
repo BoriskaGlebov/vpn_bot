@@ -48,6 +48,16 @@ class AsyncSSHClientWG:
     WG_CONF = f"{WG_DIR}/wg0.conf"
     WG_CLIENTS_TABLE = f"{WG_DIR}/clientsTable"
     DNS_SERVERS = "1.1.1.1, 1.0.0.1"
+    # Допустимые ключи секции [Interface] (кроме Address/DNS/PrivateKey,
+    # которые задаёт сам _build_wg_config) — отличаются между версиями
+    # протокола, переопределяются в подклассах.
+    INTERFACE_PARAM_KEYS: frozenset[str] = frozenset(
+        {"Jc", "Jmin", "Jmax", "S1", "S2", "H1", "H2", "H3", "H4"}
+    )
+    # Ключи, которые в конфиге закомментированы (`# I1 = ...`) — у v2 это
+    # часть протокола обфускации, а не отключённая настройка. Пусто у
+    # версий, где таких строк нет.
+    COMMENTED_PARAM_KEYS: frozenset[str] = frozenset()
 
     def __init__(
         self,
@@ -321,65 +331,82 @@ class AsyncSSHClientWG:
             )
         return stdout
 
-    async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
-        """Получает индивидуальные данные для подключения VPN и порт контейнера.
+    async def _cat_wg_conf(self) -> str:
+        """Читает `wg0.conf`/`awg0.conf` целиком одной командой.
 
-        Считывает файл конфигурации WireGuard (`wg0.conf`) внутри контейнера
-        и возвращает словарь с параметрами интерфейса `[Interface]` и порт `ListenPort`.
+        Единая точка чтения файла для `_get_vpn_params_config`,
+        `_get_used_ips` и `_find_free_ip` — раньше каждый парсил файл
+        своим способом (один — через `write_single_cmd` + Python, два
+        других — через `grep`/`awk` пайпы), хотя файл один и тот же.
 
         Returns
-            Optional[Tuple[Dict[str, Any], int]]:
-                Кортеж из:
-                - params (dict[str, Any]): Параметры интерфейса WireGuard (например, Jc, Jmin, H1 и т.д.).
-                - listen_port (int): Порт прослушивания интерфейса.
-                Возвращает None, если не удалось получить данные.
+            str: Содержимое файла.
 
         Raises
-            AmneziaConfigError: Если не удалось прочитать конфигурацию или получен stderr.
+            AmneziaConfigError: Если команда завершилась с ошибкой или
+                результат пуст.
 
         """
-        cmd = f"cat {self.WG_CONF}"
-        stdout, stderr, *_ = await self.write_single_cmd(cmd)
-        if stdout:
-            in_interface = False
-            params = {}
-            listen_port = 1
-
-            for line in stdout.splitlines():
-                line = line.strip()
-                if line == "[Interface]":
-                    in_interface = True
-                    continue
-                elif line.startswith("[Peer]"):
-                    break
-                if in_interface and "=" in line:
-                    key, value = map(str.strip, line.split("=", 1))
-                    if key in {
-                        "Jc",
-                        "Jmin",
-                        "Jmax",
-                        "S1",
-                        "S2",
-                        "H1",
-                        "H2",
-                        "H3",
-                        "H4",
-                    }:
-                        params[key] = value
-                    elif key in {"ListenPort"}:
-                        try:
-                            listen_port = int(value)
-                        except ValueError:
-                            listen_port = 1
-            return params, listen_port
-        elif stderr:
+        stdout, stderr, exit_code, _ = await self.write_single_cmd(
+            f"cat {self.WG_CONF}"
+        )
+        if exit_code or not stdout:
             raise AmneziaConfigError(
-                message=f"Ошибка получении конфига параметров VPN: {stderr}",
+                message=f"Ошибка при чтении {self.WG_CONF}: {stderr}",
                 file=self.WG_CONF,
                 stderr=stderr,
             )
+        return stdout
 
-        return None
+    async def _get_vpn_params_config(self) -> tuple[dict[str, str], int]:
+        """Получает индивидуальные данные для подключения VPN и порт контейнера.
+
+        Разбирает секцию `[Interface]` файла конфигурации WireGuard. Набор
+        допустимых ключей — `self.INTERFACE_PARAM_KEYS`/`self.COMMENTED_PARAM_KEYS`,
+        задаются подклассами под конкретную версию протокола; сам парсер
+        один для всех версий.
+
+        Returns
+            tuple[dict[str, str], int]:
+                - params: Параметры интерфейса WireGuard (Jc, Jmin, H1 и т.д.).
+                - listen_port: Порт прослушивания интерфейса.
+
+        Raises
+            AmneziaConfigError: Если не удалось прочитать конфигурацию, либо
+                `ListenPort` отсутствует или нечислов.
+
+        """
+        stdout = await self._cat_wg_conf()
+        in_interface = False
+        params: dict[str, str] = {}
+        listen_port: int | None = None
+
+        for line in stdout.splitlines():
+            line = line.strip()
+            if line == "[Interface]":
+                in_interface = True
+                continue
+            elif line.startswith("[Peer]"):
+                break
+            if in_interface and "=" in line:
+                key, value = map(str.strip, line.split("=", 1))
+                if key in self.INTERFACE_PARAM_KEYS:
+                    params[key] = value
+                elif key.startswith("# ") and key[2:] in self.COMMENTED_PARAM_KEYS:
+                    params[key[2:]] = value
+                elif key == "ListenPort":
+                    try:
+                        listen_port = int(value)
+                    except ValueError as e:
+                        raise AmneziaConfigError(
+                            message=f"Некорректный ListenPort в {self.WG_CONF}: {value!r}",
+                            file=self.WG_CONF,
+                        ) from e
+        if listen_port is None:
+            raise AmneziaConfigError(
+                message=f"ListenPort не найден в {self.WG_CONF}", file=self.WG_CONF
+            )
+        return params, listen_port
 
     async def _get_used_ips(self) -> set[ipaddress.IPv4Address]:
         """Возвращает множество всех занятых IP из `wg0.conf`.
@@ -393,27 +420,21 @@ class AsyncSSHClientWG:
             AmneziaConfigError: Если произошла ошибка при получении IP или список пуст.
 
         """
-        cmd = [
-            f"cat {self.WG_CONF} | "
-            f"grep 'AllowedIPs =' | "
-            f"awk -F'= ' '{{split($2,a,\",\"); for(i in a){{split(a[i],b,\"/\"); print b[1]}}}}'"
-        ]
+        stdout = await self._cat_wg_conf()
         used_ips: set[ipaddress.IPv4Address] = set()
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd):
-            if stdout:
-                for line in stdout.splitlines():
-                    try:
-                        used_ips.add(ipaddress.IPv4Address(line.strip()))
-                    except ValueError:
-                        logger.bind(user=self.username).warning(
-                            f"Некорректный IP в конфиге: {line.strip()}"
-                        )
-            if stderr:
-                raise AmneziaConfigError(
-                    message=f"Ошибка при получении IP: {stderr}",
-                    file=self.WG_CONF,
-                    stderr=stderr,
-                )
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line.startswith("AllowedIPs"):
+                continue
+            _, _, value = line.partition("=")
+            for part in value.split(","):
+                ip_str = part.strip().split("/")[0]
+                try:
+                    used_ips.add(ipaddress.IPv4Address(ip_str))
+                except ValueError:
+                    logger.bind(user=self.username).warning(
+                        f"Некорректный IP в конфиге: {ip_str}"
+                    )
         if not used_ips:
             raise AmneziaConfigError(
                 message="Не удалось определить занятые IP", file=self.WG_CONF
@@ -435,18 +456,14 @@ class AsyncSSHClientWG:
             AmneziaConfigError: Если не удалось определить подсеть или нет свободных IP.
 
         """
-        cmd_subnet = [
-            f"grep 'Address' {self.WG_CONF} | head -n1 | awk -F'= ' '{{print $2}}'"
-        ]
+        stdout = await self._cat_wg_conf()
         subnet_ip: str | None = None
-        async for stdout, stderr, *_ in self.run_commands_in_container(cmd_subnet):
-            if stdout:
-                subnet_ip = stdout.strip()
-            if stderr:
-                raise AmneziaConfigError(
-                    message=f"Ошибка при получении подсети: {stderr}",
-                    file=self.WG_CONF,
-                )
+        for line in stdout.splitlines():
+            line = line.strip()
+            if line.startswith("Address"):
+                _, _, value = line.partition("=")
+                subnet_ip = value.strip()
+                break
         if not subnet_ip:
             raise AmneziaConfigError(
                 message="Не удалось определить подсеть", file=self.WG_CONF
@@ -582,10 +599,7 @@ class AsyncSSHClientWG:
                 порт, на котором слушает сервер.
 
         """
-        vpn_config = await self._get_vpn_params_config()
-        if vpn_config is None:
-            raise AmneziaConfigError(message="Не удалось получить параметры VPN")
-        vpn_params, listen_port = vpn_config
+        vpn_params, listen_port = await self._get_vpn_params_config()
         interface_data = {
             "Address": new_ip,
             "DNS": self.DNS_SERVERS,
@@ -1387,6 +1401,10 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
     # Первым — AmneziaDNS, собственный DNS-резолвер Amnezia в их
     # инфраструктуре, Cloudflare (1.0.0.1) — только как резервный.
     DNS_SERVERS = "172.29.172.254, 1.0.0.1"
+    INTERFACE_PARAM_KEYS = AsyncSSHClientWG.INTERFACE_PARAM_KEYS | {"S3", "S4"}
+    # Протокол обфускации v2 хранит часть параметров закомментированными —
+    # `_get_vpn_params_config` снимает префикс `# ` и кладёт под именем I1-I5.
+    COMMENTED_PARAM_KEYS = frozenset({"I1", "I2", "I3", "I4", "I5"})
 
     def __init__(
         self,
@@ -1402,79 +1420,8 @@ class AsyncSSHClientWG2(AsyncSSHClientWG):
             host, username, port, known_hosts, container, use_local, location_prefix
         )
 
-    async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
-        """Получает индивидуальные данные для подключения VPN и порт контейнера.
 
-        Считывает файл конфигурации WireGuard (`wg0.conf`) внутри контейнера
-        и возвращает словарь с параметрами интерфейса `[Interface]` и порт `ListenPort`.
-
-        Returns
-            Optional[Tuple[Dict[str, Any], int]]:
-                Кортеж из:
-                - params (dict[str, Any]): Параметры интерфейса WireGuard (например, Jc, Jmin, H1 и т.д.).
-                - listen_port (int): Порт прослушивания интерфейса.
-                Возвращает None, если не удалось получить данные.
-
-        Raises
-            AmneziaConfigError: Если не удалось прочитать конфигурацию или получен stderr.
-
-        """
-        cmd = f"cat {self.WG_CONF}"
-        stdout, stderr, *_ = await self.write_single_cmd(cmd)
-        if stdout:
-            in_interface = False
-            params = {}
-            listen_port = 1
-
-            for line in stdout.splitlines():
-                line = line.strip()
-                if line == "[Interface]":
-                    in_interface = True
-                    continue
-                elif line.startswith("[Peer]"):
-                    break
-                if in_interface and "=" in line:
-                    key, value = map(str.strip, line.split("=", 1))
-                    if key in {
-                        "Jc",
-                        "Jmin",
-                        "Jmax",
-                        "S1",
-                        "S2",
-                        "S3",
-                        "S4",
-                        "H1",
-                        "H2",
-                        "H3",
-                        "H4",
-                    }:
-                        params[key] = value
-                    elif key in {
-                        "# I1",
-                        "# I2",
-                        "# I3",
-                        "# I4",
-                        "# I5",
-                    }:
-                        correct_key = key.split("# ")[1]
-                        params[correct_key] = value
-                    elif key in {"ListenPort"}:
-                        try:
-                            listen_port = int(value)
-                        except ValueError:
-                            listen_port = 1
-            return params, listen_port
-        elif stderr:
-            raise AmneziaConfigError(
-                message=f"Ошибка получении конфига параметров VPN: {stderr}",
-                file=self.WG_CONF,
-                stderr=stderr,
-            )
-
-        return None
-
-
-class AsyncSSHClientWG3(AsyncSSHClientWG):
+class AsyncSSHClientWG3(AsyncSSHClientWG2):
     """Асинхронный SSH-клиент с поддержкой работы через Docker-контейнер.
 
     Протокол AmneziaWG 3.x — набор параметров обфускации в `[Interface]`
@@ -1482,11 +1429,10 @@ class AsyncSSHClientWG3(AsyncSSHClientWG):
     именованные параметры (`HeaderProtectionKey`, `ContentPaddingAddition`,
     `RekeyAfterTime`, `RekeyTimeout`, `RejectAfterTime`, `KeepaliveTimeout`,
     `MaxHandshakeAttempts`, `RandomTrailers`, `DisableCookies`). Контейнер,
-    пути к ключам и сам `.conf`-файл — те же, что у v2 (проверено на
-    VPS04, amn-boris.ru, контейнер `amnezia-awg2`), поэтому `WG_DIR`/`WG_CONF`
-    не переопределяются. `_build_wg_config` тоже не переопределяется — он
-    уже ничего не знает про конкретные версии, вся разница уходит в
-    `_get_vpn_params_config` и `DNS_SERVERS`.
+    пути к ключам, сам `.conf`-файл и `DNS_SERVERS` — те же, что у v2
+    (проверено на VPS04, amn-boris.ru, контейнер `amnezia-awg2`), поэтому
+    наследуется от `AsyncSSHClientWG2`, а не от базового класса напрямую —
+    переопределяет только набор ключей `[Interface]`.
 
     Args:
         host (str): Адрес сервера (IP или DNS).
@@ -1503,98 +1449,17 @@ class AsyncSSHClientWG3(AsyncSSHClientWG):
 
     """
 
-    WG_DIR = "/opt/amnezia/awg"
-    WG_CONF = f"{WG_DIR}/awg0.conf"
-    # AmneziaDNS по-прежнему в этой же инфраструктуре (контейнер
-    # amnezia-dns виден на VPS04 рядом с amnezia-awg2) — тот же адрес, что
-    # и у v2, Cloudflare (1.0.0.1) как резервный.
-    DNS_SERVERS = "172.29.172.254, 1.0.0.1"
-
-    def __init__(
-        self,
-        host: str = "localhost",
-        username: str | None = None,
-        port: int = 22,
-        known_hosts: str | None = None,
-        container: str = "amnezia-awg2",
-        use_local: bool = True,
-        location_prefix: str = "FR",
-    ) -> None:
-        super().__init__(
-            host, username, port, known_hosts, container, use_local, location_prefix
-        )
-
-    async def _get_vpn_params_config(self) -> tuple[dict[Any, Any], int] | None:
-        """Получает индивидуальные данные для подключения VPN и порт контейнера.
-
-        Считывает файл конфигурации WireGuard (`awg0.conf`) внутри контейнера
-        и возвращает словарь с параметрами интерфейса `[Interface]` и порт `ListenPort`.
-
-        Returns
-            Optional[Tuple[Dict[str, Any], int]]:
-                Кортеж из:
-                - params (dict[str, Any]): Параметры интерфейса AmneziaWG 3.x
-                  (Jc, Jmin, Jmax, S1-S4, H1-H4, HeaderProtectionKey,
-                  ContentPaddingAddition, RekeyAfterTime, RekeyTimeout,
-                  RejectAfterTime, KeepaliveTimeout, MaxHandshakeAttempts,
-                  RandomTrailers, DisableCookies и т.д.).
-                - listen_port (int): Порт прослушивания интерфейса.
-                Возвращает None, если не удалось получить данные.
-
-        Raises
-            AmneziaConfigError: Если не удалось прочитать конфигурацию или получен stderr.
-
-        """
-        cmd = f"cat {self.WG_CONF}"
-        stdout, stderr, *_ = await self.write_single_cmd(cmd)
-        if stdout:
-            in_interface = False
-            params = {}
-            listen_port = 1
-
-            for line in stdout.splitlines():
-                line = line.strip()
-                if line == "[Interface]":
-                    in_interface = True
-                    continue
-                elif line.startswith("[Peer]"):
-                    break
-                if in_interface and "=" in line:
-                    key, value = map(str.strip, line.split("=", 1))
-                    if key in {
-                        "Jc",
-                        "Jmin",
-                        "Jmax",
-                        "S1",
-                        "S2",
-                        "S3",
-                        "S4",
-                        "H1",
-                        "H2",
-                        "H3",
-                        "H4",
-                        "HeaderProtectionKey",
-                        "ContentPaddingAddition",
-                        "RekeyAfterTime",
-                        "RekeyTimeout",
-                        "RejectAfterTime",
-                        "KeepaliveTimeout",
-                        "MaxHandshakeAttempts",
-                        "RandomTrailers",
-                        "DisableCookies",
-                    }:
-                        params[key] = value
-                    elif key in {"ListenPort"}:
-                        try:
-                            listen_port = int(value)
-                        except ValueError:
-                            listen_port = 1
-            return params, listen_port
-        elif stderr:
-            raise AmneziaConfigError(
-                message=f"Ошибка получении конфига параметров VPN: {stderr}",
-                file=self.WG_CONF,
-                stderr=stderr,
-            )
-
-        return None
+    INTERFACE_PARAM_KEYS = AsyncSSHClientWG2.INTERFACE_PARAM_KEYS | {
+        "HeaderProtectionKey",
+        "ContentPaddingAddition",
+        "RekeyAfterTime",
+        "RekeyTimeout",
+        "RejectAfterTime",
+        "KeepaliveTimeout",
+        "MaxHandshakeAttempts",
+        "RandomTrailers",
+        "DisableCookies",
+    }
+    # В отличие от v2, у v3 нет закомментированных `# I1`-`# I5` —
+    # параметры обфускации именованные, без обёртки в комментарий.
+    COMMENTED_PARAM_KEYS: frozenset[str] = frozenset()
