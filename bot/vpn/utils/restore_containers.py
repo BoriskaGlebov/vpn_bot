@@ -71,8 +71,13 @@ class ContainerRestoreService:
         )
         encrypted = await self._storage.download(backup_key)
         archive = self._cipher.decrypt(encrypted)
-        await ContainerArchiveTransport(node).write_archive(archive)
-        logger.success(f"Нода {name} восстановлена из {backup_key}")
+        transport = ContainerArchiveTransport(node)
+        await transport.write_archive(archive)
+        # Без перезапуска контейнер продолжит работать со старой
+        # конфигурацией в памяти — восстановление выглядело бы успешным,
+        # но не действовало до ручного docker restart (см. аудит, #223).
+        await transport.restart_container()
+        logger.success(f"Нода {name} восстановлена из {backup_key} и перезапущена")
         return backup_key
 
     async def _resolve_latest_key(self, name: str) -> str:
@@ -123,10 +128,7 @@ async def _restore(
     service: ContainerRestoreService, name: str, node: VPNNode, key: str | None
 ) -> None:
     used_key = await service.restore_node(name, node, key=key)
-    restart_hint = f"docker restart {node.container}"
-    if not node.use_local:
-        restart_hint += f" (на {node.host})"
-    print(f"Восстановлено из {used_key}. Перезапустите контейнер: {restart_hint}")
+    print(f"Восстановлено из {used_key}. Контейнер {node.container} перезапущен.")
 
 
 def _parse_args() -> argparse.Namespace:

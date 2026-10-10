@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from botocore.exceptions import BotoCoreError
 from cryptography.fernet import Fernet
 from pydantic import SecretStr
 
@@ -109,6 +110,37 @@ async def test_write_archive_remote_passes_input(remote_node):
     assert conn.run.call_args.kwargs["input"] == b"payload"
 
 
+@pytest.mark.vpn
+async def test_restart_container_local_runs_host_level_command(local_node):
+    process = AsyncMock()
+    process.communicate.return_value = (b"", b"")
+    process.returncode = 0
+    create = AsyncMock(return_value=process)
+    with patch.object(ca, "create_subprocess_exec", create):
+        await ca.ContainerArchiveTransport(local_node).restart_container()
+    assert create.call_args.args == ("docker", "restart", local_node.container)
+
+
+@pytest.mark.vpn
+async def test_restart_container_remote_runs_host_level_command(remote_node):
+    result = MagicMock(exit_status=0, stdout=b"", stderr=b"")
+    conn = AsyncMock()
+    conn.run.return_value = result
+    with patch.object(ca.asyncssh, "connect", _connect_cm(conn=conn)):
+        await ca.ContainerArchiveTransport(remote_node).restart_container()
+    assert conn.run.call_args.args[0] == f"docker restart {remote_node.container}"
+
+
+@pytest.mark.vpn
+async def test_restart_container_failure_raises(local_node):
+    process = AsyncMock()
+    process.communicate.return_value = (b"", b"no such container")
+    process.returncode = 1
+    with patch.object(ca, "create_subprocess_exec", AsyncMock(return_value=process)):
+        with pytest.raises(AmneziaSSHError):
+            await ca.ContainerArchiveTransport(local_node).restart_container()
+
+
 # ===================== ArchiveCipher =====================
 
 
@@ -173,9 +205,21 @@ async def test_storage_upload_success(bucket):
 @pytest.mark.vpn
 async def test_storage_upload_failure(bucket):
     session = MagicMock()
-    session.client.side_effect = RuntimeError("s3 down")
+    session.client.side_effect = BotoCoreError()
     with patch.object(ca.aioboto3, "Session", return_value=session):
         with pytest.raises(AmneziaBackupError):
+            await ca.ContainerBackupStorage(bucket).upload("main", b"encrypted")
+
+
+@pytest.mark.vpn
+async def test_storage_upload_does_not_mask_programming_errors(bucket):
+    # KeyError/AttributeError и прочие ошибки в коде не должны выглядеть
+    # как "не удалось загрузить бэкап в S3" — ловим только ошибки
+    # botocore (см. аудит, #223).
+    session = MagicMock()
+    session.client.side_effect = RuntimeError("not an S3 error")
+    with patch.object(ca.aioboto3, "Session", return_value=session):
+        with pytest.raises(RuntimeError):
             await ca.ContainerBackupStorage(bucket).upload("main", b"encrypted")
 
 

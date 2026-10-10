@@ -84,5 +84,10 @@ async def test_backup_all_partial_failure(service, local_node, remote_node):
 
     service.backup_node = fake_backup_node
 
-    with pytest.raises(AmneziaBackupError, match="sof"):
+    with pytest.raises(AmneziaBackupError, match="sof") as exc:
         await service.backup_all({"main": local_node, "sof": remote_node})
+
+    # Частичный сбой не должен терять ключи нод, которые забэкапились
+    # успешно (см. аудит, #223).
+    assert exc.value.details["succeeded"] == ["key"]
+    assert exc.value.details["failed"] == ["sof"]

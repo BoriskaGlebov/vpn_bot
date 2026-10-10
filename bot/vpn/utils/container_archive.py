@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import aioboto3
 import asyncssh
 from aiobotocore.session import ClientCreatorContext
+from botocore.exceptions import BotoCoreError, ClientError
 from cryptography.fernet import Fernet, InvalidToken
 from pydantic import SecretStr
 
@@ -78,6 +79,22 @@ class ContainerArchiveTransport:
         argv = self._docker_exec_argv("tar", "xzf", "-", "-C", AMNEZIA_DIR)
         await self._execute(
             argv, action=f"восстановить контейнер {self._node.container}", stdin=data
+        )
+
+    async def restart_container(self) -> None:
+        """Перезапускает контейнер ноды, чтобы он подхватил распакованный архив.
+
+        Без перезапуска `write_archive` только подменяет файлы на диске —
+        процесс в контейнере продолжает работать со старой конфигурацией
+        в памяти, и восстановление выглядит выполненным, но не действует.
+
+        Raises
+            AmneziaSSHError: При ошибке доступа к контейнеру.
+
+        """
+        argv = ["docker", "restart", self._node.container]
+        await self._execute(
+            argv, action=f"перезапустить контейнер {self._node.container}"
         )
 
     def _docker_exec_argv(self, *cmd: str) -> list[str]:
@@ -230,7 +247,7 @@ class ContainerBackupStorage:
         try:
             async with self._client() as s3:
                 await s3.put_object(Bucket=self._bucket.bucket_name, Key=key, Body=data)
-        except Exception as exc:
+        except (ClientError, BotoCoreError) as exc:
             raise AmneziaBackupError(
                 f"Не удалось загрузить бэкап ноды {node_name} в S3: {exc}", cause=exc
             ) from exc
@@ -254,7 +271,7 @@ class ContainerBackupStorage:
                 response = await s3.get_object(Bucket=self._bucket.bucket_name, Key=key)
                 async with response["Body"] as stream:
                     return await stream.read()
-        except Exception as exc:
+        except (ClientError, BotoCoreError) as exc:
             raise AmneziaBackupError(
                 f"Не удалось скачать бэкап {key} из S3: {exc}", cause=exc
             ) from exc
@@ -288,7 +305,7 @@ class ContainerBackupStorage:
                                 size=obj["Size"],
                             )
                         )
-        except Exception as exc:
+        except (ClientError, BotoCoreError) as exc:
             raise AmneziaBackupError(
                 f"Не удалось получить список бэкапов ноды {node_name}: {exc}", cause=exc
             ) from exc

@@ -41,6 +41,7 @@ async def test_restore_node_uses_explicit_key(service, node):
     service._cipher.decrypt.assert_called_once_with(b"encrypted")
     transport_cls.assert_called_once_with(node)
     transport.write_archive.assert_awaited_once_with(b"archive")
+    transport.restart_container.assert_awaited_once()
     assert used_key == "backup/containers/sof/x"
 
 
