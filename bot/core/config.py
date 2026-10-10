@@ -1,4 +1,5 @@
 import json
+import tempfile
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal
@@ -275,10 +276,16 @@ class VPNRegistry(SettingsCommon):
 
     Attributes
         nodes (dict[str, VPNNode]): Словарь нод по имени.
+        user_cfg_dir (Path): Каталог для временных пользовательских файлов
+            конфигов (.conf/.vpn/QR-код), генерируемых в `amnezia_wg.py`.
+            По умолчанию — системный временный каталог; роутер удаляет эти
+            файлы сразу после отправки пользователю, поэтому постоянное
+            хранилище не требуется.
 
     """
 
     nodes: dict[str, VPNNode]
+    user_cfg_dir: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()))
 
     def get(self, name: str) -> VPNNode:
         """Возвращает ноду по имени.

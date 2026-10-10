@@ -975,6 +975,55 @@ async def test_add_to_clients_table_docker_write_error(ssh_client):
 
 
 @pytest.mark.vpn
+async def test_write_container_file_random_delimiter(ssh_client):
+    """Ограничитель heredoc случайный — не ломается на содержимом со строкой EOF."""
+    ssh_client.use_local = True
+    captured_cmds = []
+
+    async def fake_write_single_cmd(cmd):
+        captured_cmds.append(cmd)
+        return "", "", 0, cmd
+
+    ssh_client.write_single_cmd = fake_write_single_cmd
+
+    content_with_eof = "line one\nEOF\nline two"
+    await ssh_client._write_container_file("/tmp/f", content_with_eof, "fail")
+    await ssh_client._write_container_file("/tmp/f", content_with_eof, "fail")
+
+    assert len(captured_cmds) == 2
+    # Разный ограничитель между вызовами — случайный суффикс, не фиксированный EOF.
+    assert captured_cmds[0] != captured_cmds[1]
+    for cmd in captured_cmds:
+        assert content_with_eof in cmd
+
+
+@pytest.mark.vpn
+async def test_write_container_file_ssh_mode_error(ssh_client):
+    """SSH-режим (use_local=False): ненулевой exit_status — AmneziaSSHError."""
+    ssh_client.use_local = False
+    mock_result = AsyncMock()
+    mock_result.exit_status = 1
+    mock_result.stdout = ""
+    mock_result.stderr = "Ошибка записи"
+    ssh_client._conn = AsyncMock()
+    ssh_client._conn.run = AsyncMock(return_value=mock_result)
+
+    with pytest.raises(AmneziaSSHError) as excinfo:
+        await ssh_client._write_container_file("/tmp/f", "content", "ошибка записи")
+    assert excinfo.value.stderr == "Ошибка записи"
+
+
+@pytest.mark.vpn
+async def test_write_container_file_ssh_mode_no_connection(ssh_client):
+    """SSH-режим (use_local=False) без установленного соединения — ошибка сразу."""
+    ssh_client.use_local = False
+    ssh_client._conn = None
+
+    with pytest.raises(AmneziaSSHError, match="SSH-соединение не установлено"):
+        await ssh_client._write_container_file("/tmp/f", "content", "ошибка записи")
+
+
+@pytest.mark.vpn
 @pytest.mark.vpn
 async def test_delete_temp_files_success(ssh_client):
     async def mock_gen(cmd):

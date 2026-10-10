@@ -24,6 +24,11 @@ from bot.vpn.utils.amnezia_exceptions import (
 )
 
 CONNECT_TIMEOUT = settings_bot.core.common_timeout
+# Временные пользовательские файлы (.conf/.vpn/QR-код) — не внутрь пакета
+# (Path(__file__)): в контейнере это слой образа, содержимое теряется при
+# пересборке, а при read-only ФС запись упадёт. bot/vpn/router.py удаляет
+# эти файлы сразу после отправки пользователю, постоянное хранилище не нужно.
+USER_CFG_DIR = settings_bot.vpn.user_cfg_dir
 
 
 class AsyncSSHClientWG:
@@ -734,7 +739,7 @@ class AsyncSSHClientWG:
         )
         if not filename.endswith(".conf"):
             filename = f"WG{self.location_prefix}{filename}.conf"
-        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir = USER_CFG_DIR
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
 
@@ -846,7 +851,7 @@ class AsyncSSHClientWG:
 
         if not filename.endswith(".conf"):
             filename = f"VPN{self.location_prefix}{filename}.vpn"
-        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir = USER_CFG_DIR
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
 
@@ -875,7 +880,7 @@ class AsyncSSHClientWG:
         """
         if not filename.endswith(".png"):
             filename = f"QR{self.location_prefix}{filename}.png"
-        file_dir = Path(__file__).resolve().parent / "user_cfg"
+        file_dir = USER_CFG_DIR
         file_dir.mkdir(parents=True, exist_ok=True)
         file_cfg = file_dir / filename
 
@@ -907,6 +912,60 @@ class AsyncSSHClientWG:
         qr_file = await self._save_qr_code(filename, config_text)
 
         return wg_file, vpn_file, qr_file
+
+    async def _write_container_file(
+        self, path: str, content: str, error_message: str
+    ) -> None:
+        """Записывает содержимое в файл внутри контейнера через heredoc.
+
+        Общий для `_add_to_clients_table`/`_delete_user_wg0`/
+        `_delete_from_clients_table` блок: ветка `use_local`/SSH и
+        нормализация `stdout`/`stderr`/`exit_status` в строки. Ограничитель
+        heredoc случайный (как `tmp_path` в `_sync_interface`) — фиксированный
+        `EOF`/`JSON_EOF` ломает запись, если он совпадает со строкой внутри
+        самого содержимого (для `clientsTable` это JSON, для `awg0.conf` —
+        произвольный текст конфига).
+
+        Args:
+            path: Путь к файлу внутри контейнера.
+            content: Новое содержимое файла.
+            error_message: Сообщение исключения при ненулевом коде возврата —
+                у каждого вызывающего метода свой текст.
+
+        Raises
+            AmneziaSSHError: Если запись завершилась с ненулевым кодом
+                возврата, либо (в SSH-режиме) соединение не установлено.
+
+        """
+        delimiter = f"EOF_{uuid.uuid4().hex[:8]}"
+        cmd = f"cat > {path} <<'{delimiter}'\n{content}\n{delimiter}\n"
+        if self.use_local:
+            stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
+        else:
+            escaped_cmd = shlex.quote(cmd)
+            if self._conn is None:
+                raise AmneziaSSHError(message="SSH-соединение не установлено")
+            result = await self._conn.run(
+                f"docker exec -i {self.container} sh -c {escaped_cmd}"
+            )
+            stdout = (
+                result.stdout.decode()
+                if isinstance(result.stdout, bytes)
+                else (result.stdout or "")
+            )
+            stderr = (
+                result.stderr.decode()
+                if isinstance(result.stderr, bytes)
+                else (result.stderr or "")
+            )
+            code = result.exit_status
+        if code != 0:
+            raise AmneziaSSHError(
+                message=error_message,
+                cmd=path,
+                stdout=stdout,
+                stderr=stderr,
+            )
 
     async def _add_to_clients_table(self, public_key: str, client_name: str) -> bool:
         """Добавляет запись в clientsTable Amnezia.
@@ -956,44 +1015,11 @@ class AsyncSSHClientWG:
         )
         new_json = json.dumps(data, indent=4, ensure_ascii=False)
 
-        cmd = f"cat > {self.WG_CLIENTS_TABLE} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        if self.use_local:
-            stdout, stderr, code, _ = await self.write_single_cmd(cmd=cmd)
-        else:
-            escaped_cmd = shlex.quote(cmd)
-            if self._conn is None:
-                raise AmneziaSSHError(message="SSH-соединение не установлено")
-            result = await self._conn.run(
-                f"docker exec -i {self.container} sh -c {escaped_cmd}"
-            )
-            stdout, stderr, code, _ = (
-                (
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
-                ),
-                (
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
-                ),
-                result.exit_status,
-                None,
-            )
-        if code == 0:
-            logger.success("clientsTable успешно обновлён")
-            return True
-        else:
-            raise AmneziaSSHError(
-                "Ошибка при записи clientsTable",
-                cmd=cmd,
-                stdout=(
-                    stdout.decode() if isinstance(stdout, bytes) else (stdout or "")
-                ),
-                stderr=(
-                    stderr.decode() if isinstance(stderr, bytes) else (stderr or "")
-                ),
-            )
+        await self._write_container_file(
+            self.WG_CLIENTS_TABLE, new_json, "Ошибка при записи clientsTable"
+        )
+        logger.success("clientsTable успешно обновлён")
+        return True
 
     async def _delete_temp_files(self) -> None:
         """Удаляет временные файлы ключей внутри контейнера.
@@ -1155,38 +1181,11 @@ class AsyncSSHClientWG:
                 )
                 return False
             new_conf = "\n".join(out_data)
-            cmd = f"cat > {self.WG_CONF} <<'EOF'\n{new_conf}\nEOF\n"
-            if self.use_local:
-                stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
-            else:
-                escaped_cmd = shlex.quote(cmd)
-                if self._conn is None:
-                    raise AmneziaSSHError(message="SSH-соединение не установлено")
-                result = await self._conn.run(
-                    f"docker exec -i {self.container} sh -c {escaped_cmd}"
-                )
-                stdout = (
-                    result.stdout.decode()
-                    if isinstance(result.stdout, bytes)
-                    else (result.stdout or "")
-                )
-                stderr = (
-                    result.stderr.decode()
-                    if isinstance(result.stderr, bytes)
-                    else (result.stderr or "")
-                )
-                code = result.exit_status
-                cmd = ",".join(cmd.splitlines())
-            if code == 0:
-                logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
-                return True
-            else:
-                raise AmneziaSSHError(
-                    message=f"Ошибка записи wg0.conf: {stderr}",
-                    cmd=cmd,
-                    stdout=stdout,
-                    stderr=stderr,
-                )
+            await self._write_container_file(
+                self.WG_CONF, new_conf, "Ошибка записи wg0.conf"
+            )
+            logger.success(f"Пользователь успешно удален из {self.WG_CONF}")
+            return True
 
         elif stderr:
             raise AmneziaConfigError(
@@ -1250,38 +1249,11 @@ class AsyncSSHClientWG:
 
         new_json = json.dumps(new_data, indent=4, ensure_ascii=False)
 
-        cmd = f"cat > {clients_table} <<'JSON_EOF'\n{new_json}\nJSON_EOF\n"
-        if self.use_local:
-            stdout, stderr, code, cmd = await self.write_single_cmd(cmd=cmd)
-        else:
-            escaped_cmd = shlex.quote(cmd)
-            if self._conn is None:
-                raise AmneziaSSHError(message="SSH-соединение не установлено")
-            result = await self._conn.run(
-                f"docker exec -i {self.container} sh -c {escaped_cmd}"
-            )
-            stdout = (
-                result.stdout.decode()
-                if isinstance(result.stdout, bytes)
-                else (result.stdout or "")
-            )
-            stderr = (
-                result.stderr.decode()
-                if isinstance(result.stderr, bytes)
-                else (result.stderr or "")
-            )
-            code = result.exit_status
-            cmd = ",".join(cmd.splitlines())
-        if code == 0:
-            logger.success(f"Ключ успешно удален из {clients_table}")
-            return True
-        else:
-            raise AmneziaSSHError(
-                message=f"Ошибка при удалении ключа из {clients_table}",
-                cmd=cmd,
-                stdout=stdout,
-                stderr=stderr,
-            )
+        await self._write_container_file(
+            clients_table, new_json, f"Ошибка при удалении ключа из {clients_table}"
+        )
+        logger.success(f"Ключ успешно удален из {clients_table}")
+        return True
 
     async def full_delete_user(self, public_key: str) -> bool:
         """Полностью удаляет пользователя из конфигурации WireGuard и clientsTable.
