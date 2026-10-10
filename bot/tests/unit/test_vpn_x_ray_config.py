@@ -5,7 +5,6 @@ import pytest
 
 from bot.app_error.api_error import APIClientError
 from bot.app_error.schema import ErrorDetail
-from bot.vpn.DTO import UserUUID
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
 
 
@@ -213,7 +212,8 @@ async def test_extend_config_not_found_raises(adapter):
 async def test_delete_config_not_found(adapter):
     adapter._login = AsyncMock()
     adapter._logout = AsyncMock()
-    adapter._get_all_users = AsyncMock(return_value=[])
+    adapter._get_inbounds_with_clients = AsyncMock(return_value=[])
+    adapter.inbounds_name = []
 
     result = await adapter.delete_config("missing-id")
 
@@ -227,14 +227,119 @@ async def test_delete_config_success(adapter):
     adapter._login = AsyncMock()
     adapter._logout = AsyncMock()
 
-    adapter._get_all_users = AsyncMock(return_value=[UserUUID(conf_uuid="abc")])
-
-    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1), MagicMock(id=2)])
-
-    adapter.api.post = AsyncMock()
+    inb1 = MagicMock(port=1000, remark="A", id=1)
+    inb2 = MagicMock(port=2000, remark="B", id=2)
+    adapter._get_inbounds_with_clients = AsyncMock(
+        return_value=[(inb1, {"abc"}), (inb2, {"abc"})]
+    )
+    adapter.inbounds_name = [
+        FakeInboundCfg(port=1000, name="A"),
+        FakeInboundCfg(port=2000, name="B"),
+    ]
+    adapter.api.post = AsyncMock(return_value=({"success": True}, 200))
 
     result = await adapter.delete_config("abc")
 
     assert result is True
     assert adapter.api.post.call_count == 2
     adapter._logout.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_config_found_but_not_in_configured_inbounds(adapter):
+    """Клиент есть на панели, но не в ожидаемых inbound этой ноды — считаем отсутствующим."""
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+
+    inb1 = MagicMock(port=1000, remark="A", id=1)
+    adapter._get_inbounds_with_clients = AsyncMock(return_value=[(inb1, set())])
+    adapter.inbounds_name = [FakeInboundCfg(port=1000, name="A")]
+    adapter.api.post = AsyncMock()
+
+    result = await adapter.delete_config("abc")
+
+    assert result is False
+    adapter.api.post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_config_panel_failure_raises(adapter):
+    """success:false на inbound, где клиент реально найден — ошибка, не тихий True."""
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIRequestError
+
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+
+    inb1 = MagicMock(port=1000, remark="A", id=1)
+    adapter._get_inbounds_with_clients = AsyncMock(return_value=[(inb1, {"abc"})])
+    adapter.inbounds_name = [FakeInboundCfg(port=1000, name="A")]
+    adapter.api.post = AsyncMock(
+        return_value=({"success": False, "msg": "client busy"}, 200)
+    )
+
+    with pytest.raises(ThreeXUIRequestError):
+        await adapter.delete_config("abc")
+
+    adapter._logout.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_config_partial_success_across_inbounds(adapter):
+    """Успех хоть на одном inbound, где клиент реально есть — считается успехом."""
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+
+    inb1 = MagicMock(port=1000, remark="A", id=1)
+    inb2 = MagicMock(port=2000, remark="B", id=2)
+    adapter._get_inbounds_with_clients = AsyncMock(
+        return_value=[(inb1, {"abc"}), (inb2, {"abc"})]
+    )
+    adapter.inbounds_name = [
+        FakeInboundCfg(port=1000, name="A"),
+        FakeInboundCfg(port=2000, name="B"),
+    ]
+    adapter.api.post = AsyncMock(
+        side_effect=[
+            ({"success": False, "msg": "busy"}, 200),
+            ({"success": True}, 200),
+        ]
+    )
+
+    result = await adapter.delete_config("abc")
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_get_inbounds_with_clients(adapter):
+    adapter.api.get = AsyncMock(
+        return_value={
+            "success": True,
+            "obj": [
+                {
+                    "id": 1,
+                    "remark": "A",
+                    "enable": True,
+                    "port": 1000,
+                    "clientStats": [{"uuid": "abc"}],
+                },
+                {
+                    "id": 2,
+                    "remark": "B",
+                    "enable": True,
+                    "port": 2000,
+                    "clientStats": [],
+                },
+            ],
+        }
+    )
+
+    result = await adapter._get_inbounds_with_clients()
+
+    assert len(result) == 2
+    inb0, uuids0 = result[0]
+    assert inb0.id == 1
+    assert uuids0 == {"abc"}
+    inb1, uuids1 = result[1]
+    assert inb1.id == 2
+    assert uuids1 == set()

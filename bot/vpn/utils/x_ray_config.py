@@ -239,6 +239,43 @@ class ThreeXUIAdapter:
         logger.info("Получено идентификаторы-пользователей: {}", len(user_uuids))
         return user_uuids
 
+    async def _get_inbounds_with_clients(self) -> list[tuple[Inbound, set[str]]]:
+        """Получает inbound-конфигурации вместе с UUID их клиентов.
+
+        В отличие от `_get_all_inbounds`/`_get_all_users`, отдаёт обе части за
+        один запрос к `inbounds/list` — нужен `delete_config`, которому иначе
+        пришлось бы опрашивать тот же эндпоинт дважды, чтобы узнать и список
+        inbound, и то, в каком из них есть удаляемый клиент.
+
+        Returns
+            list[tuple[Inbound, set[str]]]: Пары (inbound, множество UUID его
+                клиентов).
+
+        Raises
+            APIClientError: При ошибке запроса к API.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
+
+        """
+        logger.info("Запрос списка inbound-конфигураций и их клиентов")
+        data = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
+        self._ensure_success(data, action="get_inbounds_list")
+
+        objs = data.get("obj", [])
+        result = [
+            (
+                Inbound(
+                    id=item["id"],
+                    remark=item.get("remark"),
+                    enable=item.get("enable"),
+                    port=item.get("port"),
+                ),
+                {user["uuid"] for user in item.get("clientStats", [])},
+            )
+            for item in objs
+        ]
+        logger.info("Получено inbound-конфигураций: {}", len(result))
+        return result
+
     async def _add_user(
         self,
         inbound_id: int,
@@ -587,29 +624,65 @@ class ThreeXUIAdapter:
         self,
         config_id: str,
     ) -> bool:
-        """Удаляет конфигурацию пользователя из всех inbound.
+        """Удаляет конфигурацию пользователя из всех inbound, где она есть.
+
+        Панель 3x-ui отвечает HTTP 200 даже на логическую ошибку удаления
+        (`success: false`) — такой ответ раньше принимался за успех без
+        проверки. Теперь успех на inbound, где клиента не было, не считается
+        ошибкой (это штатно — конфиг мог быть только в одном из нескольких
+        ожидаемых inbound), а неуспех на inbound, где клиент реально найден —
+        считается, и перерастает в исключение, а не в тихий `True`.
 
         Args:
             config_id: UUID конфигурации пользователя.
 
         Returns
-            bool: True, если удаление выполнено успешно,
-            False если конфигурация не найдена.
+            bool: True, если конфигурация была найдена и удалена хотя бы на
+            одном inbound. False, если конфигурации нет ни на одном
+            ожидаемом inbound этой ноды.
 
         Raises
             APIClientError: При ошибке API.
+            ThreeXUIInboundNotFoundError: Если не все ожидаемые inbound
+                найдены на панели.
+            ThreeXUIRequestError: Если клиент найден хотя бы в одном inbound,
+                но ни одно удаление не прошло успешно.
 
         """
         async with self._session():
-            user_id = await self._get_all_users()
-            if UserUUID(conf_uuid=config_id) not in user_id:
-                logger.debug(f"{config_id} -  нет такого на этом сервер.")
-                return False
-            correct_inbounds = await self._get_inbound(inbounds_cfg=self.inbounds_name)
-            for inb in correct_inbounds:
-                await self.api.post(
+            inbounds_with_clients = await self._get_inbounds_with_clients()
+            allow_inb = {(cfg.port, cfg.name) for cfg in self.inbounds_name}
+            correct = [
+                (inb, uuids)
+                for inb, uuids in inbounds_with_clients
+                if (inb.port, inb.remark) in allow_inb
+            ]
+            if len(correct) < len(self.inbounds_name):
+                logger.error(f"Не все Inbound найдены.{[inb for inb, _ in correct]}")
+                raise ThreeXUIInboundNotFoundError(
+                    expected=len(self.inbounds_name), found=[inb for inb, _ in correct]
+                )
+
+            found = False
+            deleted = False
+            last_reason = ""
+            for inb, uuids in correct:
+                if config_id not in uuids:
+                    continue
+                found = True
+                data, _ = await self.api.post(
                     url=f"{self.prefix}/panel/api/inbounds/{inb.id}/delClient/{config_id}",
                 )
+                if data.get("success", False):
+                    deleted = True
+                else:
+                    last_reason = data.get("msg", "")
+
+            if not found:
+                logger.debug(f"{config_id} -  нет такого на этом сервере.")
+                return False
+            if not deleted:
+                raise ThreeXUIRequestError(action="delete_client", reason=last_reason)
         return True
 
     def __repr__(self) -> str:
