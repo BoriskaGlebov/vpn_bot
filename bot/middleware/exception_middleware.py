@@ -32,6 +32,57 @@ from bot.utils.start_stop_bot import send_to_admins
 
 Handler = Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]]
 
+# Коды ошибок, чьё `message` заведомо написано для показа пользователю —
+# все классы AppError/APIError (api/ и bot/), кроме общих/catch-all
+# обработчиков непредвиденных ситуаций (unexpected_error, validation_error,
+# database_error, internal_error, http_error, connection_error — их message
+# либо напрямую несёт текст исключения/внешнего ответа, либо задуман как
+# диагностика для лога, а не для чата). Список проверен по коду: у каждого
+# класса ниже message собирается из собственных f-строк с подстановкой id/
+# username/count/reason, а не из произвольного текста снаружи (см. #241).
+#
+# Любой НОВЫЙ код ошибки по умолчанию НЕ попадёт пользователю — его нужно
+# явно добавить сюда после того, как кто-то проверил текст сообщения.
+_SAFE_USER_FACING_CODES: frozenset[str] = frozenset(
+    {
+        # api/app_error/api_error.py
+        "missing_telegram_header",
+        "invalid_internal_secret",
+        "admin_access_denied",
+        # api/app_error/base_error.py
+        "referral_not_found",
+        "user_not_found",
+        "role_not_found",
+        "subscription_not_found",
+        "subscription_error",
+        "trial_alredy_used_error",
+        "vpn_limit_reached",
+        "transaction_not_found",
+        "payment_already_processed",
+        "payment_confirmation_failed",
+        "payment_already_confirmed",
+        "payment_canceled",
+        "payment_failed",
+        # bot/app_error/base_error.py
+        "telegram_id_not_provided",
+        "device_media_mismatch",
+        "device_empty_messages",
+        "device_empty_media",
+        "device_instruction_mismatch",
+        "vpn_node_not_found",
+        "xray_not_configured",
+        "proxy_not_configured",
+        "news_recipients_fetch_error",
+        "transaction_id_missing",
+        "subscription_activation_failed",
+        "payment_link_missing",
+        "vpn_location_not_determined",
+        "no_admin_configured",
+        "vpn_config_deletion_failed",
+        "vpn_config_not_found",
+    }
+)
+
 
 class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
     """Перехватывает исключения хендлеров, нормализует их и уведомляет админов."""
@@ -133,8 +184,16 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
             case "unexpected_error":
                 return settings_bot.messages.general.common_error
 
-            case _:
+            case code if code in _SAFE_USER_FACING_CODES:
                 return message
+
+            case _:
+                # Безопасное направление по умолчанию: неизвестный/
+                # непроверенный код не должен автоматически становиться
+                # пользовательским текстом — он может быть техническим
+                # (см. #240, #241). Подробности всё равно попадают в лог
+                # через _log_exception ниже.
+                return settings_bot.messages.general.common_error
 
     def _log_exception(
         self, event: TelegramObject, envelope: ErrorEnvelope, exc: Exception
