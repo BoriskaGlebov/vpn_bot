@@ -1,4 +1,4 @@
-from urllib.parse import quote_plus
+from urllib.parse import quote
 
 from pydantic import SecretStr
 from pydantic_settings import SettingsConfigDict
@@ -91,12 +91,14 @@ class RedisSettings(SettingsCommon):
 
         Returns
            str: URL подключения к базе данных. `user`/`password` экранированы
-               через `quote_plus`, так что спецсимволы (`@`, `:`, `/` и т.п.)
-               не разрывают URL.
+               через `quote(..., safe="")`, так что спецсимволы (`@`, `:`,
+               `/` и т.п.) не разрывают URL. `safe=""` обязателен — у `quote`
+               по умолчанию `safe="/"`, то есть слэш в пароле остался бы
+               неэкранированным и всё равно ломал бы разбор URL.
 
         """
-        user = quote_plus(self.user)
-        password = quote_plus(self.password.get_secret_value())
+        user = quote(self.user, safe="")
+        password = quote(self.password.get_secret_value(), safe="")
         return f"redis://{user}:{password}@{self.host}:{self.port}/{self.db}"
 
     model_config = SettingsConfigDict(env_prefix="REDIS_")
