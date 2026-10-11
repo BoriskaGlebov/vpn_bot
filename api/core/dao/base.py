@@ -244,6 +244,10 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             f"{cls._redact(filter_dict)} с параметрами: {cls._redact(values_dict)}"
         )
 
+        if not filter_dict:
+            logger.error("[DAO] Нужен хотя бы один фильтр для обновления.")
+            raise ValueError("Нужен хотя бы один фильтр для обновления.")
+
         filters_clause = cls._build_filters(filter_dict)
         # noinspection PyTypeChecker
         query = (

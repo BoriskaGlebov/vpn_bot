@@ -104,6 +104,24 @@ async def test_update_records(session):
 
 @pytest.mark.asyncio
 @pytest.mark.dao
+async def test_update_without_filter_raises(session):
+    """update() с пустым фильтром отказывает, а не обновляет всю таблицу."""
+    dao = TmpDAO()
+    await dao.add(session, TmpSchema(name="untouched", value=1))
+
+    with pytest.raises(ValueError, match="фильтр"):
+        await dao.update(
+            session,
+            filters=FilterSchema(),
+            values=TmpSchema(name="untouched", value=99),
+        )
+
+    found = await dao.find_one_or_none(session, FilterSchema(name="untouched"))
+    assert found.value == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
 async def test_delete_records(session):
     """delete() удаляет подходящие записи и возвращает их количество."""
     dao = TmpDAO()
