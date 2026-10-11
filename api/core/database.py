@@ -87,12 +87,21 @@ class Base(AsyncAttrs, DeclarativeBase):
     и обновления записи, а также метод преобразования объекта в словарь.
 
     Attributes
+        id (Any): Первичный ключ. Объявлен здесь только для типизации (без
+            `Mapped`/`mapped_column`, то есть не создаёт колонку и не участвует
+            в маппинге) — каждая модель переопределяет его своим конкретным
+            `Mapped[int]` (`int_pk`) или `Mapped[UUID]`. Цель — дать
+            `BaseDAO[T]` типобезопасный доступ к `cls.model.id` независимо от
+            конкретного типа PK, без `# type: ignore[attr-defined]` на каждом
+            обращении.
         created_at (Mapped[datetime]): Дата и время создания записи.
         updated_at (Mapped[datetime]): Дата и время последнего обновления записи.
 
     """
 
     __abstract__ = True
+
+    id: Any
 
     @declared_attr.directive
     def __tablename__(self) -> str:

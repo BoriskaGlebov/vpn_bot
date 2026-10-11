@@ -1,5 +1,7 @@
 """Тесты BaseDAO (api/core/dao/base.py) на временной модели, не завязанные на реальную схему."""
 
+from unittest.mock import MagicMock
+
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import String
@@ -114,6 +116,34 @@ async def test_update_records(session):
 
     found = await dao.find_one_or_none(session, FilterSchema(name="to_update"))
     assert found.value == 99
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_crud_does_not_log_values_at_info_level(session, monkeypatch):
+    """add/update/delete не пишут значения записей на INFO (#235).
+
+    `logger_level_file` по умолчанию `INFO` — всё, что уходит на этот уровень,
+    попадает в постоянный `file.log` с `retention=30 days`. Значения (которые
+    могут быть telegram_id, username и т.п.) должны логироваться не выше DEBUG.
+    """
+    log_mock = MagicMock()
+    monkeypatch.setattr("api.core.dao.base.logger", log_mock)
+    marker = "should-not-reach-info-level"
+
+    await TmpDAO.add(session, TmpSchema(name=marker, value=1))
+    await TmpDAO.update(
+        session,
+        filters=FilterSchema(name=marker),
+        values=TmpValuesSchema(name=marker, value=2),
+    )
+    await TmpDAO.delete(session, FilterSchema(name=marker))
+
+    info_messages = [str(call.args[0]) for call in log_mock.info.call_args_list]
+    debug_messages = [str(call.args[0]) for call in log_mock.debug.call_args_list]
+
+    assert not any(marker in msg for msg in info_messages)
+    assert any(marker in msg for msg in debug_messages)
 
 
 @pytest.mark.asyncio

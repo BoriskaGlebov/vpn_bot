@@ -118,14 +118,13 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         # noinspection PyTypeChecker
         logger.debug(f"[DAO] Поиск {cls.model.__name__} с ID: {data_id}")
 
-        # noinspection PyTypeChecker
-        query = select(cls.model).where(cls.model.id == data_id)  # type: ignore[attr-defined]
+        query = select(cls.model).where(cls.model.id == data_id)
 
         result = await session.execute(query)
         record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
         logger.debug(
             f"[DAO] Результат поиска {cls.model.__name__} id={data_id}: "
-            f"{'найдена id=' + str(record.id) if record else 'не найдена'}"  # type: ignore[attr-defined]
+            f"{'найдена id=' + str(record.id) if record else 'не найдена'}"
         )
         return record
 
@@ -164,7 +163,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
         logger.debug(
             f"[DAO] {cls.model.__name__}: "
-            f"{'найдена id=' + str(record.id) if record else 'не найдена'}"  # type: ignore[attr-defined]
+            f"{'найдена id=' + str(record.id) if record else 'не найдена'}"
         )
         return record
 
@@ -218,7 +217,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         """
         values_dict = values.model_dump(exclude_unset=True)
         # noinspection PyTypeChecker
-        logger.info(
+        logger.debug(
             f"[DAO] Добавление записи {cls.model.__name__} с параметрами: "
             f"{cls._redact(values_dict)}"
         )
@@ -228,8 +227,8 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             await session.flush()
             await session.refresh(new_instance)
             # noinspection PyTypeChecker
-            logger.debug(
-                f"[DAO] Запись {cls.model.__name__} id={new_instance.id} добавлена."  # type: ignore[attr-defined]
+            logger.info(
+                f"[DAO] Запись {cls.model.__name__} id={new_instance.id} добавлена."
             )
             return new_instance
         except SQLAlchemyError as e:
@@ -257,7 +256,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filter_dict = cls._to_dict(filters=filters)
         values_dict = cls._values_to_dict(values=values)
         # noinspection PyTypeChecker
-        logger.info(
+        logger.debug(
             f"[DAO] Обновление записей {cls.model.__name__} по фильтру: "
             f"{cls._redact(filter_dict)} с параметрами: {cls._redact(values_dict)}"
         )
@@ -278,7 +277,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             result = await session.execute(query)
             rowcount: int = getattr(result, "rowcount", 0) or 0
 
-            logger.debug(f"[DAO] Обновлено {rowcount} записей {cls.model.__name__}.")
+            logger.info(f"[DAO] Обновлено {rowcount} записей {cls.model.__name__}.")
 
             return rowcount or 0
         except SQLAlchemyError as e:
@@ -302,7 +301,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         """
         filter_dict = cls._to_dict(filters)
         # noinspection PyTypeChecker
-        logger.info(
+        logger.debug(
             f"[DAO] Удаление записей {cls.model.__name__} по фильтру: "
             f"{cls._redact(filter_dict)}"
         )
@@ -379,8 +378,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         )
 
         filters_clause = cls._build_filters(filter_dict)
-        # noinspection PyTypeChecker
-        query = select(func.count(cls.model.id)).where(filters_clause)  # type: ignore
+        query = select(func.count(cls.model.id)).where(filters_clause)
         result = await session.execute(query)
         count = cast(int, result.scalar())
         logger.debug(f"[DAO] Найдено {count} записей.")
@@ -403,8 +401,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         if not ids:
             return []
 
-        # noinspection PyTypeChecker
-        query = select(cls.model).where(cls.model.id.in_(ids))  # type: ignore[attr-defined]
+        query = select(cls.model).where(cls.model.id.in_(ids))
         result = await session.execute(query)
         records = cast(list[T], result.scalars().all())
         logger.debug(f"[DAO] Найдено {len(records)} записей по списку ID.")
