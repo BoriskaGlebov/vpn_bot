@@ -39,6 +39,24 @@ class SUser(SUserTelegramID):
     )
 
 
+class SUsernameUpdate(BaseModel):
+    """Схема обновления username при повторном входе пользователя.
+
+    Telegram-username изменяем и необязателен — хранимое значение иначе
+    тихо устаревает по сравнению с актуальным (см. #242).
+
+    Attributes
+        username (str | None): Текущее значение username из Telegram.
+
+    """
+
+    username: str | None = Field(
+        None, description="Текущее имя пользователя в Telegram"
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class SRole(BaseModel):
     """Схема роли пользователя.
 
@@ -136,7 +154,9 @@ class SUserOut(BaseModel):
 
     id: int = Field(..., description="ID пользователя в БД")
     telegram_id: int = Field(..., description="Telegram ID пользователя")
-    username: str = Field(..., description="Username в Telegram")
+    # Telegram-username необязателен, изменяем и переиспользуем — не может
+    # быть обязательным непустым полем (см. #242).
+    username: str | None = Field(None, description="Username в Telegram")
     first_name: str | None = Field(None, description="Имя пользователя")
     last_name: str | None = Field(None, description="Фамилия пользователя")
     has_used_trial: bool = Field(..., description="Использовал ли пользователь триал")

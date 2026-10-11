@@ -154,7 +154,9 @@ async def test_register_or_get_user_guest_username(
     service,
     session,
 ):
-    """Если username отсутствует, используется значение по умолчанию."""
+    """Если username отсутствует, передаётся как None, а не подставляется (#242):
+    username переиспользуем, подстановка "Гость_<id>" заняла бы NULL навечно.
+    """
     mock_find_user.return_value = None
     mock_settings.admin_ids = []
 
@@ -172,7 +174,7 @@ async def test_register_or_get_user_guest_username(
     await service.register_or_get_user(session=session, telegram_user=telegram_user)
 
     args, kwargs = mock_add_user.await_args
-    assert kwargs["values_user"].username == "Гость_555"
+    assert kwargs["values_user"].username is None
 
 
 @patch("api.users.services.settings_api")

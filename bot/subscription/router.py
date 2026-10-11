@@ -832,7 +832,11 @@ class SubscriptionRouter(BaseRouter):
                     await self.bot.send_message(
                         chat_id=referral_result.inviter_telegram_id,
                         text=m_subscription.accept_paid.bonus.format(
-                            user_info=f"@{user_schema.username}"
+                            user_info=(
+                                f"@{user_schema.username}"
+                                if user_schema.username
+                                else "-"
+                            )
                         ),
                     )
             except TelegramBadRequest:
@@ -850,7 +854,7 @@ class SubscriptionRouter(BaseRouter):
                     new_text=m_subscription.accept_paid.admin.format(
                         user_id=user_id,
                         sub_type=sub_type,
-                        username=user_schema.username,
+                        username=user_schema.username or "-",
                         amount=confirm_transaction.transaction_res.amount,
                         info=ref_inf,
                     ),
@@ -867,7 +871,7 @@ class SubscriptionRouter(BaseRouter):
                     message_text=m_subscription.accept_paid.admin.format(
                         user_id=user_id,
                         sub_type=sub_type,
-                        username=user_schema.username,
+                        username=user_schema.username or "-",
                         amount=confirm_transaction.transaction_res.amount,
                         info=ref_inf,
                     ),

@@ -22,7 +22,7 @@ def format_user(obj: VPNConfig, name: str) -> str:
     """
     if obj.user is None:
         return "-"
-    return f"{obj.user.username} ({obj.user.telegram_id})"
+    return f"{obj.user.username or '-'} ({obj.user.telegram_id})"
 
 
 def format_pub_key(obj: VPNConfig, name: str) -> str:

@@ -102,7 +102,7 @@ class UserAdmin(ModelView, model=User):
         "current_subscription": format_current_subscription,  # type: ignore[misc, dict-item]
         "vpn_files_count": format_files_count,  # type: ignore[misc, dict-item]
         "payments_count": format_payments_count,  # type: ignore[misc, dict-item]
-        User.username: lambda m, a: m.username[:10],  # type: ignore[misc, attr-defined]
+        User.username: lambda m, a: (m.username or "-")[:10],  # type: ignore[misc, attr-defined]
     }  # type: ignore[misc, assignment]
     name = "Пользователь"
     name_plural = "Пользователи"

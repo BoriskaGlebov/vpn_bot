@@ -184,7 +184,9 @@ class VPNService:
                     file_path2,
                     file_path3,
                     pub_key,
-                ) = await ssh.add_new_user_gen_config(file_name=user.username)
+                ) = await ssh.add_new_user_gen_config(
+                    file_name=user.username or str(user.telegram_id)
+                )
                 for file_path in (file_path1, file_path2, file_path3):
                     logger.info(
                         "Создал VPN конфиг file_name={} через {}",

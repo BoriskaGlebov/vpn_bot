@@ -175,6 +175,47 @@ async def test_add_role_subscription_admin(session, role_admin):
     assert subscription.end_date is None
 
 
+async def test_duplicate_username_registers_successfully(session, role_user):
+    """Два пользователя с одинаковым username регистрируются успешно (#242).
+
+    username переиспользуем в Telegram — уникальность принадлежит
+    telegram_id, не username, поэтому повтор не должен давать IntegrityError.
+    """
+    values_role = SRole(name=FilterTypeEnum.USER)
+
+    first_user = await UserDAO.add_role_subscription(
+        session=session,
+        values_user=SUser(telegram_id=301, username="same_name"),
+        values_role=values_role,
+    )
+    await session.commit()
+
+    second_user = await UserDAO.add_role_subscription(
+        session=session,
+        values_user=SUser(telegram_id=302, username="same_name"),
+        values_role=values_role,
+    )
+    await session.commit()
+
+    assert first_user.id != second_user.id
+    assert first_user.username == second_user.username == "same_name"
+
+
+async def test_username_can_be_none(session, role_user):
+    """Пользователь без Telegram-username регистрируется успешно (#242)."""
+    values_role = SRole(name=FilterTypeEnum.USER)
+
+    user = await UserDAO.add_role_subscription(
+        session=session,
+        values_user=SUser(telegram_id=303, username=None),
+        values_role=values_role,
+    )
+    await session.commit()
+
+    assert user.id is not None
+    assert user.username is None
+
+
 async def test_get_users_by_roles_all(session, user):
     """Получение всех пользователей."""
     users = await UserDAO.get_users_by_roles(session, "all")

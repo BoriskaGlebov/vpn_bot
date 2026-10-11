@@ -117,7 +117,7 @@ class NotificationService:
                 await self.bot.send_message(
                     chat_id=referral.inviter_telegram_id,
                     text=m_subscription.accept_paid.bonus.format(
-                        user_info=f"@{user.username}"
+                        user_info=f"@{user.username}" if user.username else "-"
                     ),
                 )
         except TelegramBadRequest:
@@ -135,7 +135,7 @@ class NotificationService:
             message_text=m_subscription.accept_paid.admin.format(
                 user_id=tx.tg_id,
                 sub_type=sub_type,
-                username=user.username,
+                username=user.username or "-",
                 amount=tx.amount,
                 info=m_subscription.gateway_alert.confirmed_info.format(
                     gateway=provider_name

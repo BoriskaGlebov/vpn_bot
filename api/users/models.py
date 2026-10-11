@@ -32,7 +32,9 @@ class User(Base):
 
     id: Mapped[int_pk]
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
-    username: Mapped[str_uniq]
+    # Telegram-username не обязателен, изменяем и переиспользуем — уникальность
+    # должна быть на telegram_id (выше), а не здесь (см. #242).
+    username: Mapped[str_null_true]
     first_name: Mapped[str_null_true]
     last_name: Mapped[str_null_true]
     has_used_trial: Mapped[bool] = mapped_column(default=False, server_default="false")

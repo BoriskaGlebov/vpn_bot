@@ -12,6 +12,7 @@ from api.users.models import User
 from api.users.schemas import (
     SRole,
     SUser,
+    SUsernameUpdate,
     SUserOut,
     SUserTelegramID,
     SUserWithReferralStats,
@@ -54,11 +55,26 @@ class UserService:
         )
         if user:
             logger.info("Пользователь найден в базе")
+            if telegram_user.username != user.username:
+                # username изменяем и переиспользуем (#242) — обновляем при
+                # каждом входе, чтобы хранимое значение не старело.
+                logger.info(
+                    "Username изменился telegram_id={}: {!r} -> {!r}",
+                    telegram_user.telegram_id,
+                    user.username,
+                    telegram_user.username,
+                )
+                await UserDAO.update(
+                    session=session,
+                    filters=SUserTelegramID(telegram_id=telegram_user.telegram_id),
+                    values=SUsernameUpdate(username=telegram_user.username),
+                )
+                await session.refresh(user)
             return await UserMapper.to_schema(user), False
         logger.info("Пользователь не найден, создаём нового")
         schema_user = SUser(
             telegram_id=telegram_user.telegram_id,
-            username=telegram_user.username or f"Гость_{telegram_user.telegram_id}",
+            username=telegram_user.username,
             first_name=telegram_user.first_name,
             last_name=telegram_user.last_name,
         )

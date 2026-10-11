@@ -564,7 +564,7 @@ class SchedulerBotService:
                 admin_text = (
                     m_subscription_local.expire_subscription.admin_stats.format(
                         tg_id=event.user_id,
-                        username=f"@{event.username}",
+                        username=f"@{event.username}" if event.username else "-",
                         first_name=event.first_name,
                         last_name=event.last_name,
                         file_name="\n".join(cfg.file_name for cfg in event.configs),
