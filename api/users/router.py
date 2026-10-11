@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from api.core.dependencies import get_current_user, get_session
+from api.core.dependencies import (
+    get_current_user,
+    get_session,
+    verify_internal_secret,
+)
 from api.core.openapi_responses import AUTH_RESPONSES
 from api.users.dependencies import get_user_service
 from api.users.models import User
@@ -16,12 +20,14 @@ router = APIRouter(prefix="/users", tags=["bot", "USERS"])
     "/register",
     response_model=SUserOut,
     summary="Регистрирует пользователя или возвращает существующего.",
+    responses=AUTH_RESPONSES,
 )
 async def register_user(
     user_data: SUser,
     response: Response,
     session: AsyncSession = Depends(get_session),
     service: UserService = Depends(get_user_service),
+    _: None = Depends(verify_internal_secret),
 ) -> SUserOut:
     """Регистрирует пользователя или возвращает существующего.
 

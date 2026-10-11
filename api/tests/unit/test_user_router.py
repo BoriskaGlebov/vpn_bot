@@ -1,10 +1,19 @@
 from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 
-from api.core.dependencies import get_current_user, get_session
+from api.app_error.api_error import APIError
+from api.core.dependencies import (
+    get_current_user,
+    get_session,
+    verify_internal_secret,
+)
+from api.core.exceptions.handlers.http import api_error_handler
 from api.tests.conftest import fake_user
 from api.users.dependencies import get_user_service
+from api.users.router import router as users_router
 from api.users.schemas import SRoleOut, SUserOut, SUserWithReferralStats
 from api.users.services import UserService
 from shared.enums.admin_enum import FilterTypeEnum
@@ -23,9 +32,64 @@ def client(make_client, service_mock):
             get_user_service: lambda: service_mock,
             get_session: lambda: AsyncMock(),
             get_current_user: fake_user,
+            verify_internal_secret: lambda: None,
         }
     ) as c:
         yield c
+
+
+@pytest.fixture
+def app_no_secret_override(service_mock):
+    """Тот же роутер пользователей, но БЕЗ переопределения verify_internal_secret.
+
+    Используется, чтобы доказать, что /users/register сам защищён зависимостью,
+    а не просто что verify_internal_secret умеет бросать исключение — регрессия
+    на дыру, где этот роут был единственным изменяющим в api/ без какой-либо
+    авторизации (#230).
+    """
+    isolated_app = FastAPI()
+    isolated_app.include_router(users_router)
+    isolated_app.add_exception_handler(APIError, api_error_handler)
+    isolated_app.dependency_overrides[get_user_service] = lambda: service_mock
+    isolated_app.dependency_overrides[get_session] = lambda: AsyncMock()
+    return isolated_app
+
+
+@pytest.fixture
+async def client_no_secret(app_no_secret_override):
+    transport = ASGITransport(app=app_no_secret_override)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest.mark.asyncio
+async def test_register_user_rejects_missing_internal_secret(
+    client_no_secret, service_mock
+):
+    """Без X-Internal-Secret регистрация отклоняется, не выполняя запрос."""
+    payload = {"telegram_id": 123, "username": "test"}
+
+    response = await client_no_secret.post("/users/register", json=payload)
+
+    assert response.status_code == 401
+    service_mock.register_or_get_user.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_register_user_rejects_wrong_internal_secret(
+    client_no_secret, service_mock
+):
+    """Неверный (не пустой) X-Internal-Secret тоже отклоняется."""
+    payload = {"telegram_id": 123, "username": "test"}
+
+    response = await client_no_secret.post(
+        "/users/register",
+        json=payload,
+        headers={"X-Internal-Secret": "not-the-real-secret"},
+    )
+
+    assert response.status_code == 401
+    service_mock.register_or_get_user.assert_not_called()
 
 
 @pytest.mark.asyncio
