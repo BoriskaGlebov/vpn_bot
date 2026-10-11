@@ -1,4 +1,4 @@
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 ROLE_BADGE_COLORS = {
     "admin": "red",
@@ -35,5 +35,10 @@ VPN_CONFIG_STATUS_LABELS = {
 
 
 def badge(text: str, color: str) -> Markup:
-    """Рендерит цветной Bootstrap/Tabler-бейдж."""
-    return Markup(f'<span class="badge bg-{color}">{text}</span>')
+    """Рендерит цветной Bootstrap/Tabler-бейдж.
+
+    `text` экранируется — сейчас функция применяется только к значениям enum
+    (роли, статусы), но она общая, и без экранирования применение к полю,
+    которое заполняет пользователь, дало бы XSS в админке (см. #246).
+    """
+    return Markup('<span class="badge bg-{}">{}</span>').format(color, escape(text))
