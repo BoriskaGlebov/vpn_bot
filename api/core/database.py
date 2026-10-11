@@ -86,6 +86,36 @@ def connection(isolation_level: IsolationLevel | None = None) -> Callable[[F], F
     return decorator
 
 
+# Подстроки в именах полей, по которым значение маскируется перед логированием/
+# выводом модели в строку. Общая реализация для `BaseDAO._redact` (параметры
+# DAO-операций) и `Base.to_dict_redacted` (колонки модели) — чтобы маскирование
+# не обходилось через `__repr__`/`to_dict`, которые читают значения напрямую
+# с объекта, а не из словаря параметров DAO (см. #238).
+_SENSITIVE_KEY_MARKERS = ("password", "secret", "token", "payload", "api_key", "card")
+
+
+def redact(values: dict[str, Any]) -> dict[str, Any]:
+    """Маскирует потенциально чувствительные поля словаря по имени ключа.
+
+    Args:
+        values: Словарь значений (параметров DAO-операции либо колонок модели).
+
+    Returns
+        dict[str, Any]: Копия словаря; значения ключей, содержащих
+            чувствительные подстроки (см. `_SENSITIVE_KEY_MARKERS`), заменены
+            на `"***"`.
+
+    """
+    return {
+        k: (
+            "***"
+            if any(marker in k.lower() for marker in _SENSITIVE_KEY_MARKERS)
+            else v
+        )
+        for k, v in values.items()
+    }
+
+
 int_pk = Annotated[int, mapped_column(primary_key=True, autoincrement=True)]
 created_at = Annotated[datetime, mapped_column(server_default=func.now())]
 updated_at = Annotated[
@@ -135,7 +165,9 @@ class Base(AsyncAttrs, DeclarativeBase):
     def to_dict(self) -> dict[str, Any]:
         """Преобразует экземпляр модели в словарь.
 
-        Ключи — имена колонок, значения — соответствующие данные.
+        Ключи — имена колонок, значения — соответствующие данные. Значения не
+        маскированы — вызывающий код сам решает, попадёт ли результат в лог
+        (см. `to_dict_redacted` для безопасного по умолчанию варианта).
 
         Returns
             dict[str, Any]: Словарь с данными модели.
@@ -143,16 +175,33 @@ class Base(AsyncAttrs, DeclarativeBase):
         """
         return {c.name: getattr(self, c.name) for c in self.__mapper__.columns}
 
+    def to_dict_redacted(self) -> dict[str, Any]:
+        """`to_dict()` с маскированием чувствительных полей по имени колонки.
+
+        Для осознанного подробного вывода модели (отладка, ad-hoc логирование) —
+        в отличие от `__repr__`/`__str__`, которые печатают только id и не
+        предназначены для диагностики содержимого записи.
+
+        Returns
+            dict[str, Any]: Словарь с данными модели; чувствительные поля
+                (см. `_SENSITIVE_KEY_MARKERS`) заменены на `"***"`.
+
+        """
+        return redact(self.to_dict())
+
     def __repr__(self) -> str:
-        """Возвращает строковое debug-представление модели."""
-        fields = []
+        """Возвращает краткое представление модели: класс и `id`.
 
-        for column in self.__table__.columns:
-            value = getattr(self, column.name)
-            fields.append(f"{column.name}={value!r}")
-
-        return f"<{self.__class__.__name__} {' '.join(fields)}>"
+        Раньше печатались значения всех колонок, то есть любое попадание
+        объекта модели в f-строку лога, `str()`/`repr()` в сообщении об
+        ошибке SQLAlchemy или трейсбек с `diagnose=True` (см. #226) выводило
+        запись целиком — маскирование `BaseDAO._redact` на это не влияет,
+        потому что оно применяется к словарям параметров DAO, а не к самому
+        объекту. Подробный вывод с маскированием — `to_dict_redacted()`,
+        вызывается осознанно.
+        """
+        return f"<{self.__class__.__name__} id={getattr(self, 'id', None)!r}>"
 
     def __str__(self) -> str:
-        """Возвращает человекочитаемое представление модели."""
+        """Возвращает то же краткое представление, что и `__repr__`."""
         return self.__repr__()

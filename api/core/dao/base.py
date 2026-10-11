@@ -16,14 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.interfaces import ORMOption
 
 from api.core.database import Base
+from api.core.database import redact as _redact_values
 
 T = TypeVar("T", bound=Base)
-
-# Подстроки в именах полей, по которым значение маскируется перед логированием.
-# BaseDAO — общий класс для всех моделей (включая платёжные), поэтому не может
-# заранее знать, какие поля конкретной модели чувствительны, и ориентируется
-# на имя ключа, а не на его содержимое.
-_SENSITIVE_KEY_MARKERS = ("password", "secret", "token", "payload", "api_key", "card")
 
 
 class BaseDAO(Generic[T]):  # noqa: UP046
@@ -74,25 +69,19 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         """Маскирует потенциально чувствительные поля перед логированием.
 
         Например, `PaymentTransaction.gateway_payload` (сырые данные
-        платёжного шлюза) иначе целиком попадал бы в `file.log`.
+        платёжного шлюза) иначе целиком попадал бы в `file.log`. Реализация
+        общая с `Base.to_dict_redacted` (см. `api.core.database.redact`) —
+        чтобы маскирование не обходилось через `__repr__`/`to_dict` модели.
 
         Args:
             values: Словарь значений записи.
 
         Returns
             dict[str, Any]: Копия словаря; значения ключей, содержащих
-                чувствительные подстроки (см. `_SENSITIVE_KEY_MARKERS`),
-                заменены на `"***"`.
+                чувствительные подстроки, заменены на `"***"`.
 
         """
-        return {
-            k: (
-                "***"
-                if any(marker in k.lower() for marker in _SENSITIVE_KEY_MARKERS)
-                else v
-            )
-            for k, v in values.items()
-        }
+        return _redact_values(values)
 
     @classmethod
     def _build_filters(cls, f: dict[str, Any]) -> ColumnElement[bool]:

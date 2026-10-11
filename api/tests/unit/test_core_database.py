@@ -3,9 +3,55 @@
 import pytest
 from sqlalchemy import StaticPool, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Mapped, mapped_column
 
 from api.core.config import settings_api
-from api.core.database import connection, engine
+from api.core.database import Base, connection, engine
+
+
+class _DatabaseReprModel(Base):
+    """Временная модель для тестов __repr__/to_dict_redacted — не создаёт таблицу."""
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(nullable=False)
+    password: Mapped[str] = mapped_column(nullable=False)
+
+
+def test_repr_shows_only_class_and_id():
+    """__repr__ выводит только класс и id, не все колонки (#238)."""
+    instance = _DatabaseReprModel(id=1, username="alice", password="super-secret")
+
+    representation = repr(instance)
+
+    assert representation == "<_DatabaseReprModel id=1>"
+    assert "alice" not in representation
+    assert "super-secret" not in representation
+
+
+def test_str_matches_repr():
+    """__str__ совпадает с __repr__ — тот же безопасный краткий вывод."""
+    instance = _DatabaseReprModel(id=2, username="bob", password="x")
+
+    assert str(instance) == repr(instance)
+
+
+def test_to_dict_redacted_masks_sensitive_columns():
+    """to_dict_redacted маскирует password по имени колонки, но не username."""
+    instance = _DatabaseReprModel(id=1, username="alice", password="super-secret")
+
+    redacted = instance.to_dict_redacted()
+
+    assert redacted["username"] == "alice"
+    assert redacted["password"] == "***"
+
+
+def test_to_dict_is_not_redacted_by_default():
+    """to_dict() без маскирования — осознанный выбор вызывающего, не дефолт."""
+    instance = _DatabaseReprModel(id=1, username="alice", password="super-secret")
+
+    plain = instance.to_dict()
+
+    assert plain["password"] == "super-secret"
 
 
 def test_engine_pool_uses_configured_settings():
