@@ -18,7 +18,7 @@ class UserMapper:
     """
 
     @staticmethod
-    async def to_schema(user: User) -> SUserOut:
+    def to_schema(user: User) -> SUserOut:
         """Преобразует ORM-объект User в DTO-схему SUserOut.
 
         Args:
@@ -54,7 +54,7 @@ class UserMapper:
         return user_schema
 
     @staticmethod
-    async def to_schema_with_referrals(user: User) -> SUserWithReferralStats:
+    def to_schema_with_referrals(user: User) -> SUserWithReferralStats:
         """Преобразует User в расширенную DTO-схему с реферальной статистикой.
 
         Дополнительно рассчитывает: количество приглашённых пользователей,
@@ -67,7 +67,7 @@ class UserMapper:
             SUserWithReferralStats: DTO с дополнительной реферальной статистикой.
 
         """
-        base_schema: SUserOut = await UserMapper.to_schema(user)
+        base_schema: SUserOut = UserMapper.to_schema(user)
 
         invited_users = getattr(user, "invited_users", [])
 

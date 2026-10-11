@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -55,7 +55,7 @@ def mock_extend_subscription():
 @pytest.fixture
 def mock_user_mapper():
     with patch(
-        "api.admin.services.UserMapper.to_schema", new_callable=AsyncMock
+        "api.admin.services.UserMapper.to_schema", new_callable=MagicMock
     ) as mock:
         yield mock
 

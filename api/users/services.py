@@ -71,7 +71,7 @@ class UserService:
                     values=SUsernameUpdate(username=telegram_user.username),
                 )
                 await session.refresh(user)
-            return await UserMapper.to_schema(user), False
+            return UserMapper.to_schema(user), False
         logger.info("Пользователь не найден, создаём нового")
         is_admin = telegram_user.telegram_id in settings_api.core.admin_ids
         schema_user = SUser(
@@ -111,9 +111,9 @@ class UserService:
             )
             if user is None:
                 raise
-            return await UserMapper.to_schema(user), False
+            return UserMapper.to_schema(user), False
         logger.success("Пользователь успешно создан")
-        return await UserMapper.to_schema(user), True
+        return UserMapper.to_schema(user), True
 
     async def get_user_with_referrals(
         self,
@@ -147,4 +147,4 @@ class UserService:
             raise UserNotFoundError(tg_id=telegram_id)
 
         logger.info(f"Пользователь найден: {user.id}, считаем рефералов")
-        return await UserMapper.to_schema_with_referrals(user)
+        return UserMapper.to_schema_with_referrals(user)

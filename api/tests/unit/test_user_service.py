@@ -29,7 +29,7 @@ def session() -> AsyncSession:
 # ---------- register_or_get_user ----------
 
 
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_existing(
     mock_find_user,
@@ -60,11 +60,11 @@ async def test_register_or_get_user_existing(
     assert created is False
 
     mock_find_user.assert_awaited_once()
-    mock_to_schema.assert_awaited_once_with(fake_user)
+    mock_to_schema.assert_called_once_with(fake_user)
 
 
 @patch("api.users.services.settings_api")
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_create_admin(
@@ -110,7 +110,7 @@ async def test_register_or_get_user_create_admin(
 
 
 @patch("api.users.services.settings_api")
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_create_regular_user(
@@ -150,7 +150,7 @@ async def test_register_or_get_user_create_regular_user(
 
 
 @patch("api.users.services.settings_api")
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_guest_username(
@@ -185,7 +185,7 @@ async def test_register_or_get_user_guest_username(
 
 
 @patch("api.users.services.settings_api")
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_concurrent_registration_race(
@@ -226,11 +226,11 @@ async def test_register_or_get_user_concurrent_registration_race(
     assert created is False
     assert result is expected_schema
     assert mock_find_user.await_count == 2
-    mock_to_schema.assert_awaited_once_with(existing_user)
+    mock_to_schema.assert_called_once_with(existing_user)
 
 
 @patch("api.users.services.settings_api")
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_race_without_visible_row_reraises(
@@ -262,7 +262,7 @@ async def test_register_or_get_user_race_without_visible_row_reraises(
             telegram_user=telegram_user,
         )
 
-    mock_to_schema.assert_not_awaited()
+    mock_to_schema.assert_not_called()
 
 
 # ---------- get_user_with_referrals ----------
@@ -270,7 +270,7 @@ async def test_register_or_get_user_race_without_visible_row_reraises(
 
 @patch(
     "api.users.services.UserMapper.to_schema_with_referrals",
-    new_callable=AsyncMock,
+    new_callable=MagicMock,
 )
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_get_user_with_referrals_found(
@@ -292,7 +292,7 @@ async def test_get_user_with_referrals_found(
     )
 
     assert result == expected_schema
-    mock_to_schema.assert_awaited_once_with(fake_user)
+    mock_to_schema.assert_called_once_with(fake_user)
 
 
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)

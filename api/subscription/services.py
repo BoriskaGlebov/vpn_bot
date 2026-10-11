@@ -212,7 +212,7 @@ class SubscriptionService:
                 sub_type,
             )
             active_sub.extend(months=months)
-            return await UserMapper.to_schema(user=user_model)
+            return UserMapper.to_schema(user=user_model)
         elif user_model.role.name == RoleEnum.FOUNDER:
             logger.info(
                 "Основатель: принудительная установка PREMIUM подписки: user_id={}, months={}",
@@ -223,7 +223,7 @@ class SubscriptionService:
             if current_sub is not None:
                 current_sub.extend(months=months)
                 current_sub.type = SubscriptionType.FOUNDER
-                return await UserMapper.to_schema(user=user_model)
+                return UserMapper.to_schema(user=user_model)
         logger.info(
             "Создание новой подписки: user_id={}, months={}, type={}",
             user_id,
@@ -241,7 +241,7 @@ class SubscriptionService:
         await session.refresh(
             user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
         )
-        return await UserMapper.to_schema(user=user_model)
+        return UserMapper.to_schema(user=user_model)
 
     async def get_subscription_info(
         self,

@@ -192,7 +192,7 @@ async def test_activate_paid_create(session, monkeypatch):
 
     monkeypatch.setattr(
         "api.subscription.services.UserMapper.to_schema",
-        AsyncMock(return_value={"ok": True}),
+        MagicMock(return_value={"ok": True}),
     )
 
     result = await SubscriptionService.activate_paid_subscription(

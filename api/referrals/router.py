@@ -69,7 +69,7 @@ async def register_referral(
     if not invited_user:
         raise UserNotFoundError(tg_id=payload.invited_user_id)
 
-    suser_res = await UserMapper.to_schema(invited_user)
+    suser_res = UserMapper.to_schema(invited_user)
 
     await service.register_referral(
         session=session,
@@ -133,7 +133,7 @@ async def grant_bonus(
     if not invited_user:
         raise UserNotFoundError(tg_id=payload.invited_user_id)
 
-    suser_res = await UserMapper.to_schema(invited_user)
+    suser_res = UserMapper.to_schema(invited_user)
 
     success, inviter_telegram_id, message = await service.grant_referral_bonus(
         session=session,
