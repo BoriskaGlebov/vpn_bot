@@ -121,15 +121,12 @@ class SettingsApp(SettingsCommon):
      logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
      max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
      common_timeout (int): Настройка таймаута при подключении к API, серверам, контейнерам.
-     admin_ids (set[int] | str):
+     admin_ids (list[int]):
             Список Telegram ID администраторов с расширенными правами.
-            Может задаваться строкой вида "1,2,3" или коллекцией чисел.
+            Через переменную окружения задаётся JSON-массивом, например
+            `ADMIN_IDS=[123456789, 987654321]` — pydantic-settings разбирает
+            `list[int]` как JSON, а не как строку с разделителем-запятой.
      model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
-
-    Methods
-        parse_admin_ids(v):
-            Валидирует и преобразует входное значение admin_ids в set[int].
-            Поддерживает строку и iterable.
 
     """
 

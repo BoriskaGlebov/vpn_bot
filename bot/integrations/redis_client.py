@@ -22,7 +22,7 @@ class RedisClient(RedisClientProtocol):
 
     """
 
-    DEFAULT_EXPIRE = 8400
+    DEFAULT_EXPIRE = 86400
 
     def __init__(self, redis_url: str, default_expire: int | None = None) -> None:
         self.url = redis_url

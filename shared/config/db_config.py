@@ -57,12 +57,12 @@ class RedisSettings(SettingsCommon):
     """Конфигурация базы данных REDIS.
 
     Attributes
-        redis_password (SecretStr): Пароль для подключения к Redis.
-        redis_host (str): Хост Redis-сервера. По умолчанию "redis".
-        redis_port (int): Порт Redis-сервера. По умолчанию 6379.
-        num_db (int): Номер базы данных Redis. По умолчанию 0.
-        redis_user (str) : Имя пользователя Redis для приложения.
-        default_expire (int) : Время жизни ключей в Redis по умолчанию (в секундах). По умолчанию 3600 секунд (1 час).
+        password (SecretStr): Пароль для подключения к Redis.
+        host (str): Хост Redis-сервера. По умолчанию "redis".
+        port (int): Порт Redis-сервера. По умолчанию 6379.
+        db (int): Номер базы данных Redis. По умолчанию 0.
+        user (str) : Имя пользователя Redis для приложения.
+        default_expire (int) : Время жизни ключей в Redis по умолчанию (в секундах). По умолчанию 43200 секунд (12 часов).
 
     Properties
         url (str): Строка подключения к Redis в формате

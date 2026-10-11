@@ -44,7 +44,8 @@ def patch_record(record: "Record") -> None:
         record (dict[str, Any]): Запись лога, формируемая loguru.
 
     Returns
-        bool: Всегда ``True`` для продолжения обработки записи логгером.
+        None: Запись патчится на месте (``record["extra"]`` мутируется),
+            значение не возвращается — таков контракт ``patcher`` у loguru.
 
     """
     ctx = log_context.get()
