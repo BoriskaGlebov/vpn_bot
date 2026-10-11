@@ -17,6 +17,13 @@ class PostgresSettings(SettingsCommon):
         password (SecretStr): Пароль пользователя для подключения к базе данных.
         database (str): Имя базы данных.
         embedding_dim (int): Размерность Эмбеддингов, которые можно записать в БД. В яндекс по умолчанию 256.
+        pool_size (int): Число постоянных соединений в пуле `create_async_engine`.
+        max_overflow (int): Доп. соединения сверх `pool_size` при пиковой нагрузке.
+        pool_pre_ping (bool): Проверять соединение перед выдачей из пула — без
+            этого первые запросы после перезапуска/разрыва по таймауту на стороне
+            Postgres падают с `OperationalError` на «мёртвом» соединении.
+        pool_recycle (int): Секунд до принудительного пересоздания соединения
+            (защита от разрыва по таймауту сетевого оборудования/firewall).
 
     Properties
         url (URL): Строка подключения к PostgreSQL в формате
@@ -34,6 +41,10 @@ class PostgresSettings(SettingsCommon):
     password: SecretStr
     database: str
     embedding_dim: int = 256
+    pool_size: int = 10
+    max_overflow: int = 20
+    pool_pre_ping: bool = True
+    pool_recycle: int = 1800
 
     @property
     def url(self) -> URL:

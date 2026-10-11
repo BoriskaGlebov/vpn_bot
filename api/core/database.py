@@ -15,7 +15,13 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 from api.core.config import settings_api
 
-engine = create_async_engine(settings_api.db.url)
+engine = create_async_engine(
+    settings_api.db.url,
+    pool_size=settings_api.db.pool_size,
+    max_overflow=settings_api.db.max_overflow,
+    pool_pre_ping=settings_api.db.pool_pre_ping,
+    pool_recycle=settings_api.db.pool_recycle,
+)
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
