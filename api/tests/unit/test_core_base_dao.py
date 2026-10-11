@@ -3,6 +3,7 @@
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import String
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -100,6 +101,31 @@ async def test_update_records(session):
 
     found = await dao.find_one_or_none(session, FilterSchema(name="to_update"))
     assert found.value == 99
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_add_many_assigns_ids(session):
+    """add_many() делает flush — у возвращённых записей уже есть id."""
+    dao = TmpDAO()
+    records = await dao.add_many(
+        session,
+        [TmpSchema(name="m1"), TmpSchema(name="m2")],
+    )
+
+    assert all(r.id is not None for r in records)
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_add_many_integrity_error_raises_from_method(session):
+    """Нарушение целостности (дублирующийся id) всплывает из add_many, а не при коммите."""
+    dao = TmpDAO()
+    existing = await dao.add(session, TmpSchema(name="first"))
+    await session.flush()
+
+    with pytest.raises(IntegrityError):
+        await dao.add_many(session, [TmpSchema(id=existing.id, name="duplicate")])
 
 
 @pytest.mark.asyncio

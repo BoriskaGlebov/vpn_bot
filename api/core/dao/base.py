@@ -329,6 +329,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             # noinspection PyTypeChecker
             new_instances = [cls.model(**values) for values in values_list]
             session.add_all(new_instances)
+            await session.flush()
             logger.info(
                 f"[DAO] Успешно добавлено {len(new_instances)} записей {cls.model.__name__}."
             )
