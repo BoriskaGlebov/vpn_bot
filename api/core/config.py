@@ -34,11 +34,16 @@ class SettingsAPI(SettingsCommon):
 
         session_secret (SecretStr):
             Секретный ключ для подписи сессий (например, cookies или JWT).
+            Обязателен — без значения по умолчанию: это единственная защита
+            сессий SQLAdmin, отсутствие переменной должно останавливать
+            запуск, а не подменяться константой (см. #247).
 
         internal_api_secret (SecretStr):
             Общий секрет, которым бот подписывает запросы к api/
             (заголовок X-Internal-Secret). Без него X-Telegram-Id
-            не принимается во внимание — см. AuthMiddleware.
+            не принимается во внимание — см. AuthMiddleware. Обязателен —
+            без значения по умолчанию по той же причине, что и выше: это
+            единственная проверка доступа к api/ (см. #247).
 
         admin_panel_user (str):
             Логин админ-панели SQLAdmin — отдельный от учётных данных БД.
@@ -53,8 +58,8 @@ class SettingsAPI(SettingsCommon):
     core: SettingsApp = Field(default_factory=SettingsApp)
     db: PostgresSettings = Field(default_factory=PostgresSettings)
 
-    session_secret: SecretStr = SecretStr("secret")
-    internal_api_secret: SecretStr = SecretStr("secret")
+    session_secret: SecretStr
+    internal_api_secret: SecretStr
 
     admin_panel_user: str = "admin"
     admin_panel_password_hash: SecretStr = SecretStr("")
