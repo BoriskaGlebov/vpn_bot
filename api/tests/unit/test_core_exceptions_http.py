@@ -88,6 +88,66 @@ async def test_request_validation_handler_multiple_errors():
 
 
 @pytest.mark.asyncio
+async def test_request_validation_handler_strips_input_and_url(monkeypatch):
+    """details.errors не содержит input (присланное значение, может быть
+    паролем/секретом) и url (версия pydantic) — только type/loc/msg (#240).
+    """
+    request = DummyRequest("/users/register")
+
+    # pydantic реально кладёт input/url в errors() — воспроизводим это явно,
+    # а не полагаемся на то, что RequestValidationError сама их добавит.
+    raw_errors = [
+        {
+            "type": "string_too_short",
+            "loc": ("body", "password"),
+            "msg": "String should have at least 8 characters",
+            "input": "secret",
+            "url": "https://errors.pydantic.dev/2.11/v/string_too_short",
+        }
+    ]
+    exc = RequestValidationError(raw_errors)
+    monkeypatch.setattr(exc, "errors", lambda: raw_errors)
+
+    response = await request_validation_handler(request, exc)
+
+    data = json.loads(response.body)
+    (error,) = data["error"]["details"]["errors"]
+
+    assert set(error.keys()) == {"type", "loc", "msg"}
+    assert "secret" not in json.dumps(data)
+    assert "errors.pydantic.dev" not in json.dumps(data)
+
+
+@pytest.mark.asyncio
+async def test_request_validation_handler_message_has_no_repr_or_values():
+    """message — короткий текст без repr(exc) и без присланных значений (#240).
+
+    Раньше `f"Ошибка валидации запроса {repr(exc)}"` отправлял пользователю
+    в Telegram список ошибок pydantic целиком, включая присланные значения.
+    """
+    request = DummyRequest("/users/register")
+
+    errors = [
+        {
+            "loc": ("body", "password"),
+            "msg": "String should have at least 8 characters",
+            "type": "string_too_short",
+            "input": "my-secret-password",
+        }
+    ]
+    exc = RequestValidationError(errors)
+
+    response = await request_validation_handler(request, exc)
+
+    data = json.loads(response.body)
+    message = data["error"]["message"]
+
+    assert message == "Ошибка валидации запроса"
+    assert "my-secret-password" not in message
+    assert "RequestValidationError(" not in message
+
+
+@pytest.mark.asyncio
 async def test_database_exception_handler():
     """SQLAlchemyError не протекает наружу, а даёт единый 500-формат без деталей БД."""
     request = DummyRequest("/db")

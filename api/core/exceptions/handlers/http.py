@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import cast
 
 from fastapi import Request
@@ -52,6 +53,29 @@ async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+def _sanitize_validation_errors(
+    errors: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    """Убирает из ошибок pydantic то, что не предназначено для клиента.
+
+    `exc.errors()` включает `input` (значение, присланное клиентом — может
+    быть паролем, секретом и т.п.) и `url` (ссылка на документацию pydantic
+    с номером версии). Оставляем только `type`/`loc`/`msg` — этого достаточно,
+    чтобы клиент понял, какое поле и почему не прошло валидацию.
+
+    Args:
+        errors: Результат `RequestValidationError.errors()`.
+
+    Returns
+        list[dict[str, object]]: Та же структура без `input`/`url`.
+
+    """
+    return [
+        {k: v for k, v in error.items() if k in ("type", "loc", "msg")}
+        for error in errors
+    ]
+
+
 async def request_validation_handler(
     request: Request,
     exc: RequestValidationError,
@@ -63,6 +87,13 @@ async def request_validation_handler(
     заголовков и тела запроса.
 
     Все ошибки приводятся к единому формату API-ответа.
+
+    `message` — короткий человекочитаемый текст без `repr(exc)`: тот
+    содержал полный список ошибок pydantic вместе с присланными клиентом
+    значениями (включая пароли/секреты в поле `input`) и версией pydantic
+    в URL документации — и этот текст уходил пользователю в Telegram
+    (см. #240). Полные `exc.errors()` — только в лог; в ответ клиенту
+    попадает отфильтрованная версия без `input`/`url`.
 
     Args:
         request: Текущий HTTP-запрос.
@@ -83,8 +114,11 @@ async def request_validation_handler(
         content=ErrorEnvelope(
             error=ErrorDetail(
                 code="validation_error",
-                message=f"Ошибка валидации запроса {repr(exc)}",
-                details={"exc_type": type(exc).__name__, "errors": exc.errors()},
+                message="Ошибка валидации запроса",
+                details={
+                    "exc_type": type(exc).__name__,
+                    "errors": _sanitize_validation_errors(exc.errors()),
+                },
             )
         ).model_dump(),
     )
