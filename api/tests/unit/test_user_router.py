@@ -16,7 +16,7 @@ from api.users.dependencies import get_user_service
 from api.users.router import router as users_router
 from api.users.schemas import SRoleOut, SUserOut, SUserWithReferralStats
 from api.users.services import UserService
-from shared.enums.admin_enum import FilterTypeEnum
+from shared.enums.admin_enum import RoleEnum
 
 
 @pytest.fixture
@@ -102,7 +102,7 @@ async def test_register_user_created(client, service_mock):
             username="test",
             first_name="Test",
             last_name="User",
-            role=SRoleOut(name=FilterTypeEnum.USER, id=1, description="ПОользователь"),
+            role=SRoleOut(name=RoleEnum.USER, id=1, description="ПОользователь"),
             subscriptions=[],
             has_used_trial=False,
         ),
@@ -133,9 +133,7 @@ async def test_register_user_existing(client, service_mock):
             "id": 1234,
             "username": "test",
             "has_used_trial": False,
-            "role": SRoleOut(
-                name=FilterTypeEnum.USER, id=1, description="ПОользователь"
-            ),
+            "role": SRoleOut(name=RoleEnum.USER, id=1, description="ПОользователь"),
         },
         False,
     )
@@ -163,7 +161,7 @@ async def test_get_user_referrals_success(client, service_mock):
         first_name="Test",
         last_name="User",
         has_used_trial=False,
-        role=SRoleOut(name=FilterTypeEnum.USER, id=1, description="Пользователь"),
+        role=SRoleOut(name=RoleEnum.USER, id=1, description="Пользователь"),
         referrals_count=5,
         paid_referrals_count=2,
         referral_conversion=0.4,

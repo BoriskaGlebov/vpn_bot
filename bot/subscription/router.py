@@ -65,7 +65,7 @@ from bot.vpn.keyboards.inline_kb import (
     my_configs_kb,
 )
 from bot.vpn.services import VPNService
-from shared.enums.admin_enum import FilterTypeEnum
+from shared.enums.admin_enum import RoleEnum
 
 m_subscription = settings_bot.messages.modes.subscription
 
@@ -405,7 +405,7 @@ class SubscriptionRouter(BaseRouter):
                 text="Начнем оформление подписки",
                 reply_markup=ReplyKeyboardRemove(),
             )
-            founder = role == FilterTypeEnum.FOUNDER
+            founder = role == RoleEnum.FOUNDER
             if founder:
                 text = m_subscription.founder_start.format(
                     device_limit=settings_bot.core.max_configs_per_user * 2,

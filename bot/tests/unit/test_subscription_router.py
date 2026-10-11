@@ -8,7 +8,7 @@ from aiogram.types import ReplyKeyboardRemove
 from bot.app_error.base_error import VPNConfigNotFoundError
 from bot.subscription.router import SubscriptionRouter, SubscriptionStates
 from bot.users.schemas import SVPNConfigOut
-from shared.enums.admin_enum import FilterTypeEnum
+from shared.enums.admin_enum import RoleEnum
 
 
 @pytest.mark.asyncio
@@ -22,7 +22,7 @@ async def test_show_subscription_options_premium_user(
     user = mocker.Mock(id=123, username="testuser")
 
     service_mock = mocker.AsyncMock()
-    service_mock.check_premium.return_value = (True, FilterTypeEnum.USER, True, True)
+    service_mock.check_premium.return_value = (True, RoleEnum.USER, True, True)
 
     router = SubscriptionRouter(
         bot=bot_mock,
@@ -237,7 +237,7 @@ async def test_renew_subscription_selected_deletes_menu_and_shows_options(mocker
     query_mock.message = msg_mock
 
     service_mock = mocker.AsyncMock()
-    service_mock.check_premium.return_value = (False, FilterTypeEnum.USER, False, False)
+    service_mock.check_premium.return_value = (False, RoleEnum.USER, False, False)
 
     router = SubscriptionRouter(
         bot=mocker.AsyncMock(),

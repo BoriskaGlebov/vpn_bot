@@ -15,7 +15,7 @@ from api.subscription.models import Subscription, SubscriptionType
 from api.users.dao import RoleDAO, UserDAO
 from api.users.models import Role, User
 from api.users.schemas import SRole, SUser, SUserTelegramID
-from shared.enums.admin_enum import FilterTypeEnum
+from shared.enums.admin_enum import RoleEnum
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -81,10 +81,10 @@ async def session(engine) -> AsyncSession:
 
 @pytest.fixture
 async def role_user(session: AsyncSession) -> Role:
-    result = await session.execute(select(Role).where(Role.name == FilterTypeEnum.USER))
+    result = await session.execute(select(Role).where(Role.name == RoleEnum.USER))
     role = result.scalar_one_or_none()
     if role is None:
-        role = Role(name=FilterTypeEnum.USER)
+        role = Role(name=RoleEnum.USER)
         session.add(role)
         await session.flush()
     return role
@@ -92,12 +92,10 @@ async def role_user(session: AsyncSession) -> Role:
 
 @pytest.fixture
 async def role_admin(session: AsyncSession) -> Role:
-    result = await session.execute(
-        select(Role).where(Role.name == FilterTypeEnum.ADMIN)
-    )
+    result = await session.execute(select(Role).where(Role.name == RoleEnum.ADMIN))
     role = result.scalar_one_or_none()
     if role is None:
-        role = Role(name=FilterTypeEnum.ADMIN)
+        role = Role(name=RoleEnum.ADMIN)
         session.add(role)
         await session.flush()
     return role
@@ -137,7 +135,7 @@ async def test_add_role_subscription_user(session, role_user):
         first_name="New",
         last_name="User",
     )
-    values_role = SRole(name=FilterTypeEnum.USER)
+    values_role = SRole(name=RoleEnum.USER)
 
     user = await UserDAO.add_role_subscription(
         session=session,
@@ -147,7 +145,7 @@ async def test_add_role_subscription_user(session, role_user):
     await session.commit()
 
     assert user.id is not None
-    assert user.role.name == FilterTypeEnum.USER
+    assert user.role.name == RoleEnum.USER
     assert len(user.subscriptions) == 1
     assert not user.subscriptions[0].is_active
 
@@ -165,7 +163,7 @@ async def test_add_role_subscription_admin_role_alone_does_not_activate(
         first_name="Admin",
         last_name="User",
     )
-    values_role = SRole(name=FilterTypeEnum.ADMIN)
+    values_role = SRole(name=RoleEnum.ADMIN)
 
     user = await UserDAO.add_role_subscription(
         session=session,
@@ -175,7 +173,7 @@ async def test_add_role_subscription_admin_role_alone_does_not_activate(
     await session.commit()
 
     subscription = user.subscriptions[0]
-    assert user.role.name == FilterTypeEnum.ADMIN
+    assert user.role.name == RoleEnum.ADMIN
     assert subscription.is_active is False
     assert subscription.type is None
 
@@ -192,7 +190,7 @@ async def test_add_role_subscription_with_explicit_premium_subscription(
         first_name="Admin",
         last_name="User",
     )
-    values_role = SRole(name=FilterTypeEnum.ADMIN)
+    values_role = SRole(name=RoleEnum.ADMIN)
 
     user = await UserDAO.add_role_subscription(
         session=session,
@@ -236,7 +234,7 @@ async def test_duplicate_username_registers_successfully(session, role_user):
     username переиспользуем в Telegram — уникальность принадлежит
     telegram_id, не username, поэтому повтор не должен давать IntegrityError.
     """
-    values_role = SRole(name=FilterTypeEnum.USER)
+    values_role = SRole(name=RoleEnum.USER)
 
     first_user = await UserDAO.add_role_subscription(
         session=session,
@@ -258,7 +256,7 @@ async def test_duplicate_username_registers_successfully(session, role_user):
 
 async def test_username_can_be_none(session, role_user):
     """Пользователь без Telegram-username регистрируется успешно (#242)."""
-    values_role = SRole(name=FilterTypeEnum.USER)
+    values_role = SRole(name=RoleEnum.USER)
 
     user = await UserDAO.add_role_subscription(
         session=session,
@@ -277,18 +275,26 @@ async def test_get_users_by_roles_all(session, user):
     assert len(users) >= 1
 
 
+async def test_get_users_by_roles_all_via_enum_member(session, user):
+    """RoleEnum.ALL работает как и строка "all" — единый источник значения
+    вместо буквального литерала в сравнении (#245).
+    """
+    users = await UserDAO.get_users_by_roles(session, RoleEnum.ALL)
+    assert len(users) >= 1
+
+
 async def test_get_users_by_roles_filtered(session, user, role_user):
     """Получение пользователей по конкретной роли."""
     users = await UserDAO.get_users_by_roles(
         session,
-        FilterTypeEnum.USER,
+        RoleEnum.USER,
     )
-    assert all(u.role.name == FilterTypeEnum.USER for u in users)
+    assert all(u.role.name == RoleEnum.USER for u in users)
 
 
 async def test_change_role_to_founder(session, user):
     """Изменение роли на FOUNDER и активация подписки."""
-    founder_role = Role(name=FilterTypeEnum.FOUNDER)
+    founder_role = Role(name=RoleEnum.FOUNDER)
     session.add(founder_role)
     user.subscriptions[0].type = SubscriptionType.STANDARD.value
     await session.commit()
@@ -300,7 +306,7 @@ async def test_change_role_to_founder(session, user):
     )
     await session.commit()
 
-    assert updated_user.role.name == FilterTypeEnum.FOUNDER
+    assert updated_user.role.name == RoleEnum.FOUNDER
     assert updated_user.subscriptions[0].type == SubscriptionType.STANDARD.value
 
 

@@ -11,7 +11,7 @@ from api.core.dao.base import BaseDAO
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.models import Role, User
 from api.users.schemas import SRole, SUser
-from shared.enums.admin_enum import FilterTypeEnum, RoleEnum
+from shared.enums.admin_enum import RoleEnum
 
 
 class UserDAO(BaseDAO[User]):
@@ -109,12 +109,12 @@ class UserDAO(BaseDAO[User]):
         """Получает список пользователей, отфильтрованных по роли.
 
         Функция выполняет запрос к базе данных с опциональной фильтрацией
-        по роли. Если `filter_type` равен `"all"`, возвращаются все
+        по роли. Если `filter_type` равен `RoleEnum.ALL`, возвращаются все
         пользователи. В противном случае — только пользователи с указанной ролью.
 
         Args:
             session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
-            filter_type (str): Имя роли для фильтрации или `"all"`.
+            filter_type (str): Имя роли для фильтрации или `RoleEnum.ALL`.
 
         Returns
             list[User]: Список найденных пользователей.
@@ -125,7 +125,7 @@ class UserDAO(BaseDAO[User]):
         """
         try:
             stmt = select(User).join(User.role).options(selectinload(User.role))
-            if filter_type != "all":
+            if filter_type != RoleEnum.ALL:
                 stmt = stmt.where(Role.name == filter_type)
 
             result = await session.execute(stmt)
@@ -175,7 +175,7 @@ class UserDAO(BaseDAO[User]):
     ) -> User:
         """Изменяет роль пользователя и при необходимости активирует подписку.
 
-        Если новая роль равна ``FilterTypeEnum.FOUNDER``, пользователю
+        Если новая роль равна ``RoleEnum.FOUNDER``, пользователю
         автоматически активируется подписка до конца текущего года, а тип
         подписки меняется на ``SubscriptionType.PREMIUM``.
 
@@ -194,7 +194,7 @@ class UserDAO(BaseDAO[User]):
         try:
             user.role = role
 
-            if role.name == FilterTypeEnum.FOUNDER:
+            if role.name == RoleEnum.FOUNDER:
                 now = datetime.datetime.now(tz=datetime.UTC)
                 if now.year == 2025:
                     next_year = datetime.datetime(
