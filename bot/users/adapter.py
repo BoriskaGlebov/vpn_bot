@@ -66,5 +66,5 @@ class UsersAPIAdapter:
             APIClientError: Если ответ API невалиден.
 
         """
-        data = await self.client.get(f"/api/users/{telegram_id}/referrals")
+        data, _ = await self.client.get(f"/api/users/{telegram_id}/referrals")
         return SUserWithReferralStats.model_validate(data)

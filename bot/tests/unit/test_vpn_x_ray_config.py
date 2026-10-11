@@ -76,10 +76,13 @@ async def test_logout_error_ignored(adapter):
 @pytest.mark.asyncio
 async def test_get_all_inbounds(adapter):
     adapter.api.get = AsyncMock(
-        return_value={
-            "success": True,
-            "obj": [{"id": 1, "remark": "test", "enable": True, "port": 1000}],
-        }
+        return_value=(
+            {
+                "success": True,
+                "obj": [{"id": 1, "remark": "test", "enable": True, "port": 1000}],
+            },
+            200,
+        )
     )
 
     result = await adapter._get_all_inbounds()
@@ -94,10 +97,13 @@ async def test_get_all_inbounds_missing_field_raises(adapter):
     from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
 
     adapter.api.get = AsyncMock(
-        return_value={
-            "success": True,
-            "obj": [{"id": 1, "enable": True, "port": 1000}],  # нет remark
-        }
+        return_value=(
+            {
+                "success": True,
+                "obj": [{"id": 1, "enable": True, "port": 1000}],  # нет remark
+            },
+            200,
+        )
     )
 
     with pytest.raises(ThreeXUIError):
@@ -107,17 +113,20 @@ async def test_get_all_inbounds_missing_field_raises(adapter):
 @pytest.mark.asyncio
 async def test_get_all_users(adapter):
     adapter.api.get = AsyncMock(
-        return_value={
-            "success": True,
-            "obj": [
-                {
-                    "clientStats": [
-                        {"uuid": "123"},
-                        {"uuid": "456"},
-                    ]
-                }
-            ],
-        }
+        return_value=(
+            {
+                "success": True,
+                "obj": [
+                    {
+                        "clientStats": [
+                            {"uuid": "123"},
+                            {"uuid": "456"},
+                        ]
+                    }
+                ],
+            },
+            200,
+        )
     )
 
     result = await adapter._get_all_users()
@@ -381,25 +390,28 @@ async def test_delete_config_partial_success_across_inbounds(adapter):
 @pytest.mark.asyncio
 async def test_get_inbounds_with_clients(adapter):
     adapter.api.get = AsyncMock(
-        return_value={
-            "success": True,
-            "obj": [
-                {
-                    "id": 1,
-                    "remark": "A",
-                    "enable": True,
-                    "port": 1000,
-                    "clientStats": [{"uuid": "abc"}],
-                },
-                {
-                    "id": 2,
-                    "remark": "B",
-                    "enable": True,
-                    "port": 2000,
-                    "clientStats": [],
-                },
-            ],
-        }
+        return_value=(
+            {
+                "success": True,
+                "obj": [
+                    {
+                        "id": 1,
+                        "remark": "A",
+                        "enable": True,
+                        "port": 1000,
+                        "clientStats": [{"uuid": "abc"}],
+                    },
+                    {
+                        "id": 2,
+                        "remark": "B",
+                        "enable": True,
+                        "port": 2000,
+                        "clientStats": [],
+                    },
+                ],
+            },
+            200,
+        )
     )
 
     result = await adapter._get_inbounds_with_clients()

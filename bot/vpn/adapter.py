@@ -19,7 +19,7 @@ class VPNAPIAdapter:
 
     async def check_limit(self, tg_id: int) -> SVPNCheckLimitResponse:
         """Проверяет лимит конфигов."""
-        data = await self.client.get(
+        data, _ = await self.client.get(
             "/api/vpn/limit",
             params={"tg_id": tg_id},
         )

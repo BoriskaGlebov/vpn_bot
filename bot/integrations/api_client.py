@@ -1,4 +1,5 @@
 import asyncio
+import random
 from collections.abc import Mapping
 from typing import Any
 
@@ -7,7 +8,7 @@ from loguru import logger
 
 from bot.app_error.api_error import (
     APIClientConnectionError,
-    APIClientError,
+    APIClientHTTPError,
     APIClientInvalidJSONError,
     map_http_error,
 )
@@ -18,20 +19,28 @@ from shared.config.context import log_context
 class APIClient:
     """Асинхронный HTTP клиент с retry, логированием и обработкой ошибок.
 
-    Повтор запроса при сетевой ошибке безопасен только тогда, когда сам запрос
-    точно не повлиял на состояние сервера. `ConnectError` гарантирует это —
-    соединение не установилось, запрос не ушёл. `ReadTimeout`/`WriteTimeout`
-    гарантии не дают: запрос мог уйти и уже обработаться на сервере, не
-    дождались только ответа. Поэтому их повтор допускается только для
-    идемпотентных методов (`_IDEMPOTENT_METHODS`) — для `POST`/`PATCH`/`DELETE`
-    такой таймаут поднимается сразу, без повторной отправки.
+    Все методы (`get`/`post`/`patch`/`delete`) возвращают одну и ту же форму —
+    `tuple[dict[str, Any], int]` (тело ответа и статус-код), а не вразнобой.
+
+    Повтор запроса при сетевой ошибке или 5xx безопасен только тогда, когда сам
+    запрос точно не повлиял на состояние сервера. `ConnectError` гарантирует
+    это — соединение не установилось, запрос не ушёл. `ReadTimeout`/
+    `WriteTimeout` и ответ 5xx такой гарантии не дают: запрос мог уйти и уже
+    обработаться на сервере, не дождались только (корректного) ответа. Поэтому
+    их повтор допускается только для идемпотентных методов
+    (`_IDEMPOTENT_METHODS`) — для `POST`/`PATCH`/`DELETE` они поднимаются сразу,
+    без повторной отправки. Задержка между попытками растёт экспоненциально
+    и содержит джиттер, чтобы не синхронизировать повторы параллельных
+    запросов в момент, когда `api/` и так не справляется с нагрузкой.
 
     Args:
         base_url (str): Базовый URL API.
         port (int): Порт API.
-        timeout (float): Таймаут запроса.
+        timeout (float): Таймаут чтения/записи/пула запроса.
+        connect_timeout (float): Таймаут установки соединения.
         max_retries (int): Количество попыток.
-        retry_delay (float): Задержка между попытками.
+        retry_delay (float): Базовая задержка между попытками (основание для
+            экспоненциального backoff).
         scheme (str): Схема подключения ("http"/"https").
         internal_secret (str | None): Секрет для заголовка X-Internal-Secret
             (только для клиента нашего api/).
@@ -39,12 +48,14 @@ class APIClient:
     """
 
     _IDEMPOTENT_METHODS = frozenset({"GET"})
+    _RETRYABLE_STATUSES = frozenset({500, 502, 503, 504})
 
     def __init__(
         self,
         base_url: str,
         port: int,
         timeout: float = 5.0,
+        connect_timeout: float = 2.0,
         max_retries: int = 3,
         retry_delay: float = 0.5,
         scheme: str = "http",
@@ -56,15 +67,24 @@ class APIClient:
             base_url: Хост целевого сервиса (со схемой или без — схема будет
                 подставлена из аргумента `scheme`).
             port: Порт целевого сервиса.
-            timeout: Таймаут HTTP-запроса в секундах.
-            max_retries: Количество повторных попыток при неудачном запросе.
-            retry_delay: Задержка между повторными попытками в секундах.
+            timeout: Таймаут чтения/записи/пула в секундах.
+            connect_timeout: Таймаут установки соединения в секундах.
+            max_retries: Количество попыток при неудачном запросе. Должно
+                быть не меньше 1.
+            retry_delay: Базовая задержка между повторными попытками в
+                секундах (растёт экспоненциально с номером попытки).
             scheme: Схема подключения (`http`/`https`).
             internal_secret: Секрет для заголовка X-Internal-Secret. Задаётся
                 только для клиента нашего api/ — сторонним хостам (например,
                 панелям XRay) он передаваться не должен.
 
+        Raises
+            ValueError: Если `max_retries < 1`.
+
         """
+        if max_retries < 1:
+            raise ValueError("max_retries должен быть не меньше 1")
+
         base_url = base_url.rstrip("/")
 
         # если вдруг передали уже с http/https — убираем
@@ -72,6 +92,7 @@ class APIClient:
 
         self.base_url = f"{scheme}://{base_url}:{port}"
         self.timeout = timeout
+        self.connect_timeout = connect_timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self._internal_secret = internal_secret
@@ -79,9 +100,26 @@ class APIClient:
         self._client = httpx.AsyncClient(
             base_url=self.base_url,
             timeout=httpx.Timeout(
-                connect=2.0, read=self.timeout, write=self.timeout, pool=self.timeout
+                connect=self.connect_timeout,
+                read=self.timeout,
+                write=self.timeout,
+                pool=self.timeout,
             ),
         )
+
+    def _backoff_delay(self, attempt: int) -> float:
+        """Экспоненциальная задержка с джиттером перед следующей попыткой.
+
+        Args:
+            attempt (int): Номер уже выполненной попытки (с 1).
+
+        Returns
+            float: Задержка в секундах.
+
+        """
+        base = self.retry_delay * (2 ** (attempt - 1))
+        jitter = random.uniform(0, base * 0.25)
+        return base + jitter
 
     async def close(self) -> None:
         """Закрывает HTTP клиент."""
@@ -108,6 +146,49 @@ class APIClient:
 
         return result
 
+    def _build_http_error(self, response: httpx.Response) -> APIClientHTTPError:
+        """Строит ошибку HTTP из ответа, не теряя статус-код на не-JSON теле.
+
+        Args:
+            response (httpx.Response): Ответ сервера со статусом >= 400.
+
+        Returns
+            APIClientHTTPError: Ошибка с сохранённым статус-кодом — даже если
+                тело ответа не JSON (например, HTML-страница от nginx при 502).
+
+        """
+        try:
+            error_body = response.json()
+        except ValueError:
+            logger.error(
+                "Невалидный JSON в ответе с ошибкой: {} {} {}",
+                response.request.method,
+                response.request.url,
+                response.status_code,
+            )
+            return APIClientHTTPError(
+                response.status_code,
+                ErrorDetail(
+                    code="invalid_json_response",
+                    message=(
+                        f"API вернул нераспознаваемое тело при статусе "
+                        f"{response.status_code}"
+                    ),
+                ),
+            )
+        # Тело ответа может содержать чувствительные данные (эхо платёжных
+        # реквизитов, паролей и т.п. от стороннего сервиса), поэтому в
+        # постоянные логи (WARNING/ERROR) оно не попадает — только на DEBUG
+        # и усечённым.
+        logger.debug(
+            "HTTP error body: {} {} -> {} | body={}",
+            response.request.method,
+            response.request.url,
+            response.status_code,
+            str(error_body)[:500],
+        )
+        return map_http_error(response.status_code, error_body)
+
     async def _request(
         self,
         method: str,
@@ -121,16 +202,19 @@ class APIClient:
             url (str): URL endpoint.
 
         Raises
-            APIClientHTTPError: Ошибка HTTP.
+            APIClientHTTPError: Ошибка HTTP. Для 5xx на неидемпотентном
+                методе поднимается сразу, без повтора — запрос мог уже
+                обработаться на сервере.
             APIClientConnectionError: Ошибка соединения. Для `ReadTimeout`/
                 `WriteTimeout` на неидемпотентном методе поднимается сразу,
-                без повтора — запрос мог уже дойти до сервера.
+                по той же причине.
 
         Returns
             httpx.Response: Ответ сервера.
 
         """
         last_exc: Exception | None = None
+        is_idempotent = method.upper() in self._IDEMPOTENT_METHODS
 
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -160,28 +244,15 @@ class APIClient:
                         url,
                         response.status_code,
                     )
-                    try:
-                        error_body = response.json()
-                    except ValueError as exc:
-                        logger.error(
-                            "Невалидный JSON в ответе с ошибкой: {} {} {}",
-                            method,
-                            url,
-                            response.status_code,
-                        )
-                        raise APIClientInvalidJSONError() from exc
-                    # Тело ответа может содержать чувствительные данные (эхо
-                    # платёжных реквизитов, паролей и т.п. от стороннего
-                    # сервиса), поэтому в постоянные логи (WARNING/ERROR выше)
-                    # оно не попадает — только на DEBUG и усечённым.
-                    logger.debug(
-                        "HTTP error body: {} {} -> {} | body={}",
-                        method,
-                        url,
-                        response.status_code,
-                        str(error_body)[:500],
-                    )
-                    raise map_http_error(response.status_code, error_body)
+                    error = self._build_http_error(response)
+
+                    retryable = response.status_code in self._RETRYABLE_STATUSES
+                    if retryable and is_idempotent and attempt < self.max_retries:
+                        last_exc = error
+                        await asyncio.sleep(self._backoff_delay(attempt))
+                        continue
+
+                    raise error
 
                 return response
 
@@ -200,9 +271,9 @@ class APIClient:
                 if attempt == self.max_retries:
                     raise APIClientConnectionError() from exc
 
-                await asyncio.sleep(self.retry_delay)
+                await asyncio.sleep(self._backoff_delay(attempt))
             except (httpx.ReadTimeout, httpx.WriteTimeout) as exc:
-                if method.upper() not in self._IDEMPOTENT_METHODS:
+                if not is_idempotent:
                     # Запрос мог уже обработаться на сервере — повтор означал
                     # бы выполнить изменяющую операцию второй раз.
                     logger.error(
@@ -228,7 +299,7 @@ class APIClient:
                 if attempt == self.max_retries:
                     raise APIClientConnectionError() from exc
 
-                await asyncio.sleep(self.retry_delay)
+                await asyncio.sleep(self._backoff_delay(attempt))
             except httpx.RequestError as exc:
                 logger.error(
                     "Ошибка без повторного запрашивания request error: {} {}: {}",
@@ -237,9 +308,11 @@ class APIClient:
                     exc,
                 )
                 raise APIClientConnectionError() from exc
-        raise APIClientError(
-            error=ErrorDetail(code="unknown_error", message="Неизвестная ошибка")
-        ) from last_exc
+
+        # Недостижимо: __init__ гарантирует max_retries >= 1, и внутри цикла
+        # любой исход — либо return, либо raise. Оставлено для mypy и как
+        # защита от будущих изменений цикла.
+        raise APIClientConnectionError() from last_exc
 
     async def _parse_json(self, response: httpx.Response) -> dict[str, Any]:
         """Парсит JSON с обработкой ошибок."""
@@ -255,10 +328,10 @@ class APIClient:
             raise APIClientInvalidJSONError() from exc
         return data
 
-    async def get(self, url: str, **kwargs: Any) -> dict[str, Any]:
+    async def get(self, url: str, **kwargs: Any) -> tuple[dict[str, Any], int]:
         """GET запрос."""
         response = await self._request("GET", url, **kwargs)
-        return await self._parse_json(response)
+        return await self._parse_json(response), response.status_code
 
     async def post(self, url: str, **kwargs: Any) -> tuple[dict[str, Any], int]:
         """POST запрос."""

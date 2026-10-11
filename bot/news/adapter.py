@@ -29,7 +29,7 @@ class NewsAPIAdapter:
             NewsRecipientsFetchError: Если ответ API имеет неожиданный формат.
 
         """
-        data = await self.client.get("/news/recipients")
+        data, _ = await self.client.get("/news/recipients")
 
         if not isinstance(data, list):
             logger.error(

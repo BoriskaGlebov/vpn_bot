@@ -37,7 +37,7 @@ class SubscriptionAPIAdapter:
             SSubscriptionCheck: статус подписки, роль и активность.
 
         """
-        data = await self._client.get(
+        data, _ = await self._client.get(
             "/subscriptions/check/premium",
             params={"tg_id": tg_id},
         )
@@ -96,7 +96,7 @@ class SubscriptionAPIAdapter:
         tg_id: int,
     ) -> SSubscriptionInfo:
         """Получает инфу о подписке."""
-        data = await self._client.get(
+        data, _ = await self._client.get(
             "/subscriptions/info",
             params={"tg_id": tg_id},
         )
