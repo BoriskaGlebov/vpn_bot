@@ -163,7 +163,7 @@ python api/main.py      # http://localhost:8089/api/docs
 Настройки собираются `pydantic-settings` из **двух источников**, и это важно не путать:
 
 1. **`.env` / `.env.dev` / `.env.local`** — только секреты и то, что меняется от инстанса к инстансу (токены, пароли, ключи API). Более специфичный файл переопределяет более общий. Актуальный список — в `.env.example ` (да, с пробелом в конце имени файла).
-2. **`app_config.toml` (база) + `app_config.develop.toml` / `app_config.local.toml`** (stage-специфичный, глубоко мёрджится поверх базы) — все остальные настройки: хосты VPN-нод, тарифы, лимиты, cron-расписание, уровни логирования и т.д. Какой overlay-файл подключается, определяется переменной `STAGE` (`develop` по умолчанию, либо `local`/`prod`).
+2. **`app_config.toml` / `app_config.develop.toml`** — все остальные настройки: хосты VPN-нод, тарифы, лимиты, cron-расписание, уровни логирования и т.д. Переменная `STAGE` выбирает **ровно один** из этих файлов как полный конфиг окружения — `app_config.toml` при `STAGE=prod` (по умолчанию), иначе `app_config.develop.toml`. Это разные физические окружения (разные сервера, учётные данные, VPN-ноды), поэтому файлы не объединяются между собой: настройка, добавленная только в `app_config.toml`, на develop не появляется сама по себе. Поверх выбранного файла, независимо от `STAGE`, всегда дополнительно мёрджится `app_config.local.toml`, если он существует, — это личные оверрайды разработчика.
 
 Незнакомые ключи в `.env`-файлах молча игнорируются (`extra="ignore"`).
 
@@ -171,7 +171,7 @@ python api/main.py      # http://localhost:8089/api/docs
 
 | Группа | Переменные | Назначение |
 |---|---|---|
-| Stage | `STAGE` | `develop` \| `local` \| `prod` — выбирает `app_config.<stage>.toml` |
+| Stage | `STAGE` | `prod` → `app_config.toml`; любое другое значение (`develop`, `local` и т.д.) → `app_config.develop.toml`. `app_config.local.toml` мёрджится поверх выбранного файла независимо от `STAGE` |
 | Core / Bot | `BOT_TOKEN` | Токен Telegram-бота |
 | Telemt | `TELEMT_SECRET_HELLO` | Секрет MTProto-прокси |
 | XRay | `SOF_X_RAY_USERNAME`, `SOF_X_RAY_PASSWORD` | Учётные данные панели 3x-ui (нода `sof`) |

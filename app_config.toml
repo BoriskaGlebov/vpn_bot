@@ -13,6 +13,7 @@ admin_ids = [439653349,]
 logger_level_stdout = "INFO"
 logger_level_file = "INFO"
 logger_error_file = "WARNING"
+logger_diagnose_files = false
 
 
 # === FASTAPI ===

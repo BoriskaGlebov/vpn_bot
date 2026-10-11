@@ -14,6 +14,7 @@ admin_ids = [439653349,]
 logger_level_stdout = "DEBUG"
 logger_level_file = "DEBUG"
 logger_error_file = "WARNING"
+logger_diagnose_files = false
 
 
 # === FASTAPI ===

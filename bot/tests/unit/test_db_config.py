@@ -14,7 +14,9 @@ def test_postgres_url_escapes_special_characters() -> None:
 
     url = settings.url
 
-    assert url == "postgresql+asyncpg://u%40ser:p%40ss%3Aw%2Ford%231@h:5432/db"
+    assert url.render_as_string(hide_password=False) == (
+        "postgresql+asyncpg://u%40ser:p%40ss%3Aw%2Ford%231@h:5432/db"
+    )
 
 
 def test_postgres_model_dump_does_not_leak_password() -> None:

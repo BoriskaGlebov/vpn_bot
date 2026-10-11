@@ -49,21 +49,24 @@ def test_base_only_loaded_on_prod(toml_dir, monkeypatch):
     assert config["section"] == {"x": "base", "y": "base"}
 
 
-def test_develop_stage_merges_on_top_of_base_not_replaces_it(toml_dir, monkeypatch):
-    """Ключ, заданный только в базовом конфиге, не должен пропадать на develop."""
+def test_develop_stage_uses_dev_file_exclusively(toml_dir, monkeypatch):
+    """prod и develop — разные окружения: develop не наследует ключи из base.
+
+    `app_config.toml` и `app_config.develop.toml` описывают разные физические
+    сервера (разные хосты, учётные данные, VPN-ноды) — поэтому develop не
+    должен подхватывать то, чего нет в его собственном файле.
+    """
     (toml_dir / "app_config.develop.toml").write_text("[section]\nx = 'dev'\n")
     monkeypatch.setenv("STAGE", "develop")
 
     config = load_toml_config()
 
-    # ключ из develop.toml победил...
-    assert config["section"]["x"] == "dev"
-    # ...но ключ, которого нет в develop.toml, унаследован из базового
-    assert config["section"]["y"] == "base"
-    assert config["scheduler_only_in_base"] == "base"
+    assert config["section"] == {"x": "dev"}
+    assert "scheduler_only_in_base" not in config
 
 
-def test_local_toml_applies_on_any_stage(toml_dir, monkeypatch):
+def test_local_toml_applies_on_top_of_selected_stage(toml_dir, monkeypatch):
+    """app_config.local.toml — личный оверрайд поверх выбранной стадии, для любого STAGE."""
     (toml_dir / "app_config.local.toml").write_text("[section]\nx = 'local'\n")
     monkeypatch.setenv("STAGE", "prod")
 
@@ -76,6 +79,14 @@ def test_local_toml_applies_on_any_stage(toml_dir, monkeypatch):
 def test_missing_base_config_raises_clear_error(tmp_path, monkeypatch):
     monkeypatch.setattr(app_config, "BASE_DIR", tmp_path)
     monkeypatch.setenv("STAGE", "prod")
+
+    with pytest.raises(FileNotFoundError):
+        load_toml_config()
+
+
+def test_missing_dev_config_raises_clear_error_on_non_prod_stage(toml_dir, monkeypatch):
+    """STAGE=develop без app_config.develop.toml — явная ошибка, не тихий фоллбэк на base."""
+    monkeypatch.setenv("STAGE", "develop")
 
     with pytest.raises(FileNotFoundError):
         load_toml_config()

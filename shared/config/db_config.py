@@ -2,6 +2,7 @@ from urllib.parse import quote_plus
 
 from pydantic import SecretStr
 from pydantic_settings import SettingsConfigDict
+from sqlalchemy import URL
 
 from shared.config.app_config import SettingsCommon
 
@@ -18,11 +19,12 @@ class PostgresSettings(SettingsCommon):
         embedding_dim (int): Размерность Эмбеддингов, которые можно записать в БД. В яндекс по умолчанию 256.
 
     Properties
-        url (str): Строка подключения к PostgreSQL в формате
-            `postgresql+asyncpg://user:password@host:port/database`.
-            Формируется автоматически из указанных выше атрибутов. Обычный
-            `@property`, а не `computed_field` — иначе пароль попадал бы в
-            `model_dump()` открытым текстом в обход маскировки `SecretStr`.
+        url (URL): Строка подключения к PostgreSQL в формате
+            `postgresql+asyncpg://user:password@host:port/database`,
+            собранная через `sqlalchemy.URL.create`. Формируется автоматически
+            из указанных выше атрибутов. Обычный `@property`, а не
+            `computed_field` — иначе пароль попадал бы в `model_dump()`
+            открытым текстом в обход маскировки `SecretStr`.
 
     """
 
@@ -34,20 +36,24 @@ class PostgresSettings(SettingsCommon):
     embedding_dim: int = 256
 
     @property
-    def url(self) -> str:
+    def url(self) -> URL:
         """Строка подключения к PostgreSQL через asyncpg.
 
         Returns
-           str: URL подключения к базе данных. `user`/`password` экранированы
-               через `quote_plus`, так что спецсимволы (`@`, `:`, `/` и т.п.)
-               не разрывают URL.
+           URL: Объект `sqlalchemy.URL` (принимается `create_async_engine`
+               напрямую). Экранирование `user`/`password` (спецсимволы вроде
+               `@`, `:`, `/`) выполняет сам `URL.create`, вручную `quote_plus`
+               звать не нужно — в отличие от Redis ниже, где драйвер ждёт
+               готовую строку.
 
         """
-        user = quote_plus(self.user)
-        password = quote_plus(self.password.get_secret_value())
-        return (
-            f"postgresql+asyncpg://{user}:{password}@{self.host}:{self.port}"
-            f"/{self.database}"
+        return URL.create(
+            drivername="postgresql+asyncpg",
+            username=self.user,
+            password=self.password.get_secret_value(),
+            host=self.host,
+            port=self.port,
+            database=self.database,
         )
 
     model_config = SettingsConfigDict(env_prefix="DB_")

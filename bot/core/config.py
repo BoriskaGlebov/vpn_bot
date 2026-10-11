@@ -507,6 +507,7 @@ LoggerConfig(
     logger_level_stdout=settings_bot.core.logger_level_stdout,
     logger_level_file=settings_bot.core.logger_level_file,
     logger_error_file=settings_bot.core.logger_error_file,
+    diagnose_files=settings_bot.core.logger_diagnose_files,
 )
 # Инициализируем бота и диспетчер
 bot: Bot = Bot(

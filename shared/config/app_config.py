@@ -1,6 +1,7 @@
 import os
 import tomllib
 from pathlib import Path
+from pprint import pprint
 from typing import Any
 
 from dotenv import load_dotenv
@@ -43,25 +44,32 @@ def deep_merge(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_toml_config() -> dict[str, Any]:
-    """Загружает и объединяет конфигурацию из TOML-файлов.
+    """Загружает конфигурацию из TOML-файла текущей стадии (`STAGE`).
 
-    `app_config.toml` — обязательная базовая конфигурация, читается всегда.
-    Поверх неё по очереди деплохо (глубоким объединением через `deep_merge`,
-    каждый следующий имеет приоритет) накладываются, если присутствуют:
-        - `app_config.develop.toml` — только если `STAGE != "prod"`;
-        - `app_config.local.toml` — независимо от `STAGE`.
+    `prod` и `develop` — разные физические окружения (разные сервера, разные
+    учётные данные, разные VPN-ноды), поэтому их конфиги не объединяются
+    между собой: `STAGE` выбирает РОВНО ОДИН файл как полный,
+    самодостаточный конфиг этого окружения:
+        - `STAGE=prod` (по умолчанию) — `app_config.toml`;
+        - любой другой `STAGE` (`develop`, `local` и т.д.) — `app_config.develop.toml`.
+    Настройка, добавленная только в `app_config.toml`, на develop не
+    появляется сама по себе — её нужно продублировать в
+    `app_config.develop.toml`, если она там тоже нужна.
+
+    Поверх выбранного файла, независимо от стадии, накладывается
+    (глубоким объединением через `deep_merge`) `app_config.local.toml`, если
+    он существует — это личные оверрайды разработчика для любого окружения.
 
     Returns
         dict[str, Any]: Итоговый конфиг в виде словаря.
 
     Notes
-        - `app_config.develop.toml`/`app_config.local.toml` опциональны и
-          дополняют базовый конфиг, а не заменяют его — ключ, заданный
-          только в `app_config.toml`, присутствует в итоге на любой стадии.
+        - `app_config.local.toml` опционален и дополняет выбранный стадией
+          файл, а не заменяет его.
         - Файлы читаются в бинарном режиме (`rb`) для совместимости с `tomllib`.
 
     Raises
-        FileNotFoundError: Если `app_config.toml` отсутствует.
+        FileNotFoundError: Если файл, выбранный текущей стадией, отсутствует.
         tomllib.TOMLDecodeError: Если один из файлов содержит невалидный TOML.
 
     """
@@ -74,16 +82,14 @@ def load_toml_config() -> dict[str, Any]:
     dev_path = BASE_DIR / "app_config.develop.toml"
     local_path = BASE_DIR / "app_config.local.toml"
 
-    if not base_path.exists():
-        raise FileNotFoundError(f"Базовый конфиг не найден: {base_path}")
-
-    with base_path.open("rb") as f:
-        config = tomllib.load(f)
-
     stage = os.getenv("STAGE", "prod")
-    if stage != "prod" and dev_path.exists():
-        with dev_path.open("rb") as f:
-            config = deep_merge(config, tomllib.load(f))
+    stage_path = base_path if stage == "prod" else dev_path
+
+    if not stage_path.exists():
+        raise FileNotFoundError(f"Конфиг для STAGE={stage!r} не найден: {stage_path}")
+
+    with stage_path.open("rb") as f:
+        config = tomllib.load(f)
 
     if local_path.exists():
         with local_path.open("rb") as f:
@@ -119,6 +125,7 @@ class SettingsApp(SettingsCommon):
      logger_level_stdout (str): Уровень логирования для стандартного вывода.
      logger_level_file (str): Уровень логирования для файла логов.
      logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
+     logger_diagnose_files (bool): Отладочный флаг логгера, пишет подробнее логи включая секреты
      max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
      common_timeout (int): Настройка таймаута при подключении к API, серверам, контейнерам.
      admin_ids (list[int]):
@@ -137,6 +144,13 @@ class SettingsApp(SettingsCommon):
     logger_level_stdout: str = "INFO"
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
+    logger_diagnose_files: bool = False
     max_configs_per_user: int = 10
     common_timeout: int = 10
     admin_ids: list[int] = []
+
+
+if __name__ == "__main__":
+    toml = load_toml_config()
+    settings = SettingsApp(**toml)
+    pprint(settings.model_dump())
