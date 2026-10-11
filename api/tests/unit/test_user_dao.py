@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from api.app_error.base_error import SubscriptionNotFoundError
+from api.app_error.base_error import RoleNotFoundError, SubscriptionNotFoundError
 from api.core.database import Base  # Declarative Base
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.dao import RoleDAO, UserDAO
@@ -152,8 +152,13 @@ async def test_add_role_subscription_user(session, role_user):
     assert not user.subscriptions[0].is_active
 
 
-async def test_add_role_subscription_admin(session, role_admin):
-    """Проверка создания администратора с активной премиум подпиской."""
+async def test_add_role_subscription_admin_role_alone_does_not_activate(
+    session, role_admin
+):
+    """DAO больше не решает «admin -> premium» сам по себе (#244):
+    без явных subscription_* параметров роль admin не даёт никакой
+    активации — это решение теперь принимает вызывающий код (сервис).
+    """
     values_user = SUser(
         telegram_id=222,
         username="admin_user",
@@ -171,9 +176,58 @@ async def test_add_role_subscription_admin(session, role_admin):
 
     subscription = user.subscriptions[0]
     assert user.role.name == FilterTypeEnum.ADMIN
+    assert subscription.is_active is False
+    assert subscription.type is None
+
+
+async def test_add_role_subscription_with_explicit_premium_subscription(
+    session, role_admin
+):
+    """Вызывающий код может явно запросить активную премиум-подписку —
+    то, что раньше DAO решал сам по имени роли (#244).
+    """
+    values_user = SUser(
+        telegram_id=223,
+        username="admin_user_2",
+        first_name="Admin",
+        last_name="User",
+    )
+    values_role = SRole(name=FilterTypeEnum.ADMIN)
+
+    user = await UserDAO.add_role_subscription(
+        session=session,
+        values_user=values_user,
+        values_role=values_role,
+        subscription_is_active=True,
+        subscription_type=SubscriptionType.PREMIUM,
+    )
+    await session.commit()
+
+    subscription = user.subscriptions[0]
     assert subscription.is_active is True
     assert subscription.type == SubscriptionType.PREMIUM
     assert subscription.end_date is None
+
+
+async def test_add_role_subscription_missing_role_raises_role_not_found_error(session):
+    """Регистрация при отсутствующей роли в таблице даёт RoleNotFoundError
+    (404 role_not_found), а не ValueError -> 500 (#244).
+
+    Воспроизводит реальный сценарий: на новом окружении, где
+    init_default_roles.py не запускался, таблица roles пуста.
+    """
+    values_user = SUser(telegram_id=404, username="no_role_user")
+    values_role = SRole(name="nonexistent_role")
+
+    with pytest.raises(RoleNotFoundError) as exc_info:
+        await UserDAO.add_role_subscription(
+            session=session,
+            values_user=values_user,
+            values_role=values_role,
+        )
+
+    assert exc_info.value.code == "role_not_found"
+    assert exc_info.value.status_code == 404
 
 
 async def test_duplicate_username_registers_successfully(session, role_user):

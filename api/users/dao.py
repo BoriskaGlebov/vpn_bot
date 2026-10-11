@@ -6,7 +6,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from api.app_error.base_error import SubscriptionNotFoundError
+from api.app_error.base_error import RoleNotFoundError, SubscriptionNotFoundError
 from api.core.dao.base import BaseDAO
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.models import Role, User
@@ -38,17 +38,33 @@ class UserDAO(BaseDAO[User]):
         session: AsyncSession,
         values_user: SUser,
         values_role: SRole,
+        *,
+        subscription_is_active: bool = False,
+        subscription_type: SubscriptionType | None = None,
+        subscription_end_date: datetime.datetime | None = None,
     ) -> User:
         """Добавляет пользователя в БД + добавляется Роль и подписка.
+
+        Начальное состояние подписки — чем решает вызывающий код (сервис),
+        а не этот метод: DAO только сохраняет переданные значения и не
+        содержит правил вроде «администратор получает бессрочный премиум»
+        (см. #244). По умолчанию подписка неактивна, без типа — как и было
+        до появления отдельной ветки для роли admin.
 
         Args:
             session (AsyncSession): Сессия для взаимодействия с БД.
             values_user (SUser): Значения для новой записи пользователя.
             values_role (SRole): Значения для присвоения роли.
-
+            subscription_is_active (bool): Начальная активность подписки.
+            subscription_type (SubscriptionType | None): Начальный тип подписки.
+            subscription_end_date (datetime.datetime | None): Дата окончания
+                подписки (None — бессрочная/не задана).
 
         Returns
             User: Добавленная запись.
+
+        Raises
+            RoleNotFoundError: Если роль с переданным именем не найдена в БД.
 
         """
         user_dict = values_user.model_dump(exclude_unset=True)
@@ -64,17 +80,19 @@ class UserDAO(BaseDAO[User]):
             )
             if not role:
                 logger.error(f"Роль '{role_dict['name']}' не найдена в БД")
-                raise ValueError(f"Роль '{role_dict['name']}' не найдена в БД")
+                raise RoleNotFoundError(role_name=role_dict["name"])
             new_user = cls.model(**user_dict)
             session.add(new_user)
             await session.flush()
-            subscription = Subscription(user_id=new_user.id)
+            subscription = Subscription(
+                user_id=new_user.id,
+                is_active=subscription_is_active,
+                type=subscription_type,
+                end_date=subscription_end_date,
+            )
             new_user.role = role
-            if role.name == FilterTypeEnum.ADMIN:
-                subscription.is_active = True
-                subscription.end_date = None
-                subscription.type = SubscriptionType.PREMIUM
             session.add(subscription)
+            await session.flush()
             await session.refresh(
                 new_user, attribute_names=["subscriptions", "vpn_configs", "role"]
             )
@@ -82,7 +100,7 @@ class UserDAO(BaseDAO[User]):
             return new_user
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при добавлении записи: {e}")
-            raise e
+            raise
 
     @classmethod
     async def get_users_by_roles(
@@ -114,7 +132,7 @@ class UserDAO(BaseDAO[User]):
             return list(result.scalars().all())
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка получения записи: {e}")
-            raise e
+            raise
 
     @classmethod
     async def get_telegram_ids_excluding_role(
@@ -146,7 +164,7 @@ class UserDAO(BaseDAO[User]):
             return list(result.scalars().all())
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка получения записи: {e}")
-            raise e
+            raise
 
     @classmethod
     async def change_role(
@@ -188,7 +206,7 @@ class UserDAO(BaseDAO[User]):
             return user
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка изменения роли пользователя: {e}")
-            raise e
+            raise
 
     @classmethod
     async def extend_subscription(
@@ -225,7 +243,7 @@ class UserDAO(BaseDAO[User]):
 
         except SQLAlchemyError as e:
             logger.error(f"[DAO] Ошибка при продлении подписки пользователя: {e}")
-            raise e
+            raise
 
 
 class RoleDAO(BaseDAO[Role]):

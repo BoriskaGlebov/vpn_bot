@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import UserNotFoundError
+from api.subscription.models import SubscriptionType
 from api.users.schemas import (
     SUser,
     SUserOut,
@@ -102,6 +103,10 @@ async def test_register_or_get_user_create_admin(
     # Проверяем, что была назначена роль admin
     args, kwargs = mock_add_user.await_args
     assert kwargs["values_role"].name == "admin"
+    # «admin -> бессрочный премиум» — решает сервис явными параметрами,
+    # не DAO по имени роли (#244).
+    assert kwargs["subscription_is_active"] is True
+    assert kwargs["subscription_type"] == SubscriptionType.PREMIUM
 
 
 @patch("api.users.services.settings_api")
@@ -140,6 +145,8 @@ async def test_register_or_get_user_create_regular_user(
 
     args, kwargs = mock_add_user.await_args
     assert kwargs["values_role"].name == "user"
+    assert kwargs["subscription_is_active"] is False
+    assert kwargs["subscription_type"] is None
 
 
 @patch("api.users.services.settings_api")

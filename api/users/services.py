@@ -7,6 +7,7 @@ from api.app_error.base_error import UserNotFoundError
 from api.core.config import settings_api
 from api.core.mapper.user_mapper import UserMapper
 from api.referrals.models import Referral
+from api.subscription.models import SubscriptionType
 from api.users.dao import UserDAO
 from api.users.models import User
 from api.users.schemas import (
@@ -72,26 +73,26 @@ class UserService:
                 await session.refresh(user)
             return await UserMapper.to_schema(user), False
         logger.info("Пользователь не найден, создаём нового")
+        is_admin = telegram_user.telegram_id in settings_api.core.admin_ids
         schema_user = SUser(
             telegram_id=telegram_user.telegram_id,
             username=telegram_user.username,
             first_name=telegram_user.first_name,
             last_name=telegram_user.last_name,
         )
-        schema_role = SRole(
-            name=(
-                "admin"
-                if telegram_user.telegram_id in settings_api.core.admin_ids
-                else "user"
-            )
-        )
+        schema_role = SRole(name="admin" if is_admin else "user")
         logger.debug(f"Назначается роль: {schema_role}")
+        # «Администратор получает бессрочный премиум» — продуктовое правило,
+        # решается здесь, в сервисе, а не в UserDAO (#244): DAO только
+        # сохраняет то, что ему передали.
         try:
             async with session.begin_nested():
                 user = await UserDAO.add_role_subscription(
                     session=session,
                     values_user=schema_user,
                     values_role=schema_role,
+                    subscription_is_active=is_admin,
+                    subscription_type=SubscriptionType.PREMIUM if is_admin else None,
                 )
         except IntegrityError:
             # Гонка: между нашим SELECT и INSERT другой запрос успел создать
