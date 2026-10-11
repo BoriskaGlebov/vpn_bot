@@ -3,7 +3,7 @@ from datetime import datetime
 from functools import wraps
 from typing import Annotated, Any, Literal, TypeVar
 
-from sqlalchemy import func, text
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
@@ -62,14 +62,24 @@ def connection(isolation_level: IsolationLevel | None = None) -> Callable[[F], F
             async with async_session() as session:
                 try:
                     if isolation_level:
-                        await session.execute(
-                            text(f"SET TRANSACTION ISOLATION LEVEL {isolation_level}")
+                        # `SET TRANSACTION ISOLATION LEVEL` сырым SQL применяется
+                        # к транзакции, открытой ЭТИМ execute — а следующий
+                        # `session.begin()` на сессии с уже начатой транзакцией
+                        # бросает InvalidRequestError. `connection(execution_options=...)`
+                        # устанавливает уровень на соединении до начала работы с
+                        # ним и не требует отдельного `begin()` — транзакция
+                        # начинается автоматически (SQLAlchemy autobegin) при
+                        # первом запросе внутри `method`.
+                        await session.connection(
+                            execution_options={"isolation_level": isolation_level}
                         )
-                    async with session.begin():
-                        return await method(*args, session=session, **kwargs)
+                    result = await method(*args, session=session, **kwargs)
                 except SQLAlchemyError:
                     await session.rollback()
                     raise
+                else:
+                    await session.commit()
+                    return result
 
         return wrapper  # type: ignore[return-value]
 
