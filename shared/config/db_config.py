@@ -1,4 +1,6 @@
-from pydantic import SecretStr, computed_field
+from urllib.parse import quote_plus
+
+from pydantic import SecretStr
 from pydantic_settings import SettingsConfigDict
 
 from shared.config.app_config import SettingsCommon
@@ -18,7 +20,9 @@ class PostgresSettings(SettingsCommon):
     Properties
         url (str): Строка подключения к PostgreSQL в формате
             `postgresql+asyncpg://user:password@host:port/database`.
-            Формируется автоматически из указанных выше атрибутов.
+            Формируется автоматически из указанных выше атрибутов. Обычный
+            `@property`, а не `computed_field` — иначе пароль попадал бы в
+            `model_dump()` открытым текстом в обход маскировки `SecretStr`.
 
     """
 
@@ -29,17 +33,21 @@ class PostgresSettings(SettingsCommon):
     database: str
     embedding_dim: int = 256
 
-    @computed_field
+    @property
     def url(self) -> str:
         """Строка подключения к PostgreSQL через asyncpg.
 
         Returns
-           str: URL подключения к базе данных.
+           str: URL подключения к базе данных. `user`/`password` экранированы
+               через `quote_plus`, так что спецсимволы (`@`, `:`, `/` и т.п.)
+               не разрывают URL.
 
         """
+        user = quote_plus(self.user)
+        password = quote_plus(self.password.get_secret_value())
         return (
-            f"postgresql+asyncpg://{self.user}:{self.password.get_secret_value()}@"
-            f"{self.host}:{self.port}/{self.database}"
+            f"postgresql+asyncpg://{user}:{password}@{self.host}:{self.port}"
+            f"/{self.database}"
         )
 
     model_config = SettingsConfigDict(env_prefix="DB_")
@@ -58,7 +66,9 @@ class RedisSettings(SettingsCommon):
 
     Properties
         url (str): Строка подключения к Redis в формате
-        `redis://:password@host:port/db_number`.
+        `redis://:password@host:port/db_number`. Обычный `@property`, а не
+        `computed_field` — иначе пароль попадал бы в `model_dump()` открытым
+        текстом в обход маскировки `SecretStr`.
 
     """
 
@@ -69,17 +79,18 @@ class RedisSettings(SettingsCommon):
     db: int = 0
     default_expire: int = 43200
 
-    @computed_field
+    @property
     def url(self) -> str:
         """Строка подключения к Redis.
 
         Returns
-           str: URL подключения к базе данных.
+           str: URL подключения к базе данных. `user`/`password` экранированы
+               через `quote_plus`, так что спецсимволы (`@`, `:`, `/` и т.п.)
+               не разрывают URL.
 
         """
-        return (
-            f"redis://{self.user}:{self.password.get_secret_value()}@"
-            f"{self.host}:{self.port}/{self.db}"
-        )
+        user = quote_plus(self.user)
+        password = quote_plus(self.password.get_secret_value())
+        return f"redis://{user}:{password}@{self.host}:{self.port}/{self.db}"
 
     model_config = SettingsConfigDict(env_prefix="REDIS_")

@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from functools import wraps
-from typing import Annotated, Any, Literal, TypeVar, cast
+from typing import Annotated, Any, Literal, TypeVar
 
 from sqlalchemy import func, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -15,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 from api.core.config import settings_api
 
-engine = create_async_engine(cast(str, settings_api.db.url))
+engine = create_async_engine(settings_api.db.url)
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
