@@ -45,29 +45,27 @@ def deep_merge(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
 def load_toml_config() -> dict[str, Any]:
     """Загружает и объединяет конфигурацию из TOML-файлов.
 
-    Читает два файла:
-        - app_config.toml — базовая конфигурация
-        - app_config.local.toml — локальные переопределения
-
-    Если оба файла существуют, выполняется глубокое объединение через `deep_merge`,
-    где значения из локального файла имеют приоритет.
+    `app_config.toml` — обязательная базовая конфигурация, читается всегда.
+    Поверх неё по очереди деплохо (глубоким объединением через `deep_merge`,
+    каждый следующий имеет приоритет) накладываются, если присутствуют:
+        - `app_config.develop.toml` — только если `STAGE != "prod"`;
+        - `app_config.local.toml` — независимо от `STAGE`.
 
     Returns
         dict[str, Any]: Итоговый конфиг в виде словаря.
 
     Notes
-        - Оба файла опциональны.
-        - Если существует только один файл — возвращается его содержимое.
-        - Если ни один файл не найден — возвращается пустой словарь.
+        - `app_config.develop.toml`/`app_config.local.toml` опциональны и
+          дополняют базовый конфиг, а не заменяют его — ключ, заданный
+          только в `app_config.toml`, присутствует в итоге на любой стадии.
         - Файлы читаются в бинарном режиме (`rb`) для совместимости с `tomllib`.
 
     Raises
+        FileNotFoundError: Если `app_config.toml` отсутствует.
         tomllib.TOMLDecodeError: Если один из файлов содержит невалидный TOML.
 
     """
     logger.info("Загружаю настройки для бота из временного окружения.")
-    base = {}
-    local = {}
     load_dotenv(BASE_DIR / ".env")
     load_dotenv(BASE_DIR / ".env.dev", override=True)
     load_dotenv(BASE_DIR / ".env.local", override=True)
@@ -75,15 +73,23 @@ def load_toml_config() -> dict[str, Any]:
     base_path = BASE_DIR / "app_config.toml"
     dev_path = BASE_DIR / "app_config.develop.toml"
     local_path = BASE_DIR / "app_config.local.toml"
-    dev_stage = os.getenv("STAGE", "prod")
-    if dev_stage == "prod":
-        base = tomllib.load(open(base_path, "rb"))
-    else:
-        base = tomllib.load(open(dev_path, "rb"))
+
+    if not base_path.exists():
+        raise FileNotFoundError(f"Базовый конфиг не найден: {base_path}")
+
+    with base_path.open("rb") as f:
+        config = tomllib.load(f)
+
+    stage = os.getenv("STAGE", "prod")
+    if stage != "prod" and dev_path.exists():
+        with dev_path.open("rb") as f:
+            config = deep_merge(config, tomllib.load(f))
+
     if local_path.exists():
-        local = tomllib.load(open(local_path, "rb"))
-    res_merge = deep_merge(base, local)
-    return res_merge
+        with local_path.open("rb") as f:
+            config = deep_merge(config, tomllib.load(f))
+
+    return config
 
 
 class SettingsCommon(BaseSettings):
