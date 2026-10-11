@@ -48,8 +48,26 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @staticmethod
     def _to_dict(filters: BaseModel | None) -> dict[str, Any]:
-        """Преобразование в словарь BaseModel схему."""
+        """Преобразование схемы ФИЛЬТРА в словарь.
+
+        `exclude_unset=True` — в фильтр/WHERE попадают только явно переданные
+        поля. Это обязательное свойство для фильтров: непереданное поле не
+        должно ограничивать выборку/изменяемый набор строк своим значением по
+        умолчанию (иначе, например, `STransactionPendingFilter(id=...)` без
+        явного `status=` тихо потерял бы часть условия `WHERE`).
+        """
         return filters.model_dump(exclude_unset=True) if filters else {}
+
+    @staticmethod
+    def _values_to_dict(values: BaseModel | None) -> dict[str, Any]:
+        """Преобразование схемы ЗНАЧЕНИЙ (для `UPDATE ... SET`) в словарь.
+
+        `exclude_unset=False`, в отличие от `_to_dict`: поле со значением по
+        умолчанию, не переданное явно в конструктор схемы, всё равно должно
+        попасть в `SET` — иначе обновление тихо не затрагивает колонку, хотя
+        вызывающий код по тексту схемы ожидает, что она запишется (см. #234).
+        """
+        return values.model_dump(exclude_unset=False) if values else {}
 
     @staticmethod
     def _redact(values: dict[str, Any]) -> dict[str, Any]:
@@ -237,7 +255,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
         """
         filter_dict = cls._to_dict(filters=filters)
-        values_dict = cls._to_dict(filters=values)
+        values_dict = cls._values_to_dict(values=values)
         # noinspection PyTypeChecker
         logger.info(
             f"[DAO] Обновление записей {cls.model.__name__} по фильтру: "

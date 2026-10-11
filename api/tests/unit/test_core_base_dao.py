@@ -28,6 +28,19 @@ class FilterSchema(BaseModel):
     value: int | None = None
 
 
+class TmpValuesSchema(BaseModel):
+    """Схема значений для update() — без `id`, как во всех реальных вызовах в api/."""
+
+    name: str | None = None
+    value: int | None = None
+
+
+class TmpValueDefaultSchema(BaseModel):
+    """Схема значений с полем по умолчанию, которое не планируется передавать явно."""
+
+    value: int = 0
+
+
 class TmpDAO(BaseDAO[TmpModel]):
     model = TmpModel
 
@@ -96,7 +109,7 @@ async def test_update_records(session):
     await dao.update(
         session,
         filters=FilterSchema(name="to_update"),
-        values=TmpSchema(name="to_update", value=99),
+        values=TmpValuesSchema(name="to_update", value=99),
     )
 
     found = await dao.find_one_or_none(session, FilterSchema(name="to_update"))
@@ -126,6 +139,26 @@ async def test_add_many_integrity_error_raises_from_method(session):
 
     with pytest.raises(IntegrityError):
         await dao.add_many(session, [TmpSchema(id=existing.id, name="duplicate")])
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_update_values_includes_unset_default_fields(session):
+    """update(values=...): поле со значением по умолчанию, не переданное явно,
+    всё равно попадает в SET — в отличие от фильтров, значения не должны
+    молча выпадать из UPDATE (#234).
+    """
+    dao = TmpDAO()
+    await dao.add(session, TmpSchema(name="defaults", value=5))
+
+    await dao.update(
+        session,
+        filters=FilterSchema(name="defaults"),
+        values=TmpValueDefaultSchema(),  # value не передан явно, используется дефолт 0
+    )
+
+    found = await dao.find_one_or_none(session, FilterSchema(name="defaults"))
+    assert found.value == 0
 
 
 @pytest.mark.asyncio
