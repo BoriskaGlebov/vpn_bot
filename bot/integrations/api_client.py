@@ -18,6 +18,14 @@ from shared.config.context import log_context
 class APIClient:
     """Асинхронный HTTP клиент с retry, логированием и обработкой ошибок.
 
+    Повтор запроса при сетевой ошибке безопасен только тогда, когда сам запрос
+    точно не повлиял на состояние сервера. `ConnectError` гарантирует это —
+    соединение не установилось, запрос не ушёл. `ReadTimeout`/`WriteTimeout`
+    гарантии не дают: запрос мог уйти и уже обработаться на сервере, не
+    дождались только ответа. Поэтому их повтор допускается только для
+    идемпотентных методов (`_IDEMPOTENT_METHODS`) — для `POST`/`PATCH`/`DELETE`
+    такой таймаут поднимается сразу, без повторной отправки.
+
     Args:
         base_url (str): Базовый URL API.
         port (int): Порт API.
@@ -29,6 +37,8 @@ class APIClient:
             (только для клиента нашего api/).
 
     """
+
+    _IDEMPOTENT_METHODS = frozenset({"GET"})
 
     def __init__(
         self,
@@ -112,7 +122,9 @@ class APIClient:
 
         Raises
             APIClientHTTPError: Ошибка HTTP.
-            APIClientConnectionError: Ошибка соединения.
+            APIClientConnectionError: Ошибка соединения. Для `ReadTimeout`/
+                `WriteTimeout` на неидемпотентном методе поднимается сразу,
+                без повтора — запрос мог уже дойти до сервера.
 
         Returns
             httpx.Response: Ответ сервера.
@@ -173,7 +185,37 @@ class APIClient:
 
                 return response
 
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+            except httpx.ConnectError as exc:
+                # Соединение не установилось — запрос гарантированно не ушёл,
+                # повтор безопасен для любого метода.
+                last_exc = exc
+                logger.warning(
+                    "Connection error: {} {} (попытка {}/{}): {}",
+                    method,
+                    url,
+                    attempt,
+                    self.max_retries,
+                    exc,
+                )
+                if attempt == self.max_retries:
+                    raise APIClientConnectionError() from exc
+
+                await asyncio.sleep(self.retry_delay)
+            except (httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+                if method.upper() not in self._IDEMPOTENT_METHODS:
+                    # Запрос мог уже обработаться на сервере — повтор означал
+                    # бы выполнить изменяющую операцию второй раз.
+                    logger.error(
+                        "Таймаут на неидемпотентном запросе, повтор пропущен: "
+                        "{} {} (попытка {}/{}): {}",
+                        method,
+                        url,
+                        attempt,
+                        self.max_retries,
+                        exc,
+                    )
+                    raise APIClientConnectionError() from exc
+
                 last_exc = exc
                 logger.warning(
                     "Connection error: {} {} (попытка {}/{}): {}",
