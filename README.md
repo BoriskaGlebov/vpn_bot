@@ -360,7 +360,7 @@ openssl rand -hex 16
 
 ## Персистентный SSH-agent на деплой-хосте
 
-Бот подключается к удалённым VPN-нодам (`use_local = false` в `[vpn.nodes.<name>]`, см. [«Настройки приложения»](#настройки-приложения-app_configtoml)) по SSH через `asyncssh` с `agent_forwarding=True` (`bot/vpn/utils/amnezia_wg.py`, `amnezia_proxy.py`, `mtproto.py`). Сокет ssh-agent пробрасывается в контейнер бота с хоста (`docker-compose.develop.yml`/`docker-compose.prod.yml`: `$SSH_AUTH_SOCK:/ssh-agent`).
+Бот подключается к удалённым VPN-нодам (`use_local = false` в `[vpn.nodes.<name>]`, см. [«Настройки приложения»](#настройки-приложения-app_configtoml)) по SSH через `asyncssh` с `agent_forwarding=True` (`bot/vpn/utils/amnezia_wg.py`, `docker_ssh_client.py`, `mtproto.py`). Сокет ssh-agent пробрасывается в контейнер бота с хоста (`docker-compose.develop.yml`/`docker-compose.prod.yml`: `$SSH_AUTH_SOCK:/ssh-agent`).
 
 **Зачем нужна отдельная настройка хоста.** Раньше ssh-agent поднимался ad-hoc прямо внутри SSH-скрипта деплоя в CI (`eval $(ssh-agent)`) — такой процесс живёт на случайном временном пути и не переживает рестарт контейнера бота или ребут сервера, поэтому ключи «терялись» и приходилось заново гонять деплой через CI, чтобы их добавить. Решение — постоянный ssh-agent на хосте с **фиксированным** путём сокета, поднимаемый через systemd и не зависящий от того, когда в последний раз запускался деплой.
 

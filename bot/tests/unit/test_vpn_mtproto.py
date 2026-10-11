@@ -49,7 +49,7 @@ async def test_connect_timeout(client):
 @pytest.mark.asyncio
 async def test_connect_asyncssh_error(client):
     with patch("asyncssh.connect", side_effect=asyncssh.Error(1, "fail")):
-        with pytest.raises(asyncssh.Error):
+        with pytest.raises(AmneziaSSHError):
             await client.connect()
 
 

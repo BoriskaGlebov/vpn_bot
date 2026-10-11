@@ -1,4 +1,3 @@
-import asyncio
 from typing import TYPE_CHECKING
 
 from aiogram import Bot, F
@@ -15,7 +14,6 @@ from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
 from bot.app_error.base_error import (
-    SubscriptionNotFoundError,
     VPNLocationNotDeterminedError,
 )
 from bot.core.config import VPNNode, settings_bot
@@ -33,10 +31,9 @@ from bot.users.enums import (
 )
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
-from bot.vpn.keyboards.inline_kb import proxy_url_button, xray_url_kb
+from bot.vpn.keyboards.inline_kb import xray_url_kb
 from bot.vpn.keyboards.markup_kb import premium_locations_kb
 from bot.vpn.services import SSHClientFactory, VPNService, ssh_client_factory_for
-from bot.vpn.utils.mtproto import HostDockerSSHClient
 
 if TYPE_CHECKING:
     pass
@@ -85,14 +82,6 @@ class VPNRouter(BaseRouter):
                 F.text == vpn_button_text(VPNProtocol.XRAY, location),
                 flags={"location": location},
             )
-        self.router.message.register(
-            self.create_proxy_url,
-            F.text == MainMenuText.AMNEZIA_PROXY.value,
-        )
-        self.router.message.register(
-            self.create_free_proxy_url,
-            F.text == MainMenuText.FREE_AMNEZIA_PROXY.value,
-        )
         self.router.message.register(
             self.three_x_ui_locations, F.text == MainMenuText.PREMIUM, is_premium
         )
@@ -272,130 +261,6 @@ class VPNRouter(BaseRouter):
             node_name=location,
             redis_key=redis_key,
             start_text=m_vpn.amnezia_wg,
-        )
-
-    async def _handle_proxy_generation(
-        self,
-        *,
-        message: Message,
-        user: TgUser,
-        state: FSMContext,
-        redis_key: str,
-        server_info: VPNNode,
-        use_free: bool = False,
-    ) -> None:
-        """Генерация MTProto proxy URL.
-
-        Args:
-            message (Message): входящее сообщение.
-            user (TgUser): пользователь Telegram.
-            state (FSMContext): FSM контекст.
-            redis_key (str): ключ блокировки Redis.
-            server_info (VPNNode): конфигурация сервера.
-            use_free (bool): использовать ли бесплатный сервер.
-
-        Behavior
-            - проверяет подписку (если use_free=False)
-            - генерирует proxy URL
-            - отправляет пользователю кнопку с ссылкой
-
-        """
-        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            await message.answer(text=m_vpn.proxy_intro)
-            await asyncio.sleep(0.5)
-
-            await message.answer(
-                text=m_vpn.amnezia_proxy,
-                reply_markup=ReplyKeyboardRemove(),
-            )
-
-            try:
-                if not use_free:
-                    is_active = await self.subscription_service.is_subscription_active(
-                        tg_id=user.id
-                    )
-                    if not is_active:
-                        raise SubscriptionNotFoundError(tg_id=user.id)
-
-                url_proxy = await self.vpn_service.get_mtproto_url(
-                    ssh_client_factory=HostDockerSSHClient,
-                    server_info=server_info,
-                )
-
-                keyboard = proxy_url_button(url_proxy=url_proxy)
-
-                if url_proxy:
-                    for i, msg in enumerate(m_vpn.proxy_ready):
-                        await message.answer(
-                            text=msg,
-                            reply_markup=keyboard if i == 0 else None,
-                        )
-
-            finally:
-                await state.clear()
-                await self.redis.delete(redis_key)
-
-    @BaseRouter.log_method
-    @BaseRouter.require_user
-    async def create_proxy_url(
-        self, message: Message, user: TgUser, state: FSMContext
-    ) -> None:
-        """Создание платного MTProto proxy URL.
-
-        Args:
-            message (Message): входящее сообщение.
-            user (TgUser): пользователь.
-            state (FSMContext): FSM контекст.
-
-        Returns
-            None
-
-        """
-        redis_key = f"vpn:config:{user.id}:amnezia_proxy"
-
-        if not await self._check_acquired(redis_key, message):
-            return
-
-        await self._handle_proxy_generation(
-            message=message,
-            user=user,
-            state=state,
-            redis_key=redis_key,
-            server_info=settings_bot.vpn.main,
-            use_free=False,
-        )
-
-    @BaseRouter.log_method
-    @BaseRouter.require_user
-    async def create_free_proxy_url(
-        self, message: Message, user: TgUser, state: FSMContext
-    ) -> None:
-        """Создание бесплатного MTProto proxy URL.
-
-        Args:
-            message (Message): входящее сообщение.
-            user (TgUser): пользователь.
-            state (FSMContext): FSM контекст.
-
-        Returns
-            None
-
-        """
-        redis_key = f"vpn:config:{user.id}:amnezia_proxy"
-
-        if not await self._check_acquired(redis_key, message):
-            return
-
-        await self._handle_proxy_generation(
-            message=message,
-            user=user,
-            state=state,
-            redis_key=redis_key,
-            # .get() (не .fi) — нода опциональна, при отсутствии кидает
-            # VPNNodeNotFoundError, который ErrorHandlerMiddleware превращает
-            # в понятное сообщение пользователю вместо падения хендлера.
-            server_info=settings_bot.vpn.get(name="fi"),
-            use_free=True,
         )
 
     @BaseRouter.log_method

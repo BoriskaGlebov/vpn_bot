@@ -54,8 +54,6 @@ location_buttons_text = [
 INVALID_FOR_USER = [
     MainMenuText.MY_SUBSCRIPTION.value,
     MainMenuText.GET_SUBSCRIPTION.value,
-    MainMenuText.AMNEZIA_PROXY.value,
-    MainMenuText.FREE_AMNEZIA_PROXY.value,
     MainMenuText.HELP.value,
     MainMenuText.PREMIUM.value,
     MainMenuText.BACK.value,
