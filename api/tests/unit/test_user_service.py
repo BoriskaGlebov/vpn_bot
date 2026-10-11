@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import UserNotFoundError
@@ -172,6 +173,87 @@ async def test_register_or_get_user_guest_username(
 
     args, kwargs = mock_add_user.await_args
     assert kwargs["values_user"].username == "Гость_555"
+
+
+@patch("api.users.services.settings_api")
+@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
+async def test_register_or_get_user_concurrent_registration_race(
+    mock_find_user,
+    mock_add_user,
+    mock_to_schema,
+    mock_settings,
+    service,
+    session,
+):
+    """Гонка (#239): INSERT падает на unique(telegram_id) — другой запрос уже
+    создал пользователя между нашим SELECT и INSERT. Ожидается не 500, а
+    существующий пользователь с created=False, после повторного чтения.
+    """
+    mock_settings.core.admin_ids = []
+    existing_user = MagicMock()
+    # Первый find_one_or_none (до попытки создания) не находит пользователя;
+    # второй (после отловленного IntegrityError) находит запись, которую
+    # успел создать параллельный запрос.
+    mock_find_user.side_effect = [None, existing_user]
+    mock_add_user.side_effect = IntegrityError("INSERT", {}, Exception("unique"))
+
+    expected_schema = MagicMock(spec=SUserOut)
+    mock_to_schema.return_value = expected_schema
+
+    telegram_user = SUser(
+        telegram_id=123,
+        username="racer",
+        first_name="Test",
+        last_name="User",
+    )
+
+    result, created = await service.register_or_get_user(
+        session=session,
+        telegram_user=telegram_user,
+    )
+
+    assert created is False
+    assert result is expected_schema
+    assert mock_find_user.await_count == 2
+    mock_to_schema.assert_awaited_once_with(existing_user)
+
+
+@patch("api.users.services.settings_api")
+@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
+async def test_register_or_get_user_race_without_visible_row_reraises(
+    mock_find_user,
+    mock_add_user,
+    mock_to_schema,
+    mock_settings,
+    service,
+    session,
+):
+    """IntegrityError, которую не объясняет повторное чтение (не telegram_id,
+    либо строка конкурента ещё не закоммитилась), должна дойти до вызывающего
+    — а не быть замаскирована под «пользователь не найден».
+    """
+    mock_settings.core.admin_ids = []
+    mock_find_user.side_effect = [None, None]
+    mock_add_user.side_effect = IntegrityError("INSERT", {}, Exception("unique"))
+
+    telegram_user = SUser(
+        telegram_id=123,
+        username="racer",
+        first_name="Test",
+        last_name="User",
+    )
+
+    with pytest.raises(IntegrityError):
+        await service.register_or_get_user(
+            session=session,
+            telegram_user=telegram_user,
+        )
+
+    mock_to_schema.assert_not_awaited()
 
 
 # ---------- get_user_with_referrals ----------

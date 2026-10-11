@@ -1,4 +1,5 @@
 from loguru import logger
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -69,11 +70,31 @@ class UserService:
             )
         )
         logger.debug(f"Назначается роль: {schema_role}")
-        user = await UserDAO.add_role_subscription(
-            session=session,
-            values_user=schema_user,
-            values_role=schema_role,
-        )
+        try:
+            async with session.begin_nested():
+                user = await UserDAO.add_role_subscription(
+                    session=session,
+                    values_user=schema_user,
+                    values_role=schema_role,
+                )
+        except IntegrityError:
+            # Гонка: между нашим SELECT и INSERT другой запрос успел создать
+            # пользователя с тем же telegram_id (двойной тап /start, повторная
+            # доставка Telegram-апдейта). SAVEPOINT откатил только эту вставку,
+            # внешняя транзакция (get_session) остаётся рабочей — можно читать.
+            logger.info(
+                "Гонка при регистрации telegram_id={}: запись уже создана "
+                "другим запросом, возвращаем существующего пользователя",
+                telegram_user.telegram_id,
+            )
+            user = await UserDAO.find_one_or_none(
+                session=session,
+                filters=SUserTelegramID(telegram_id=telegram_user.telegram_id),
+                options=UserDAO.base_options,
+            )
+            if user is None:
+                raise
+            return await UserMapper.to_schema(user), False
         logger.success("Пользователь успешно создан")
         return await UserMapper.to_schema(user), True
 
