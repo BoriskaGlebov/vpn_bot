@@ -21,8 +21,6 @@ class MainMenuText(str, Enum):
 
 
     Attributes
-        AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм.
-        FREE_AMNEZIA_PROXY: Кнопка получения ссылки для подключения к прокси телеграмм бесплатно.
         MY_SUBSCRIPTION: Кнопка входа в подменю подписки при активной подписке
             (продлить + проверить статус).
         GET_SUBSCRIPTION: Кнопка входа в то же подменю, но с явным призывом к
@@ -36,8 +34,6 @@ class MainMenuText(str, Enum):
 
     """
 
-    AMNEZIA_PROXY = "📦 AmneziaProxy"
-    FREE_AMNEZIA_PROXY = "📦 Free AmneziaProxy TG"
     MY_SUBSCRIPTION = "💳 Моя подписка"
     GET_SUBSCRIPTION = "🎁 Оформить подписку"
     HELP = "❓ Помощь в настройке VPN"

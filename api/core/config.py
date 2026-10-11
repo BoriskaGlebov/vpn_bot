@@ -65,4 +65,5 @@ LoggerConfig(
     logger_level_stdout=settings_api.core.logger_level_stdout,
     logger_level_file=settings_api.core.logger_level_file,
     logger_error_file=settings_api.core.logger_error_file,
+    diagnose_files=settings_api.core.logger_diagnose_files,
 )

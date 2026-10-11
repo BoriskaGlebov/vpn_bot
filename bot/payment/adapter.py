@@ -264,7 +264,7 @@ class PaymentAPIAdapter:
         logger.debug(
             "Поиск транзакции по gateway_transaction_id={}", gateway_transaction_id
         )
-        data = await self._client.get(
+        data, _ = await self._client.get(
             "/payment/transaction",
             params={"gateway_transaction_id": gateway_transaction_id},
         )

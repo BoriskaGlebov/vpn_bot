@@ -1,10 +1,7 @@
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from bot.core.config import settings_bot
 from bot.subscription.router import SubscriptionStates
 from bot.vpn.router import VPNRouter
 
@@ -178,99 +175,6 @@ async def test_get_config_amnezia_wg_success(
 
     message.answer_media_group.assert_awaited_once()
     message.answer_photo.assert_awaited_once()
-
-    state.clear.assert_awaited_once()
-
-    router.redis.delete.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_create_proxy_url_no_subscription(mocker, router, message, user, state):
-    router.redis.set.return_value = True
-
-    status_msg = mocker.MagicMock()
-    status_msg.answer = mocker.AsyncMock()
-    message.answer.return_value = status_msg
-
-    router.subscription_service.get_subscription_info = mocker.AsyncMock(
-        return_value="Не активна"
-    )
-
-    client = mocker.AsyncMock()
-    mocker.patch(
-        "bot.vpn.router.HostDockerSSHClient",
-        return_value=client,
-    )
-    client.__aenter__.return_value = client
-
-    with pytest.raises(Exception):
-        await router.create_proxy_url(message=message, state=state)
-
-
-@pytest.mark.asyncio
-async def test_create_proxy_url_success(
-    mocker,
-    router,
-    message,
-    state,
-):
-    router.redis.set.return_value = True
-
-    router.subscription_service.get_subscription_info = mocker.AsyncMock(
-        return_value="Активна",
-    )
-
-    router.vpn_service.get_mtproto_url = mocker.AsyncMock(
-        return_value="tg://proxy",
-    )
-
-    message.answer = mocker.AsyncMock()
-
-    await router.create_proxy_url(
-        message=message,
-        state=state,
-    )
-
-    router.vpn_service.get_mtproto_url.assert_awaited_once()
-
-    message.answer.assert_awaited()
-
-    state.clear.assert_awaited_once()
-
-    router.redis.delete.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_create_free_proxy_url_success(
-    mocker,
-    router,
-    message,
-    state,
-):
-    router.redis.set.return_value = True
-
-    # create_free_proxy_url всегда обращается к ноде "fi", а она опциональна
-    # и может быть не сконфигурирована в текущем окружении (см.
-    # VPNRegistry.fi) — подменяем get(), чтобы тест не зависел от того,
-    # поднята ли реальная fi-нода в app_config сейчас. Патчим класс, а не
-    # инстанс — pydantic-модели не дают mocker корректно откатить патч
-    # на самом инстансе (кастомный __delattr__ на BaseModel).
-    mocker.patch.object(type(settings_bot.vpn), "get", return_value=mocker.MagicMock())
-
-    router.vpn_service.get_mtproto_url = mocker.AsyncMock(
-        return_value="tg://proxy",
-    )
-
-    message.answer = mocker.AsyncMock()
-
-    await router.create_free_proxy_url(
-        message=message,
-        state=state,
-    )
-
-    router.vpn_service.get_mtproto_url.assert_awaited_once()
-
-    message.answer.assert_awaited()
 
     state.clear.assert_awaited_once()
 

@@ -230,7 +230,7 @@ class ThreeXUIAdapter:
 
         """
         logger.info("Запрос списка inbound-конфигураций")
-        data = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
+        data, _ = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
         self._ensure_success(data, action="get_inbounds_list")
 
         objs = data.get("obj", [])
@@ -251,7 +251,7 @@ class ThreeXUIAdapter:
 
         """
         logger.info("Запрос списка inbound-конфигураций")
-        data = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
+        data, _ = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
         self._ensure_success(data, action="get_inbounds_list")
 
         objs = data.get("obj", [])
@@ -281,7 +281,7 @@ class ThreeXUIAdapter:
 
         """
         logger.info("Запрос списка inbound-конфигураций и их клиентов")
-        data = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
+        data, _ = await self.api.get(f"{self.prefix}/panel/api/inbounds/list")
         self._ensure_success(data, action="get_inbounds_list")
 
         objs = data.get("obj", [])
@@ -358,7 +358,9 @@ class ThreeXUIAdapter:
             ThreeXUIRequestError: Если панель ответила `success: false`.
 
         """
-        data = await self.api.get(f"{self.prefix}/panel/api/inbounds/get/{inbound_id}")
+        data, _ = await self.api.get(
+            f"{self.prefix}/panel/api/inbounds/get/{inbound_id}"
+        )
         self._ensure_success(data, action="get_inbound")
 
         obj = data.get("obj") or {}
