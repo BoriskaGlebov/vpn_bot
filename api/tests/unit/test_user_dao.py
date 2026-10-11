@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 from sqlalchemy import StaticPool, event, select
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -13,7 +14,7 @@ from api.core.database import Base  # Declarative Base
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.dao import RoleDAO, UserDAO
 from api.users.models import Role, User
-from api.users.schemas import SRole, SUser
+from api.users.schemas import SRole, SUser, SUserTelegramID
 from shared.enums.admin_enum import FilterTypeEnum
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -304,6 +305,77 @@ async def test_find_one_or_none(session, user):
 
     assert found_user is not None
     assert found_user.telegram_id == user.telegram_id
+
+
+async def test_find_one_or_none_does_not_load_payments_or_referrals(session, user):
+    """UserDAO.find_one_or_none(options=base_options) не грузит payments/
+    invited_users/invited_by — именно это обращение выполняет AuthMiddleware
+    на каждом HTTP-запросе (#243). Раньше это было 6 SELECT, теперь — 4
+    (users, subscriptions, vpn_configs, role); payments/invited_users/
+    invited_by в их число не входят.
+    """
+    executed_statements: list[str] = []
+
+    def before_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
+        executed_statements.append(statement)
+
+    event.listen(
+        session.sync_session.bind, "before_cursor_execute", before_cursor_execute
+    )
+    try:
+        found = await UserDAO.find_one_or_none(
+            session=session,
+            filters=SUserTelegramID(telegram_id=user.telegram_id),
+            options=UserDAO.base_options,
+        )
+    finally:
+        event.remove(
+            session.sync_session.bind, "before_cursor_execute", before_cursor_execute
+        )
+
+    assert found is not None
+    assert not any("paymenttransactions" in s.lower() for s in executed_statements)
+    assert not any("referrals" in s.lower() for s in executed_statements)
+
+
+async def test_payments_relation_raises_without_eager_load(session, user):
+    """payments не загружен неявно — обращение к нему без eager load падает
+    явной ошибкой (lazy="raise"), а не тихим N+1 запросом (#243).
+    """
+    found = await UserDAO.find_one_or_none(
+        session=session,
+        filters=SUserTelegramID(telegram_id=user.telegram_id),
+        options=UserDAO.base_options,
+    )
+
+    with pytest.raises(InvalidRequestError):
+        _ = found.payments
+
+
+async def test_invited_users_relation_raises_without_eager_load(session, user):
+    """invited_users — то же самое, что и payments (#243)."""
+    found = await UserDAO.find_one_or_none(
+        session=session,
+        filters=SUserTelegramID(telegram_id=user.telegram_id),
+        options=UserDAO.base_options,
+    )
+
+    with pytest.raises(InvalidRequestError):
+        _ = found.invited_users
+
+
+async def test_invited_by_relation_raises_without_eager_load(session, user):
+    """invited_by — то же самое, что и payments (#243)."""
+    found = await UserDAO.find_one_or_none(
+        session=session,
+        filters=SUserTelegramID(telegram_id=user.telegram_id),
+        options=UserDAO.base_options,
+    )
+
+    with pytest.raises(InvalidRequestError):
+        _ = found.invited_by
 
 
 async def test_role_dao_model():
