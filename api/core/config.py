@@ -40,6 +40,14 @@ class SettingsAPI(SettingsCommon):
             (заголовок X-Internal-Secret). Без него X-Telegram-Id
             не принимается во внимание — см. AuthMiddleware.
 
+        admin_panel_user (str):
+            Логин админ-панели SQLAdmin — отдельный от учётных данных БД.
+
+        admin_panel_password_hash (SecretStr):
+            Хеш пароля админ-панели (формат `pbkdf2_sha256$<iterations>$<salt>$<hash>`,
+            см. `api.users.auth_admin.hash_password`). Пустое значение по умолчанию —
+            вход в панель отключён, пока хеш не задан явно.
+
     """
 
     core: SettingsApp = Field(default_factory=SettingsApp)
@@ -47,6 +55,9 @@ class SettingsAPI(SettingsCommon):
 
     session_secret: SecretStr = SecretStr("secret")
     internal_api_secret: SecretStr = SecretStr("secret")
+
+    admin_panel_user: str = "admin"
+    admin_panel_password_hash: SecretStr = SecretStr("")
 
 
 load_dotenv(BASE_DIR / ".env.local")
