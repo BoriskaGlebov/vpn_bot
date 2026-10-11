@@ -16,6 +16,11 @@ class LoggerConfig:
         logger_level_stdout (str, optional): Уровень логирования для вывода в stdout. Defaults to "INFO".
         logger_level_file (str, optional): Уровень логирования для основного файла лога. Defaults to "DEBUG".
         logger_error_file (str, optional): Уровень логирования для файла ошибок. Defaults to "ERROR".
+        diagnose_files (bool, optional): Включать ли `diagnose` (печать значений
+            переменных из фреймов стека в трейсбеке) для файловых обработчиков
+            (`file.log`, `error.log`). Эти файлы хранятся 30 дней и попадают в
+            бэкапы, поэтому по умолчанию выключено — независимо от уровня
+            логирования в stdout. Defaults to False.
         extra_defaults (Optional[Dict[str, Any]], optional): Значения по умолчанию для extra полей. Defaults to None.
 
     """
@@ -26,12 +31,14 @@ class LoggerConfig:
         logger_level_stdout: str = "INFO",
         logger_level_file: str = "INFO",
         logger_error_file: str = "WARNING",
+        diagnose_files: bool = False,
         extra_defaults: dict[str, Any] | None = None,
     ) -> None:
         self.log_dir = log_dir
         self.logger_level_stdout = logger_level_stdout
         self.logger_level_file = logger_level_file
         self.logger_error_file = logger_error_file
+        self.diagnose_files = diagnose_files
         self.extra_defaults = extra_defaults or {"user": "undefined_user"}
 
         self._ensure_log_dir_exists()
@@ -134,7 +141,7 @@ class LoggerConfig:
             retention="30 days",
             catch=True,
             backtrace=True,
-            diagnose=self.logger_level_stdout == "DEBUG",
+            diagnose=self.diagnose_files,
             filter=self._filter_for_files,
             enqueue=True,
         )
@@ -147,7 +154,7 @@ class LoggerConfig:
             retention="30 days",
             catch=True,
             backtrace=True,
-            diagnose=self.logger_level_stdout == "DEBUG",
+            diagnose=self.diagnose_files,
             filter=lambda r: self._user_filter(r) or self._default_filter(r),
             enqueue=True,
         )
