@@ -212,7 +212,12 @@ jobs:
             echo "Recreate .env.dev file..."
             rm -f .env.dev
 
-            cat <<ENV_EOF > .env.dev
+            # Делимитер в кавычках — иначе bash на сервере раскрывает $...
+            # внутри значений секретов как подстановку переменных/позиционных
+            # параметров (например, ADMIN_PANEL_PASSWORD_HASH содержит '$'
+            # как разделитель полей pbkdf2_sha256$iterations$salt$hash, и без
+            # кавычек каждый кусок после '$' обрывался, искажая хеш).
+            cat <<'ENV_EOF' > .env.dev
 
           # == STAGE ==
 
@@ -386,7 +391,10 @@ jobs:
             echo "Recreate .env file..."
             rm -f .env
 
-            cat <<ENV_EOF > .env
+            # Делимитер в кавычках — см. комментарий в deploy_develop: без
+            # него bash раскрывает '$' в значениях секретов (ADMIN_PANEL_
+            # PASSWORD_HASH содержит '$' как разделитель полей).
+            cat <<'ENV_EOF' > .env
 
           # == STAGE ==
 
