@@ -12,18 +12,32 @@ from api.app_error.api_error import (
 )
 from api.app_error.base_error import UserNotFoundError
 from api.core.config import settings_api
-from api.core.database import async_session
 from api.users.models import User
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """Dependency для получения асинхронной сессии SQLAlchemy.
 
-    Используется в маршрутах для автоматической работы с транзакцией.
+    Отдаёт ту же сессию, что `DBSessionMiddleware` уже положил в
+    `request.state.db` для `AuthMiddleware` — не открывает вторую. Раньше
+    каждый запрос держал два соединения из пула и две независимые
+    транзакции (AuthMiddleware читает через request.state.db, роут — через
+    отдельную сессию этой dependency), что при пуле по умолчанию
+    (`pool_size=5, max_overflow=10`) давало предел около семи параллельных
+    запросов. AuthMiddleware выполняется раньше (см. порядок middleware в
+    `CLAUDE.md`) и только читает, поэтому к моменту вызова этой dependency
+    сессия уже открыта (транзакция, если была, начата автоматически
+    SQLAlchemy при первом запросе — `session.begin()` здесь не нужен).
+    Коммит/rollback — явные, а не через `async with session.begin()`,
+    потому что транзакция могла быть автоначата раньше, в AuthMiddleware.
     """
-    async with async_session() as session:
-        async with session.begin():
-            yield session
+    session = request.state.db
+    try:
+        yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
 
 
 api_key_header = APIKeyHeader(

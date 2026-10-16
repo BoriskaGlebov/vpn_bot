@@ -180,10 +180,11 @@ python api/main.py      # http://localhost:8089/api/docs
 | Object Storage | `ACCESS_KEY`, `SECRET_KEY` | Доступ к S3-совместимому бакету для медиа справки |
 | Backup | `BACKUP_ENCRYPTION_KEY` | Fernet-ключ шифрования бэкапов конфигов VPN-контейнеров (`backup.sh` → `bot/vpn/utils/backup_containers.py`) перед загрузкой в S3; генерируется один раз `Fernet.generate_key()` |
 | AI (опционально) | `SECRET_KEY_AI`, `YANDEX_FOLDER_ID` | Yandex AI Studio; актуально только при локальной разработке AI-части |
-| API service | `SESSION_SECRET` | Ключ сессий админ-панели (SQLAdmin) |
+| API service | `SESSION_SECRET` | Ключ сессий админ-панели (SQLAdmin). Обязателен — без значения по умолчанию, `api/` не поднимется без него |
+| API service | `ADMIN_PANEL_USER`, `ADMIN_PANEL_PASSWORD_HASH` | Логин и хеш пароля входа в SQLAdmin — отдельные от учётных данных PostgreSQL. Хеш генерируется один раз: `python -c "from api.users.auth_admin import hash_password; print(hash_password('...'))"`. Пустой `ADMIN_PANEL_PASSWORD_HASH` отключает вход в панель (fail-closed) |
 | API service | `SKIP_INIT` (в `.env.example `) / `SKIP_AI_INIT` (в CI, `.github/workflows/ci.yml`) | Флаг пропуска тяжёлой инициализации AI-зависимостей при старте; имя в этих двух местах расходится — при добавлении в свой `.env` стоит свериться с тем, что реально читает код на момент использования |
 | Платежи | `MERCHANT_ID`, `API_KEY` | Учётные данные платёжного шлюза (Platega) |
-| Internal | `INTERNAL_API_SECRET` | Общий секрет для запросов `bot/` → `api/` (заголовок `X-Internal-Secret`); обязателен на каждом из трёх payment-вебхук-эндпоинтов `api/` |
+| Internal | `INTERNAL_API_SECRET` | Общий секрет для запросов `bot/` → `api/` (заголовок `X-Internal-Secret`). Обязателен — без значения по умолчанию, `api/` не поднимется без него; значение должно совпадать с тем, что использует `bot/` |
 
 ### Настройки приложения (`app_config*.toml`)
 

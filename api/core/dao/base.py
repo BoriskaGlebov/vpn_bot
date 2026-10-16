@@ -16,14 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.interfaces import ORMOption
 
 from api.core.database import Base
+from api.core.database import redact as _redact_values
 
 T = TypeVar("T", bound=Base)
-
-# Подстроки в именах полей, по которым значение маскируется перед логированием.
-# BaseDAO — общий класс для всех моделей (включая платёжные), поэтому не может
-# заранее знать, какие поля конкретной модели чувствительны, и ориентируется
-# на имя ключа, а не на его содержимое.
-_SENSITIVE_KEY_MARKERS = ("password", "secret", "token", "payload", "api_key", "card")
 
 
 class BaseDAO(Generic[T]):  # noqa: UP046
@@ -48,33 +43,45 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @staticmethod
     def _to_dict(filters: BaseModel | None) -> dict[str, Any]:
-        """Преобразование в словарь BaseModel схему."""
+        """Преобразование схемы ФИЛЬТРА в словарь.
+
+        `exclude_unset=True` — в фильтр/WHERE попадают только явно переданные
+        поля. Это обязательное свойство для фильтров: непереданное поле не
+        должно ограничивать выборку/изменяемый набор строк своим значением по
+        умолчанию (иначе, например, `STransactionPendingFilter(id=...)` без
+        явного `status=` тихо потерял бы часть условия `WHERE`).
+        """
         return filters.model_dump(exclude_unset=True) if filters else {}
+
+    @staticmethod
+    def _values_to_dict(values: BaseModel | None) -> dict[str, Any]:
+        """Преобразование схемы ЗНАЧЕНИЙ (для `UPDATE ... SET`) в словарь.
+
+        `exclude_unset=False`, в отличие от `_to_dict`: поле со значением по
+        умолчанию, не переданное явно в конструктор схемы, всё равно должно
+        попасть в `SET` — иначе обновление тихо не затрагивает колонку, хотя
+        вызывающий код по тексту схемы ожидает, что она запишется (см. #234).
+        """
+        return values.model_dump(exclude_unset=False) if values else {}
 
     @staticmethod
     def _redact(values: dict[str, Any]) -> dict[str, Any]:
         """Маскирует потенциально чувствительные поля перед логированием.
 
         Например, `PaymentTransaction.gateway_payload` (сырые данные
-        платёжного шлюза) иначе целиком попадал бы в `file.log`.
+        платёжного шлюза) иначе целиком попадал бы в `file.log`. Реализация
+        общая с `Base.to_dict_redacted` (см. `api.core.database.redact`) —
+        чтобы маскирование не обходилось через `__repr__`/`to_dict` модели.
 
         Args:
             values: Словарь значений записи.
 
         Returns
             dict[str, Any]: Копия словаря; значения ключей, содержащих
-                чувствительные подстроки (см. `_SENSITIVE_KEY_MARKERS`),
-                заменены на `"***"`.
+                чувствительные подстроки, заменены на `"***"`.
 
         """
-        return {
-            k: (
-                "***"
-                if any(marker in k.lower() for marker in _SENSITIVE_KEY_MARKERS)
-                else v
-            )
-            for k, v in values.items()
-        }
+        return _redact_values(values)
 
     @classmethod
     def _build_filters(cls, f: dict[str, Any]) -> ColumnElement[bool]:
@@ -100,14 +107,13 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         # noinspection PyTypeChecker
         logger.debug(f"[DAO] Поиск {cls.model.__name__} с ID: {data_id}")
 
-        # noinspection PyTypeChecker
-        query = select(cls.model).where(cls.model.id == data_id)  # type: ignore[attr-defined]
+        query = select(cls.model).where(cls.model.id == data_id)
 
         result = await session.execute(query)
         record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
         logger.debug(
             f"[DAO] Результат поиска {cls.model.__name__} id={data_id}: "
-            f"{'найдена id=' + str(record.id) if record else 'не найдена'}"  # type: ignore[attr-defined]
+            f"{'найдена id=' + str(record.id) if record else 'не найдена'}"
         )
         return record
 
@@ -146,7 +152,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         record = cast(T | None, result.scalar_one_or_none())  # type: ignore[redundant-cast]
         logger.debug(
             f"[DAO] {cls.model.__name__}: "
-            f"{'найдена id=' + str(record.id) if record else 'не найдена'}"  # type: ignore[attr-defined]
+            f"{'найдена id=' + str(record.id) if record else 'не найдена'}"
         )
         return record
 
@@ -200,7 +206,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         """
         values_dict = values.model_dump(exclude_unset=True)
         # noinspection PyTypeChecker
-        logger.info(
+        logger.debug(
             f"[DAO] Добавление записи {cls.model.__name__} с параметрами: "
             f"{cls._redact(values_dict)}"
         )
@@ -210,8 +216,8 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             await session.flush()
             await session.refresh(new_instance)
             # noinspection PyTypeChecker
-            logger.debug(
-                f"[DAO] Запись {cls.model.__name__} id={new_instance.id} добавлена."  # type: ignore[attr-defined]
+            logger.info(
+                f"[DAO] Запись {cls.model.__name__} id={new_instance.id} добавлена."
             )
             return new_instance
         except SQLAlchemyError as e:
@@ -237,12 +243,16 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
         """
         filter_dict = cls._to_dict(filters=filters)
-        values_dict = cls._to_dict(filters=values)
+        values_dict = cls._values_to_dict(values=values)
         # noinspection PyTypeChecker
-        logger.info(
+        logger.debug(
             f"[DAO] Обновление записей {cls.model.__name__} по фильтру: "
             f"{cls._redact(filter_dict)} с параметрами: {cls._redact(values_dict)}"
         )
+
+        if not filter_dict:
+            logger.error("[DAO] Нужен хотя бы один фильтр для обновления.")
+            raise ValueError("Нужен хотя бы один фильтр для обновления.")
 
         filters_clause = cls._build_filters(filter_dict)
         # noinspection PyTypeChecker
@@ -256,7 +266,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             result = await session.execute(query)
             rowcount: int = getattr(result, "rowcount", 0) or 0
 
-            logger.debug(f"[DAO] Обновлено {rowcount} записей {cls.model.__name__}.")
+            logger.info(f"[DAO] Обновлено {rowcount} записей {cls.model.__name__}.")
 
             return rowcount or 0
         except SQLAlchemyError as e:
@@ -280,7 +290,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         """
         filter_dict = cls._to_dict(filters)
         # noinspection PyTypeChecker
-        logger.info(
+        logger.debug(
             f"[DAO] Удаление записей {cls.model.__name__} по фильтру: "
             f"{cls._redact(filter_dict)}"
         )
@@ -325,6 +335,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             # noinspection PyTypeChecker
             new_instances = [cls.model(**values) for values in values_list]
             session.add_all(new_instances)
+            await session.flush()
             logger.info(
                 f"[DAO] Успешно добавлено {len(new_instances)} записей {cls.model.__name__}."
             )
@@ -356,8 +367,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         )
 
         filters_clause = cls._build_filters(filter_dict)
-        # noinspection PyTypeChecker
-        query = select(func.count(cls.model.id)).where(filters_clause)  # type: ignore
+        query = select(func.count(cls.model.id)).where(filters_clause)
         result = await session.execute(query)
         count = cast(int, result.scalar())
         logger.debug(f"[DAO] Найдено {count} записей.")
@@ -380,8 +390,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         if not ids:
             return []
 
-        # noinspection PyTypeChecker
-        query = select(cls.model).where(cls.model.id.in_(ids))  # type: ignore[attr-defined]
+        query = select(cls.model).where(cls.model.id.in_(ids))
         result = await session.execute(query)
         records = cast(list[T], result.scalars().all())
         logger.debug(f"[DAO] Найдено {len(records)} записей по списку ID.")

@@ -89,6 +89,8 @@ jobs:
           SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
           MERCHANT_ID: "test-merchant-id"
           API_KEY: "test-api-key"
+          SESSION_SECRET: "test-session-secret"
+          INTERNAL_API_SECRET: "test-internal-secret"
         run: poetry run pytest -vs -m "not integration" .
 
   integration-test:
@@ -126,6 +128,8 @@ jobs:
           SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
           MERCHANT_ID: "test-merchant-id"
           API_KEY: "test-api-key"
+          SESSION_SECRET: "test-session-secret"
+          INTERNAL_API_SECRET: "test-internal-secret"
         run: poetry run pytest -vs -m integration .
 
   deploy_develop:
@@ -221,6 +225,7 @@ jobs:
           # == API ==
 
           SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+          INTERNAL_API_SECRET=${{ secrets.INTERNAL_API_SECRET }}
 
           # ==X-RAY ==
 
@@ -249,6 +254,10 @@ jobs:
           # == PAYMENT ==
           MERCHANT_ID=${{ secrets.MERCHANT_ID }}
           API_KEY=${{ secrets.API_KEY }}
+
+          # == ADMIN PANEL ==
+          ADMIN_PANEL_USER=${{secrets.ADMIN_PANEL_USER}}
+          ADMIN_PANEL_PASSWORD_HASH=${{secrets.ADMIN_PANEL_PASSWORD_HASH}}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env.dev"
@@ -390,6 +399,7 @@ jobs:
           # == API ==
 
           SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+          INTERNAL_API_SECRET=${{ secrets.INTERNAL_API_SECRET }}
 
           # ==X-RAY ==
 

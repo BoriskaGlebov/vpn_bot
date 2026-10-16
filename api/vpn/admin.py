@@ -22,7 +22,7 @@ def format_user(obj: VPNConfig, name: str) -> str:
     """
     if obj.user is None:
         return "-"
-    return f"{obj.user.username} ({obj.user.telegram_id})"
+    return f"{obj.user.username or '-'} ({obj.user.telegram_id})"
 
 
 def format_pub_key(obj: VPNConfig, name: str) -> str:
@@ -145,6 +145,16 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
 
     can_create = True
     can_edit = False
-    can_delete = True
+    # Удаление здесь — только DELETE в БД: SQLAdmin не вызывает ни on_model_delete,
+    # ни delete_model, то есть клиент на панели 3x-ui или пир в awg0.conf
+    # остаётся включённым, а запись, по которой доступ можно было бы найти,
+    # исчезает. Правильный путь — VPNService.delete_user_config
+    # (bot/vpn/services.py, уже используется в bot/subscription/router.py):
+    # отзывает доступ на ноде и только потом удаляет запись, различая
+    # "не найден" и "ошибка связи". Он живёт в bot/, а не в api/ (только
+    # bot/ обращается к панелям VPN), поэтому админка не может вызвать его
+    # напрямую — пока не появится путь между сервисами, удаление запрещено
+    # целиком (см. #246).
+    can_delete = False
     can_view_details = True
     details_template = "admin/vpn_config_details.html"

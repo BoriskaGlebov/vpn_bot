@@ -143,7 +143,11 @@ class PaymentTransactionAdmin(ModelView, model=PaymentTransaction):
 
     can_create = True
     can_edit = True
-    can_delete = True
+    # Удаление платёжной записи — потеря финансовой истории без возможности
+    # восстановления (ни on_model_delete, ни архивирования нет). Статус
+    # ошибочной транзакции правится через can_edit, удаление не нужно
+    # (см. #246).
+    can_delete = False
     can_view_details = True
     name = "Платеж"
     name_plural = "Платежи"

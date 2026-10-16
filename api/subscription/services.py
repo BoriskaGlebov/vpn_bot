@@ -12,7 +12,7 @@ from api.subscription.models import SubscriptionType
 from api.subscription.schemas import SSubscriptionInfo, SVPNConfig
 from api.users.dao import UserDAO
 from api.users.schemas import SUserOut, SUserTelegramID
-from shared.enums.admin_enum import FilterTypeEnum, RoleEnum
+from shared.enums.admin_enum import RoleEnum
 from shared.enums.subscription_enum import ToggleSubscriptionMode
 
 
@@ -190,7 +190,7 @@ class SubscriptionService:
         if not user_model:
             logger.warning("Пользователь не найден: user_id={}", user_id)
             raise UserNotFoundError(tg_id=user_id)
-        if user_model.role.name == FilterTypeEnum.FOUNDER:
+        if user_model.role.name == RoleEnum.FOUNDER:
             sub_type = SubscriptionType.FOUNDER
         elif premium:
             sub_type = SubscriptionType.PREMIUM
@@ -212,8 +212,8 @@ class SubscriptionService:
                 sub_type,
             )
             active_sub.extend(months=months)
-            return await UserMapper.to_schema(user=user_model)
-        elif user_model.role.name == FilterTypeEnum.FOUNDER:
+            return UserMapper.to_schema(user=user_model)
+        elif user_model.role.name == RoleEnum.FOUNDER:
             logger.info(
                 "Основатель: принудительная установка PREMIUM подписки: user_id={}, months={}",
                 user_id,
@@ -223,7 +223,7 @@ class SubscriptionService:
             if current_sub is not None:
                 current_sub.extend(months=months)
                 current_sub.type = SubscriptionType.FOUNDER
-                return await UserMapper.to_schema(user=user_model)
+                return UserMapper.to_schema(user=user_model)
         logger.info(
             "Создание новой подписки: user_id={}, months={}, type={}",
             user_id,
@@ -241,7 +241,7 @@ class SubscriptionService:
         await session.refresh(
             user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
         )
-        return await UserMapper.to_schema(user=user_model)
+        return UserMapper.to_schema(user=user_model)
 
     async def get_subscription_info(
         self,

@@ -46,7 +46,7 @@ class UserService:
         )
         schema_user = SUser(
             telegram_id=telegram_user.id,
-            username=telegram_user.username or f"Гость_{telegram_user.id}",
+            username=telegram_user.username,
             first_name=telegram_user.first_name,
             last_name=telegram_user.last_name,
         )

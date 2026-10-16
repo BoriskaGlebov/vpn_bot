@@ -1,9 +1,11 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import UserNotFoundError
+from api.subscription.models import SubscriptionType
 from api.users.schemas import (
     SUser,
     SUserOut,
@@ -27,7 +29,7 @@ def session() -> AsyncSession:
 # ---------- register_or_get_user ----------
 
 
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_existing(
     mock_find_user,
@@ -58,11 +60,11 @@ async def test_register_or_get_user_existing(
     assert created is False
 
     mock_find_user.assert_awaited_once()
-    mock_to_schema.assert_awaited_once_with(fake_user)
+    mock_to_schema.assert_called_once_with(fake_user)
 
 
 @patch("api.users.services.settings_api")
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_create_admin(
@@ -101,10 +103,14 @@ async def test_register_or_get_user_create_admin(
     # Проверяем, что была назначена роль admin
     args, kwargs = mock_add_user.await_args
     assert kwargs["values_role"].name == "admin"
+    # «admin -> бессрочный премиум» — решает сервис явными параметрами,
+    # не DAO по имени роли (#244).
+    assert kwargs["subscription_is_active"] is True
+    assert kwargs["subscription_type"] == SubscriptionType.PREMIUM
 
 
 @patch("api.users.services.settings_api")
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_create_regular_user(
@@ -139,10 +145,12 @@ async def test_register_or_get_user_create_regular_user(
 
     args, kwargs = mock_add_user.await_args
     assert kwargs["values_role"].name == "user"
+    assert kwargs["subscription_is_active"] is False
+    assert kwargs["subscription_type"] is None
 
 
 @patch("api.users.services.settings_api")
-@patch("api.users.services.UserMapper.to_schema", new_callable=AsyncMock)
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_guest_username(
@@ -153,7 +161,9 @@ async def test_register_or_get_user_guest_username(
     service,
     session,
 ):
-    """Если username отсутствует, используется значение по умолчанию."""
+    """Если username отсутствует, передаётся как None, а не подставляется (#242):
+    username переиспользуем, подстановка "Гость_<id>" заняла бы NULL навечно.
+    """
     mock_find_user.return_value = None
     mock_settings.admin_ids = []
 
@@ -171,7 +181,88 @@ async def test_register_or_get_user_guest_username(
     await service.register_or_get_user(session=session, telegram_user=telegram_user)
 
     args, kwargs = mock_add_user.await_args
-    assert kwargs["values_user"].username == "Гость_555"
+    assert kwargs["values_user"].username is None
+
+
+@patch("api.users.services.settings_api")
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
+@patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
+async def test_register_or_get_user_concurrent_registration_race(
+    mock_find_user,
+    mock_add_user,
+    mock_to_schema,
+    mock_settings,
+    service,
+    session,
+):
+    """Гонка (#239): INSERT падает на unique(telegram_id) — другой запрос уже
+    создал пользователя между нашим SELECT и INSERT. Ожидается не 500, а
+    существующий пользователь с created=False, после повторного чтения.
+    """
+    mock_settings.core.admin_ids = []
+    existing_user = MagicMock()
+    # Первый find_one_or_none (до попытки создания) не находит пользователя;
+    # второй (после отловленного IntegrityError) находит запись, которую
+    # успел создать параллельный запрос.
+    mock_find_user.side_effect = [None, existing_user]
+    mock_add_user.side_effect = IntegrityError("INSERT", {}, Exception("unique"))
+
+    expected_schema = MagicMock(spec=SUserOut)
+    mock_to_schema.return_value = expected_schema
+
+    telegram_user = SUser(
+        telegram_id=123,
+        username="racer",
+        first_name="Test",
+        last_name="User",
+    )
+
+    result, created = await service.register_or_get_user(
+        session=session,
+        telegram_user=telegram_user,
+    )
+
+    assert created is False
+    assert result is expected_schema
+    assert mock_find_user.await_count == 2
+    mock_to_schema.assert_called_once_with(existing_user)
+
+
+@patch("api.users.services.settings_api")
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
+@patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
+async def test_register_or_get_user_race_without_visible_row_reraises(
+    mock_find_user,
+    mock_add_user,
+    mock_to_schema,
+    mock_settings,
+    service,
+    session,
+):
+    """IntegrityError, которую не объясняет повторное чтение (не telegram_id,
+    либо строка конкурента ещё не закоммитилась), должна дойти до вызывающего
+    — а не быть замаскирована под «пользователь не найден».
+    """
+    mock_settings.core.admin_ids = []
+    mock_find_user.side_effect = [None, None]
+    mock_add_user.side_effect = IntegrityError("INSERT", {}, Exception("unique"))
+
+    telegram_user = SUser(
+        telegram_id=123,
+        username="racer",
+        first_name="Test",
+        last_name="User",
+    )
+
+    with pytest.raises(IntegrityError):
+        await service.register_or_get_user(
+            session=session,
+            telegram_user=telegram_user,
+        )
+
+    mock_to_schema.assert_not_called()
 
 
 # ---------- get_user_with_referrals ----------
@@ -179,7 +270,7 @@ async def test_register_or_get_user_guest_username(
 
 @patch(
     "api.users.services.UserMapper.to_schema_with_referrals",
-    new_callable=AsyncMock,
+    new_callable=MagicMock,
 )
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_get_user_with_referrals_found(
@@ -201,7 +292,7 @@ async def test_get_user_with_referrals_found(
     )
 
     assert result == expected_schema
-    mock_to_schema.assert_awaited_once_with(fake_user)
+    mock_to_schema.assert_called_once_with(fake_user)
 
 
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)

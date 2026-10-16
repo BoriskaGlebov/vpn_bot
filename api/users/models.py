@@ -32,7 +32,9 @@ class User(Base):
 
     id: Mapped[int_pk]
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
-    username: Mapped[str_uniq]
+    # Telegram-username не обязателен, изменяем и переиспользуем — уникальность
+    # должна быть на telegram_id (выше), а не здесь (см. #242).
+    username: Mapped[str_null_true]
     first_name: Mapped[str_null_true]
     last_name: Mapped[str_null_true]
     has_used_trial: Mapped[bool] = mapped_column(default=False, server_default="false")
@@ -66,11 +68,19 @@ class User(Base):
         lazy="selectin",
         order_by="VPNConfig.id",
     )
+    # lazy="raise" (не "selectin", как остальные связи выше) — invited_users/
+    # invited_by/payments нужны только в двух явных местах (UserAdmin, которая
+    # уже сама добавляет selectinload через _with_eager_options, и
+    # UserService.get_user_with_referrals), а не на каждой загрузке User,
+    # в том числе на каждом HTTP-запросе через AuthMiddleware (см. #243).
+    # "raise" выбран вместо "select" осознанно: пропущенное место, которому
+    # на самом деле нужна связь, сразу падает явной ошибкой в тестах, а не
+    # тихо открывает N+1 запрос в рантайме.
     invited_users: Mapped[list["Referral"]] = relationship(
         "Referral",
         foreign_keys=[Referral.inviter_id],
         back_populates="inviter",
-        lazy="selectin",
+        lazy="raise",
         passive_deletes=True,
     )
 
@@ -79,14 +89,14 @@ class User(Base):
         foreign_keys=[Referral.invited_id],
         back_populates="invited",
         uselist=False,
-        lazy="selectin",
+        lazy="raise",
         passive_deletes=True,
     )
     payments: Mapped[list["PaymentTransaction"]] = relationship(
         "PaymentTransaction",
         foreign_keys="PaymentTransaction.user_id",
         back_populates="user",
-        lazy="selectin",
+        lazy="raise",
         order_by="PaymentTransaction.created_at.desc()",
         passive_deletes=True,
     )

@@ -75,7 +75,16 @@ class UserAdmin(ModelView, model=User):
 
     can_create = True
     can_edit = True
-    can_delete = True
+    # Удаление пользователя сносит все его vpn_configs каскадом
+    # (cascade="all, delete-orphan"), а вместе с ними pub_key и config_ids —
+    # то есть пропадает информация, по которой доступ на нодах можно было бы
+    # найти и отозвать. Доступ продолжает работать, восстановить связь
+    # «доступ -> удалённая запись» после этого нечем. В проекте нет и
+    # собственного безопасного пути удаления пользователя (отзыв доступа на
+    # всех VPN-конфигах + удаление записи) — до тех пор, пока такой сервис
+    # не появится, удаление запрещено целиком, а не молча ломает доступ
+    # (см. #246).
+    can_delete = False
     can_view_details = True
     column_labels = {
         "id": "ID",
@@ -93,7 +102,7 @@ class UserAdmin(ModelView, model=User):
         "current_subscription": format_current_subscription,  # type: ignore[misc, dict-item]
         "vpn_files_count": format_files_count,  # type: ignore[misc, dict-item]
         "payments_count": format_payments_count,  # type: ignore[misc, dict-item]
-        User.username: lambda m, a: m.username[:10],  # type: ignore[misc, attr-defined]
+        User.username: lambda m, a: (m.username or "-")[:10],  # type: ignore[misc, attr-defined]
     }  # type: ignore[misc, assignment]
     name = "Пользователь"
     name_plural = "Пользователи"

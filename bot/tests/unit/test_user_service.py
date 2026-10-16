@@ -82,19 +82,15 @@ async def test_register_existing_user(
 
 
 @pytest.mark.asyncio
-async def test_username_fallback(
+async def test_username_missing_passed_through_as_none(
     users_adapter_mock: AsyncMock,
     user_out: SUserOut,
 ) -> None:
-    """Проверяет fallback для username.
+    """Отсутствующий username передаётся в адаптер как None, а не подставляется (#242).
 
-    Сценарий:
-        - у Telegram пользователя отсутствует username;
-        - сервис должен сгенерировать значение вида "Гость_<id>".
-
-    Проверяется:
-        - корректная генерация username;
-        - передача значения в адаптер.
+    Username переиспользуем и изменяем: подстановка "Гость_<id>" заняла бы
+    уникальный индекс навечно и мешала бы регистрации нового владельца
+    освободившегося username.
     """
     tg_user = type(
         "TgUser",
@@ -115,4 +111,4 @@ async def test_username_fallback(
 
     called_arg = users_adapter_mock.register.call_args[0][0]
 
-    assert called_arg.username == "Гость_999"
+    assert called_arg.username is None

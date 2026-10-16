@@ -42,7 +42,7 @@ class AdminService:
         if not user:
             logger.warning("Пользователь не найден telegram_id={}", telegram_id)
             raise UserNotFoundError(tg_id=telegram_id)
-        user_schema = await UserMapper.to_schema(user)
+        user_schema = UserMapper.to_schema(user)
         logger.info("Пользователь получен telegram_id={}", telegram_id)
         return user_schema
 
@@ -72,7 +72,7 @@ class AdminService:
 
         result = []
         for user in users:
-            result.append(await UserMapper.to_schema(user))
+            result.append(UserMapper.to_schema(user))
 
         logger.info(
             "Получен список пользователей count={} filter_type={}",
@@ -125,7 +125,7 @@ class AdminService:
             raise RoleNotFoundError(role_name=role_name)
 
         changed_user = await UserDAO.change_role(session=session, user=user, role=role)
-        user_schema = await UserMapper.to_schema(changed_user)
+        user_schema = UserMapper.to_schema(changed_user)
         logger.info(
             "Роль пользователя изменена telegram_id={} роль={}",
             telegram_id,
@@ -171,7 +171,7 @@ class AdminService:
         changed_user = await UserDAO.extend_subscription(
             session=session, user=user, months=months
         )
-        user_schema = await UserMapper.to_schema(changed_user)
+        user_schema = UserMapper.to_schema(changed_user)
         logger.info(
             "Подписка продлена telegram_id={} месяцев={}",
             telegram_id,
