@@ -12,6 +12,16 @@ from api.core.config import settings_api
 _HASH_ALGORITHM = "sha256"
 _HASH_ITERATIONS = 310_000  # рекомендация OWASP для PBKDF2-HMAC-SHA256 (2023)
 
+# "." как разделитель полей, а не "$": значение хеша проходит через
+# GitHub Secret -> bash heredoc в деплой-скрипте -> Docker Compose env_file.
+# Docker Compose интерполирует "$VAR"/"${VAR}" внутри значений, загруженных
+# через env_file (не только в самом docker-compose.yml), и при "$"-разделителе
+# части хеша после каждого "$" воспринимались как имена переменных и тихо
+# заменялись на пустую строку — хеш обрезался молча, без ошибки при деплое.
+# "." не используется в алфавите base64 (ни стандартном, ни url-safe) и
+# ничего не значит ни для bash, ни для Compose.
+_FIELD_SEPARATOR = "."
+
 
 def hash_password(password: str) -> str:
     """Хеширует пароль для `ADMIN_PANEL_PASSWORD_HASH` (PBKDF2-HMAC-SHA256, случайная соль).
@@ -25,16 +35,17 @@ def hash_password(password: str) -> str:
         password: пароль в открытом виде.
 
     Returns
-        str: `pbkdf2_sha256$<iterations>$<salt_b64>$<hash_b64>`.
+        str: `pbkdf2_sha256.<iterations>.<salt_b64>.<hash_b64>`.
 
     """
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac(
         _HASH_ALGORITHM, password.encode(), salt, _HASH_ITERATIONS
     )
+    sep = _FIELD_SEPARATOR
     return (
-        f"pbkdf2_sha256${_HASH_ITERATIONS}"
-        f"${b64encode(salt).decode()}${b64encode(digest).decode()}"
+        f"pbkdf2_sha256{sep}{_HASH_ITERATIONS}"
+        f"{sep}{b64encode(salt).decode()}{sep}{b64encode(digest).decode()}"
     )
 
 
@@ -51,7 +62,9 @@ def verify_password(password: str, encoded_hash: str) -> bool:
 
     """
     try:
-        algorithm, iterations, salt_b64, digest_b64 = encoded_hash.split("$")
+        algorithm, iterations, salt_b64, digest_b64 = encoded_hash.split(
+            _FIELD_SEPARATOR
+        )
     except ValueError:
         return False
 

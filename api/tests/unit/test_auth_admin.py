@@ -1,3 +1,4 @@
+import re
 from unittest.mock import AsyncMock
 
 import pytest
@@ -37,6 +38,30 @@ class TestHashPassword:
     def test_hash_password_uses_random_salt(self):
         """Два хеша одного пароля не совпадают — соль случайна."""
         assert hash_password("same-password") != hash_password("same-password")
+
+    def test_hash_password_does_not_use_dollar_separator(self):
+        """Разделитель полей — не "$" (регрессия на инцидент с деплоем).
+
+        Значение проходит GitHub Secret -> bash heredoc -> Docker Compose
+        env_file; Compose интерполирует "$VAR" внутри env_file-значений, из-за
+        чего хеш с "$"-разделителем молча обрезался при попадании в контейнер.
+        """
+        encoded = hash_password("correct-password")
+
+        assert "$" not in encoded
+        assert encoded.count(".") == 3
+
+    def test_hash_survives_compose_style_dollar_interpolation(self):
+        """Хеш не содержит "$" — эмуляция интерполяции Docker Compose
+        (замена "$ИМЯ_ПЕРЕМЕННОЙ" на пустую строку) не меняет значение,
+        и verify_password по-прежнему проходит.
+        """
+        encoded = hash_password("correct-password")
+
+        simulated_after_compose = re.sub(r"\$[A-Za-z_][A-Za-z0-9_]*", "", encoded)
+
+        assert simulated_after_compose == encoded
+        assert verify_password("correct-password", simulated_after_compose) is True
 
 
 class TestAdminAuthLogin:

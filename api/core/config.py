@@ -49,8 +49,12 @@ class SettingsAPI(SettingsCommon):
             Логин админ-панели SQLAdmin — отдельный от учётных данных БД.
 
         admin_panel_password_hash (SecretStr):
-            Хеш пароля админ-панели (формат `pbkdf2_sha256$<iterations>$<salt>$<hash>`,
-            см. `api.users.auth_admin.hash_password`). Пустое значение по умолчанию —
+            Хеш пароля админ-панели (формат `pbkdf2_sha256.<iterations>.<salt>.<hash>`,
+            см. `api.users.auth_admin.hash_password`). Разделитель — "." а не "$":
+            значение проходит через GitHub Secret -> bash heredoc в деплое ->
+            Docker Compose env_file, а Compose интерполирует "$VAR" внутри
+            env_file-значений, из-за чего "$"-разделитель молча обрезал хеш в
+            продакшене. Пустое значение по умолчанию —
             вход в панель отключён, пока хеш не задан явно.
 
     """
