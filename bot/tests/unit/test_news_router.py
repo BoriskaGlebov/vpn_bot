@@ -23,7 +23,12 @@ def news_service(news_adapter_mock):
 @pytest.mark.asyncio
 @pytest.mark.news
 async def test_start_handler_sets_state_and_sends_message(
-    fake_bot, make_fake_message, fake_state, fake_logger, news_adapter_mock
+    fake_bot,
+    make_fake_message,
+    fake_state,
+    fake_logger,
+    news_adapter_mock,
+    fake_news_broadcast_storage,
 ) -> None:
     """Тест стартового хэндлера /news.
 
@@ -33,7 +38,12 @@ async def test_start_handler_sets_state_and_sends_message(
     """
     message: Message = make_fake_message(text="/news")
     news_service = NewsService(adapter=news_adapter_mock)
-    router = NewsRouter(bot=fake_bot, logger=fake_logger, news_service=news_service)
+    router = NewsRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        news_service=news_service,
+        broadcast_storage=fake_news_broadcast_storage,
+    )
 
     await router.start_handler(message=message, state=fake_state)
 
@@ -44,9 +54,16 @@ async def test_start_handler_sets_state_and_sends_message(
 
 @pytest.mark.asyncio
 async def test_news_text_handler_text(
-    fake_bot, make_fake_message, fake_state, fake_logger, news_service
+    fake_bot,
+    make_fake_message,
+    fake_state,
+    fake_logger,
+    news_service,
+    fake_news_broadcast_storage,
 ):
-    router = NewsRouter(fake_bot, fake_logger, news_service)
+    router = NewsRouter(
+        fake_bot, fake_logger, news_service, fake_news_broadcast_storage
+    )
 
     message = make_fake_message(text="Hello news")
 
@@ -67,9 +84,16 @@ async def test_news_text_handler_text(
 
 @pytest.mark.asyncio
 async def test_news_text_handler_photo(
-    fake_bot, make_fake_message, fake_state, fake_logger, news_service
+    fake_bot,
+    make_fake_message,
+    fake_state,
+    fake_logger,
+    news_service,
+    fake_news_broadcast_storage,
 ):
-    router = NewsRouter(fake_bot, fake_logger, news_service)
+    router = NewsRouter(
+        fake_bot, fake_logger, news_service, fake_news_broadcast_storage
+    )
 
     message = make_fake_message()
     message.photo = [FakePhoto("photo_123")]
@@ -124,8 +148,12 @@ class FakeFSM:
 
 
 @pytest.mark.asyncio
-async def test_choose_target_all(fake_bot, fake_logger, news_service):
-    router = NewsRouter(fake_bot, fake_logger, news_service)
+async def test_choose_target_all(
+    fake_bot, fake_logger, news_service, fake_news_broadcast_storage
+):
+    router = NewsRouter(
+        fake_bot, fake_logger, news_service, fake_news_broadcast_storage
+    )
 
     state = FakeFSM()
     await state.update_data(news={"content_type": "text", "text": "hello"})
@@ -147,9 +175,16 @@ async def test_choose_target_all(fake_bot, fake_logger, news_service):
 
 @pytest.mark.asyncio
 async def test_choose_target_one(
-    fake_bot, make_fake_message, fake_state, fake_logger, news_service
+    fake_bot,
+    make_fake_message,
+    fake_state,
+    fake_logger,
+    news_service,
+    fake_news_broadcast_storage,
 ):
-    router = NewsRouter(fake_bot, fake_logger, news_service)
+    router = NewsRouter(
+        fake_bot, fake_logger, news_service, fake_news_broadcast_storage
+    )
 
     callback = AsyncMock()
     callback.answer = AsyncMock()
@@ -172,7 +207,12 @@ async def test_choose_target_one(
 @pytest.mark.asyncio
 @pytest.mark.news
 async def test_news_text_handler_text_saves_data_and_sets_state(
-    fake_bot, make_fake_message, fake_state, fake_logger, news_adapter_mock
+    fake_bot,
+    make_fake_message,
+    fake_state,
+    fake_logger,
+    news_adapter_mock,
+    fake_news_broadcast_storage,
 ) -> None:
     """Тест хэндлера ввода текста новости.
 
@@ -183,7 +223,12 @@ async def test_news_text_handler_text_saves_data_and_sets_state(
     """
     message: Message = make_fake_message(text="Test news")
     news_service = NewsService(adapter=news_adapter_mock)
-    router = NewsRouter(bot=fake_bot, logger=fake_logger, news_service=news_service)
+    router = NewsRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        news_service=news_service,
+        broadcast_storage=fake_news_broadcast_storage,
+    )
 
     await router.news_text_handler(message=message, state=fake_state)
 
@@ -195,7 +240,12 @@ async def test_news_text_handler_text_saves_data_and_sets_state(
 @pytest.mark.asyncio
 @pytest.mark.news
 async def test_news_text_handler_photo_saves_data_and_sets_state(
-    fake_bot, make_fake_photo, fake_state, fake_logger, news_adapter_mock
+    fake_bot,
+    make_fake_photo,
+    fake_state,
+    fake_logger,
+    news_adapter_mock,
+    fake_news_broadcast_storage,
 ) -> None:
     """Тест хэндлера фото новости.
 
@@ -206,7 +256,12 @@ async def test_news_text_handler_photo_saves_data_and_sets_state(
     """
     message: Message = make_fake_photo()
     news_service = NewsService(adapter=news_adapter_mock)
-    router = NewsRouter(bot=fake_bot, logger=fake_logger, news_service=news_service)
+    router = NewsRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        news_service=news_service,
+        broadcast_storage=fake_news_broadcast_storage,
+    )
 
     await router.news_text_handler(message=message, state=fake_state)
 
@@ -217,7 +272,12 @@ async def test_news_text_handler_photo_saves_data_and_sets_state(
 @pytest.mark.asyncio
 @pytest.mark.news
 async def test_confirm_news_handler_sends_messages_and_edits_preview(
-    fake_bot, make_query_photo, fake_state, fake_logger, news_adapter_mock
+    fake_bot,
+    make_query_photo,
+    fake_state,
+    fake_logger,
+    news_adapter_mock,
+    fake_news_broadcast_storage,
 ):
     query: CallbackQuery = make_query_photo()
     msg: Message = query.message
@@ -237,6 +297,7 @@ async def test_confirm_news_handler_sends_messages_and_edits_preview(
         bot=fake_bot,
         logger=fake_logger,
         news_service=news_service,
+        broadcast_storage=fake_news_broadcast_storage,
     )
 
     await router.confirm_news_handler(query=query, state=fake_state)
@@ -254,7 +315,13 @@ async def test_confirm_news_handler_sends_messages_and_edits_preview(
 @pytest.mark.asyncio
 @pytest.mark.news
 async def test_confirm_news_handler_sends_one_admin_summary_not_per_failure(
-    monkeypatch, fake_bot, make_query_photo, fake_state, fake_logger, news_adapter_mock
+    monkeypatch,
+    fake_bot,
+    make_query_photo,
+    fake_state,
+    fake_logger,
+    news_adapter_mock,
+    fake_news_broadcast_storage,
 ):
     """#285: рассылка нескольким заблокировавшим бота пользователям должна
     слать админам ОДИН итоговый отчёт, а не сообщение на каждую неудачу.
@@ -275,7 +342,12 @@ async def test_confirm_news_handler_sends_one_admin_summary_not_per_failure(
 
     fake_bot.send_message = AsyncMock(side_effect=send_message)
 
-    router = NewsRouter(bot=fake_bot, logger=fake_logger, news_service=news_service)
+    router = NewsRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        news_service=news_service,
+        broadcast_storage=fake_news_broadcast_storage,
+    )
 
     send_to_admins_mock = AsyncMock()
     monkeypatch.setattr(
@@ -301,6 +373,7 @@ async def test_cancel_news_handler_edits_message_and_clears_state(
     make_query_photo,
     make_query_video,
     news_adapter_mock,
+    fake_news_broadcast_storage,
 ) -> None:
     """Тест отмены рассылки новости пользователем.
 
@@ -313,7 +386,12 @@ async def test_cancel_news_handler_edits_message_and_clears_state(
         т.к. код пытался вызвать edit_message_text на медиа-сообщении.
     """
     news_service = NewsService(adapter=news_adapter_mock)
-    router = NewsRouter(bot=fake_bot, logger=fake_logger, news_service=news_service)
+    router = NewsRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        news_service=news_service,
+        broadcast_storage=fake_news_broadcast_storage,
+    )
 
     # === Тест для текстового сообщения ===
     query_text: CallbackQuery = make_fake_query()
@@ -361,3 +439,51 @@ async def test_cancel_news_handler_edits_message_and_clears_state(
     )
     fake_state.clear.assert_awaited()
     query_video.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.news
+async def test_resume_pending_broadcast_sends_to_remaining_recipients(
+    fake_bot, fake_logger, news_service, fake_news_broadcast_storage
+):
+    """#285: после рестарта процесса незавершённая рассылка должна дойти до
+    тех, кто остался в сохранённом прогрессе, а не потеряться вместе с
+    упавшим/передеплоенным процессом.
+    """
+    fake_news_broadcast_storage.get = AsyncMock(
+        return_value={
+            "news": {"content_type": "text", "text": "Hello!"},
+            "recipients": [1, 2],
+        }
+    )
+
+    router = NewsRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        news_service=news_service,
+        broadcast_storage=fake_news_broadcast_storage,
+    )
+
+    await router.resume_pending_broadcast()
+
+    assert fake_bot.send_message.await_count == 2
+    fake_news_broadcast_storage.clear.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.news
+async def test_resume_pending_broadcast_noop_without_saved_state(
+    fake_bot, fake_logger, news_service, fake_news_broadcast_storage
+):
+    """Без сохранённого прогресса возобновление ничего не отправляет."""
+    router = NewsRouter(
+        bot=fake_bot,
+        logger=fake_logger,
+        news_service=news_service,
+        broadcast_storage=fake_news_broadcast_storage,
+    )
+
+    await router.resume_pending_broadcast()
+
+    fake_bot.send_message.assert_not_called()
+    fake_news_broadcast_storage.clear.assert_not_called()

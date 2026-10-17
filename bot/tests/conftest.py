@@ -15,7 +15,7 @@ from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.payment.adapter import PaymentAPIAdapter
-from bot.redis_service import RedisAdminMessageStorage
+from bot.redis_service import RedisAdminMessageStorage, RedisNewsBroadcastStorage
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
@@ -155,6 +155,31 @@ def fake_redis_service(
     redis_service.clear = AsyncMock()
 
     return redis_service
+
+
+@pytest.fixture
+def fake_news_broadcast_storage(
+    fake_redis: RedisClient,
+) -> RedisNewsBroadcastStorage:
+    """Мок хранения прогресса рассылки новостей (#285).
+
+    По умолчанию `get` возвращает None — незавершённой рассылки нет.
+
+    Args:
+        fake_redis (RedisClient): Мок Redis-клиента.
+
+    Returns
+        RedisNewsBroadcastStorage: Замоканный сервис.
+
+    """
+    storage = RedisNewsBroadcastStorage(redis=fake_redis)
+
+    storage.save = AsyncMock()
+    storage.get = AsyncMock(return_value=None)
+    storage.update_recipients = AsyncMock()
+    storage.clear = AsyncMock()
+
+    return storage
 
 
 @pytest.fixture

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -101,6 +102,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
         news_service=container.news_service,
+        broadcast_storage=container.redis_news_broadcast_storage,
     )
 
     dp.include_router(user_router.router)
@@ -110,6 +112,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
+
+    # Возобновляем рассылку, прерванную прошлым падением/деплоем (#285), не
+    # дожидаясь старта polling/webhook — фоновой задачей, чтобы не блокировать
+    # запуск остальной части приложения.
+    asyncio.create_task(news_router.resume_pending_broadcast())
 
     # if container.chat_service is None:
     #     raise RuntimeError("ChatService ещё не инициализирован!")
