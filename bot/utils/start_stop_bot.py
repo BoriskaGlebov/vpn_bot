@@ -1,5 +1,11 @@
+import asyncio
+
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramRetryAfter,
+)
 from aiogram.types import InlineKeyboardMarkup, Message
 
 from bot.app_error.base_error import MessageNotFoundError
@@ -34,7 +40,10 @@ async def send_to_admins(
         TelegramForbiddenError, если он заблокировал бота) логируется и не
         прерывает рассылку остальным (#276): раньше TelegramForbiddenError
         не перехватывался и обрывал цикл, оставляя остальных админов без
-        уведомления.
+        уведомления. TelegramRetryAfter (флуд-контроль) ждёт указанное
+        провайдером время и повторяет попытку один раз, а не считается
+        неудачей сразу (#285): админские уведомления идут сверх темпа
+        основной рассылки, поэтому именно они первыми попадают под лимит.
 
     """
     for admin_id in settings_bot.core.admin_ids:
@@ -47,6 +56,28 @@ async def send_to_admins(
                     user_id=telegram_id, admin_id=admin_id, message_id=mes.message_id
                 )
             logger.info("Отправлено сообщение Админу")
+        except TelegramRetryAfter as e:
+            logger.bind(user=admin_id).warning(
+                f"FloodWait {e.retry_after}s при отправке админу {admin_id}, жду..."
+            )
+            await asyncio.sleep(e.retry_after)
+            try:
+                mes = await bot.send_message(
+                    chat_id=admin_id, text=message_text, reply_markup=reply_markup
+                )
+                if telegram_id and admin_mess_storage:
+                    await admin_mess_storage.add(
+                        user_id=telegram_id,
+                        admin_id=admin_id,
+                        message_id=mes.message_id,
+                    )
+                logger.info("Отправлено сообщение Админу (после FloodWait)")
+            except Exception as exc:
+                logger.bind(user=admin_id).error(
+                    f"Не удалось отправить сообщение админу {admin_id} "
+                    f"после FloodWait: {exc}"
+                )
+            continue
         except (TelegramForbiddenError, TelegramBadRequest) as e:
             logger.bind(user=admin_id).error(
                 f"Не удалось отправить сообщение админу {admin_id}: {e}"
