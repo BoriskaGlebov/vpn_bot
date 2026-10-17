@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+from api.vpn.models import VPNConfigStatus
 from shared.enums.vpn_enum import VPNBackend
 
 
@@ -51,6 +52,25 @@ class SVPNDeleteResponse(BaseModel):
     """Ответ на удаление файла конфигурации."""
 
     deleted: int
+
+
+class SVPNUserConfigsFilter(BaseModel):
+    """Фильтр подсчёта конфигов пользователя по статусу.
+
+    Оба поля обязательны, без значений по умолчанию — `BaseDAO._to_dict`
+    строит условие фильтра через `model_dump(exclude_unset=True)`, и поле,
+    не переданное явно на вызове, выпадает из WHERE молча (см. #263/#234).
+    `status` всегда должен приходить явно, иначе счётчик снова перестанет
+    учитывать статус конфига.
+
+    Attributes
+        user_id (int): Внутренний ID пользователя.
+        status (VPNConfigStatus): Статус конфига, который нужно посчитать.
+
+    """
+
+    user_id: int
+    status: VPNConfigStatus
 
 
 class SVPNCheckLimitResponse(BaseModel):
