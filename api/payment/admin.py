@@ -136,16 +136,19 @@ class PaymentTransactionAdmin(ModelView, model=PaymentTransaction):
         "confirmed_at": format_datetime,  # type: ignore[misc, dict-item]
     }
 
-    readonly_columns = [
-        "gateway_payload",
-        "gateway_transaction_id",
-    ]
-
-    can_create = True
-    can_edit = True
+    # Платёжная запись — финансовый документ. create/edit через SQLAdmin
+    # писали бы amount/status/paid_at/user мимо confirm_payment_flow —
+    # единственного места, где подтверждение сопровождается активацией
+    # подписки и продлением XRay-конфигов (см. #260). Результат правки был
+    # бы рассогласован по построению: либо PAID без подписки, либо подписка
+    # без транзакции, и без единого следа, кто и что изменил (есть только
+    # updated_at). Ручная корректировка статуса — через
+    # PaymentService.admin_confirm_transaction (api/payment/services.py),
+    # который пишет confirmed_by_admin_id.
+    can_create = False
+    can_edit = False
     # Удаление платёжной записи — потеря финансовой истории без возможности
-    # восстановления (ни on_model_delete, ни архивирования нет). Статус
-    # ошибочной транзакции правится через can_edit, удаление не нужно
+    # восстановления (ни on_model_delete, ни архивирования нет).
     # (см. #246).
     can_delete = False
     can_view_details = True
