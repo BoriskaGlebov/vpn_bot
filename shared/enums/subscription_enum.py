@@ -22,3 +22,22 @@ class TrialStatus(str, Enum):
     """Статус активации пробного периода."""
 
     STARTED = "trial_started"
+
+
+class SubscriptionInfoStatus(StrEnum):
+    """Статус подписки в ответе `/subscriptions/info` (#282).
+
+    Раньше `api/` отдавал эти три значения как сырые строки без
+    перечисления, а `bot/` сравнивал их литералами в двух местах —
+    опечатка в любой из четырёх точек молча ломала бы сравнение.
+
+    Attributes
+        ACTIVE: Подписка есть и активна.
+        INACTIVE: Подписка есть, но не активна.
+        NO_SUBSCRIPTION: У пользователя нет ни одной подписки.
+
+    """
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    NO_SUBSCRIPTION = "no_subscription"

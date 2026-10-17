@@ -13,7 +13,10 @@ from api.subscription.schemas import SSubscriptionInfo, SVPNConfig
 from api.users.dao import UserDAO
 from api.users.schemas import SUserOut, SUserTelegramID
 from shared.enums.admin_enum import RoleEnum
-from shared.enums.subscription_enum import ToggleSubscriptionMode
+from shared.enums.subscription_enum import (
+    SubscriptionInfoStatus,
+    ToggleSubscriptionMode,
+)
 
 
 class SubscriptionService:
@@ -289,17 +292,22 @@ class SubscriptionService:
         if not subscription:
             logger.info("У пользователя нет подписки tg_id={}", tg_id)
             return SSubscriptionInfo(
-                status="no_subscription",
+                status=SubscriptionInfoStatus.NO_SUBSCRIPTION,
                 subscription_type=None,
-                remaining="",
+                remaining=None,
                 configs=[],
                 end_date=None,
             )
 
-        status = "active" if subscription.is_active else "inactive"
+        status = (
+            SubscriptionInfoStatus.ACTIVE
+            if subscription.is_active
+            else SubscriptionInfoStatus.INACTIVE
+        )
 
-        remaining_days = subscription.remaining_days()
-        remaining = "UNLIMITED" if remaining_days is None else f"{remaining_days} дней"
+        # Текст для показа пользователю ("N дней" / "UNLIMITED") собирает бот —
+        # отсюда уходит только число (или None для бессрочной подписки), см. #282.
+        remaining = subscription.remaining_days()
         logger.info(
             "Инфо подписки VPN tg_id={} status={} type={}",
             tg_id,

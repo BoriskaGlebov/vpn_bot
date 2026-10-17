@@ -141,7 +141,7 @@ async def test_get_subscription_info_no_subscription(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="no_subscription",
         subscription_type=None,
-        remaining="0",
+        remaining=0,
         configs=[],
         end_date=None,
     )
@@ -165,7 +165,7 @@ async def test_get_subscription_info_active(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="active",
         subscription_type="premium",
-        remaining="10 дней",
+        remaining=10,
         configs=[
             SVPNConfig(
                 file_name="conf1", node_name="main", created_at=datetime(2026, 1, 1)
@@ -202,7 +202,7 @@ async def test_get_subscription_info_inactive_no_end_date(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="inactive",
         subscription_type=None,
-        remaining="0",
+        remaining=0,
         configs=[],
         end_date=None,
     )
@@ -227,7 +227,7 @@ async def test_is_subscription_active_true(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="active",
         subscription_type="premium",
-        remaining="10 дней",
+        remaining=10,
         configs=[],
         end_date=datetime(2026, 1, 1),
     )
@@ -249,7 +249,7 @@ async def test_is_subscription_active_false(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="inactive",
         subscription_type=None,
-        remaining="0",
+        remaining=0,
         configs=[],
         end_date=None,
     )

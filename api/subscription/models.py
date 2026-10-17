@@ -1,4 +1,5 @@
 import datetime
+import math
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -188,13 +189,25 @@ class Subscription(Base):
         )
 
     def remaining_days(self) -> int | None:
-        """Возвращает количество оставшихся дней до окончания.
+        """Возвращает количество оставшихся дней до окончания, округляя вверх.
+
+        `timedelta.days` отбрасывает дробную часть, поэтому при остатке
+        меньше суток (но больше нуля) показывал бы «0 дней» у подписки,
+        которая на самом деле ещё действует (см. #282, тот же источник
+        дефекта, что у #266 в выдаче XRay-конфигов). Для отображения
+        остаток меньше суток округляется вверх до 1 — на is_expired()
+        (сравнение по точному времени) это не влияет.
 
         Returns
-            int | None: Количество дней или None, если подписка бессрочная.
+            int | None: Количество дней (не меньше 1 при остатке > 0, иначе
+                0) или None, если подписка бессрочная.
 
         """
         if not self.end_date:
             return None
-        delta = self.end_date - datetime.datetime.now(tz=datetime.UTC)
-        return max(delta.days, 0)
+        delta_seconds = (
+            self.end_date - datetime.datetime.now(tz=datetime.UTC)
+        ).total_seconds()
+        if delta_seconds <= 0:
+            return 0
+        return math.ceil(delta_seconds / 86400)

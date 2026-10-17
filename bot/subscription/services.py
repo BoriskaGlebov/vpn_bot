@@ -20,6 +20,7 @@ from bot.utils.formatting import format_vpn_config_date, format_vpn_location
 from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
 from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import SubscriptionInfoStatus
 
 m_subscription_local = settings_bot.messages.modes.subscription
 
@@ -218,10 +219,14 @@ class SubscriptionService:
         """
         data = await self.api_adapter.get_subscription_info(tg_id=tg_id)
 
-        if data.status == "no_subscription":
+        if data.status == SubscriptionInfoStatus.NO_SUBSCRIPTION:
             return "У вас нет подписки."
 
-        status = "✅ Активна" if data.status == "active" else "🔒 Неактивна"
+        status = (
+            "✅ Активна"
+            if data.status == SubscriptionInfoStatus.ACTIVE
+            else "🔒 Неактивна"
+        )
         sbs_type = (
             f"<b>{data.subscription_type.upper()}</b>" if data.subscription_type else ""
         )
@@ -230,8 +235,14 @@ class SubscriptionService:
             if data.end_date
             else "Бесконечность не предел"
         )
+        # Текст собирается здесь, а не в api/ (#282): remaining — число дней
+        # или None для бессрочной подписки, формулировка "N дней"/"UNLIMITED"
+        # — язык интерфейса, не данные.
+        remaining_text_value = (
+            "UNLIMITED" if data.remaining is None else f"{data.remaining} дней"
+        )
 
-        remaining_text = f"{data.remaining} до ({end_date})"
+        remaining_text = f"{remaining_text_value} до ({end_date})"
 
         conf_list = "\n\n".join(
             f"📌 <b>{conf.file_name}</b>\n"

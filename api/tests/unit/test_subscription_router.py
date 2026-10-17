@@ -90,7 +90,7 @@ def test_subscription_info(client, mock_service):
         return_value={
             "status": "active",
             "subscription_type": "premium",
-            "remaining": "10 days",
+            "remaining": 10,
             "configs": [],
             "end_date": None,
         }

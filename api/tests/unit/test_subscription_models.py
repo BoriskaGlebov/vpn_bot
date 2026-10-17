@@ -1,8 +1,11 @@
+import datetime
+
 from sqlalchemy.dialects import postgresql
 
 from api.subscription.models import (
     DEVICE_LIMITS,
     SUBSCRIPTION_PRIORITY,
+    Subscription,
     SubscriptionType,
 )
 from api.users.models import User
@@ -37,3 +40,25 @@ def test_current_subscription_order_by_knows_every_type():
     )
     for sub_type in SubscriptionType:
         assert sub_type.name in compiled, compiled
+
+
+def test_remaining_days_rounds_up_partial_day():
+    """#282: остаток меньше суток у действующей подписки не должен
+    показываться как «0 дней» — timedelta.days отбрасывает дробную часть.
+    """
+    sub = Subscription(
+        end_date=datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=12)
+    )
+    assert sub.remaining_days() == 1
+
+
+def test_remaining_days_zero_when_already_expired():
+    sub = Subscription(
+        end_date=datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=1)
+    )
+    assert sub.remaining_days() == 0
+
+
+def test_remaining_days_none_for_unlimited():
+    sub = Subscription(end_date=None)
+    assert sub.remaining_days() is None
