@@ -719,3 +719,67 @@ async def test_admin_confirm_payment_user_blocked_bot_still_completes(mocker):
     # Остальные шаги подтверждения выполнены, несмотря на блокировку.
     edit_admin_messages_mock.assert_awaited_once()
     state_mock.clear.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_toggle_subscription_mode_preserves_used_trial(mocker):
+    """#280: used_trial терялся при переключении режима — trial=False
+    жёстко возвращал кнопку триала тому, кто его уже использовал.
+    """
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    state_mock = AsyncMock()
+    state_mock.get_data.return_value = {"founder": False, "used_trial": True}
+    callback_data = Mock(mode="premium")
+
+    kb_mock = mocker.patch("bot.subscription.router.subscription_options_kb")
+
+    router = SubscriptionRouter(
+        bot=AsyncMock(),
+        logger=Mock(),
+        subscription_service=AsyncMock(),
+        referral_service=AsyncMock(),
+        redis_service=AsyncMock(),
+        vpn_service=AsyncMock(),
+        payment_mess_storage=AsyncMock(),
+    )
+
+    await router.toggle_subscription_mode(
+        query=query_mock, state=state_mock, callback_data=callback_data
+    )
+
+    kb_mock.assert_called_once_with(premium=True, trial=True, founder=False)
+
+
+@pytest.mark.asyncio
+async def test_toggle_subscription_mode_preserves_founder(mocker):
+    """#280: founder терялся при переключении режима — основатель видел
+    обычные тарифы вместо своих после переключения standard/premium.
+    """
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    state_mock = AsyncMock()
+    state_mock.get_data.return_value = {"founder": True, "used_trial": False}
+    callback_data = Mock(mode="standard")
+
+    kb_mock = mocker.patch("bot.subscription.router.subscription_options_kb")
+
+    router = SubscriptionRouter(
+        bot=AsyncMock(),
+        logger=Mock(),
+        subscription_service=AsyncMock(),
+        referral_service=AsyncMock(),
+        redis_service=AsyncMock(),
+        vpn_service=AsyncMock(),
+        payment_mess_storage=AsyncMock(),
+    )
+
+    await router.toggle_subscription_mode(
+        query=query_mock, state=state_mock, callback_data=callback_data
+    )
+
+    # founder=True -> trial=True независимо от used_trial (та же логика,
+    # что в cancel_subscription).
+    kb_mock.assert_called_once_with(premium=False, trial=True, founder=True)

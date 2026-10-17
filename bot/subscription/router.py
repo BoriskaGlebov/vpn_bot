@@ -678,10 +678,21 @@ class SubscriptionRouter(BaseRouter):
             )
         )
 
+        # #280: founder/used_trial терялись при переключении режима —
+        # жёсткий trial=False возвращал кнопку триала тому, кто его уже
+        # использовал, а founder видел обычные тарифы вместо своих.
+        # cancel_subscription рядом восстанавливает оба признака из
+        # состояния правильно — здесь делаем так же.
+        data = await state.get_data()
+        founder = data.get("founder", False)
+        used_trial = data.get("used_trial", False)
+
         await msg.edit_text(
             text=text,
             reply_markup=subscription_options_kb(
-                premium=True if premium else False, trial=False
+                premium=premium,
+                trial=True if founder else used_trial,
+                founder=founder,
             ),
         )
         await query.answer("")
@@ -750,7 +761,7 @@ class SubscriptionRouter(BaseRouter):
                 reply_markup=admin_payment_kb(
                     user_id=user.id,
                     months=months,
-                    premium=premium if premium else False,
+                    premium=premium,
                     transaction_id=transaction_id,
                 ),
                 admin_mess_storage=self.redis_service,
