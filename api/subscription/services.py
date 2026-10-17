@@ -224,6 +224,20 @@ class SubscriptionService:
                 current_sub.extend(months=months)
                 current_sub.type = SubscriptionType.FOUNDER
                 return UserMapper.to_schema(user=user_model)
+        # #275: активная подписка найдена выше только среди подписок того же
+        # типа (sub_type == sbscr.type) — активная подписка ДРУГОГО типа
+        # (например, старый TRIAL) сюда не попадает и без этой деактивации
+        # осталась бы брошенной: is_active=True после создания новой записи.
+        for existing_sub in user_model.subscriptions:
+            if existing_sub.is_active:
+                logger.info(
+                    "Деактивация прежней подписки другого типа: user_id={}, "
+                    "type={}, new_type={}",
+                    user_id,
+                    existing_sub.type,
+                    sub_type,
+                )
+                existing_sub.deactivate()
         logger.info(
             "Создание новой подписки: user_id={}, months={}, type={}",
             user_id,

@@ -204,6 +204,46 @@ async def test_activate_paid_create(session, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_activate_paid_create_deactivates_other_active_type(session, monkeypatch):
+    """Активная подписка ДРУГОГО типа (например, TRIAL) не попадает в поиск по
+    sub_type и раньше оставалась брошенной is_active=True (#275) — теперь
+    деактивируется явно перед созданием новой платной подписки.
+    """
+    user = MagicMock()
+    user.role.name = RoleEnum.USER
+
+    abandoned_trial = MagicMock(spec=Subscription)
+    abandoned_trial.is_active = True
+    abandoned_trial.type = SubscriptionType.TRIAL
+    abandoned_trial.deactivate = MagicMock()
+
+    user.subscriptions = [abandoned_trial]
+    user.current_subscription = abandoned_trial
+
+    monkeypatch.setattr(
+        "api.subscription.services.UserDAO.find_one_or_none",
+        AsyncMock(return_value=user),
+    )
+
+    mock_dao = AsyncMock()
+    monkeypatch.setattr(
+        "api.subscription.services.SubscriptionDAO.activate_subscription",
+        mock_dao,
+    )
+    monkeypatch.setattr(
+        "api.subscription.services.UserMapper.to_schema",
+        MagicMock(return_value={"ok": True}),
+    )
+
+    await SubscriptionService.activate_paid_subscription(
+        session, user_id=123, months=3, premium=False
+    )
+
+    abandoned_trial.deactivate.assert_called_once()
+    mock_dao.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_get_subscription_info(user, session, monkeypatch):
     """Пользователь с активной подпиской -> status='active'."""
     monkeypatch.setattr(

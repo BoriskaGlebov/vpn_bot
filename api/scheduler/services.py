@@ -42,6 +42,11 @@ class SubscriptionScheduler:
         2. Если подписка скоро истечет — вызывает `_handle_expiring_soon`.
         3. Проверяет превышение лимита VPN-конфигов для пользователя через
            `_handle_unlimited_overuse`.
+        4. Деактивирует все остальные брошенные активные подписки пользователя
+           (см. #275) — `current_subscription` отдаёт только одну, наиболее
+           приоритетную запись, но активных записей у пользователя может
+           оказаться несколько (унаследованные от момента до фикса создания
+           подписок, см. `SubscriptionService.activate_paid_subscription`).
 
         Args:
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
@@ -82,6 +87,22 @@ class SubscriptionScheduler:
             stats.add(s)
             events.extend(e)
 
+        abandoned_active = [
+            other
+            for other in user.subscriptions
+            if other is not sub and other.is_active
+        ]
+        for other in abandoned_active:
+            if other.is_expired():
+                logger.warning(
+                    f"Брошенная активная подписка пользователя {user.username} "
+                    f"истекла (тип {other.type}) — current_subscription её не "
+                    f"показал первой, но деактивация обязательна (#275)"
+                )
+                s, e = await self._handle_expired(session, user, other)
+                stats.add(s)
+                events.extend(e)
+
         s, e = await self._handle_active_limit_exceeded(session, user)
         stats.add(s)
         events.extend(e)
@@ -116,7 +137,14 @@ class SubscriptionScheduler:
             stats.expired += 1
             logger.info(f"Деактивирована подписка пользователя {user.username}")
 
-            current_subscription = user.current_subscription
+            # #275: не берём current_subscription сразу после смены флага —
+            # отсортированная при загрузке коллекция user.subscriptions не
+            # пересортируется в памяти при мутации is_active, поэтому ищем
+            # явно другую активную запись, а не полагаемся на порядок.
+            other_active = next(
+                (s for s in user.subscriptions if s is not sub and s.is_active),
+                None,
+            )
             events.append(
                 UserNotifyEvent(
                     type=SubscriptionEventType.USER_NOTIFY,
@@ -124,21 +152,15 @@ class SubscriptionScheduler:
                     username=user.username or "undefined",
                     first_name=user.first_name or "undefined",
                     last_name=user.last_name or "undefined",
-                    active_sbs=bool(
-                        current_subscription.is_active
-                        if current_subscription
-                        else False
-                    ),
+                    active_sbs=bool(other_active.is_active) if other_active else False,
                     message="Подписка истекла",
                     subscription_type=(
-                        current_subscription.type.value.upper()
-                        if current_subscription
+                        other_active.type.value.upper()
+                        if other_active and other_active.type
                         else "UNKNOWN"
                     ),
                     remaining_days=(
-                        current_subscription.remaining_days()
-                        if current_subscription
-                        else 0
+                        other_active.remaining_days() if other_active else 0
                     ),
                 )
             )
