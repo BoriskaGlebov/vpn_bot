@@ -253,6 +253,46 @@ async def test_confirm_news_handler_sends_messages_and_edits_preview(
 
 @pytest.mark.asyncio
 @pytest.mark.news
+async def test_confirm_news_handler_sends_one_admin_summary_not_per_failure(
+    monkeypatch, fake_bot, make_query_photo, fake_state, fake_logger, news_adapter_mock
+):
+    """#285: рассылка нескольким заблокировавшим бота пользователям должна
+    слать админам ОДИН итоговый отчёт, а не сообщение на каждую неудачу.
+    """
+    from aiogram.exceptions import TelegramForbiddenError
+
+    query: CallbackQuery = make_query_photo()
+
+    news_service = NewsService(adapter=news_adapter_mock)
+    fake_state.get_data.return_value = {
+        "news": {"content_type": "text", "text": "Hello!"},
+        "target": "all",
+    }
+    news_service.all_users_id = AsyncMock(return_value=[1, 2, 3])
+
+    async def send_message(chat_id, *args, **kwargs):
+        raise TelegramForbiddenError(method="send_message", message="blocked")
+
+    fake_bot.send_message = AsyncMock(side_effect=send_message)
+
+    router = NewsRouter(bot=fake_bot, logger=fake_logger, news_service=news_service)
+
+    send_to_admins_mock = AsyncMock()
+    monkeypatch.setattr(
+        "bot.news.router.send_to_admins",
+        send_to_admins_mock,
+    )
+
+    await router.confirm_news_handler(query=query, state=fake_state)
+
+    send_to_admins_mock.assert_awaited_once()
+    summary_text = send_to_admins_mock.call_args.kwargs["message_text"]
+    assert "Не доставлено: 3" in summary_text
+    assert "заблокировали бота (3)" in summary_text
+
+
+@pytest.mark.asyncio
+@pytest.mark.news
 async def test_cancel_news_handler_edits_message_and_clears_state(
     make_fake_query,
     fake_logger,

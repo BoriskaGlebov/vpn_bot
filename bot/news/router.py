@@ -141,6 +141,49 @@ class NewsRouter(BaseRouter):
             "❌ Создание рассылки отменено.", reply_markup=ReplyKeyboardRemove()
         )
 
+    @staticmethod
+    def _format_id_list(ids: list[int], limit: int = 5) -> str:
+        """Форматирует список id для отчёта: первые `limit` + "и ещё N"."""
+        if not ids:
+            return ""
+        head = ", ".join(str(i) for i in ids[:limit])
+        rest = len(ids) - limit
+        return f"{head} и ещё {rest}" if rest > 0 else head
+
+    def _format_broadcast_summary(
+        self,
+        sent: int,
+        forbidden_ids: list[int],
+        bad_request_ids: list[int],
+        other_ids: list[int],
+    ) -> str:
+        """Собирает один итоговый отчёт админам вместо сообщения на каждую неудачу.
+
+        (#285): на базе с заметной долей заблокировавших бота цикл рассылки
+        иначе превращается в сотни отдельных сообщений админам.
+        """
+        failed = len(forbidden_ids) + len(bad_request_ids) + len(other_ids)
+        lines = [
+            "📰 Рассылка новостей завершена.",
+            f"Доставлено: {sent}",
+            f"Не доставлено: {failed}",
+        ]
+        if forbidden_ids:
+            lines.append(
+                f"— заблокировали бота ({len(forbidden_ids)}): "
+                f"{self._format_id_list(forbidden_ids)}"
+            )
+        if bad_request_ids:
+            lines.append(
+                f"— TelegramBadRequest ({len(bad_request_ids)}): "
+                f"{self._format_id_list(bad_request_ids)}"
+            )
+        if other_ids:
+            lines.append(
+                f"— прочие ошибки ({len(other_ids)}): {self._format_id_list(other_ids)}"
+            )
+        return "\n".join(lines)
+
     async def _send_news(self, user_id: int, news_data: dict[str, Any]) -> None:
         """Отправляет одну новость пользователю по её типу (текст/фото/видео)."""
         if news_data["content_type"] == "text":
@@ -371,6 +414,9 @@ class NewsRouter(BaseRouter):
                     f"Начата рассылка новостей "
                     f"({query.from_user.id}), тип новости: {news['content_type']}"
                 )
+                forbidden_ids: list[int] = []
+                bad_request_ids: list[int] = []
+                other_ids: list[int] = []
                 for user_id in recipients:
                     try:
                         await self._send_news(user_id, news)
@@ -386,41 +432,43 @@ class NewsRouter(BaseRouter):
                             sent += 1
                         except Exception as exc:
                             failed += 1
+                            other_ids.append(user_id)
                             self.logger.exception(
                                 f"Повторная отправка не удалась {user_id}: {exc}"
                             )
 
                     except TelegramForbiddenError:
                         failed += 1
+                        forbidden_ids.append(user_id)
                         self.logger.warning(
                             f"Пользователь {user_id} заблокировал бота, пропускаем."
-                        )
-                        await send_to_admins(
-                            bot=self.bot,
-                            message_text=f"Пользователь {user_id} "
-                            f"заблокировал бота, пропускаем.",
                         )
 
                     except TelegramBadRequest as e:
                         failed += 1
+                        bad_request_ids.append(user_id)
                         self.logger.warning(
                             f"Ошибка TelegramBadRequest для {user_id}: {e}"
                         )
-                        await send_to_admins(
-                            bot=self.bot,
-                            message_text=f"Ошибка TelegramBadRequest для {user_id}: {e}",
-                        )
                     except Exception as exc:
                         failed += 1
+                        other_ids.append(user_id)
                         self.logger.exception(
                             f"Неизвестная ошибка при отправке {user_id}: {exc}"
                         )
-                        await send_to_admins(
-                            bot=self.bot,
-                            message_text=f"Неизвестная ошибка при отправке {user_id}: {exc}",
-                        )
 
                     await asyncio.sleep(0.05)
+
+                if failed:
+                    await send_to_admins(
+                        bot=self.bot,
+                        message_text=self._format_broadcast_summary(
+                            sent=sent,
+                            forbidden_ids=forbidden_ids,
+                            bad_request_ids=bad_request_ids,
+                            other_ids=other_ids,
+                        ),
+                    )
             self.logger.bind(user=format_username(query.from_user)).info(
                 f"Рассылка завершена. Отправлено: {sent}, ошибок: {failed}"
             )
