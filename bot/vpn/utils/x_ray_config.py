@@ -437,10 +437,17 @@ class ThreeXUIAdapter:
     async def _get_inbound(self, inbounds_cfg: list[SInbound]) -> list[Inbound]:
         """Получает inbound-конфигурации, соответствующие заданным критериям.
 
-        Сопоставление выполняется по портам и имени (remark). Найденным
-        inbound проставляется `protocol` из совпавшей конфигурации — он
-        известен только тут, т.к. `_get_all_inbounds` отдаёт «сырые» inbound
-        панели без привязки к `self.inbounds_name`.
+        Сопоставление выполняется только по порту — порт на панели уникален
+        для каждого inbound и однозначно его определяет, а `remark` (имя)
+        на стороне панели — чистая косметика для администратора. Раньше
+        матчинг шёл по паре (порт, имя), и переименование inbound на
+        панели (даже на один символ) без синхронной правки `name` в
+        конфиге бота приводило к `ThreeXUIInboundNotFoundError`, хотя порт
+        никуда не менялся.
+
+        Найденным inbound проставляется `protocol` из совпавшей
+        конфигурации — он известен только тут, т.к. `_get_all_inbounds`
+        отдаёт «сырые» inbound панели без привязки к `self.inbounds_name`.
 
         Args:
             inbounds_cfg: Список ожидаемых inbound-конфигураций.
@@ -453,10 +460,10 @@ class ThreeXUIAdapter:
 
         """
         all_inbounds = await self._get_all_inbounds()
-        cfg_by_key = {(cfg.port, cfg.name): cfg for cfg in inbounds_cfg}
+        cfg_by_port = {cfg.port: cfg for cfg in inbounds_cfg}
         find_inb = []
         for inb in all_inbounds:
-            cfg = cfg_by_key.get((inb.port, inb.remark))
+            cfg = cfg_by_port.get(inb.port)
             if cfg is None:
                 continue
             inb.protocol = cfg.protocol
@@ -701,11 +708,12 @@ class ThreeXUIAdapter:
         """
         async with self._session():
             inbounds_with_clients = await self._get_inbounds_with_clients()
-            allow_inb = {(cfg.port, cfg.name) for cfg in self.inbounds_name}
+            # Только порт — см. docstring `_get_inbound`: remark/name — косметика.
+            allow_ports = {cfg.port for cfg in self.inbounds_name}
             correct = [
                 (inb, uuids)
                 for inb, uuids in inbounds_with_clients
-                if (inb.port, inb.remark) in allow_inb
+                if inb.port in allow_ports
             ]
             if len(correct) < len(self.inbounds_name):
                 logger.error(f"Не все Inbound найдены.{[inb for inb, _ in correct]}")

@@ -165,6 +165,32 @@ async def test_get_inbound_success(adapter):
 
 
 @pytest.mark.asyncio
+async def test_get_inbound_matches_by_port_despite_remark_mismatch(adapter):
+    """Переименование inbound на панели не должно ломать матчинг.
+
+    Порт уникален и однозначно определяет inbound; `remark`/`name` —
+    косметика для админки. Раньше матчинг шёл по паре (порт, имя), и
+    правка `remark` на панели без синхронной правки конфига бота давала
+    `ThreeXUIInboundNotFoundError`, хотя порт не менялся.
+    """
+    adapter._get_all_inbounds = AsyncMock(
+        return_value=[
+            MagicMock(port=1000, remark="🇫🇷 | XHTTP (переименован на панели)", id=1),
+        ]
+    )
+
+    adapter.inbounds_name = [
+        FakeInboundCfg(port=1000, name="🇫🇷 | XHTTP", protocol="vless_reality_tcp"),
+    ]
+
+    result = await adapter._get_inbound(adapter.inbounds_name)
+
+    assert len(result) == 1
+    assert result[0].id == 1
+    assert result[0].protocol == "vless_reality_tcp"
+
+
+@pytest.mark.asyncio
 async def test_add_new_config(adapter):
     adapter._login = AsyncMock()
     adapter._logout = AsyncMock()
