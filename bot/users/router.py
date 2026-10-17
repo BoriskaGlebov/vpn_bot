@@ -27,7 +27,6 @@ from bot.core.filters import IsAdmin
 from bot.integrations.redis_client import RedisClient
 from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
-from bot.subscription.enums import ToggleSubscriptionMode
 from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.inline_kb import id_link_kb
 from bot.users.keyboards.markup_kb import main_kb
@@ -38,6 +37,7 @@ from bot.utils.base_router import BaseRouter
 from bot.utils.formatting import format_username
 from bot.utils.start_stop_bot import send_to_admins
 from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import ToggleSubscriptionMode
 from shared.enums.vpn_enum import VPNBackend
 
 if TYPE_CHECKING:

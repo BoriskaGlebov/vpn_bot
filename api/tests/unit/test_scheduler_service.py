@@ -180,6 +180,35 @@ async def test_process_user_without_subscription(scheduler, session, user):
 
 
 @pytest.mark.asyncio
+async def test_process_user_deactivates_abandoned_active_subscription(
+    scheduler, session, user, expired_subscription
+):
+    """#275: current_subscription выбирает только приоритетную запись — если
+    у пользователя осталась ещё одна истёкшая активная подписка (брошенная
+    от старой покупки/триала), планировщик должен деактивировать и её, а не
+    только приоритетную.
+    """
+    priority_sub = expired_subscription  # уже истекла, is_active=True
+    abandoned_sub = SimpleNamespace(
+        is_active=True,
+        type=SimpleNamespace(value="trial"),
+        end_date=datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=5),
+        is_expired=lambda: True,
+        remaining_days=lambda: -5,
+    )
+
+    user.current_subscription = priority_sub
+    user.subscriptions = [priority_sub, abandoned_sub]
+    user.vpn_configs = []
+
+    stats, events = await scheduler._process_user(session, user)
+
+    assert priority_sub.is_active is False
+    assert abandoned_sub.is_active is False
+    assert stats.expired == 2
+
+
+@pytest.mark.asyncio
 async def test_check_all_subscriptions(scheduler, session, user, expired_subscription):
     """Сквозной прогон по всем пользователям: агрегирует статистику.
 
@@ -187,6 +216,7 @@ async def test_check_all_subscriptions(scheduler, session, user, expired_subscri
     сервис его больше не вызывает сам (см. api/scheduler/services.py).
     """
     user.current_subscription = expired_subscription
+    user.subscriptions = [expired_subscription]
     user.vpn_configs = []
 
     # Мокаем результат SQLAlchemy

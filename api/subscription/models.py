@@ -1,4 +1,5 @@
 import datetime
+import math
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -9,7 +10,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from api.app_error.base_error import AppError, TrialAlreadyUsedError
+from api.app_error.base_error import AppError
 from api.core.config import settings_api
 from api.core.database import Base, int_pk
 
@@ -37,11 +38,28 @@ class SubscriptionType(str, Enum):
     ULTIMATE = "ultimate"
 
 
-DEVICE_LIMITS = {
+# #277: приоритет подписки при сортировке User.subscriptions — единый источник,
+# из которого строится case() в api/users/models.py. Любое значение SubscriptionType,
+# не попавшее в этот словарь, ловится тестом (перебор enum), а не тихим else_=0.
+SUBSCRIPTION_PRIORITY: dict[SubscriptionType, int] = {
+    SubscriptionType.TRIAL: 1,
+    SubscriptionType.STANDARD: 2,
+    SubscriptionType.PREMIUM: 3,
+    SubscriptionType.FOUNDER: 4,
+    SubscriptionType.ULTIMATE: 5,
+}
+
+# Практический "безлимит" для ULTIMATE: VPNConfigDAO.get_limit_status сравнивает
+# current < limit, поэтому ноль или отсутствие ключа означает "лимит 0", а не
+# "без ограничений" — такое значение-сигнал должно быть явно большим, а не None.
+DEVICE_LIMIT_UNLIMITED = 10_000
+
+DEVICE_LIMITS: dict[SubscriptionType, int] = {
     SubscriptionType.TRIAL: 1,
     SubscriptionType.STANDARD: settings_api.core.max_configs_per_user,
-    SubscriptionType.FOUNDER: int(settings_api.core.max_configs_per_user * 2),
     SubscriptionType.PREMIUM: int(settings_api.core.max_configs_per_user * 2),
+    SubscriptionType.FOUNDER: int(settings_api.core.max_configs_per_user * 2),
+    SubscriptionType.ULTIMATE: DEVICE_LIMIT_UNLIMITED,
 }
 
 
@@ -60,7 +78,8 @@ class Subscription(Base):
         start_date (datetime): Дата начала подписки.
         end_date (datetime | None): Дата окончания подписки (None — бессрочная).
         user (User): Пользователь, владелец подписки.
-        type: (SubscriptionType): Тип подписки TRIAL, STANDARD, PREMIUM.
+        type (SubscriptionType | None): Тип подписки; None до первого
+            activate() (запись только создана, ещё не активирована).
 
     """
 
@@ -69,12 +88,17 @@ class Subscription(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
     )
     is_active: Mapped[bool] = mapped_column(default=False)
-    type: Mapped[SubscriptionType] = mapped_column(
+    # Optional: до вызова activate() у только что созданной записи (см.
+    # SubscriptionDAO.activate_subscription) тип не задан — аннотация без
+    # None противоречила бы nullable=True и фактическому поведению кода,
+    # который везде защищается `subscription.type.value if subscription.type
+    # else None` (#283).
+    type: Mapped[SubscriptionType | None] = mapped_column(
         SQLEnum(SubscriptionType, name="subscription_type"), default=None, nullable=True
     )
     start_date: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.UTC),
+        default=lambda: datetime.datetime.now(settings_api.core.tzinfo),
     )
     end_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -99,20 +123,19 @@ class Subscription(Base):
     ) -> None:
         """Активирует подписку на указанное количество дней или месяцев.
 
+        Правило «пробный период даётся один раз» (`User.has_used_trial`)
+        здесь не проверяется и не выставляется — это бизнес-правило живёт
+        в `SubscriptionService.start_trial_subscription`, а не в модели
+        подписки: иначе метод модели менял бы соседнюю сущность (`User`),
+        дублируя проверку с сервисом (см. #283, тот же класс, что #244).
+
         Args:
             sub_type (SubscriptionType): Тип подписки пользователя, по умолчанию Стандарт
             days (int|None): Количество дней на подписку
             month_num (int|None): Количество месяцев на подписку
 
         """
-        now = datetime.datetime.now(tz=datetime.UTC)
-        if sub_type == SubscriptionType.TRIAL:
-            if self.user.has_used_trial:
-                raise TrialAlreadyUsedError(
-                    user_id=self.user.id,
-                    username=self.user.username,
-                )
-            self.user.has_used_trial = True
+        now = datetime.datetime.now(tz=settings_api.core.tzinfo)
         self.type = sub_type
         self.is_active = True
         self.start_date = now
@@ -137,9 +160,11 @@ class Subscription(Base):
             months (int): Количество месяцев для продления.
 
         """
-        if not self.end_date or self.end_date < datetime.datetime.now(datetime.UTC):
+        if not self.end_date or self.end_date < datetime.datetime.now(
+            settings_api.core.tzinfo
+        ):
             # если подписка бессрочная или уже истекла → начинаем с текущей даты
-            new_start = datetime.datetime.now(datetime.UTC)
+            new_start = datetime.datetime.now(settings_api.core.tzinfo)
         else:
             # если подписка активна → начинаем с текущей даты окончания
             new_start = self.end_date
@@ -155,7 +180,7 @@ class Subscription(Base):
     def deactivate(self) -> None:
         """Деактивирует подписку."""
         self.is_active = False
-        self.end_date = datetime.datetime.now(tz=datetime.UTC)
+        self.end_date = datetime.datetime.now(tz=settings_api.core.tzinfo)
 
     def is_expired(self) -> bool:
         """Проверяет, истекла ли подписка.
@@ -167,17 +192,30 @@ class Subscription(Base):
         if not self.is_active:
             return True
         return bool(
-            self.end_date and datetime.datetime.now(datetime.UTC) > self.end_date
+            self.end_date
+            and datetime.datetime.now(settings_api.core.tzinfo) > self.end_date
         )
 
     def remaining_days(self) -> int | None:
-        """Возвращает количество оставшихся дней до окончания.
+        """Возвращает количество оставшихся дней до окончания, округляя вверх.
+
+        `timedelta.days` отбрасывает дробную часть, поэтому при остатке
+        меньше суток (но больше нуля) показывал бы «0 дней» у подписки,
+        которая на самом деле ещё действует (см. #282, тот же источник
+        дефекта, что у #266 в выдаче XRay-конфигов). Для отображения
+        остаток меньше суток округляется вверх до 1 — на is_expired()
+        (сравнение по точному времени) это не влияет.
 
         Returns
-            int | None: Количество дней или None, если подписка бессрочная.
+            int | None: Количество дней (не меньше 1 при остатке > 0, иначе
+                0) или None, если подписка бессрочная.
 
         """
         if not self.end_date:
             return None
-        delta = self.end_date - datetime.datetime.now(tz=datetime.UTC)
-        return max(delta.days, 0)
+        delta_seconds = (
+            self.end_date - datetime.datetime.now(tz=settings_api.core.tzinfo)
+        ).total_seconds()
+        if delta_seconds <= 0:
+            return 0
+        return math.ceil(delta_seconds / 86400)

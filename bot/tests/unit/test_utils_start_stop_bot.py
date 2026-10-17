@@ -1,7 +1,7 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 
 import bot.core.config as config
 from bot.utils import start_stop_bot as start_module
@@ -178,6 +178,32 @@ async def test_send_to_admins_handles_bad_request(
     fake_logger.error.assert_called_once_with(
         "Не удалось отправить сообщение админу 42: Telegram server says - bad request"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.utils
+async def test_send_to_admins_skips_blocked_admin_and_notifies_rest(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_bot: AsyncMock,
+) -> None:
+    """#276: TelegramForbiddenError (админ заблокировал бота) не является
+    TelegramBadRequest — раньше он не перехватывался и обрывал рассылку,
+    оставляя остальных админов без уведомления.
+    """
+
+    async def send_message(chat_id, *args, **kwargs):
+        if chat_id == 1:
+            raise TelegramForbiddenError(method=Mock(), message="Forbidden")
+        return Mock(message_id=1)
+
+    fake_bot.send_message = AsyncMock(side_effect=send_message)
+
+    monkeypatch.setattr(start_module.settings_bot.core, "admin_ids", [1, 2])
+
+    await start_module.send_to_admins(bot=fake_bot, message_text="Тест")
+
+    assert fake_bot.send_message.await_count == 2
+    fake_bot.send_message.assert_any_await(chat_id=2, text="Тест", reply_markup=None)
 
 
 @pytest.mark.asyncio

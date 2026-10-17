@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from api.core.database import Base, int_pk, str_null_true, str_uniq
 from api.payment.model import PaymentTransaction
 from api.referrals.models import Referral
-from api.subscription.models import Subscription
+from api.subscription.models import SUBSCRIPTION_PRIORITY, Subscription
 from api.vpn.models import VPNConfig
 
 
@@ -50,12 +50,16 @@ class User(Base):
         cascade="all, delete-orphan",
         uselist=True,
         lazy="selectin",
+        # Приоритет строится из SUBSCRIPTION_PRIORITY (api/subscription/models.py) —
+        # единого источника для всех пяти значений SubscriptionType, а не
+        # перечислением вручную (см. #277: FOUNDER/ULTIMATE выпадали в else_=0).
         order_by=lambda: (
             Subscription.is_active.desc(),
             case(
-                (Subscription.type == "PREMIUM", 3),
-                (Subscription.type == "STANDARD", 2),
-                (Subscription.type == "TRIAL", 1),
+                *(
+                    (Subscription.type == sub_type, priority)
+                    for sub_type, priority in SUBSCRIPTION_PRIORITY.items()
+                ),
                 else_=0,
             ).desc(),
             Subscription.end_date.desc(),

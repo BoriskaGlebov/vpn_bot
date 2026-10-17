@@ -253,6 +253,25 @@ class TransactionIdMissingError(AppError):
         super().__init__(message="Отсутствует идентификатор транзакции.")
 
 
+class InvalidSubscriptionPeriodError(AppError):
+    """`months` из callback-данных не найден в карте тарифов (#278).
+
+    Carte тарифов (`price_map`/`price_map_premium`/`price_map_founder`)
+    заполняется сервером, а `months` приходит из callback-данных кнопки —
+    то есть от клиента. Подделанное или устаревшее (после смены тарифов)
+    значение не должно давать необработанный `KeyError`.
+    """
+
+    code = "invalid_subscription_period"
+    status_code = 400
+
+    def __init__(self, months: int) -> None:
+        super().__init__(
+            message=f"Неизвестный период подписки: {months} мес.",
+            details={"months": months},
+        )
+
+
 class SubscriptionActivationFailedError(AppError):
     """После подтверждения оплаты не удалось получить активную подписку пользователя."""
 

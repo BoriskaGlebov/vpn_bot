@@ -3,6 +3,7 @@ import datetime
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.core.config import settings_api
 from api.referrals.dao import ReferralDAO
 from api.referrals.schemas import SReferralByInvite
 from api.subscription.dao import SubscriptionDAO
@@ -173,7 +174,7 @@ class ReferralService:
             await session.flush()
 
         referral.bonus_given = True
-        referral.bonus_given_at = datetime.datetime.now(datetime.UTC)
+        referral.bonus_given_at = datetime.datetime.now(settings_api.core.tzinfo)
 
         await session.flush()
         logger.info(

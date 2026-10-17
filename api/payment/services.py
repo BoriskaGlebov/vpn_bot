@@ -604,7 +604,7 @@ class PaymentService:
             )
         sub_res = await self.sub_service.activate_paid_subscription(
             session=session,
-            user_id=tx.tg_id,
+            tg_id=tx.tg_id,
             months=tx.subscription_months,
             premium=tx.is_premium,
         )
