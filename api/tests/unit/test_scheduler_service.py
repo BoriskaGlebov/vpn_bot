@@ -209,6 +209,38 @@ async def test_process_user_deactivates_abandoned_active_subscription(
 
 
 @pytest.mark.asyncio
+async def test_process_user_keeps_configs_when_other_subscription_still_valid(
+    scheduler, session, user, active_subscription, vpn_config
+):
+    """#299: живая оплаченная подписка + брошенная истёкшая запись рядом —
+    планировщик не должен удалять конфиги платящего пользователя.
+
+    Регрессия на правку #275: тот фикс научил планировщик обходить ВСЕ
+    активные подписки и деактивировать брошенные, но `_handle_expired` для
+    брошенной записи удалял `user.vpn_configs` целиком, не проверяя, что у
+    пользователя рядом есть другая активная неистёкшая подписка.
+    """
+    abandoned_sub = SimpleNamespace(
+        is_active=True,
+        type=SimpleNamespace(value="trial"),
+        end_date=datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=10),
+        is_expired=lambda: True,
+        remaining_days=lambda: -10,
+    )
+
+    user.current_subscription = active_subscription
+    user.subscriptions = [active_subscription, abandoned_sub]
+    user.vpn_configs = [vpn_config]
+
+    stats, events = await scheduler._process_user(session, user)
+
+    assert abandoned_sub.is_active is False
+    assert stats.configs_deleted == 0
+    assert vpn_config.status is None
+    assert not any(isinstance(e, DeleteVPNConfigsEvent) for e in events)
+
+
+@pytest.mark.asyncio
 async def test_check_all_subscriptions(scheduler, session, user, expired_subscription):
     """Сквозной прогон по всем пользователям: агрегирует статистику.
 

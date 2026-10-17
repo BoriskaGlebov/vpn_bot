@@ -116,8 +116,11 @@ class SubscriptionScheduler:
         """Обрабатывает истёкшую подписку пользователя.
 
         Если подписка активна, деактивирует её и отправляет уведомление пользователю.
-        Если подписка закончилась более чем на один день назад, удаляет все VPN-конфиги
-        пользователя и уведомляет администраторов.
+        Если подписка закончилась более чем на один день назад и у пользователя не
+        осталось другой активной неистёкшей подписки, удаляет все VPN-конфиги
+        пользователя и уведомляет администраторов (#299: раньше удаление не
+        проверяло остальные подписки — брошенная истёкшая запись рядом с живой
+        оплаченной подпиской удаляла доступ у платящего пользователя).
 
         Args:
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
@@ -169,7 +172,24 @@ class SubscriptionScheduler:
         if sub.end_date:
             delta = datetime.datetime.now(settings_api.core.tzinfo) - sub.end_date
 
-            if delta.days >= 1:
+            # Удаляем конфиги только если у пользователя не осталось другой
+            # активной неистёкшей подписки (#299). `other_active` выше (если
+            # вычислен) смотрит только на is_active, без проверки срока —
+            # этого недостаточно: брошенная is_active=True запись сама может
+            # быть истёкшей. is_expired() учитывает оба условия (is_active и
+            # end_date), поэтому достаточно одной проверки.
+            has_other_valid_subscription = any(
+                not other.is_expired()
+                for other in user.subscriptions
+                if other is not sub
+            )
+
+            if delta.days >= 1 and has_other_valid_subscription:
+                logger.info(
+                    f"Подписка пользователя {user.username} истекла, но есть "
+                    f"другая активная неистёкшая подписка — конфиги не удаляются"
+                )
+            elif delta.days >= 1:
                 deleted_configs = await self._delete_configs(
                     session, user, user.vpn_configs
                 )
