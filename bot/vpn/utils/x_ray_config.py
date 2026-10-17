@@ -3,6 +3,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Any
 
 from loguru import logger
@@ -470,7 +471,7 @@ class ThreeXUIAdapter:
     async def add_new_config(
         self,
         tg_id: int,
-        days: int = 0,
+        expires_at: datetime | None = None,
     ) -> tuple[dict[str, list[str]], str]:
         """Создаёт новую VPN-конфигурацию пользователя.
 
@@ -484,8 +485,11 @@ class ThreeXUIAdapter:
 
         Args:
             tg_id: Telegram ID пользователя.
-            days: Срок действия конфигурации в днях.
-                0 — бессрочная конфигурация.
+            expires_at: Абсолютный момент окончания действия конфигурации.
+                `None` — бессрочная конфигурация. Передаётся как точка во
+                времени (а не как число дней от момента выдачи), чтобы срок
+                конфига на панели не мог разъехаться со сроком подписки из-за
+                округления.
 
         Returns
             tuple: (
@@ -503,7 +507,8 @@ class ThreeXUIAdapter:
             APIClientError: При ошибках API.
 
         """
-        logger.info("Создание новой конфигурации для tg_id={} на {} дней", tg_id, days)
+        logger.info("Создание новой конфигурации для tg_id={} до {}", tg_id, expires_at)
+        expiry_time_ms = int(expires_at.timestamp() * 1000) if expires_at else 0
         # Уникальный suffix на каждый вызов add_new_config — иначе subId
         # получается детерминированным (одинаковым для user_id+ноды) и
         # повторная генерация просто доливает клиентов в ту же подписку
@@ -522,11 +527,6 @@ class ThreeXUIAdapter:
             for inb in inbounds_correct:
                 uid = str(uuid.uuid4())
                 logger.debug("Сгенерирован UUID пользователя: {}", uid)
-                remaining_days = (
-                    (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
-                    if days > 0
-                    else 0
-                )
                 if inb.protocol is None:
                     # _get_inbound всегда проставляет protocol из совпавшей
                     # SInbound — None здесь означает рассинхронизацию между
@@ -551,7 +551,7 @@ class ThreeXUIAdapter:
                     flow=flow,
                     limitIp=0,
                     totalGB=0,
-                    expiryTime=remaining_days,
+                    expiryTime=expiry_time_ms,
                     reset=0,
                     enable=True,
                     comment="Пользователь добавил конфиг через бота",

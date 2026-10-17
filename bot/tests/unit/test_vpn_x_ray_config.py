@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -182,7 +183,7 @@ async def test_add_new_config(adapter):
     ):
         result, url = await adapter.add_new_config(
             tg_id=123,
-            days=1,
+            expires_at=datetime(2030, 1, 1, tzinfo=UTC),
         )
 
     assert "config_ids" in result
@@ -191,7 +192,35 @@ async def test_add_new_config(adapter):
     assert "user_123" in url
 
     adapter._add_user.assert_called_once()
+    added_user = adapter._add_user.call_args.kwargs["user_add"]
+    assert added_user.expiryTime == int(
+        datetime(2030, 1, 1, tzinfo=UTC).timestamp() * 1000
+    )
     adapter._logout.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_add_new_config_unlimited_when_no_expiry(adapter):
+    """`expires_at=None` — осознанно бессрочная конфигурация.
+
+    В отличие от случая, когда срок посчитан ошибочно (баг #266), здесь
+    `None` передаётся явно вызывающим кодом для бессрочной подписки.
+    """
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock()
+    adapter._add_user = AsyncMock()
+    adapter._get_inbound = AsyncMock(
+        return_value=[
+            MagicMock(id=1, remark="test", protocol=VPNProtocol.VLESS_REALITY_XHTTP)
+        ]
+    )
+
+    with patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"):
+        await adapter.add_new_config(tg_id=123, expires_at=None)
+
+    added_user = adapter._add_user.call_args.kwargs["user_add"]
+    assert added_user.expiryTime == 0
 
 
 @pytest.mark.asyncio
@@ -212,7 +241,9 @@ async def test_add_new_config_warns_when_restart_failed(adapter):
         patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000),
         patch("bot.vpn.utils.x_ray_config.logger") as mock_logger,
     ):
-        result, url = await adapter.add_new_config(tg_id=123, days=1)
+        result, url = await adapter.add_new_config(
+            tg_id=123, expires_at=datetime(2030, 1, 1, tzinfo=UTC)
+        )
 
     assert "uuid-1" in result["config_ids"]
     mock_logger.warning.assert_called_once()

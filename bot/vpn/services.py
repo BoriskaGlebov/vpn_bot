@@ -309,14 +309,18 @@ class VPNService:
         if end and end.tzinfo is None:
             end = end.replace(tzinfo=settings_bot.core.tzinfo)
 
-        days_left = max((end - now).days, 0) if end else 0
+        if end is not None and end <= now:
+            # is_active мог устареть (обновляется только планировщиком, см.
+            # #275) — если по факту срок уже прошёл, выдавать бессрочный
+            # доступ нельзя, даже если флаг ещё не снят.
+            raise SubscriptionNotFoundError(tg_id=tg_user.id)
 
-        logger.debug("Осталось дней tg_id={} days={}", tg_user.id, days_left)
+        logger.debug("Подписка tg_id={} действует до {}", tg_user.id, end)
         adapter = self.xray_registry.get(name=location)
         async with xray_lock:
             sub_info, sub_url = await adapter.add_new_config(
                 tg_id=tg_user.id,
-                days=days_left,
+                expires_at=end,
             )
 
         sub_ids = sub_info.get("sub_ids", [])

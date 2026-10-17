@@ -468,7 +468,13 @@ async def test_generate_xray_subscription_db_error_rollback(mocker):
 
 
 @pytest.mark.asyncio
-async def test_generate_xray_subscription_days_calculation(mocker):
+async def test_generate_xray_subscription_passes_exact_end_date(mocker):
+    """Срок конфига на панели — это `end_date` подписки, а не целые дни от выдачи.
+
+    Регрессия на #266: раньше срок пересчитывался в целые дни
+    (`timedelta.days`), из-за чего короткие остатки подписки округлялись до
+    нуля — а ноль 3x-ui трактует как "бессрочно".
+    """
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
 
@@ -505,7 +511,46 @@ async def test_generate_xray_subscription_days_calculation(mocker):
     args = xray_adapter.add_new_config.await_args.kwargs
 
     assert args["tg_id"] == 123
-    assert args["days"] > 300
+    assert args["expires_at"].replace(tzinfo=None) == future_date
+
+
+@pytest.mark.asyncio
+async def test_generate_xray_subscription_rejects_already_expired(mocker):
+    """`end_date` в прошлом не должен давать бессрочный доступ.
+
+    Регрессия на #266: `is_active` обновляется только планировщиком (#275),
+    поэтому между истечением подписки и следующим прогоном планировщика флаг
+    может ещё стоять `True`, хотя `end_date` уже в прошлом. Раньше такой
+    остаток округлялся до `days_left=0`, то есть выдавался бессрочный
+    конфиг — худший возможный исход именно для просроченной подписки.
+    """
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+
+    xray_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    xray_registry.get.return_value = xray_adapter
+
+    tg_user = SimpleNamespace(id=123)
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    past_date = datetime.now().replace(year=datetime.now().year - 1)
+
+    user = mocker.Mock()
+    user.telegram_id = 123
+    user.current_subscription = SimpleNamespace(is_active=True, end_date=past_date)
+
+    mocker.patch.object(
+        service,
+        "_limit_and_user_inf",
+        return_value=user,
+    )
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await service.generate_xray_subscription(tg_user=tg_user, location="ru")
+
+    xray_adapter.add_new_config.assert_not_called()
 
 
 @pytest.mark.asyncio
