@@ -19,7 +19,7 @@ from api.app_error.base_error import (
     PaymentTransactionNotFoundError,
 )
 from api.payment.dao import PaymentTransactionDAO
-from api.payment.model import PaymentSource, PaymentStatus, PaymentTransaction
+from api.payment.model import PaymentSource, PaymentTransaction
 from api.payment.schemas import (
     SCreateTransaction,
     SGatewayTransactionFilter,
@@ -32,6 +32,7 @@ from api.payment.schemas import (
     SYearIncome,
 )
 from api.payment.services import PaymentService
+from shared.enums.payment_enum import PaymentStatus
 
 
 def make_transaction(**overrides) -> SimpleNamespace:

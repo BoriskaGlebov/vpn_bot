@@ -23,10 +23,11 @@ from bot.payment.dependencies import (
     get_payment_webhook_service,
     get_subscription_messages,
 )
-from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
+from bot.payment.dto import PaymentWebhookDTO
 from bot.payment.exceptions import PaymentAmountMismatchError
 from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.utils.start_stop_bot import send_to_admins
+from shared.enums.payment_enum import PaymentStatus
 
 router = APIRouter(prefix="/platega", tags=["webhook"])
 
@@ -72,7 +73,7 @@ async def _notify_transaction_conflict(
     )
 
     webhook_confirms_payment = event.status == PaymentStatus.PAID
-    transaction_is_paid = transaction_status == "PAID"
+    transaction_is_paid = transaction_status == PaymentStatus.PAID
 
     if webhook_confirms_payment and transaction_is_paid:
         logger.info(

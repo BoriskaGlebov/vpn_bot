@@ -15,10 +15,10 @@ SUBSCRIPTION_BADGE_COLORS = {
 }
 
 PAYMENT_BADGE_COLORS = {
-    "PAID": "success",
-    "PENDING": "warning",
-    "FAILED": "danger",
-    "CANCELED": "secondary",
+    "paid": "success",
+    "pending": "warning",
+    "failed": "danger",
+    "canceled": "secondary",
 }
 
 VPN_CONFIG_BADGE_COLORS = {

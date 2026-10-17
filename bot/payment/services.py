@@ -7,12 +7,7 @@ from loguru import logger
 
 from bot.notification.services import NotificationService
 from bot.payment.adapter import PaymentAPIAdapter
-from bot.payment.dto import (
-    CreatedPaymentDTO,
-    CreatePaymentDTO,
-    PaymentStatus,
-    PaymentWebhookDTO,
-)
+from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookDTO
 from bot.payment.exceptions import PaymentAmountMismatchError
 from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.schemas import (
@@ -21,6 +16,7 @@ from bot.payment.schemas import (
     SPaymentTransactionResponse,
 )
 from bot.subscription.enums import ToggleSubscriptionMode
+from shared.enums.payment_enum import PaymentStatus
 
 if TYPE_CHECKING:
     from subscription.services import SubscriptionService

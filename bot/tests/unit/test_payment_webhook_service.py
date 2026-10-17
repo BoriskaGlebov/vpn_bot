@@ -4,9 +4,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
+from bot.payment.dto import PaymentWebhookDTO
 from bot.payment.exceptions import PaymentAmountMismatchError
 from bot.payment.services import PaymentWebhookService
+from shared.enums.payment_enum import PaymentStatus
 
 
 @pytest.fixture

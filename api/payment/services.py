@@ -9,7 +9,7 @@ from api.app_error.base_error import (
     PaymentTransactionNotFoundError,
 )
 from api.payment.dao import PaymentTransactionDAO
-from api.payment.model import PaymentSource, PaymentStatus, PaymentTransaction
+from api.payment.model import PaymentSource, PaymentTransaction
 from api.payment.schemas import (
     SAdminConfirmPayment,
     SAttachProviderPayment,
@@ -30,6 +30,7 @@ from api.referrals.schemas import GrantReferralBonusResponse
 from api.referrals.services import ReferralService
 from api.subscription.services import SubscriptionService
 from api.users.models import User
+from shared.enums.payment_enum import PaymentStatus
 
 
 class PaymentService:

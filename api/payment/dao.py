@@ -5,7 +5,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.dao.base import BaseDAO
-from api.payment.model import PaymentStatus, PaymentTransaction
+from api.payment.model import PaymentTransaction
+from shared.enums.payment_enum import PaymentStatus
 
 
 class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):

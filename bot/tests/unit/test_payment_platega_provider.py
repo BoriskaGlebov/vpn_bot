@@ -5,9 +5,10 @@ import httpx
 import pytest
 from starlette.datastructures import Headers
 
-from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentStatus
+from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO
 from bot.payment.exceptions import PaymentProviderError
 from bot.payment.providers.platega import PlategaProvider
+from shared.enums.payment_enum import PaymentStatus
 
 
 def make_asgi_headers(pairs: dict[str, str]) -> Headers:

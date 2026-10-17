@@ -6,13 +6,9 @@ from decimal import Decimal
 import httpx
 from loguru import logger
 
-from bot.payment.dto import (
-    CreatedPaymentDTO,
-    CreatePaymentDTO,
-    PaymentStatus,
-    PaymentWebhookDTO,
-)
+from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookDTO
 from bot.payment.exceptions import PaymentProviderError
+from shared.enums.payment_enum import PaymentStatus
 
 
 class PlategaProvider:
@@ -85,9 +81,14 @@ class PlategaProvider:
             ) from e
 
         response_data = response.json()
+        # Нормализация статуса провайдера сделана явно (#258) — сравнение не
+        # должно зависеть от регистра значений PaymentStatus: с "PENDING"
+        # (верхний регистр, как и у остальных статусов Platega) оно останется
+        # корректным независимо от того, в каком регистре объявлены значения
+        # самого enum.
         status = (
             PaymentStatus.PENDING
-            if response_data["status"].lower() == PaymentStatus.PENDING
+            if response_data["status"].upper() == "PENDING"
             else PaymentStatus.FAILED
         )
         logger.info(

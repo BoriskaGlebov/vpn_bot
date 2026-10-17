@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
 from typing import Any
+
+from shared.enums.payment_enum import PaymentStatus
 
 
 @dataclass(slots=True)
@@ -15,14 +16,6 @@ class CreatePaymentDTO:
     success_url: str | None = None
     failed_url: str | None = None
     payload: str | None = None
-
-
-class PaymentStatus(str, Enum):
-    """Статус платежа у провайдера."""
-
-    PENDING = "pending"
-    PAID = "paid"
-    FAILED = "failed"
 
 
 @dataclass(slots=True)

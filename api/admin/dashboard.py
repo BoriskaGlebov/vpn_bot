@@ -6,11 +6,12 @@ from sqladmin.templating import _TemplateResponse
 from sqlalchemy import func, select
 
 from api.core.database import async_session
-from api.payment.model import PaymentStatus, PaymentTransaction
+from api.payment.model import PaymentTransaction
 from api.referrals.models import Referral
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.models import User
 from api.vpn.models import VPNConfig
+from shared.enums.payment_enum import PaymentStatus
 
 
 class DashboardView(BaseView):

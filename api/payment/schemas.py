@@ -5,9 +5,10 @@ from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from api.payment.model import PaymentSource, PaymentStatus
+from api.payment.model import PaymentSource
 from api.referrals.schemas import GrantReferralBonusResponse
 from api.users.schemas import SUserOut
+from shared.enums.payment_enum import PaymentStatus
 
 
 class Currency(str, Enum):

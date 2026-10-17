@@ -9,18 +9,10 @@ from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base
+from shared.enums.payment_enum import PaymentStatus
 
 if TYPE_CHECKING:
     from api.users.models import User
-
-
-class PaymentStatus(str, Enum):
-    """Статус платежной транзакции."""
-
-    PENDING = "PENDING"
-    PAID = "PAID"
-    FAILED = "FAILED"
-    CANCELED = "CANCELED"
 
 
 class PaymentSource(str, Enum):
