@@ -2,10 +2,16 @@ from pathlib import Path
 
 import pytest
 
+from bot.core.config import settings_bot
 from bot.subscription.router import SubscriptionStates
 from bot.users.utils.text_generator import vpn_button_text
 from bot.vpn.router import VPNRouter
 from shared.enums.vpn_enum import VPNBackend
+
+# Ключ ноды не фиксирован ("main"/"de"/...) — берём любую реально
+# сконфигурированную стандартную ноду, а не угадываем имя (см. #268: смена
+# ключа ноды в конфиге уже один раз сломала тест, завязанный на "main").
+STANDARD_LOCATION = next(iter(settings_bot.vpn.standard_nodes()))
 
 
 @pytest.fixture
@@ -95,7 +101,7 @@ async def test_get_config_amnezia_wg_success(
     await router.get_config_amnezia_wg(
         message=message,
         state=state,
-        location="main",
+        location=STANDARD_LOCATION,
     )
 
     router.vpn_service.generate_user_config.assert_awaited_once()
@@ -122,7 +128,9 @@ async def test_location_flag_reaches_handler_via_real_dispatch(
     `flags={"location": ...}` + `LocationFlagMiddleware`, а не её отдельные
     части.
     """
-    message = make_fake_message(text=vpn_button_text(VPNBackend.AMNEZIA, "main"))
+    message = make_fake_message(
+        text=vpn_button_text(VPNBackend.AMNEZIA, STANDARD_LOCATION)
+    )
 
     message.answer_media_group = mocker.AsyncMock()
     message.answer_photo = mocker.AsyncMock()
@@ -140,7 +148,7 @@ async def test_location_flag_reaches_handler_via_real_dispatch(
 
     router.vpn_service.generate_user_config.assert_awaited_once()
     kwargs = router.vpn_service.generate_user_config.await_args.kwargs
-    assert kwargs["node_name"] == "main"
+    assert kwargs["node_name"] == STANDARD_LOCATION
 
 
 @pytest.mark.asyncio
