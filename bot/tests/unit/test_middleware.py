@@ -130,6 +130,73 @@ def test_resolve_user_message_known_safe_code_passes_through(
     assert result == safe_text
 
 
+@pytest.mark.middleware
+def test_resolve_user_message_telegram_bad_request_no_self_duplicate(
+    fake_logger, fake_bot
+):
+    """#284: telegram_bad_request раньше подставлял свой же текст в шаблон
+    f"⚠️ Неверный запрос: {message}", давая дубль в одной строке.
+    """
+    mw = ErrorHandlerMiddleware(logger=fake_logger, bot=fake_bot)
+    envelope = ErrorEnvelope(
+        error=ErrorDetail(code="telegram_bad_request", message="⚠️ Неверный запрос.")
+    )
+
+    result = mw._resolve_user_message(envelope)
+
+    assert result == "⚠️ Неверный запрос."
+    assert result.count("Неверный запрос") == 1
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "telegram_forbidden",
+        "telegram_unauthorized",
+        "telegram_not_found",
+        "telegram_entity_too_large",
+        "telegram_network_error",
+        "telegram_server_error",
+        "telegram_restarting",
+        "telegram_migrate_to_chat",
+        "telegram_conflict",
+        "telegram_api_error",
+    ],
+)
+@pytest.mark.middleware
+def test_resolve_user_message_telegram_codes_now_reachable(fake_logger, fake_bot, code):
+    """#284: эти десять кодов из telegram_map раньше попадали в case `_` и
+    показывали общий текст ошибки вместо написанного для них сообщения.
+    """
+    mw = ErrorHandlerMiddleware(logger=fake_logger, bot=fake_bot)
+    written_text = "⚠️ Заранее написанный текст для этого кода."
+    envelope = ErrorEnvelope(error=ErrorDetail(code=code, message=written_text))
+
+    result = mw._resolve_user_message(envelope)
+
+    assert result == written_text
+    assert result != settings_bot.messages.general.common_error
+
+
+@pytest.mark.middleware
+def test_resolve_user_message_vpn_limit_shows_current_not_limit_twice(
+    fake_logger, fake_bot
+):
+    """#284: счётчик лимита показывал limit/limit вместо current/limit."""
+    mw = ErrorHandlerMiddleware(logger=fake_logger, bot=fake_bot)
+    envelope = ErrorEnvelope(
+        error=ErrorDetail(
+            code="vpn_limit_reached",
+            message="Пользователь достиг лимита VPN-конфигов (2/5)",
+            details={"tg_id": 1, "limit": 5, "current": 2, "username": "u"},
+        )
+    )
+
+    result = mw._resolve_user_message(envelope)
+
+    assert "2/5" in result
+
+
 @pytest.mark.asyncio
 @pytest.mark.middleware
 async def test_middleware_logs_exception(monkeypatch, fake_logger, fake_bot):

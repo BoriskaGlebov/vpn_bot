@@ -247,6 +247,7 @@ class VPNLimitError(AppError):
         self,
         user_id: int,
         limit: int,
+        current: int,
         username: str,
     ) -> None:
         """Инициализирует ошибку лимита VPN.
@@ -254,14 +255,16 @@ class VPNLimitError(AppError):
         Args:
             user_id: ID пользователя.
             limit: Максимально допустимое количество конфигов.
+            current: Текущее количество конфигов пользователя.
             username: Telegram username.
 
         """
         super().__init__(
-            message=f"Пользователь @{username} достиг лимита ({limit}) конфигов.",
+            message=f"Пользователь @{username} достиг лимита ({current}/{limit}) конфигов.",
             details={
                 "user_id": user_id,
                 "limit": limit,
+                "current": current,
                 "username": username,
             },
         )

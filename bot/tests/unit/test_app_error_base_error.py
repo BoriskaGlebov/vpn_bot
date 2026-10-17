@@ -61,20 +61,26 @@ def test_subscription_not_found_error():
 
 
 @pytest.mark.parametrize(
-    ("tg_id", "limit", "username"),
+    ("tg_id", "limit", "current", "username"),
     [
-        (1, 3, "john"),
-        (2, 5, ""),
+        (1, 3, 3, "john"),
+        (2, 5, 4, ""),
     ],
 )
-def test_vpn_limit_error(tg_id, limit, username):
-    err = VPNLimitError(tg_id, limit, username)
+def test_vpn_limit_error(tg_id, limit, current, username):
+    err = VPNLimitError(tg_id=tg_id, limit=limit, current=current, username=username)
 
     assert err.tg_id == tg_id
     assert err.limit == limit
+    assert err.current == current
     assert err.username == username
-    assert (
-        str(err)
-        == f"[vpn_limit_reached] Пользователь достиг лимита VPN-конфигов ({limit})"
+    assert str(err) == (
+        f"[vpn_limit_reached] Пользователь достиг лимита "
+        f"VPN-конфигов ({current}/{limit})"
     )
-    assert err.details == {"tg_id": tg_id, "limit": limit, "username": username}
+    assert err.details == {
+        "tg_id": tg_id,
+        "limit": limit,
+        "current": current,
+        "username": username,
+    }

@@ -142,6 +142,7 @@ async def test_generate_user_config_limit_reached(mocker, user_out):
 
     assert err.tg_id == 123456
     assert err.limit == 1
+    assert err.current == 1
 
     ssh_factory.assert_not_called()
     api_adapter.add_config.assert_not_called()

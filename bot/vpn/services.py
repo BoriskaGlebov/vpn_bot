@@ -120,6 +120,7 @@ class VPNService:
             raise VPNLimitError(
                 tg_id=user.telegram_id,
                 limit=limit.limit,
+                current=limit.current,
                 username=user.username or "",
             )
 

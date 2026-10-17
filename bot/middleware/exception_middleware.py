@@ -162,7 +162,8 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         match code:
             case "vpn_limit_reached":
                 return (
-                    f"⚠️ Достигнут лимит конфигов ({details.get('limit', 0)}/{details.get('limit', 0)}).\n\n"
+                    f"⚠️ Достигнут лимит конфигов "
+                    f"({details.get('current', 0)}/{details.get('limit', 0)}).\n\n"
                     f"🚀 В премиум-подписке доступно больше конфигов и расширенные возможности.\n\n"
                     f"Подключить премиум или задать вопрос:\n"
                     f"💬 @BorisisTheBlade"
@@ -178,13 +179,19 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
                 retry = details.get("retry_after", "?")
                 return f"⚠️ Слишком много запросов. Попробуйте через {retry} секунд."
 
-            case "telegram_bad_request":
-                return f"⚠️ Неверный запрос: {message}"
-
             case "unexpected_error":
                 return settings_bot.messages.general.common_error
 
-            case code if code in _SAFE_USER_FACING_CODES:
+            case code if code in _SAFE_USER_FACING_CODES or code.startswith(
+                "telegram_"
+            ):
+                # `telegram_*` коды (кроме telegram_retry_after выше) несут
+                # готовый текст из telegram_map в _normalize_exception — он
+                # наш собственный, не из внешнего ответа, поэтому доверяем
+                # ему напрямую, а не оборачиваем в собственный шаблон (#284):
+                # раньше telegram_bad_request подставлял то же сообщение в
+                # f"⚠️ Неверный запрос: {message}", давая дубль в строке, а
+                # остальные девять telegram_*-кодов сюда вообще не доходили.
                 return message
 
             case _:
