@@ -81,10 +81,6 @@ async def test_get_config_amnezia_wg_success(
 ):
     router.redis.set.return_value = True
 
-    status_msg = mocker.MagicMock()
-    status_msg.edit_text = mocker.AsyncMock()
-
-    message.answer.return_value = status_msg
     message.answer_media_group = mocker.AsyncMock()
     message.answer_photo = mocker.AsyncMock()
 
@@ -129,9 +125,6 @@ async def test_location_flag_reaches_handler_via_real_dispatch(
     """
     message = make_fake_message(text=vpn_button_text(VPNBackend.AMNEZIA, Location.MAIN))
 
-    status_msg = mocker.MagicMock()
-    status_msg.edit_text = mocker.AsyncMock()
-    message.answer.return_value = status_msg
     message.answer_media_group = mocker.AsyncMock()
     message.answer_photo = mocker.AsyncMock()
 

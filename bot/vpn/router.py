@@ -186,7 +186,11 @@ class VPNRouter(BaseRouter):
 
         """
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
-            status_msg = await message.answer(
+            # Отправлено с ReplyKeyboardRemove — Telegram не позволяет
+            # редактировать сообщения с обычной (не inline) клавиатурой
+            # (`editMessageText` даёт "message can't be edited"), поэтому
+            # готовность сообщается новым сообщением, а не правкой этого.
+            await message.answer(
                 text=start_text,
                 reply_markup=ReplyKeyboardRemove(),
             )
@@ -205,7 +209,7 @@ class VPNRouter(BaseRouter):
                 )
 
                 try:
-                    await status_msg.edit_text(text=m_vpn.config_ready)
+                    await message.answer(text=m_vpn.config_ready)
 
                     await message.answer_media_group(
                         media=[
