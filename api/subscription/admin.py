@@ -1,3 +1,6 @@
+from typing import Any
+
+from loguru import logger
 from markupsafe import Markup
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter
@@ -6,7 +9,8 @@ from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 
 from api.admin.badges import SUBSCRIPTION_BADGE_COLORS, badge
-from api.subscription.models import Subscription
+from api.app_error.base_error import TrialAlreadyUsedError
+from api.subscription.models import Subscription, SubscriptionType
 from api.users.models import User
 
 
@@ -121,6 +125,41 @@ class SubscriptionAdmin(ModelView, model=Subscription):
     can_delete = False
     can_view_details = True
     details_template = "admin/subscription_details.html"
+
+    async def on_model_change(
+        self,
+        data: dict[str, Any],
+        model: Subscription,
+        is_created: bool,
+        request: Request,
+    ) -> None:
+        """Запрещает выдать TRIAL через форму тому, кто уже его использовал.
+
+        `Subscription.activate()` — единственный путь, который сверяется с
+        `User.has_used_trial`; эта форма меняет `type`/`is_active` напрямую,
+        минуя проверку (#277) — без неё TRIAL можно было выдать повторно,
+        выставив тип руками. Остальные типы форма не ограничивает: там нет
+        аналогичного одноразового бизнес-правила.
+        """
+        if data.get("type") != SubscriptionType.TRIAL.name:
+            return
+
+        user = model.user
+        if user is None and data.get("user") is not None:
+            try:
+                user_id = int(data["user"])
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Админка: не удалось определить пользователя для проверки "
+                    "TRIAL из data['user']={}",
+                    data.get("user"),
+                )
+                return
+            async with self.session_maker() as session:
+                user = await session.get(User, user_id)
+
+        if user is not None and user.has_used_trial:
+            raise TrialAlreadyUsedError(user_id=user.id, username=user.username)
 
     def _with_eager_options(
         self, stmt: Select[tuple[Subscription]]

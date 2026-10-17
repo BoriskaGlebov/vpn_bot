@@ -37,11 +37,28 @@ class SubscriptionType(str, Enum):
     ULTIMATE = "ultimate"
 
 
-DEVICE_LIMITS = {
+# #277: приоритет подписки при сортировке User.subscriptions — единый источник,
+# из которого строится case() в api/users/models.py. Любое значение SubscriptionType,
+# не попавшее в этот словарь, ловится тестом (перебор enum), а не тихим else_=0.
+SUBSCRIPTION_PRIORITY: dict[SubscriptionType, int] = {
+    SubscriptionType.TRIAL: 1,
+    SubscriptionType.STANDARD: 2,
+    SubscriptionType.PREMIUM: 3,
+    SubscriptionType.FOUNDER: 4,
+    SubscriptionType.ULTIMATE: 5,
+}
+
+# Практический "безлимит" для ULTIMATE: VPNConfigDAO.get_limit_status сравнивает
+# current < limit, поэтому ноль или отсутствие ключа означает "лимит 0", а не
+# "без ограничений" — такое значение-сигнал должно быть явно большим, а не None.
+DEVICE_LIMIT_UNLIMITED = 10_000
+
+DEVICE_LIMITS: dict[SubscriptionType, int] = {
     SubscriptionType.TRIAL: 1,
     SubscriptionType.STANDARD: settings_api.core.max_configs_per_user,
-    SubscriptionType.FOUNDER: int(settings_api.core.max_configs_per_user * 2),
     SubscriptionType.PREMIUM: int(settings_api.core.max_configs_per_user * 2),
+    SubscriptionType.FOUNDER: int(settings_api.core.max_configs_per_user * 2),
+    SubscriptionType.ULTIMATE: DEVICE_LIMIT_UNLIMITED,
 }
 
 
