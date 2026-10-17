@@ -83,6 +83,7 @@ protocol_version = "v2"
 use_local = false
 location_prefix= "SOF"
 flag= "🇧🇬"
+premium = true
 
 
 # === PROXY ===

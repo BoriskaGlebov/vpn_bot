@@ -10,7 +10,14 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from box import Box
 from loguru import logger
-from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SecretStr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import SettingsConfigDict
 
 from bot.app_error.base_error import (
@@ -224,8 +231,13 @@ class VPNNode(SettingsCommon):
             из имени контейнера — на одном и том же `amnezia-awg2` может быть
             развёрнут как v2, так и v3 (см. `bot/vpn/utils/amnezia_wg.py`).
         use_local (bool): Использовать локальную ноду.
-        location_prefix (str): Префикс для определения локации файла, базово Франция
+        location_prefix (str): Префикс локации для отображения пользователю
+            на кнопках (например, "FR", "SOF") — не ключ ноды в `nodes`.
         flag (str): Флаг страны для кнопок.
+        premium (bool): Нода доступна только премиум-пользователям. Делит
+            сконфигурированные ноды на стандартный и премиум наборы —
+            добавление новой ноды в конфиг автоматически делает её доступной
+            без правок кода (см. `VPNRegistry.standard_nodes`/`.premium_nodes`).
         proxy (ProxySettings | None): Настройки прокси.
         xray (XRaySettingsSOF | None): Настройки XRay.
 
@@ -239,6 +251,7 @@ class VPNNode(SettingsCommon):
     use_local: bool = False
     location_prefix: str = "FR"
     flag: str = "🏴‍☠️"
+    premium: bool = False
     proxy: ProxySettings | None = None
     xray: XRaySettings | None = None
 
@@ -325,29 +338,50 @@ class VPNRegistry(SettingsCommon):
     def __contains__(self, name: str) -> bool:
         return name in self.nodes
 
-    @property
-    def main(self) -> VPNNode:
-        """Основная нода."""
-        return self.get("main")
+    def standard_nodes(self) -> dict[str, VPNNode]:
+        """Ноды, доступные всем пользователям (`premium=False`).
 
-    @property
-    def sof(self) -> VPNNode:
-        """Нода SOF."""
-        return self.get("sof")
+        Набор определяется конфигом, а не списком имён в коде — новая нода
+        в `app_config*.toml` попадает сюда автоматически, без правок кода
+        (см. аудит, #268: раньше `Location` был статическим enum с ключами
+        нод, прописанными руками).
 
-    @property
-    def fi(self) -> VPNNode | None:
-        """Нода FI.
+        Returns
+            dict[str, VPNNode]: Ноды по ключу, без премиум-нод.
 
-        В отличие от `main`/`sof` может быть не сконфигурирована —
-        вызывающий код обязан проверять на None перед использованием.
         """
-        return self.get_optional("fi")
+        return {key: node for key, node in self.nodes.items() if not node.premium}
 
-    @property
-    def waw(self) -> VPNNode | None:
-        """Нода WAW."""
-        return self.get_optional("waw")
+    def premium_nodes(self) -> dict[str, VPNNode]:
+        """Ноды, доступные только премиум-пользователям (`premium=True`).
+
+        Returns
+            dict[str, VPNNode]: Премиум-ноды по ключу.
+
+        """
+        return {key: node for key, node in self.nodes.items() if node.premium}
+
+    @model_validator(mode="after")
+    def _ensure_standard_node_configured(self) -> "VPNRegistry":
+        """Хотя бы одна нода без `premium` обязана быть сконфигурирована.
+
+        Иначе у обычных (не премиум) пользователей не будет ни одной
+        VPN-локации. Раньше эту гарантию давало наличие ноды с конкретным
+        ключом "main" (`Location.MAIN`); теперь — любая нода с
+        `premium=False`, независимо от её ключа.
+
+        Raises
+            ValueError: Если все сконфигурированные ноды премиум (или нод
+                нет вовсе).
+
+        """
+        if not self.standard_nodes():
+            raise ValueError(
+                "Должна быть сконфигурирована хотя бы одна VPN-нода без "
+                "premium=true — иначе у обычных пользователей не будет ни "
+                "одной доступной локации."
+            )
+        return self
 
 
 class VPNSettingsMain(SettingsCommon):

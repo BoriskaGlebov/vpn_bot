@@ -1,45 +1,56 @@
-from bot.core.config import settings_bot
-from bot.users.enums import (
-    Location,
-    PremiumLocation,
-    available_locations,
-    available_premium_locations,
-)
+import pytest
+from pydantic import ValidationError
+
+from bot.core.config import VPNRegistry, settings_bot
 
 
-def test_location_values_are_node_keys():
-    """Значение `Location`/`PremiumLocation` — ключ ноды, а не `location_prefix`.
+def test_standard_and_premium_nodes_partition_configured_nodes():
+    """`standard_nodes`/`premium_nodes` — разбиение `nodes` без пересечений и пропусков.
 
-    Регрессия на #268: раньше значением был `location_prefix` ноды (напр.
-    "fr" на prod при ключе ноды "main"), и
-    `settings_bot.vpn.nodes.get(location.value)` не находил ноду вообще
-    никогда — рабочим был только обходной путь через `location.name.lower()`.
+    Регрессия на пожелание после #268: раньше набор локаций был статическим
+    enum (`Location`/`PremiumLocation`) с ключами нод, прописанными в коде
+    руками — новая нода в конфиге требовала правки кода. Теперь деление на
+    стандартные/премиум идёт по `VPNNode.premium` из конфига.
     """
-    assert Location.MAIN.value == "main"
-    assert Location.FINLAND.value == "fi"
-    assert Location.WAW.value == "waw"
-    assert PremiumLocation.SOFIA.value == "sof"
+    standard = settings_bot.vpn.standard_nodes()
+    premium = settings_bot.vpn.premium_nodes()
+
+    assert set(standard) & set(premium) == set()
+    assert set(standard) | set(premium) == set(settings_bot.vpn.nodes)
+    assert all(not node.premium for node in standard.values())
+    assert all(node.premium for node in premium.values())
 
 
-def test_available_locations_resolve_directly_by_value():
-    """Для каждой сконфигурированной локации нода находится по `loc.value`.
+def test_sof_node_is_premium_by_config():
+    """В текущем конфиге `sof` — премиум-нода (перенесено из статичного enum)."""
+    assert "sof" in settings_bot.vpn.premium_nodes()
+    assert "sof" not in settings_bot.vpn.standard_nodes()
 
-    Без обходных путей (`.name.lower()`, поиск подстрокой в тексте кнопки).
+
+def test_registry_rejects_all_premium_nodes():
+    """Хотя бы одна стандартная нода обязана быть сконфигурирована.
+
+    Раньше эту гарантию давало наличие ноды с конкретным ключом "main"
+    (`Location.MAIN`, статический enum); теперь — любая нода с
+    `premium=False`, независимо от ключа. Если все ноды премиум — конфиг
+    не должен собраться вовсе, а не молча оставить стандартных
+    пользователей без локаций.
     """
-    for loc in available_locations():
-        assert settings_bot.vpn.nodes.get(loc.value) is not None
+    with pytest.raises(ValidationError):
+        VPNRegistry(
+            nodes={
+                "only_premium": {
+                    "host": "h",
+                    "username": "u",
+                    "container": "c",
+                    "premium": True,
+                }
+            }
+        )
 
-    for loc in available_premium_locations():
-        assert settings_bot.vpn.nodes.get(loc.value) is not None
 
-
-def test_available_locations_is_subset_of_all_configured_nodes():
-    """`available_locations`/`available_premium_locations` не выдумывают локации.
-
-    Оба набора — подмножество реально сконфигурированных нод, определяемое
-    статически объявленными `Location`/`PremiumLocation`, а не наоборот.
-    """
-    configured = set(settings_bot.vpn.nodes)
-
-    assert {loc.value for loc in available_locations()} <= configured
-    assert {loc.value for loc in available_premium_locations()} <= configured
+def test_registry_accepts_single_standard_node():
+    registry = VPNRegistry(
+        nodes={"anything": {"host": "h", "username": "u", "container": "c"}}
+    )
+    assert "anything" in registry.standard_nodes()

@@ -82,6 +82,7 @@ protocol_version = "v2"
 use_local = false
 location_prefix= "SOF"
 flag= "🇧🇬"
+premium = true
 
 [vpn.nodes.waw]
 host = "boris-guard.space"

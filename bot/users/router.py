@@ -28,7 +28,7 @@ from bot.integrations.redis_client import RedisClient
 from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import ToggleSubscriptionMode
-from bot.users.enums import ChatType, Location, MainMenuText
+from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.inline_kb import id_link_kb
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SUserOut
@@ -49,7 +49,7 @@ m_error = settings_bot.messages.errors
 m_echo = settings_bot.messages.general.echo
 location_buttons_text = [
     vpn_button_text(backend, location)
-    for location in Location
+    for location in settings_bot.vpn.nodes
     for backend in VPNBackend
 ]
 INVALID_FOR_USER = [

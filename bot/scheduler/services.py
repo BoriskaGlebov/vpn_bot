@@ -17,12 +17,6 @@ from bot.scheduler.schemas import (
     EventBase,
     UserNotifyEventSchema,
 )
-from bot.users.enums import (
-    Location,
-    PremiumLocation,
-    available_locations,
-    available_premium_locations,
-)
 from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import ssh_client_factory_for, ssh_lock
@@ -32,14 +26,11 @@ from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 from shared.enums.vpn_enum import VPNBackend
 
 m_subscription_local = settings_bot.messages.modes.subscription
-# available_locations()/available_premium_locations() (не Location/
-# PremiumLocation напрямую) — иначе перебор попадёт на локацию без реально
-# сконфигурированной ноды (например "fi", пока она отключена) и
-# settings_bot.vpn.get()/xray_registry.get() ниже упадут с исключением.
-ALL_LOCATIONS: tuple[Location | PremiumLocation, ...] = (
-    *available_locations(),
-    *available_premium_locations(),
-)
+# Ключи всех реально сконфигурированных нод (стандартных и премиум) —
+# settings_bot.vpn.nodes содержит только то, что действительно поднято,
+# в отличие от прежнего статического enum Location/PremiumLocation,
+# который требовал ручной правки кода при добавлении новой локации (#268).
+ALL_LOCATIONS: tuple[str, ...] = tuple(settings_bot.vpn.nodes)
 
 
 @dataclass
@@ -322,7 +313,7 @@ class SchedulerBotService:
         locations: list[str] = (
             [cfg.node_name]
             if known_adapter is not None and cfg.node_name is not None
-            else [serv_loc.value for serv_loc in ALL_LOCATIONS]
+            else list(ALL_LOCATIONS)
         )
 
         for serv_loc in locations:
@@ -395,7 +386,7 @@ class SchedulerBotService:
         if cfg.node_name and cfg.node_name in settings_bot.vpn.nodes:
             locations: list[str] = [cfg.node_name]
         else:
-            locations = [loc_prefix.value for loc_prefix in ALL_LOCATIONS]
+            locations = list(ALL_LOCATIONS)
 
         deletion_statistic = []
         for loc in locations:

@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 
 from bot.subscription.router import SubscriptionStates
-from bot.users.enums import Location
 from bot.users.utils.text_generator import vpn_button_text
 from bot.vpn.router import VPNRouter
 from shared.enums.vpn_enum import VPNBackend
@@ -96,7 +95,7 @@ async def test_get_config_amnezia_wg_success(
     await router.get_config_amnezia_wg(
         message=message,
         state=state,
-        location=Location.MAIN,
+        location="main",
     )
 
     router.vpn_service.generate_user_config.assert_awaited_once()
@@ -123,7 +122,7 @@ async def test_location_flag_reaches_handler_via_real_dispatch(
     `flags={"location": ...}` + `LocationFlagMiddleware`, а не её отдельные
     части.
     """
-    message = make_fake_message(text=vpn_button_text(VPNBackend.AMNEZIA, Location.MAIN))
+    message = make_fake_message(text=vpn_button_text(VPNBackend.AMNEZIA, "main"))
 
     message.answer_media_group = mocker.AsyncMock()
     message.answer_photo = mocker.AsyncMock()
@@ -169,7 +168,7 @@ async def test_generate_subscription_success(
     await router.generate_subscription(
         message=message,
         state=state,
-        location=Location.FINLAND,
+        location="fi",
     )
 
     state.clear.assert_awaited_once()

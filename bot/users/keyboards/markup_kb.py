@@ -2,7 +2,7 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
 from bot.core.config import settings_bot
-from bot.users.enums import MainMenuText, available_locations
+from bot.users.enums import MainMenuText
 from bot.users.utils.text_generator import vpn_button_text
 from shared.enums.vpn_enum import VPNBackend
 
@@ -29,11 +29,11 @@ def main_kb(
         builder.row(
             KeyboardButton(text=MainMenuText.PREMIUM.value),
         )
-        for location in available_locations():
+        for location in settings_bot.vpn.standard_nodes():
             buttons = [
                 KeyboardButton(text=vpn_button_text(VPNBackend.AMNEZIA, location)),
             ]
-            if settings_bot.vpn.get(location.value).xray is not None:
+            if settings_bot.vpn.get(location).xray is not None:
                 buttons.append(
                     KeyboardButton(text=vpn_button_text(VPNBackend.XRAY, location))
                 )

@@ -22,13 +22,7 @@ from bot.subscription.keyboards.inline_kb import subscription_options_kb
 from bot.subscription.router import SubscriptionStates
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.enums import (
-    Location,
-    MainMenuText,
-    PremiumLocation,
-    available_locations,
-    available_premium_locations,
-)
+from bot.users.enums import MainMenuText
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
 from bot.vpn.keyboards.inline_kb import xray_url_kb
@@ -95,7 +89,7 @@ class VPNRouter(BaseRouter):
         is_premium = IsPremium(user_adapter=self.user_adapter)
         self.router.message.middleware(LocationFlagMiddleware())
 
-        for location in available_locations():
+        for location in settings_bot.vpn.standard_nodes():
             self.router.message.register(
                 self.get_config_amnezia_wg,
                 F.text == vpn_button_text(VPNBackend.AMNEZIA, location),
@@ -114,7 +108,7 @@ class VPNRouter(BaseRouter):
             F.text == MainMenuText.PREMIUM,
         )
 
-        for prem_location in available_premium_locations():
+        for prem_location in settings_bot.vpn.premium_nodes():
             self.router.message.register(
                 self.get_config_amnezia_wg,
                 F.text == vpn_button_text(VPNBackend.AMNEZIA, prem_location),
@@ -241,7 +235,7 @@ class VPNRouter(BaseRouter):
         message: Message,
         user: TgUser,
         state: FSMContext,
-        location: Location | PremiumLocation,
+        location: str,
     ) -> None:
         """Генерация конфигурации AmneziaWG.
 
@@ -255,15 +249,15 @@ class VPNRouter(BaseRouter):
             message (Message): входящее сообщение.
             user (TgUser): пользователь.
             state (FSMContext): FSM контекст.
-            location: Локация, под которую зарегистрирован сработавший
+            location: Ключ ноды, под который зарегистрирован сработавший
                 хендлер (см. `_register_handlers` и `LocationFlagMiddleware`) —
-                ключ ноды берётся из неё напрямую, без разбора текста кнопки.
+                берётся из флага регистрации напрямую, без разбора текста кнопки.
 
         Returns
             None
 
         """
-        server_info = settings_bot.vpn.get(name=location.value)
+        server_info = settings_bot.vpn.get(name=location)
 
         redis_key = f"vpn:config:{user.id}:amnezia_wg"
         acquired_check = await self._check_acquired(redis_key, message)
@@ -275,7 +269,7 @@ class VPNRouter(BaseRouter):
             state=state,
             ssh_client_factory=ssh_client_factory_for(server_info),
             server_info=server_info,
-            node_name=location.value,
+            node_name=location,
             redis_key=redis_key,
             start_text=m_vpn.amnezia_wg,
         )
@@ -305,7 +299,7 @@ class VPNRouter(BaseRouter):
         message: Message,
         user: TgUser,
         state: FSMContext,
-        location: Location | PremiumLocation,
+        location: str,
     ) -> None:
         """Генерация XRay подписки для пользователя.
 
@@ -318,9 +312,9 @@ class VPNRouter(BaseRouter):
             message (Message): входящее сообщение.
             user (TgUser): пользователь Telegram.
             state (FSMContext): FSM контекст.
-            location: Локация, под которую зарегистрирован сработавший
+            location: Ключ ноды, под который зарегистрирован сработавший
                 хендлер (см. `_register_handlers` и `LocationFlagMiddleware`) —
-                ключ ноды берётся из неё напрямую, без разбора текста кнопки.
+                берётся из флага регистрации напрямую, без разбора текста кнопки.
 
         Returns
             None
@@ -328,7 +322,7 @@ class VPNRouter(BaseRouter):
         """
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
-            xray_location = location.value
+            xray_location = location
 
             redis_key = f"vpn:config:{user.id}:xray:{xray_location}"
             if not await self._check_acquired(redis_key, message):

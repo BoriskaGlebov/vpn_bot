@@ -219,8 +219,9 @@ host = "vpn.example.com"
 username = "vpn_user"
 container = "amnezia-awg2"
 use_local = true                  # true — бот и VPN на одном сервере
-location_prefix = "XX"
+location_prefix = "XX"            # показывается пользователю на кнопке (не <name>)
 flag = "🏳️"
+premium = false                   # true — нода только для премиум-подписчиков
 
 [vpn.nodes.<name>.proxy]          # опционально — MTProto-прокси на этой ноде
 prefix = "proxy-example"
