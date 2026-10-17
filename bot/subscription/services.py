@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from uuid import UUID
 
 from loguru import logger
@@ -23,45 +22,6 @@ from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
 from shared.enums.admin_enum import RoleEnum
 
 m_subscription_local = settings_bot.messages.modes.subscription
-
-
-@dataclass
-class SubscriptionStats:
-    """Агрегатор статистики проверки подписок.
-
-    Класс используется для накопления и агрегации статистики как на уровне
-    одного пользователя, так и для итоговой статистики по всем пользователям.
-
-    Attributes
-        checked: Количество обработанных пользователей.
-        expired: Количество подписок, переведённых в истёкшие.
-        notified: Количество отправленных уведомлений (пользователям и администраторам).
-        configs_deleted: Количество удалённых VPN-конфигов.
-
-    """
-
-    checked: int = 0
-    expired: int = 0
-    notified: int = 0
-    configs_deleted: int = 0
-
-    def add(self, other: "SubscriptionStats") -> None:
-        """Добавляет значения счётчиков из другого объекта статистики.
-
-        Метод выполняет покомпонентное суммирование счётчиков и используется
-        для агрегации статистики от отдельных обработчиков или пользователей.
-
-        Args:
-            other: Экземпляр `SubscriptionStats`, значения которого будут
-                добавлены к текущему объекту.
-
-        Returns
-            None
-
-        """
-        self.expired += other.expired
-        self.notified += other.notified
-        self.configs_deleted += other.configs_deleted
 
 
 class SubscriptionService:

@@ -32,7 +32,6 @@ from bot.subscription.enums import (
     AdminPaymentAction,
     MySubscriptionAction,
     SubscriptionAction,
-    ToggleSubscriptionMode,
 )
 from bot.subscription.keyboards.inline_kb import (
     AdminPaymentCB,
@@ -66,6 +65,7 @@ from bot.vpn.keyboards.inline_kb import (
 )
 from bot.vpn.services import VPNService
 from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import ToggleSubscriptionMode
 
 m_subscription = settings_bot.messages.modes.subscription
 

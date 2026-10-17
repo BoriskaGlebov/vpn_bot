@@ -9,9 +9,9 @@ from bot.subscription.enums import (
     AdminPaymentAction,
     MySubscriptionAction,
     SubscriptionAction,
-    ToggleSubscriptionMode,
 )
 from bot.subscription.utils.sub_utils import get_correct_price_map
+from shared.enums.subscription_enum import ToggleSubscriptionMode
 
 
 class SubscriptionCB(CallbackData, prefix="sub"):  # type: ignore[misc,call-arg]

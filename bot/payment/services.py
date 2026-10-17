@@ -14,8 +14,8 @@ from bot.payment.schemas import (
     SCreatePayment,
     SPaymentTransactionResponse,
 )
-from bot.subscription.enums import ToggleSubscriptionMode
 from shared.enums.payment_enum import PaymentStatus
+from shared.enums.subscription_enum import ToggleSubscriptionMode
 
 if TYPE_CHECKING:
     from subscription.services import SubscriptionService
