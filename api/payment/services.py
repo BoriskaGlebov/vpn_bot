@@ -390,7 +390,7 @@ class PaymentService:
 
         rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionPendingFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id, status=PaymentStatus.PENDING),
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
                 confirmed_by_admin_id=data.admin_id,
@@ -440,7 +440,7 @@ class PaymentService:
 
         rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionPendingFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id, status=PaymentStatus.PENDING),
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
                 paid_at=datetime.now(),
@@ -488,7 +488,7 @@ class PaymentService:
 
         rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionPendingFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id, status=PaymentStatus.PENDING),
             values=SPaymentStatusCancel(
                 status=PaymentStatus.CANCELED,
             ),

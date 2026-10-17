@@ -128,9 +128,14 @@ class STransactionPendingFilter(STransactionIDFilter):
     (``WHERE id = ... AND status = 'PENDING'``), а не отдельным
     check-then-act в Python — иначе два параллельных вебхука могут оба
     пройти проверку статуса до того, как первый из них закоммитится.
+
+    `status` обязателен (без значения по умолчанию): `BaseDAO._to_dict`
+    строит условие через `model_dump(exclude_unset=True)`, и поле со
+    смысловым дефолтом, не переданное явно в конструктор, выпадало бы из
+    `WHERE` (см. #263) — тем самым атомарность пропадала бы незаметно.
     """
 
-    status: PaymentStatus = PaymentStatus.PENDING
+    status: PaymentStatus
 
 
 class SGatewayTransactionFilter(BaseModel):
@@ -142,14 +147,17 @@ class SGatewayTransactionFilter(BaseModel):
 class SUserPendingTransactionsFilter(BaseModel):
     """Фильтр незавершённых транзакций конкретного пользователя.
 
+    `status` обязателен по той же причине, что и в
+    `STransactionPendingFilter` — см. #263.
+
     Attributes
         user_id: Идентификатор пользователя.
-        status: Статус транзакции (по умолчанию PENDING).
+        status: Статус транзакции.
 
     """
 
     user_id: int
-    status: PaymentStatus = PaymentStatus.PENDING
+    status: PaymentStatus
 
 
 class SAdminConfirmPayment(STransactionIDFilter):
