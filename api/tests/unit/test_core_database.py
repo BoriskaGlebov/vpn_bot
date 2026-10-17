@@ -54,6 +54,16 @@ def test_to_dict_is_not_redacted_by_default():
     assert plain["password"] == "super-secret"
 
 
+def test_created_at_updated_at_are_timezone_aware():
+    """created_at/updated_at объявлены как DateTime(timezone=True) (#255) —
+    иначе колонка хранит TIMESTAMP WITHOUT TIME ZONE, и created_at/updated_at
+    (их ставит Postgres через func.now()) расходятся по часам с полями,
+    которые ставит сам процесс (например, PaymentTransaction.paid_at).
+    """
+    assert _DatabaseReprModel.__table__.c.created_at.type.timezone is True
+    assert _DatabaseReprModel.__table__.c.updated_at.type.timezone is True
+
+
 def test_engine_pool_uses_configured_settings():
     """pool_size/max_overflow/pool_pre_ping/pool_recycle приходят из настроек,
     а не остаются захардкоженными дефолтами SQLAlchemy (pool_size=5,

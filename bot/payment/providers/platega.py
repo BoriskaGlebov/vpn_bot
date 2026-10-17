@@ -5,13 +5,9 @@ from collections.abc import Mapping
 import httpx
 from loguru import logger
 
-from bot.payment.dto import (
-    CreatedPaymentDTO,
-    CreatePaymentDTO,
-    PaymentStatus,
-    PaymentWebhookDTO,
-)
+from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookDTO
 from bot.payment.exceptions import PaymentProviderError
+from shared.enums.payment_enum import PaymentStatus
 
 
 class PlategaProvider:
@@ -57,6 +53,8 @@ class PlategaProvider:
         payload = {
             # "paymentMethod": 11,
             "paymentDetails": {
+                # float(int) здесь безопасно (#261) — amount целое число
+                # рублей по всем слоям, без копеек; потери точности нет.
                 "amount": float(data.amount),
                 "currency": data.currency,
             },
@@ -84,9 +82,14 @@ class PlategaProvider:
             ) from e
 
         response_data = response.json()
+        # Нормализация статуса провайдера сделана явно (#258) — сравнение не
+        # должно зависеть от регистра значений PaymentStatus: с "PENDING"
+        # (верхний регистр, как и у остальных статусов Platega) оно останется
+        # корректным независимо от того, в каком регистре объявлены значения
+        # самого enum.
         status = (
             PaymentStatus.PENDING
-            if response_data["status"].lower() == PaymentStatus.PENDING
+            if response_data["status"].upper() == "PENDING"
             else PaymentStatus.FAILED
         )
         logger.info(
@@ -153,21 +156,33 @@ class PlategaProvider:
         data = json.loads(body)
 
         provider_status = data["status"]
+        # int, не Decimal (#261) — сумма платежа везде целые рубли, без
+        # копеек; сравнивается с tx.amount (int) при подтверждении (#257).
+        amount = int(data["amount"]) if "amount" in data else None
+        is_chargeback = False
+        is_unknown_status = False
 
         if provider_status == "CONFIRMED":
             status = PaymentStatus.PAID
 
-        elif provider_status in (
-            "CANCELED",
-            "CHARGEBACKED",
-        ):
+        elif provider_status == "CHARGEBACKED":
+            status = PaymentStatus.FAILED
+            is_chargeback = True
+
+        elif provider_status == "CANCELED":
             status = PaymentStatus.FAILED
 
         else:
             status = PaymentStatus.PENDING
-            logger.debug(
+            is_unknown_status = True
+            # warning, а не debug: это новый/незнакомый терминальный статус
+            # Platega, а не штатное "платёж пока не завершён" — см. #259.
+            # На debug сообщение не попадало бы в постоянные логи (там
+            # уровень info), и о зависшей в PENDING транзакции никто не
+            # узнал бы вовсе.
+            logger.warning(
                 "Вебхук Platega с незнакомым статусом provider_status={} — "
-                "трактуется как PENDING (provider_payment_id={})",
+                "трактуется как PENDING, требует внимания (provider_payment_id={})",
                 provider_status,
                 data["id"],
             )
@@ -176,6 +191,9 @@ class PlategaProvider:
             provider_payment_id=data["id"],
             status=status,
             raw_data=data,
+            amount=amount,
+            is_chargeback=is_chargeback,
+            is_unknown_status=is_unknown_status,
         )
 
     async def close(self) -> None:

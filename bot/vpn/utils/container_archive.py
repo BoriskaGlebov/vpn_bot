@@ -1,7 +1,7 @@
 import shlex
 from asyncio import create_subprocess_exec, subprocess
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 
 import aioboto3
 import asyncssh
@@ -10,7 +10,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from cryptography.fernet import Fernet, InvalidToken
 from pydantic import SecretStr
 
-from bot.core.config import BucketSettings, VPNNode
+from bot.core.config import BucketSettings, VPNNode, settings_bot
 from bot.vpn.utils.amnezia_exceptions import AmneziaBackupError, AmneziaSSHError
 
 AMNEZIA_DIR = "/opt/amnezia"
@@ -242,7 +242,7 @@ class ContainerBackupStorage:
             AmneziaBackupError: Если загрузка завершилась ошибкой.
 
         """
-        timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
+        timestamp = datetime.now(settings_bot.core.tzinfo).strftime("%Y-%m-%d_%H-%M-%S")
         key = f"{S3_BACKUP_PREFIX}/{node_name}/{node_name}_{timestamp}.tar.gz.enc"
         try:
             async with self._client() as s3:

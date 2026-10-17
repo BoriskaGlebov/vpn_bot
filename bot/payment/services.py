@@ -1,5 +1,4 @@
 from dataclasses import asdict
-from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -7,12 +6,8 @@ from loguru import logger
 
 from bot.notification.services import NotificationService
 from bot.payment.adapter import PaymentAPIAdapter
-from bot.payment.dto import (
-    CreatedPaymentDTO,
-    CreatePaymentDTO,
-    PaymentStatus,
-    PaymentWebhookDTO,
-)
+from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookDTO
+from bot.payment.exceptions import PaymentAmountMismatchError, PaymentUnknownStatusError
 from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.schemas import (
     SConfirmPaymentResponse,
@@ -20,6 +15,7 @@ from bot.payment.schemas import (
     SPaymentTransactionResponse,
 )
 from bot.subscription.enums import ToggleSubscriptionMode
+from shared.enums.payment_enum import PaymentStatus
 
 if TYPE_CHECKING:
     from subscription.services import SubscriptionService
@@ -73,7 +69,7 @@ class PaymentService:
         else:
             sub_type = ToggleSubscriptionMode.STANDARD
         payment_data = CreatePaymentDTO(
-            amount=Decimal(amount),
+            amount=amount,
             currency="RUB",
             order_id=str(api_res.id),
             description=f"Оплата {sub_type.value} подписки на {subscription_months}мес.",
@@ -238,6 +234,23 @@ class PaymentWebhookService:
             event.status,
         )
         if event.status == PaymentStatus.PAID:
+            # Сверка суммы — см. #257: без неё решение "платёж прошёл"
+            # принимается по одной строке статуса из вебхука, без проверки
+            # содержимого (подпись Platega привязана к нашим же заголовкам,
+            # а не к телу, см. docstring `verify_webhook`).
+            if event.amount is None or event.amount != tx.amount:
+                logger.error(
+                    "Сумма вебхука не совпадает с суммой транзакции: "
+                    "transaction_id={} tx_amount={} webhook_amount={}",
+                    tx.id,
+                    tx.amount,
+                    event.amount,
+                )
+                raise PaymentAmountMismatchError(
+                    transaction_id=tx.id,
+                    expected_amount=tx.amount,
+                    received_amount=event.amount,
+                )
             # Через subscription_service, а не payment_service напрямую: она
             # после подтверждения транзакции и продления подписки в БД ещё
             # продлевает XRay-конфиги пользователя на панелях 3x-ui (см.
@@ -256,16 +269,33 @@ class PaymentWebhookService:
 
         elif event.status == PaymentStatus.FAILED:
             await self.payment_service.webhook_cancel_transaction(tx.id)
-            is_chargeback = event.raw_data.get("status") == "CHARGEBACKED"
             logger.warning(
                 "Платёж не прошёл: transaction_id={} tg_id={} chargeback={}",
                 tx.id,
                 tx.tg_id,
-                is_chargeback,
+                event.is_chargeback,
             )
 
             await self.notification_service.notify_payment_failed(
                 transaction_id=tx.id,
                 tg_id=tx.tg_id,
-                is_chargeback=is_chargeback,
+                is_chargeback=event.is_chargeback,
+            )
+
+        elif event.is_unknown_status:
+            # Статус не входит в известный набор (CONFIRMED/CANCELED/
+            # CHARGEBACKED) — см. #259. Транзакция остаётся в PENDING, но в
+            # отличие от штатного "платёж пока не завершён" требует внимания
+            # администратора: иначе зависнет в PENDING навсегда без единого
+            # уведомления, если это новый терминальный статус провайдера.
+            logger.error(
+                "Платёжный провайдер прислал неизвестный статус: "
+                "transaction_id={} tg_id={} provider_status={}",
+                tx.id,
+                tx.tg_id,
+                event.raw_data.get("status"),
+            )
+            raise PaymentUnknownStatusError(
+                transaction_id=tx.id,
+                provider_status=event.raw_data.get("status"),
             )

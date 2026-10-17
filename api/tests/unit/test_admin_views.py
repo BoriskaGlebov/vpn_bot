@@ -26,6 +26,17 @@ def test_payment_transaction_admin_delete_disabled():
     assert PaymentTransactionAdmin.can_delete is False
 
 
+def test_payment_transaction_admin_create_and_edit_disabled():
+    """Создание/редактирование платёжной транзакции через SQLAdmin
+    запрещено (#260) — обходило бы confirm_payment_flow, единственное
+    место, где подтверждение сопровождается активацией подписки и
+    продлением XRay-конфигов. Правка иначе рассогласовала бы транзакцию
+    и подписку и не оставляла бы следа, кто её изменил.
+    """
+    assert PaymentTransactionAdmin.can_create is False
+    assert PaymentTransactionAdmin.can_edit is False
+
+
 def test_badge_escapes_html_in_text():
     """badge() экранирует text — иначе применение к полю, заполняемому
     пользователем, дало бы XSS в админке.

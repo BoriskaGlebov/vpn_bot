@@ -419,3 +419,38 @@ class PaymentFailedError(PaymentError):
                 "transaction_id": transaction_id,
             },
         )
+
+
+class PaymentInvalidSourceError(PaymentError):
+    """Невалидное сочетание source/admin_id при подтверждении платежа.
+
+    Поднимается `confirm_payment_flow` (см. #256), когда `payment_source`
+    не входит в поддерживаемый набор, либо `payment_source=MANUAL`, но
+    `admin_id` не передан. Это нарушение контракта вызова, а не сбой
+    инфраструктуры — раньше здесь поднимался `ValueError`, который не
+    обрабатывается ни `app_error_handler`, ни `api_error_handler` и
+    доходит до `unhandled_exception_handler` как 500 `internal_error`:
+    по такому ответу нельзя отличить «неверный вызов» от «упала база».
+    """
+
+    code = "payment_invalid_source"
+    status_code = status.HTTP_400_BAD_REQUEST
+
+    def __init__(self, payment_source: object, admin_id: int | None) -> None:
+        """Инициализирует ошибку невалидного source/admin_id.
+
+        Args:
+            payment_source: Переданный источник подтверждения платежа.
+            admin_id: Переданный ID администратора (``None``, если не передан).
+
+        """
+        super().__init__(
+            message=(
+                f"Неверный payment_source ({payment_source}) или не передан "
+                f"admin_id для MANUAL (admin_id={admin_id})."
+            ),
+            details={
+                "payment_source": str(payment_source),
+                "admin_id": admin_id,
+            },
+        )

@@ -3,6 +3,7 @@ import tomllib
 from pathlib import Path
 from pprint import pprint
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -133,6 +134,16 @@ class SettingsApp(SettingsCommon):
             Через переменную окружения задаётся JSON-массивом, например
             `ADMIN_IDS=[123456789, 987654321]` — pydantic-settings разбирает
             `list[int]` как JSON, а не как строку с разделителем-запятой.
+     timezone (str):
+            IANA-имя таймзоны проекта (например, `Europe/Moscow`). Единая
+            точка настройки для всех `datetime.now(...)` в `bot/` и `api/` —
+            раньше таймзона была захардкожена как `UTC` в коде, а контейнеры
+            при этом работают в `Europe/Moscow` (`TZ` в
+            `docker-compose.common.yml`); naive-вызовы `datetime.now()`
+            читали OS-таймзону (Moscow), а explicit-вызовы `datetime.now(UTC)`
+            — настоящий UTC, и эти значения расходились при сравнении/записи
+            в одну и ту же колонку (см. #255). Единый источник настройки
+            убирает расхождение и позволяет сменить зону без правки кода.
      model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
 
     """
@@ -148,6 +159,18 @@ class SettingsApp(SettingsCommon):
     max_configs_per_user: int = 10
     common_timeout: int = 10
     admin_ids: list[int] = []
+    timezone: str = "Europe/Moscow"
+
+    @property
+    def tzinfo(self) -> ZoneInfo:
+        """`ZoneInfo`, построенная из `timezone` — использовать вместо `datetime.UTC`.
+
+        Returns
+            ZoneInfo: таймзона проекта, применяется ко всем
+                `datetime.now(...)` в `bot/` и `api/`.
+
+        """
+        return ZoneInfo(self.timezone)
 
 
 if __name__ == "__main__":

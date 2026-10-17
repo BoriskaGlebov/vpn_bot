@@ -4,9 +4,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from bot.payment.enums import PaymentSource, PaymentStatus
+from bot.payment.enums import PaymentSource
 from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.users.schemas import SUserOut
+from shared.enums.payment_enum import PaymentStatus
 
 
 class SCreateManualPaymentTransactionIn(BaseModel):

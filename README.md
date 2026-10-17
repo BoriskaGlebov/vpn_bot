@@ -195,6 +195,7 @@ python api/main.py      # http://localhost:8089/api/docs
 max_configs_per_user = 10
 admin_ids = [123456789]           # Telegram ID администраторов
 logger_level_stdout = "INFO"
+timezone = "Europe/Moscow"        # IANA-имя; settings.core.tzinfo вместо datetime.UTC везде в bot/ и api/
 
 [bot]
 base_site = "https://example.com/bot"

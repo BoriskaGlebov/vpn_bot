@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from loguru import logger
@@ -6,10 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import (
     PaymentAlreadyProcessedError,
+    PaymentInvalidSourceError,
     PaymentTransactionNotFoundError,
 )
+from api.core.config import settings_api
 from api.payment.dao import PaymentTransactionDAO
-from api.payment.model import PaymentSource, PaymentStatus, PaymentTransaction
+from api.payment.model import PaymentSource, PaymentTransaction
 from api.payment.schemas import (
     SAdminConfirmPayment,
     SAttachProviderPayment,
@@ -30,6 +32,7 @@ from api.referrals.schemas import GrantReferralBonusResponse
 from api.referrals.services import ReferralService
 from api.subscription.services import SubscriptionService
 from api.users.models import User
+from shared.enums.payment_enum import PaymentStatus
 
 
 class PaymentService:
@@ -341,7 +344,7 @@ class PaymentService:
         upd_transaction = await PaymentTransactionDAO.update(
             session=session,
             filters=STransactionIDFilter(id=transaction_id),
-            values=SPaidAt(paid_at=datetime.now()),
+            values=SPaidAt(paid_at=datetime.now(settings_api.core.tzinfo)),
         )
 
         if not upd_transaction:
@@ -390,12 +393,12 @@ class PaymentService:
 
         rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionPendingFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id, status=PaymentStatus.PENDING),
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
                 confirmed_by_admin_id=data.admin_id,
-                confirmed_at=datetime.now(),
-                paid_at=datetime.now(),
+                confirmed_at=datetime.now(settings_api.core.tzinfo),
+                paid_at=datetime.now(settings_api.core.tzinfo),
                 source=PaymentSource.MANUAL,
             ),
         )
@@ -440,11 +443,11 @@ class PaymentService:
 
         rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionPendingFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id, status=PaymentStatus.PENDING),
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
-                paid_at=datetime.now(),
-                confirmed_at=datetime.now(),
+                paid_at=datetime.now(settings_api.core.tzinfo),
+                confirmed_at=datetime.now(settings_api.core.tzinfo),
                 source=PaymentSource.GATEWAY,
             ),
         )
@@ -488,7 +491,7 @@ class PaymentService:
 
         rowcount = await PaymentTransactionDAO.update(
             session=session,
-            filters=STransactionPendingFilter(id=data.id),
+            filters=STransactionPendingFilter(id=data.id, status=PaymentStatus.PENDING),
             values=SPaymentStatusCancel(
                 status=PaymentStatus.CANCELED,
             ),
@@ -511,7 +514,8 @@ class PaymentService:
     ) -> SYearIncome:
         """Возвращает суммарный доход за указанный год.
 
-        Если год не указан — используется текущий год (UTC).
+        Если год не указан — используется текущий год в таймзоне проекта
+        (`settings_api.core.timezone`).
 
         Args:
             session: Асинхронная SQLAlchemy-сессия.
@@ -523,7 +527,7 @@ class PaymentService:
         """
         logger.info(
             f"[SERVICE] Получение годового дохода. "
-            f"Год={year or datetime.now(tz=UTC).year}"
+            f"Год={year or datetime.now(tz=settings_api.core.tzinfo).year}"
         )
         res = await PaymentTransactionDAO.get_year_income(
             session=session,
@@ -582,7 +586,7 @@ class PaymentService:
             PaymentAlreadyProcessedError:
                 Если транзакция уже была обработана.
 
-            ValueError:
+            PaymentInvalidSourceError:
                 Если передан некорректный источник подтверждения
                 или отсутствует ``admin_id`` для ручного подтверждения.
 
@@ -595,7 +599,9 @@ class PaymentService:
                 data=SAdminConfirmPayment(admin_id=admin_id, id=data.id),
             )
         else:
-            raise ValueError("НЕВЕРНЫЙ payment_source или  пропущен admin_id")
+            raise PaymentInvalidSourceError(
+                payment_source=payment_source, admin_id=admin_id
+            )
         sub_res = await self.sub_service.activate_paid_subscription(
             session=session,
             user_id=tx.tg_id,

@@ -3,6 +3,7 @@ import datetime
 from loguru import logger
 
 from bot.admin.schemas import SChangeRole, SExtendSubscription, SYearIncome
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
@@ -187,7 +188,7 @@ class AdminAPIAdapter:
 
         """
         logger.info("Запрос аналитика доходов за год.")
-        year = datetime.datetime.now().year
+        year = datetime.datetime.now(settings_bot.core.tzinfo).year
         res, _ = await self._client.get(
             url="/admin/analytics/income",
             params={"year": year} if year else None,
