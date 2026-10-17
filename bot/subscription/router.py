@@ -1,5 +1,5 @@
 from aiogram import Bot, F
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command, StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -857,6 +857,15 @@ class SubscriptionRouter(BaseRouter):
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес), "
                 f"transaction_id={transaction_id}"
             )
+            # #276: referral_result читается после edit_admin_messages, а
+            # присваивался он только внутри try вместе с отправкой уведомления
+            # пользователю — при TelegramForbiddenError/TelegramBadRequest на
+            # той отправке переменная оставалась неинициализированной.
+            # Присваиваем сразу: оплата в БД уже подтверждена независимо от
+            # того, доставится ли уведомление.
+            referral_result: GrantReferralBonusResponse = (
+                confirm_transaction.referral_res
+            )
             try:
                 await self.bot.send_message(
                     chat_id=user_id,
@@ -869,10 +878,19 @@ class SubscriptionRouter(BaseRouter):
                         ),
                     ),
                 )
-                referral_result: GrantReferralBonusResponse = (
-                    confirm_transaction.referral_res
+            except (TelegramForbiddenError, TelegramBadRequest) as e:
+                user_logger.warning(
+                    f"Не удалось уведомить пользователя {user_id} об оплате: {e}"
                 )
-                if referral_result.success and referral_result.inviter_telegram_id:
+                await send_to_admins(
+                    bot=self.bot,
+                    message_text=m_subscription.accept_paid.error.format(
+                        user_id=user_id
+                    ),
+                )
+
+            if referral_result.success and referral_result.inviter_telegram_id:
+                try:
                     await self.bot.send_message(
                         chat_id=referral_result.inviter_telegram_id,
                         text=m_subscription.accept_paid.bonus.format(
@@ -883,15 +901,14 @@ class SubscriptionRouter(BaseRouter):
                             )
                         ),
                     )
-            except TelegramBadRequest:
-                await send_to_admins(
-                    bot=self.bot,
-                    message_text=m_subscription.accept_paid.error.format(
-                        user_id=user_id
-                    ),
-                )
+                except (TelegramForbiddenError, TelegramBadRequest) as e:
+                    user_logger.warning(
+                        f"Не удалось уведомить пригласившего "
+                        f"{referral_result.inviter_telegram_id} о бонусе: {e}"
+                    )
+
+            ref_inf = referral_result.message
             try:
-                ref_inf = referral_result.message
                 await edit_admin_messages(
                     bot=self.bot,
                     user_id=user_id,

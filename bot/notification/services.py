@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from loguru import logger
 
 from bot.app_error.base_error import SubscriptionActivationFailedError
@@ -48,8 +48,9 @@ class NotificationService:
 
         Raises
             TelegramBadRequest: Если ни отредактировать исходное сообщение,
-                ни отправить новое не удалось (например, пользователь
-                заблокировал бота).
+                ни отправить новое не удалось.
+            TelegramForbiddenError: Если пользователь заблокировал бота —
+                и редактирование, и отправка нового сообщения невозможны.
 
         """
         location = await self.payment_mess_storage.pop(transaction_id)
@@ -62,7 +63,7 @@ class NotificationService:
                     reply_markup=None,
                 )
                 return
-            except TelegramBadRequest:
+            except (TelegramForbiddenError, TelegramBadRequest):
                 logger.warning(
                     "Не удалось отредактировать сообщение с оплатой "
                     "transaction_id={} — отправляю новое",
@@ -120,7 +121,7 @@ class NotificationService:
                         user_info=f"@{user.username}" if user.username else "-"
                     ),
                 )
-        except TelegramBadRequest:
+        except (TelegramForbiddenError, TelegramBadRequest):
             logger.warning(
                 "Не удалось уведомить пользователя об оплате картой: tg_id={}",
                 tx.tg_id,
@@ -164,7 +165,7 @@ class NotificationService:
                 tg_id=tg_id,
                 text=m_subscription.decline_paid.user,
             )
-        except TelegramBadRequest:
+        except (TelegramForbiddenError, TelegramBadRequest):
             logger.warning(
                 "Не удалось уведомить пользователя о неудачной оплате: tg_id={}",
                 tg_id,

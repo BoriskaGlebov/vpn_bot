@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import ReplyKeyboardRemove
 
 from bot.app_error.base_error import (
@@ -635,3 +636,86 @@ async def test_admin_confirm_payment(mocker):
     referral_service_mock.grant_referral_bonus.assert_not_called()
 
     # state.clear внутри edit_admin_messages / try block
+
+
+@pytest.mark.asyncio
+async def test_admin_confirm_payment_user_blocked_bot_still_completes(mocker):
+    """#276: пользователь заблокировал бота (TelegramForbiddenError) на
+    отправке уведомления об оплате — это не должно прервать остальные шаги:
+    бонус пригласившему, правку админских сообщений, state.clear().
+    """
+    bot_mock = AsyncMock()
+    bot_mock.send_message.side_effect = TelegramForbiddenError(
+        method=Mock(), message="Forbidden: bot was blocked by the user"
+    )
+
+    msg_mock = AsyncMock()
+    msg_mock.chat.id = 999
+    msg_mock.message_id = 10
+
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    query_mock.from_user = Mock(id=999, username="admin")
+    query_mock.answer = AsyncMock()
+
+    callback_data = Mock(
+        user_id=1,
+        months=3,
+        premium=True,
+        transaction_id=UUID("12345678-1234-5678-1234-567812345678"),
+    )
+
+    user_schema = Mock(
+        username="user",
+        first_name="John",
+        last_name="Doe",
+        telegram_id=1,
+        current_subscription=Mock(type="premium"),
+    )
+
+    confirm_transaction_mock = Mock(
+        subscription_res=user_schema,
+        transaction_res=Mock(amount=1000),
+        referral_res=Mock(
+            success=True,
+            inviter_telegram_id=777,
+            message="Реферал получил бонус",
+        ),
+    )
+
+    subscription_service_mock = AsyncMock()
+    subscription_service_mock.confirm_transaction.return_value = (
+        confirm_transaction_mock
+    )
+
+    edit_admin_messages_mock = mocker.patch(
+        "bot.subscription.router.edit_admin_messages", new=AsyncMock()
+    )
+    send_to_admins_mock = mocker.patch(
+        "bot.subscription.router.send_to_admins", new=AsyncMock()
+    )
+
+    state_mock = AsyncMock()
+
+    router = SubscriptionRouter(
+        bot=bot_mock,
+        logger=Mock(),
+        subscription_service=subscription_service_mock,
+        referral_service=AsyncMock(),
+        redis_service=AsyncMock(),
+        vpn_service=AsyncMock(),
+        payment_mess_storage=AsyncMock(),
+    )
+
+    await router.admin_confirm_payment(
+        query=query_mock,
+        state=state_mock,
+        callback_data=callback_data,
+    )
+
+    # Уведомление пользователю упало, но админа предупредили об этом,
+    # а не всё посыпалось UnboundLocalError-ом на referral_result.
+    send_to_admins_mock.assert_awaited()
+    # Остальные шаги подтверждения выполнены, несмотря на блокировку.
+    edit_admin_messages_mock.assert_awaited_once()
+    state_mock.clear.assert_awaited_once()
