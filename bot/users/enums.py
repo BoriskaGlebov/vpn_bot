@@ -1,4 +1,4 @@
-from enum import Enum, StrEnum
+from enum import Enum
 
 from bot.core.config import settings_bot
 
@@ -110,30 +110,3 @@ def available_premium_locations() -> list["PremiumLocation"]:
 
     """
     return [loc for loc in PremiumLocation if loc.value in settings_bot.vpn.nodes]
-
-
-class VPNProtocol(StrEnum):
-    """Поддерживаемые VPN-протоколы.
-
-    Значения перечисления используются для отображения пользователю
-    и конфигурации подключений.
-
-    Attributes
-        AWG: Протокол Amnezia WireGuard (AmneziaWG).
-            Оптимизированная версия WireGuard с обходом DPI.
-
-        AVPN: Протокол AmneziaVPN.
-            Собственная реализация VPN с дополнительной обфускацией трафика.
-
-        AMNEZIA: Протокол Amnezia WireGuard.
-
-        XRAY: Протокол Xray (VLESS + Reality + XHTTP/TLS).
-            Используется для маскировки трафика под обычный HTTPS
-            и обхода сетевых ограничений.
-
-    """
-
-    # AWG = "AmneziaWG"
-    # AVPN = "AmneziaVPN"
-    AMNEZIA = "AmneziaVPN"
-    XRAY = "⚡ XRay Pro"

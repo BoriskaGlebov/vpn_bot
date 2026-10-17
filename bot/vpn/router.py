@@ -26,7 +26,6 @@ from bot.users.enums import (
     Location,
     MainMenuText,
     PremiumLocation,
-    VPNProtocol,
     available_locations,
     available_premium_locations,
 )
@@ -35,6 +34,7 @@ from bot.utils.base_router import BaseRouter
 from bot.vpn.keyboards.inline_kb import xray_url_kb
 from bot.vpn.keyboards.markup_kb import premium_locations_kb
 from bot.vpn.services import SSHClientFactory, VPNService, ssh_client_factory_for
+from shared.enums.vpn_enum import VPNBackend
 
 m_vpn = settings_bot.messages.modes.vpn
 m_subscription = settings_bot.messages.modes.subscription
@@ -94,12 +94,12 @@ class VPNRouter(BaseRouter):
         for location in available_locations():
             self.router.message.register(
                 self.get_config_amnezia_wg,
-                F.text == vpn_button_text(VPNProtocol.AMNEZIA, location),
+                F.text == vpn_button_text(VPNBackend.AMNEZIA, location),
                 flags={"location": location},
             )
             self.router.message.register(
                 self.generate_subscription,
-                F.text == vpn_button_text(VPNProtocol.XRAY, location),
+                F.text == vpn_button_text(VPNBackend.XRAY, location),
                 flags={"location": location},
             )
         self.router.message.register(
@@ -113,13 +113,13 @@ class VPNRouter(BaseRouter):
         for prem_location in available_premium_locations():
             self.router.message.register(
                 self.get_config_amnezia_wg,
-                F.text == vpn_button_text(VPNProtocol.AMNEZIA, prem_location),
+                F.text == vpn_button_text(VPNBackend.AMNEZIA, prem_location),
                 is_premium,
                 flags={"location": prem_location},
             )
             self.router.message.register(
                 self.generate_subscription,
-                F.text == vpn_button_text(VPNProtocol.XRAY, prem_location),
+                F.text == vpn_button_text(VPNBackend.XRAY, prem_location),
                 is_premium,
                 flags={"location": prem_location},
             )

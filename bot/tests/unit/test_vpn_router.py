@@ -3,9 +3,10 @@ from pathlib import Path
 import pytest
 
 from bot.subscription.router import SubscriptionStates
-from bot.users.enums import Location, VPNProtocol
+from bot.users.enums import Location
 from bot.users.utils.text_generator import vpn_button_text
 from bot.vpn.router import VPNRouter
+from shared.enums.vpn_enum import VPNBackend
 
 
 @pytest.fixture
@@ -126,9 +127,7 @@ async def test_location_flag_reaches_handler_via_real_dispatch(
     `flags={"location": ...}` + `LocationFlagMiddleware`, а не её отдельные
     части.
     """
-    message = make_fake_message(
-        text=vpn_button_text(VPNProtocol.AMNEZIA, Location.MAIN)
-    )
+    message = make_fake_message(text=vpn_button_text(VPNBackend.AMNEZIA, Location.MAIN))
 
     status_msg = mocker.MagicMock()
     status_msg.edit_text = mocker.AsyncMock()
