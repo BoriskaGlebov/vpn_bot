@@ -21,6 +21,18 @@ def test_vpn_config_admin_delete_disabled():
     assert VPNConfigAdmin.can_delete is False
 
 
+def test_vpn_config_admin_create_and_edit_disabled():
+    """Создание/редактирование VPNConfig через SQLAdmin запрещено (#272) —
+    зеркально can_delete: SQLAdmin пишет модель напрямую в БД, минуя
+    VPNConfigDAO.add_config (проверка лимита устройств) и выдачу доступа
+    на ноде/панели. Созданная так запись — фантом без node_name/backend/
+    protocol/config_ids, который занимает слот в лимите, но не удаляется
+    (can_delete тоже False).
+    """
+    assert VPNConfigAdmin.can_create is False
+    assert VPNConfigAdmin.can_edit is False
+
+
 def test_payment_transaction_admin_delete_disabled():
     """Удаление платёжной транзакции запрещено — потеря финансовой истории."""
     assert PaymentTransactionAdmin.can_delete is False

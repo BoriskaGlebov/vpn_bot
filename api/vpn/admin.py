@@ -67,7 +67,6 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         - список отображаемых колонок,
         - сортировку и поиск,
         - фильтрацию,
-        - форму редактирования,
         - форматирование отображаемых значений,
         - права доступа к операциям.
 
@@ -78,7 +77,6 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         column_sortable_list (list[str]): Колонки, доступные для сортировки.
         column_searchable_list (list[str]): Колонки, участвующие в поиске.
         column_filters (list[Any]): Фильтры в правой панели.
-        form_columns (list[str]): Поля формы создания/редактирования.
         column_labels (dict[str, str]): Отображаемые подписи колонок.
         column_formatters (dict[str, Any]): Кастомные форматтеры колонок.
         can_create (bool): Разрешено ли создание записи.
@@ -122,12 +120,6 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         OperationColumnFilter(VPNConfig.status),
     ]
 
-    form_columns = [
-        "user",
-        "file_name",
-        "pub_key",
-    ]
-
     column_labels = {
         "id": "ID",
         "user": "Пользователь",
@@ -143,18 +135,27 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "status": format_status,  # type: ignore[misc, dict-item]
     }
 
-    can_create = True
-    can_edit = False
-    # Удаление здесь — только DELETE в БД: SQLAdmin не вызывает ни on_model_delete,
-    # ни delete_model, то есть клиент на панели 3x-ui или пир в awg0.conf
-    # остаётся включённым, а запись, по которой доступ можно было бы найти,
-    # исчезает. Правильный путь — VPNService.delete_user_config
+    # Создание и удаление запрещены по одной и той же причине: SQLAdmin
+    # пишет/удаляет модель напрямую в БД, минуя VPNService — тот самый слой,
+    # который отзывает/выдаёт доступ на ноде или панели 3x-ui и проверяет
+    # лимит устройств. Этот слой живёт в bot/ (только bot/ обращается к
+    # панелям VPN), поэтому админка не может вызвать его напрямую — пока не
+    # появится путь между сервисами, обе операции запрещены целиком.
+    #
+    # can_delete (см. #246): запись исчезает, а клиент на панели/пир в
+    # awg0.conf остаётся включённым — доступ без записи, по которой его
+    # можно найти. Правильный путь — VPNService.delete_user_config
     # (bot/vpn/services.py, уже используется в bot/subscription/router.py):
     # отзывает доступ на ноде и только потом удаляет запись, различая
-    # "не найден" и "ошибка связи". Он живёт в bot/, а не в api/ (только
-    # bot/ обращается к панелям VPN), поэтому админка не может вызвать его
-    # напрямую — пока не появится путь между сервисами, удаление запрещено
-    # целиком (см. #246).
+    # "не найден" и "ошибка связи".
+    #
+    # can_create (см. #272): наоборот — запись появляется без доступа.
+    # node_name/backend/protocol/config_ids остаются пустыми, при этом
+    # запись уже считается устройством пользователя и приближает его к
+    # лимиту, а проверка лимита при создании не выполняется (она встроена
+    # в VPNConfigDAO.add_config, SQLAdmin его не вызывает).
+    can_create = False
+    can_edit = False
     can_delete = False
     can_view_details = True
     details_template = "admin/vpn_config_details.html"
