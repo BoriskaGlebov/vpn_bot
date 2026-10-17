@@ -16,6 +16,7 @@ from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
 )
 from bot.vpn.services import VPNService
+from bot.vpn.utils.amnezia_exceptions import AmneziaSSHError
 
 
 @pytest.mark.asyncio
@@ -208,6 +209,95 @@ async def test_generate_user_config_db_error_rollback(mocker, user_out):
         )
 
     ssh_instance.full_delete_user.assert_awaited_once_with(public_key="pubkey123")
+
+
+@pytest.mark.asyncio
+async def test_generate_user_config_rollback_uses_live_ssh_connection(mocker, user_out):
+    """Регрессия на #267: откат обязан идти по ещё открытому SSH-соединению.
+
+    `test_generate_user_config_db_error_rollback` выше не ловит этот баг,
+    потому что там `ssh_instance` — чистый `AsyncMock`, который не меняет
+    поведение после `__aexit__`. Двойник ниже имитирует реальный
+    `AsyncContainerShellClient`: после выхода из `async with` любая команда,
+    включая `full_delete_user`, обязана падать с `AmneziaSSHError`. Если
+    сохранение в БД и откат выполняются уже после выхода из `async with`
+    (старое поведение), `full_delete_user` обращается к закрытому клиенту —
+    откат не происходит, а наверх уходит `AmneziaSSHError` вместо
+    `APIClientError`.
+    """
+
+    class FakeSSHClient:
+        def __init__(self) -> None:
+            self.closed = False
+            self.full_delete_user_called_with: str | None = None
+
+        async def __aenter__(self) -> "FakeSSHClient":
+            return self
+
+        async def __aexit__(self, exc_type: object, exc: object, tb: object) -> bool:
+            self.closed = True
+            return False
+
+        async def add_new_user_gen_config(
+            self, file_name: str
+        ) -> tuple[Path, Path, Path, str]:
+            return (
+                Path("/tmp/test.conf"),
+                Path("/tmp/test.vpn"),
+                Path("/tmp/test.png"),
+                "pubkey123",
+            )
+
+        async def full_delete_user(self, public_key: str) -> None:
+            if self.closed:
+                raise AmneziaSSHError(
+                    "AsyncSSH: shell-сессия не запущена. Вызови connect()"
+                )
+            self.full_delete_user_called_with = public_key
+
+    ssh_instance = FakeSSHClient()
+    ssh_factory = mocker.Mock(return_value=ssh_instance)
+
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    tg_user = SimpleNamespace(id=123)
+
+    api_adapter.check_limit.return_value = SVPNCheckLimitResponse(
+        can_add=True,
+        limit=5,
+        current=1,
+    )
+    user_adapter.register.return_value = (user_out, True)
+    api_adapter.add_config.side_effect = APIClientError(
+        ErrorDetail(code="db_error", message="DB error")
+    )
+
+    service = VPNService(
+        adapter=api_adapter,
+        user_adapter=user_adapter,
+        xray_registry=xray_registry,
+    )
+
+    server_info = SimpleNamespace(
+        host="localhost",
+        username="root",
+        container="vpn",
+        use_local=True,
+        location_prefix="ru_",
+        protocol_version="v2",
+    )
+
+    with pytest.raises(APIClientError):
+        await service.generate_user_config(
+            tg_user=tg_user,
+            ssh_client_factory=ssh_factory,
+            server_info=server_info,
+            node_name="ru",
+        )
+
+    assert ssh_instance.full_delete_user_called_with == "pubkey123"
 
 
 @pytest.mark.asyncio

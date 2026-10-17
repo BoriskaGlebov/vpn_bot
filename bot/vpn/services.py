@@ -194,25 +194,46 @@ class VPNService:
                         ssh.__class__.__name__,
                     )
 
-        try:
-            await self.api_adapter.add_config(
-                tg_id=user.telegram_id,
-                file_name=f"{file_path1.name} / {file_path2.name} / {file_path3.name}",
-                pub_key=pub_key,
-                node_name=node_name,
-                backend=VPNBackend.AMNEZIA,
-                protocol=VPNProtocol.for_wg(server_info.protocol_version),
-            )
-            logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
+                # Сохранение в БД и откат идут здесь, внутри `async with` —
+                # `ssh.full_delete_user` в except-ветке должен обращаться к
+                # ещё живому соединению. Снаружи этого блока `__aexit__` уже
+                # вызвал `close()`, после чего любая команда по SSH падает
+                # (см. #267), а исходная `APIClientError` подменяется ошибкой
+                # SSH.
+                try:
+                    await self.api_adapter.add_config(
+                        tg_id=user.telegram_id,
+                        file_name=(
+                            f"{file_path1.name} / {file_path2.name} / {file_path3.name}"
+                        ),
+                        pub_key=pub_key,
+                        node_name=node_name,
+                        backend=VPNBackend.AMNEZIA,
+                        protocol=VPNProtocol.for_wg(server_info.protocol_version),
+                    )
+                    logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
 
-        except APIClientError as exc:
-            logger.error(
-                "Ошибка сохранения в БД, откат SSH tg_id={} error={}",
-                tg_user.id,
-                exc,
-            )
-            await ssh.full_delete_user(public_key=pub_key)
-            raise
+                except APIClientError as exc:
+                    logger.error(
+                        "Ошибка сохранения в БД, откат SSH tg_id={} error={}",
+                        tg_user.id,
+                        exc,
+                    )
+                    try:
+                        await ssh.full_delete_user(public_key=pub_key)
+                    except AmneziaError as rollback_exc:
+                        # Откат не заменяет собой исходную ошибку — иначе
+                        # наверх уходит сообщение не о той проблеме, которая
+                        # произошла (см. #267). Пир остаётся на ноде, нужна
+                        # ручная очистка — это фиксируется только логом.
+                        logger.critical(
+                            "Откат SSH-пира не удался tg_id={} pub_key={} — "
+                            "требуется ручная очистка на ноде: {}",
+                            tg_user.id,
+                            pub_key,
+                            rollback_exc,
+                        )
+                    raise
 
         return file_path1, file_path2, file_path3, pub_key
 
