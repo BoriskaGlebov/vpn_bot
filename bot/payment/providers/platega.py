@@ -156,21 +156,30 @@ class PlategaProvider:
 
         provider_status = data["status"]
         amount = Decimal(str(data["amount"])) if "amount" in data else None
+        is_chargeback = False
+        is_unknown_status = False
 
         if provider_status == "CONFIRMED":
             status = PaymentStatus.PAID
 
-        elif provider_status in (
-            "CANCELED",
-            "CHARGEBACKED",
-        ):
+        elif provider_status == "CHARGEBACKED":
+            status = PaymentStatus.FAILED
+            is_chargeback = True
+
+        elif provider_status == "CANCELED":
             status = PaymentStatus.FAILED
 
         else:
             status = PaymentStatus.PENDING
-            logger.debug(
+            is_unknown_status = True
+            # warning, а не debug: это новый/незнакомый терминальный статус
+            # Platega, а не штатное "платёж пока не завершён" — см. #259.
+            # На debug сообщение не попадало бы в постоянные логи (там
+            # уровень info), и о зависшей в PENDING транзакции никто не
+            # узнал бы вовсе.
+            logger.warning(
                 "Вебхук Platega с незнакомым статусом provider_status={} — "
-                "трактуется как PENDING (provider_payment_id={})",
+                "трактуется как PENDING, требует внимания (provider_payment_id={})",
                 provider_status,
                 data["id"],
             )
@@ -180,6 +189,8 @@ class PlategaProvider:
             status=status,
             raw_data=data,
             amount=amount,
+            is_chargeback=is_chargeback,
+            is_unknown_status=is_unknown_status,
         )
 
     async def close(self) -> None:

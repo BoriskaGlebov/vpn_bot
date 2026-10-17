@@ -150,8 +150,10 @@ async def test_parse_webhook_maps_canceled_and_chargebacked_to_failed():
 
     assert canceled.status == PaymentStatus.FAILED
     assert canceled.raw_data["status"] == "CANCELED"
+    assert canceled.is_chargeback is False
     assert chargebacked.status == PaymentStatus.FAILED
     assert chargebacked.raw_data["status"] == "CHARGEBACKED"
+    assert chargebacked.is_chargeback is True
 
 
 @pytest.mark.asyncio
@@ -168,3 +170,4 @@ async def test_parse_webhook_maps_unknown_status_to_pending():
 
     assert event.status == PaymentStatus.PENDING
     assert event.raw_data["status"] == "SOME_NEW_STATUS"
+    assert event.is_unknown_status is True

@@ -28,7 +28,7 @@ from bot.payment.dependencies import (
     get_subscription_messages,
 )
 from bot.payment.dto import PaymentWebhookDTO
-from bot.payment.exceptions import PaymentAmountMismatchError
+from bot.payment.exceptions import PaymentAmountMismatchError, PaymentUnknownStatusError
 from bot.payment.router import router
 from shared.enums.payment_enum import PaymentStatus
 
@@ -319,6 +319,36 @@ async def test_amount_mismatch_returns_200_and_alerts_admins(
     _, kwargs = send_to_admins_mock.await_args
     assert kwargs["bot"] is bot_mock
     assert "tx-9" in kwargs["message_text"]
+
+
+@pytest.mark.asyncio
+async def test_unknown_status_returns_200_and_alerts_admins(
+    client, payment_service_mock, payment_webhook_service_mock, bot_mock, mocker
+):
+    """Незнакомый статус провайдера (#259) — 200 без повторной доставки + алерт.
+
+    200, а не 500: повторная доставка того же вебхука не изменит статус,
+    поэтому нет смысла просить провайдера повторить запрос. Транзакция
+    остаётся в PENDING — об этом должен узнать администратор.
+    """
+    send_to_admins_mock = mocker.patch(
+        "bot.payment.router.send_to_admins", new=AsyncMock()
+    )
+
+    payment_service_mock.provider.verify_webhook.return_value = True
+    payment_service_mock.provider.parse_webhook.return_value = make_event()
+    payment_webhook_service_mock.handle_event.side_effect = PaymentUnknownStatusError(
+        transaction_id="tx-10",
+        provider_status="SOME_NEW_STATUS",
+    )
+
+    response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
+
+    assert response.status_code == 200
+    send_to_admins_mock.assert_awaited_once()
+    _, kwargs = send_to_admins_mock.await_args
+    assert kwargs["bot"] is bot_mock
+    assert "tx-10" in kwargs["message_text"]
 
 
 @pytest.mark.asyncio

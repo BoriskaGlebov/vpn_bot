@@ -24,7 +24,7 @@ from bot.payment.dependencies import (
     get_subscription_messages,
 )
 from bot.payment.dto import PaymentWebhookDTO
-from bot.payment.exceptions import PaymentAmountMismatchError
+from bot.payment.exceptions import PaymentAmountMismatchError, PaymentUnknownStatusError
 from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.utils.start_stop_bot import send_to_admins
 from shared.enums.payment_enum import PaymentStatus
@@ -156,12 +156,13 @@ async def payment_webhook(
 
     Returns
         Response: 200 при успешной обработке, включая конфликтные,
-        идемпотентные случаи (см. `_notify_transaction_conflict`) и
-        несовпадение суммы (см. `PaymentAmountMismatchError` — повторная
-        доставка не изменит сумму, поэтому провайдеру не нужно повторять
-        запрос); 403, если подлинность вебхука не подтверждена; 400, если
-        тело вебхука не удалось разобрать; 500 при неожиданной ошибке
-        обработки (провайдер повторит доставку).
+        идемпотентные случаи (см. `_notify_transaction_conflict`),
+        несовпадение суммы (`PaymentAmountMismatchError`) и незнакомый
+        статус провайдера (`PaymentUnknownStatusError`) — в обоих случаях
+        повторная доставка не изменит содержимое вебхука, поэтому
+        провайдеру не нужно его повторять; 403, если подлинность вебхука не
+        подтверждена; 400, если тело вебхука не удалось разобрать; 500 при
+        неожиданной ошибке обработки (провайдер повторит доставку).
 
     """
     body: bytes = await request.body()
@@ -205,6 +206,19 @@ async def payment_webhook(
                 transaction_id=exc.details["transaction_id"],
                 expected_amount=exc.details["expected_amount"],
                 received_amount=exc.details["received_amount"],
+            ),
+        )
+        return Response(status_code=200)
+    except PaymentUnknownStatusError as exc:
+        # Повторная доставка того же вебхука не изменит статус — 200, чтобы
+        # провайдер не повторял запрос; транзакция остаётся в PENDING до
+        # ручной проверки (см. #259 — иначе новый терминальный статус
+        # провайдера оставил бы транзакцию зависшей без единого уведомления).
+        await send_to_admins(
+            bot=bot,
+            message_text=m_subscription.gateway_alert.unknown_status.format(
+                transaction_id=exc.details["transaction_id"],
+                provider_status=exc.details["provider_status"],
             ),
         )
         return Response(status_code=200)

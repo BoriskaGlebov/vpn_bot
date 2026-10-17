@@ -56,3 +56,40 @@ class PaymentAmountMismatchError(AppError):
                 "received_amount": str(received_amount),
             },
         )
+
+
+class PaymentUnknownStatusError(AppError):
+    """Платёжный провайдер прислал статус, не входящий в известный набор.
+
+    Поднимается, когда `parse_webhook` не смог сопоставить статус провайдера
+    ни одному из известных терминальных состояний (см. #259) — событие
+    трактуется как PENDING, но в отличие от штатного "платёж пока не
+    завершён" требует внимания администратора: если это новый терминальный
+    статус провайдера, транзакция иначе навсегда останется в PENDING без
+    единого уведомления.
+
+    Args:
+        transaction_id: Идентификатор транзакции.
+        provider_status: Статус, присланный провайдером (как есть, без
+            нормализации).
+
+    """
+
+    code: str = "payment_unknown_status"
+    status_code: int = 409
+
+    def __init__(
+        self,
+        transaction_id: object,
+        provider_status: object,
+    ) -> None:
+        super().__init__(
+            message=(
+                f"Платёжный провайдер прислал неизвестный статус "
+                f"'{provider_status}' для транзакции {transaction_id}"
+            ),
+            details={
+                "transaction_id": str(transaction_id),
+                "provider_status": str(provider_status),
+            },
+        )

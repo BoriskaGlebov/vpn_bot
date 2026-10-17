@@ -8,7 +8,7 @@ from loguru import logger
 from bot.notification.services import NotificationService
 from bot.payment.adapter import PaymentAPIAdapter
 from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookDTO
-from bot.payment.exceptions import PaymentAmountMismatchError
+from bot.payment.exceptions import PaymentAmountMismatchError, PaymentUnknownStatusError
 from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.schemas import (
     SConfirmPaymentResponse,
@@ -270,16 +270,33 @@ class PaymentWebhookService:
 
         elif event.status == PaymentStatus.FAILED:
             await self.payment_service.webhook_cancel_transaction(tx.id)
-            is_chargeback = event.raw_data.get("status") == "CHARGEBACKED"
             logger.warning(
                 "Платёж не прошёл: transaction_id={} tg_id={} chargeback={}",
                 tx.id,
                 tx.tg_id,
-                is_chargeback,
+                event.is_chargeback,
             )
 
             await self.notification_service.notify_payment_failed(
                 transaction_id=tx.id,
                 tg_id=tx.tg_id,
-                is_chargeback=is_chargeback,
+                is_chargeback=event.is_chargeback,
+            )
+
+        elif event.is_unknown_status:
+            # Статус не входит в известный набор (CONFIRMED/CANCELED/
+            # CHARGEBACKED) — см. #259. Транзакция остаётся в PENDING, но в
+            # отличие от штатного "платёж пока не завершён" требует внимания
+            # администратора: иначе зависнет в PENDING навсегда без единого
+            # уведомления, если это новый терминальный статус провайдера.
+            logger.error(
+                "Платёжный провайдер прислал неизвестный статус: "
+                "transaction_id={} tg_id={} provider_status={}",
+                tx.id,
+                tx.tg_id,
+                event.raw_data.get("status"),
+            )
+            raise PaymentUnknownStatusError(
+                transaction_id=tx.id,
+                provider_status=event.raw_data.get("status"),
             )
