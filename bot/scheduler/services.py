@@ -18,7 +18,12 @@ from bot.scheduler.schemas import (
     EventBase,
     UserNotifyEventSchema,
 )
-from bot.users.enums import PremiumLocation, available_locations
+from bot.users.enums import (
+    Location,
+    PremiumLocation,
+    available_locations,
+    available_premium_locations,
+)
 from bot.utils.start_stop_bot import send_to_admins
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import ssh_client_factory_for, ssh_lock
@@ -28,10 +33,14 @@ from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 from shared.enums.vpn_enum import VPNBackend
 
 m_subscription_local = settings_bot.messages.modes.subscription
-# available_locations() (не Location) — иначе перебор попадёт на локацию без
-# реально сконфигурированной ноды (например "fi", пока она отключена) и
+# available_locations()/available_premium_locations() (не Location/
+# PremiumLocation напрямую) — иначе перебор попадёт на локацию без реально
+# сконфигурированной ноды (например "fi", пока она отключена) и
 # settings_bot.vpn.get()/xray_registry.get() ниже упадут с исключением.
-ALL_LOCATIONS = (*available_locations(), *PremiumLocation)
+ALL_LOCATIONS: tuple[Location | PremiumLocation, ...] = (
+    *available_locations(),
+    *available_premium_locations(),
+)
 
 
 @dataclass
@@ -324,10 +333,7 @@ class SchedulerBotService:
         locations: list[str] = (
             [cfg.node_name]
             if known_adapter is not None and cfg.node_name is not None
-            else [
-                serv_loc.value if serv_loc.name.lower() != "main" else "main"
-                for serv_loc in ALL_LOCATIONS
-            ]
+            else [serv_loc.value for serv_loc in ALL_LOCATIONS]
         )
 
         for serv_loc in locations:
@@ -400,10 +406,7 @@ class SchedulerBotService:
         if cfg.node_name and cfg.node_name in settings_bot.vpn.nodes:
             locations: list[str] = [cfg.node_name]
         else:
-            locations = [
-                "main" if loc_prefix.name.lower() == "main" else loc_prefix.value
-                for loc_prefix in ALL_LOCATIONS
-            ]
+            locations = [loc_prefix.value for loc_prefix in ALL_LOCATIONS]
 
         deletion_statistic = []
         for loc in locations:

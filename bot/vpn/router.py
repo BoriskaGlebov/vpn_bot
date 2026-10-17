@@ -1,6 +1,8 @@
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from typing import Any
 
-from aiogram import Bot, F
+from aiogram import BaseMiddleware, Bot, F
+from aiogram.dispatcher.flags import get_flag
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
@@ -8,14 +10,12 @@ from aiogram.types import (
     InputMediaDocument,
     Message,
     ReplyKeyboardRemove,
+    TelegramObject,
 )
 from aiogram.types import User as TgUser
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.app_error.base_error import (
-    VPNLocationNotDeterminedError,
-)
 from bot.core.config import VPNNode, settings_bot
 from bot.core.filters import IsPremium
 from bot.integrations.redis_client import RedisClient
@@ -24,19 +24,18 @@ from bot.subscription.router import SubscriptionStates
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.enums import (
+    Location,
     MainMenuText,
     PremiumLocation,
     VPNProtocol,
     available_locations,
+    available_premium_locations,
 )
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
 from bot.vpn.keyboards.inline_kb import xray_url_kb
 from bot.vpn.keyboards.markup_kb import premium_locations_kb
 from bot.vpn.services import SSHClientFactory, VPNService, ssh_client_factory_for
-
-if TYPE_CHECKING:
-    pass
 
 m_vpn = settings_bot.messages.modes.vpn
 m_subscription = settings_bot.messages.modes.subscription
@@ -47,6 +46,33 @@ class VPNStates(StatesGroup):  # type: ignore[misc]
     """Состояния роутера генерации конфиг файлов."""
 
     check_location: State = State()
+
+
+class LocationFlagMiddleware(BaseMiddleware):
+    """Прокидывает флаг `location` хендлера в data по имени параметра.
+
+    Хендлеры регистрируются в цикле по локациям с `flags={"location": loc}`
+    (см. `VPNRouter._register_handlers`) — aiogram сохраняет флаг на
+    `HandlerObject`, но не инжектирует его в вызов хендлера автоматически.
+    Раньше локация повторно выводилась из текста кнопки, который видит
+    пользователь (`_get_location_server`), подстрочным поиском — совпадение
+    было случайным (например, `'sof' in 'Sofia'`), и переименование ноды
+    или локации с похожим названием ломало маршрутизацию молча (см. #268).
+    Эта middleware делает уже переданный при регистрации флаг видимым
+    хендлеру через параметр `location` — без повторного разбора текста.
+    """
+
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: dict[str, Any],
+    ) -> Any:
+        """Добавляет флаг `location` сработавшего хендлера в `data`, если он есть."""
+        location = get_flag(data, "location")
+        if location is not None:
+            data["location"] = location
+        return await handler(event, data)
 
 
 class VPNRouter(BaseRouter):
@@ -70,6 +96,7 @@ class VPNRouter(BaseRouter):
     def _register_handlers(self) -> None:
         """Регистрация хендлеров."""
         is_premium = IsPremium(user_adapter=self.user_adapter)
+        self.router.message.middleware(LocationFlagMiddleware())
 
         for location in available_locations():
             self.router.message.register(
@@ -90,7 +117,7 @@ class VPNRouter(BaseRouter):
             F.text == MainMenuText.PREMIUM,
         )
 
-        for prem_location in PremiumLocation:
+        for prem_location in available_premium_locations():
             self.router.message.register(
                 self.get_config_amnezia_wg,
                 F.text == vpn_button_text(VPNProtocol.AMNEZIA, prem_location),
@@ -113,36 +140,6 @@ class VPNRouter(BaseRouter):
             )
             return False
         return True
-
-    async def _get_location_server(
-        self,
-        message: Message,
-    ) -> str | None:
-        """Определяет сервер VPN по тексту сообщения.
-
-        Args:
-            message (Message): сообщение пользователя с выбранной локацией.
-
-        Returns
-            str | None: имя сервера, если найдено совпадение, иначе None.
-
-        Raises
-            VPNLocationNotDeterminedError: если message.text отсутствует.
-
-        """
-        if message.text is None:
-            raise VPNLocationNotDeterminedError(reason="message.text is None")
-        location = message.text.lower()
-        for loc in settings_bot.vpn.nodes:
-            is_loc_pref_in = loc in location
-            is_location = settings_bot.vpn.get(loc)
-            is_flag_in = is_location.flag in location if is_location else False
-            if is_loc_pref_in and is_flag_in:
-                self.logger.debug(
-                    "Определил локацию по тексту кнопки {} -> {}.", location, loc
-                )
-                return loc
-        return None
 
     async def _handle_vpn_config(
         self,
@@ -222,7 +219,11 @@ class VPNRouter(BaseRouter):
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def get_config_amnezia_wg(
-        self, message: Message, user: TgUser, state: FSMContext
+        self,
+        message: Message,
+        user: TgUser,
+        state: FSMContext,
+        location: Location | PremiumLocation,
     ) -> None:
         """Генерация конфигурации AmneziaWG.
 
@@ -236,17 +237,15 @@ class VPNRouter(BaseRouter):
             message (Message): входящее сообщение.
             user (TgUser): пользователь.
             state (FSMContext): FSM контекст.
+            location: Локация, под которую зарегистрирован сработавший
+                хендлер (см. `_register_handlers` и `LocationFlagMiddleware`) —
+                ключ ноды берётся из неё напрямую, без разбора текста кнопки.
 
         Returns
             None
 
         """
-        location = await self._get_location_server(message=message)
-        if location is None:
-            raise VPNLocationNotDeterminedError(
-                reason="кнопка вызова AmneziaWG-конфига не содержит известную локацию"
-            )
-        server_info = settings_bot.vpn.get(name=location)
+        server_info = settings_bot.vpn.get(name=location.value)
 
         redis_key = f"vpn:config:{user.id}:amnezia_wg"
         acquired_check = await self._check_acquired(redis_key, message)
@@ -258,7 +257,7 @@ class VPNRouter(BaseRouter):
             state=state,
             ssh_client_factory=ssh_client_factory_for(server_info),
             server_info=server_info,
-            node_name=location,
+            node_name=location.value,
             redis_key=redis_key,
             start_text=m_vpn.amnezia_wg,
         )
@@ -288,7 +287,11 @@ class VPNRouter(BaseRouter):
     @BaseRouter.log_method
     @BaseRouter.require_user
     async def generate_subscription(
-        self, message: Message, user: TgUser, state: FSMContext
+        self,
+        message: Message,
+        user: TgUser,
+        state: FSMContext,
+        location: Location | PremiumLocation,
     ) -> None:
         """Генерация XRay подписки для пользователя.
 
@@ -301,6 +304,9 @@ class VPNRouter(BaseRouter):
             message (Message): входящее сообщение.
             user (TgUser): пользователь Telegram.
             state (FSMContext): FSM контекст.
+            location: Локация, под которую зарегистрирован сработавший
+                хендлер (см. `_register_handlers` и `LocationFlagMiddleware`) —
+                ключ ноды берётся из неё напрямую, без разбора текста кнопки.
 
         Returns
             None
@@ -308,11 +314,7 @@ class VPNRouter(BaseRouter):
         """
         async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
             await state.clear()
-            xray_location = await self._get_location_server(message=message)
-            if xray_location is None:
-                raise VPNLocationNotDeterminedError(
-                    reason="кнопка вызова XRay-конфига не содержит известную локацию"
-                )
+            xray_location = location.value
 
             redis_key = f"vpn:config:{user.id}:xray:{xray_location}"
             if not await self._check_acquired(redis_key, message):

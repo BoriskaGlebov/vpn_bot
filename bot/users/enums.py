@@ -46,28 +46,24 @@ class MainMenuText(str, Enum):
 class Location(str, Enum):
     """Перечисление доступных VPN-локаций.
 
-    Используется для идентификации серверов VPN по географическому признаку
-    и сопоставления с конфигурацией из settings_bot.
+    Значение каждого члена — ключ ноды в `settings_bot.vpn.nodes`, а не
+    `location_prefix` ноды. Раньше значением был `location_prefix` (напр.
+    "fr" на prod при ключе ноды "main"), из-за чего `nodes.get(location.value)`
+    не находил ноду вообще никогда, и реально работал только обходной путь
+    по `location.name.lower()` (см. аудит, #268). Ключи — литералы, а не
+    вычисление из `settings_bot` при импорте модуля: отсутствие опциональной
+    ноды (`fi`, `waw`) не должно ломать импорт.
 
     Attributes
-        MAIN (str): основная VPN-локация (значение берётся из settings_bot.vpn.main).
-        FINLAND (str): финская VPN-локация (settings_bot.vpn.fi).
-        SOFIA (str): софийская VPN-локация (settings_bot.vpn.sof).
-        WAW (str): варшавская VPN-локация (settings_bot.vpn.waw).
+        MAIN (str): основная VPN-локация, ключ ноды "main".
+        FINLAND (str): финская VPN-локация, ключ ноды "fi".
+        WAW (str): варшавская VPN-локация, ключ ноды "waw".
 
     """
 
-    MAIN = settings_bot.vpn.main.location_prefix.lower()
-    FINLAND = (
-        settings_bot.vpn.fi.location_prefix.lower()
-        if settings_bot.vpn.fi is not None
-        else "fi"
-    )
-    WAW = (
-        settings_bot.vpn.waw.location_prefix.lower()
-        if settings_bot.vpn.waw is not None
-        else "waw"
-    )
+    MAIN = "main"
+    FINLAND = "fi"
+    WAW = "waw"
 
 
 def available_locations() -> list["Location"]:
@@ -84,24 +80,36 @@ def available_locations() -> list["Location"]:
         list[Location]: подмножество Location с реально сконфигурированными нодами.
 
     """
-    configured_prefixes = {
-        node.location_prefix.lower() for node in settings_bot.vpn.nodes.values()
-    }
-    return [loc for loc in Location if loc.value in configured_prefixes]
+    return [loc for loc in Location if loc.value in settings_bot.vpn.nodes]
 
 
 class PremiumLocation(str, Enum):
     """Перечисление доступных премиум VPN-локаций.
 
-    Используется для идентификации серверов VPN по географическому признаку
-    и сопоставления с конфигурацией из settings_bot.
+    См. `Location` — то же решение: значение — ключ ноды, а не
+    `location_prefix`, и не вычисляется из `settings_bot` при импорте.
 
     Attributes
-        SOFIA (str): софийская VPN-локация (settings_bot.vpn.sof).
+        SOFIA (str): софийская VPN-локация, ключ ноды "sof".
 
     """
 
-    SOFIA = settings_bot.vpn.sof.location_prefix.lower()
+    SOFIA = "sof"
+
+
+def available_premium_locations() -> list["PremiumLocation"]:
+    """Премиум-локации, для которых реально сконфигурирована VPN-нода.
+
+    См. `available_locations()` — то же рассуждение для премиум-набора.
+    До этой функции `sof` не был защищён так же, как `fi`/`waw`: не было
+    отдельной проверки на отсутствие ноды (см. #268).
+
+    Returns
+        list[PremiumLocation]: подмножество PremiumLocation с реально
+            сконфигурированными нодами.
+
+    """
+    return [loc for loc in PremiumLocation if loc.value in settings_bot.vpn.nodes]
 
 
 class VPNProtocol(StrEnum):
