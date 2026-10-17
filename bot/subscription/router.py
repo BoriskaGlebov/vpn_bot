@@ -16,6 +16,7 @@ from loguru._logger import Logger
 
 from bot.app_error.api_error import APIClientError
 from bot.app_error.base_error import (
+    InvalidSubscriptionPeriodError,
     MessageNotFoundError,
     PaymentLinkMissingError,
     SubscriptionActivationFailedError,
@@ -28,7 +29,6 @@ from bot.redis_service import RedisAdminMessageStorage, RedisPaymentMessageStora
 from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
-    TRIAL_PERIOD_SENTINEL,
     AdminPaymentAction,
     MySubscriptionAction,
     SubscriptionAction,
@@ -148,6 +148,13 @@ class SubscriptionRouter(BaseRouter):
             and_f(
                 StateFilter(SubscriptionStates.subscription_start),
                 SubscriptionCB.filter(F.action == SubscriptionAction.SELECT),
+            ),
+        )
+        self.router.callback_query.register(
+            self.trial_selected,
+            and_f(
+                StateFilter(SubscriptionStates.subscription_start),
+                SubscriptionCB.filter(F.action == SubscriptionAction.TRIAL),
             ),
         )
         self.router.callback_query.register(
@@ -470,62 +477,88 @@ class SubscriptionRouter(BaseRouter):
             user_logger.info(f"Выбор периода подписки: {months} мес")
             data = await state.get_data()
             is_premium = data.get("premium", False)
-            if months != TRIAL_PERIOD_SENTINEL:
-                price_map = get_correct_price_map(premium=is_premium, founder=founder)
-                sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
-                price = price_map[months]
-                transaction_info = await self.subscription_service.create_transaction(
-                    amount=price,
-                    subscription_months=months,
-                    is_premium=is_premium,
-                    is_founder=founder,
+            price_map = get_correct_price_map(premium=is_premium, founder=founder)
+            sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
+            price = price_map.get(months)
+            if price is None:
+                raise InvalidSubscriptionPeriodError(months=months)
+            transaction_info = await self.subscription_service.create_transaction(
+                amount=price,
+                subscription_months=months,
+                is_premium=is_premium,
+                is_founder=founder,
+            )
+
+            await query.answer(f"Выбрал {months} месяцев", show_alert=False)
+
+            await state.update_data(payment_url=transaction_info.payment_url)
+
+            await msg.edit_text(
+                text=m_subscription.choose_payment_method.format(
+                    sub_type=sub_type,
+                    months=months,
+                    price=price,
+                ),
+                reply_markup=payment_method_kb(
+                    months=months,
+                    founder=founder,
+                    transaction_id=transaction_info.id,
+                    has_card_option=bool(transaction_info.payment_url),
+                ),
+            )
+            await state.set_state(SubscriptionStates.select_payment_method)
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def trial_selected(
+        self,
+        query: CallbackQuery,
+        msg: Message,
+        state: FSMContext,
+        callback_data: SubscriptionCB,
+    ) -> None:
+        """Обрабатывает выбор пробного периода пользователем.
+
+        Отдельный хендлер от `subscription_selected` (#278) — пробный
+        период выражен действием `SubscriptionCB.action == TRIAL`, а не
+        особым значением `months`.
+
+        Args:
+            query (CallbackQuery): Callback от кнопки "Пробный период".
+            msg (Message): Сообщение над которым надо вносить изменения.
+            state (FSMContext): Контекст FSM.
+            callback_data (SubscriptionCB): Данные для работы.
+
+        """
+        user_logger = self.logger.bind(user=format_username(query.from_user))
+        async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
+            try:
+                await self.subscription_service.start_trial_subscription(
+                    tg_id=query.from_user.id,
+                    days=settings_bot.core.trial_period_days,
                 )
-
-                await query.answer(f"Выбрал {months} месяцев", show_alert=False)
-
-                await state.update_data(payment_url=transaction_info.payment_url)
-
-                await msg.edit_text(
-                    text=m_subscription.choose_payment_method.format(
-                        sub_type=sub_type,
-                        months=months,
-                        price=price,
-                    ),
-                    reply_markup=payment_method_kb(
-                        months=months,
-                        founder=founder,
-                        transaction_id=transaction_info.id,
-                        has_card_option=bool(transaction_info.payment_url),
+            except APIClientError as e:
+                user_logger.warning(
+                    f"Не удалось активировать пробный период: {e.error.message}"
+                )
+                await query.answer(e.error.message, show_alert=True)
+                await send_to_admins(
+                    bot=self.bot,
+                    message_text=(
+                        f"⚠️ Пользователь {format_username(query.from_user)} "
+                        f"({query.from_user.id}) не смог активировать пробный "
+                        f"период: {e.error.message}"
                     ),
                 )
-                await state.set_state(SubscriptionStates.select_payment_method)
             else:
-                try:
-                    await self.subscription_service.start_trial_subscription(
-                        tg_id=query.from_user.id, days=TRIAL_PERIOD_SENTINEL
-                    )
-                except APIClientError as e:
-                    user_logger.warning(
-                        f"Не удалось активировать пробный период: {e.error.message}"
-                    )
-                    await query.answer(e.error.message, show_alert=True)
-                    await send_to_admins(
-                        bot=self.bot,
-                        message_text=(
-                            f"⚠️ Пользователь {format_username(query.from_user)} "
-                            f"({query.from_user.id}) не смог активировать пробный "
-                            f"период: {e.error.message}"
-                        ),
-                    )
-                else:
-                    await query.answer("Выбрал пробный период", show_alert=False)
-                    await msg.delete()
-                    await self.bot.send_message(
-                        chat_id=query.from_user.id,
-                        text=m_subscription.trial_period,
-                        reply_markup=main_kb(active_subscription=True),
-                    )
-                    await state.clear()
+                await query.answer("Выбрал пробный период", show_alert=False)
+                await msg.delete()
+                await self.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=m_subscription.trial_period,
+                    reply_markup=main_kb(active_subscription=True),
+                )
+                await state.clear()
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -562,7 +595,9 @@ class SubscriptionRouter(BaseRouter):
         is_premium = data.get("premium", False)
         price_map = get_correct_price_map(premium=is_premium, founder=founder)
         sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
-        price = price_map[months]
+        price = price_map.get(months)
+        if price is None:
+            raise InvalidSubscriptionPeriodError(months=months)
 
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             if callback_data.action == SubscriptionAction.PAY_CARD:
@@ -675,7 +710,9 @@ class SubscriptionRouter(BaseRouter):
                 raise TransactionIdMissingError()
             premium = (await state.get_data()).get("premium", False)
             price_map = get_correct_price_map(premium=premium, founder=founder)
-            price = price_map[months]
+            price = price_map.get(months)
+            if price is None:
+                raise InvalidSubscriptionPeriodError(months=months)
             sub_type = get_correct_sub_type(premium=premium, founder=founder)
             await self.subscription_service.mark_payment_started(
                 transaction_id=transaction_id

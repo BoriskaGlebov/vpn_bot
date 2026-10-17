@@ -5,7 +5,10 @@ from uuid import UUID
 import pytest
 from aiogram.types import ReplyKeyboardRemove
 
-from bot.app_error.base_error import VPNConfigNotFoundError
+from bot.app_error.base_error import (
+    InvalidSubscriptionPeriodError,
+    VPNConfigNotFoundError,
+)
 from bot.subscription.router import SubscriptionRouter, SubscriptionStates
 from bot.users.schemas import SVPNConfigOut
 from shared.enums.admin_enum import RoleEnum
@@ -296,6 +299,34 @@ async def test_subscription_selected_paid(mocker):
 
 
 @pytest.mark.asyncio
+async def test_subscription_selected_unknown_months_raises_domain_error(mocker):
+    """#278: months из callback-данных (от клиента) не найден в карте тарифов —
+    доменная ошибка, а не необработанный KeyError.
+    """
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    state_mock = AsyncMock()
+    state_mock.get_data.return_value = {"premium": False}
+    callback_data = Mock(months=999, founder=False)
+
+    router = SubscriptionRouter(
+        bot=mocker.AsyncMock(),
+        logger=mocker.Mock(),
+        subscription_service=mocker.AsyncMock(),
+        referral_service=mocker.AsyncMock(),
+        redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
+    )
+
+    with pytest.raises(InvalidSubscriptionPeriodError):
+        await router.subscription_selected(
+            query=query_mock, state=state_mock, callback_data=callback_data
+        )
+
+
+@pytest.mark.asyncio
 async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
     """Повторная попытка активировать триал показывает alert и уведомляет админов."""
     from bot.app_error.api_error import APIClientConflictError
@@ -307,7 +338,7 @@ async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
     query_mock.from_user = Mock(id=123, username="testuser")
     state_mock = AsyncMock()
     state_mock.get_data.return_value = {"premium": False}
-    callback_data = Mock(months=7, founder=False)
+    callback_data = Mock(founder=False)
 
     subscription_service_mock = mocker.AsyncMock()
     subscription_service_mock.start_trial_subscription.side_effect = (
@@ -330,7 +361,7 @@ async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
     )
     send_to_admins_mock = mocker.patch("bot.subscription.router.send_to_admins")
 
-    await router.subscription_selected(
+    await router.trial_selected(
         query=query_mock, state=state_mock, callback_data=callback_data
     )
 

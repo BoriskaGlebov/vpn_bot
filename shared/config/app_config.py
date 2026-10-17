@@ -128,6 +128,13 @@ class SettingsApp(SettingsCommon):
      logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
      logger_diagnose_files (bool): Отладочный флаг логгера, пишет подробнее логи включая секреты
      max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
+     trial_period_days (int):
+            Длительность пробного периода в днях. Раньше число дней совпадало
+            со значением `TRIAL_PERIOD_SENTINEL`, которым пробный период
+            одновременно обозначался в callback-данных — смена одного меняла
+            другое (см. #278). Выбор пробного периода выражен отдельным
+            действием `SubscriptionAction.TRIAL`, длительность задаётся
+            только здесь.
      common_timeout (int): Настройка таймаута при подключении к API, серверам, контейнерам.
      admin_ids (list[int]):
             Список Telegram ID администраторов с расширенными правами.
@@ -157,6 +164,7 @@ class SettingsApp(SettingsCommon):
     logger_error_file: str = "WARNING"
     logger_diagnose_files: bool = False
     max_configs_per_user: int = 10
+    trial_period_days: int = 7
     common_timeout: int = 10
     admin_ids: list[int] = []
     timezone: str = "Europe/Moscow"

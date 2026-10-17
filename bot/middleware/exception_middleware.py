@@ -74,6 +74,7 @@ _SAFE_USER_FACING_CODES: frozenset[str] = frozenset(
         "proxy_not_configured",
         "news_recipients_fetch_error",
         "transaction_id_missing",
+        "invalid_subscription_period",
         "subscription_activation_failed",
         "payment_link_missing",
         "no_admin_configured",

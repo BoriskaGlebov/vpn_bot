@@ -4,8 +4,8 @@ from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from bot.core.config import settings_bot
 from bot.subscription.enums import (
-    TRIAL_PERIOD_SENTINEL,
     AdminPaymentAction,
     MySubscriptionAction,
     SubscriptionAction,
@@ -123,10 +123,8 @@ def subscription_options_kb(
 
     if not premium and not founder and not trial:
         builder.button(
-            text="🎁 7 дней — Бесплатно",
-            callback_data=SubscriptionCB(
-                action=SubscriptionAction.SELECT, months=TRIAL_PERIOD_SENTINEL
-            ),
+            text=f"🎁 {settings_bot.core.trial_period_days} дней — Бесплатно",
+            callback_data=SubscriptionCB(action=SubscriptionAction.TRIAL),
         )
 
     if premium:
