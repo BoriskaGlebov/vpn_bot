@@ -299,6 +299,47 @@ async def test_subscription_selected_paid(mocker):
 
 
 @pytest.mark.asyncio
+async def test_subscription_selected_ignores_forged_founder_flag(mocker):
+    """#279: founder в данных кнопки подделан (True), но сервер в состоянии
+    положил False — сумма и тип подписки считаются по состоянию, а не по
+    callback-данным: founder-тариф дороже обычного, подмена не должна его
+    давать по сниженной (обычной) цене или наоборот.
+    """
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    state_mock = AsyncMock()
+    state_mock.get_data.return_value = {"premium": False, "founder": False}
+    callback_data = Mock(months=1, founder=True)  # подделанный признак
+
+    transaction_id = UUID("12345678-1234-5678-1234-567812345678")
+    subscription_service_mock = mocker.AsyncMock()
+    subscription_service_mock.create_transaction.return_value = Mock(
+        id=transaction_id, payment_url=None
+    )
+
+    router = SubscriptionRouter(
+        bot=mocker.AsyncMock(),
+        logger=mocker.Mock(),
+        subscription_service=subscription_service_mock,
+        referral_service=mocker.AsyncMock(),
+        redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
+    )
+
+    await router.subscription_selected(
+        query=query_mock, state=state_mock, callback_data=callback_data
+    )
+
+    # Стандартный тариф на 1 мес из app_config.local.toml (см. conftest) —
+    # ключевая проверка в том, что is_founder=False ушёл в транзакцию,
+    # а не True из подделанного callback_data.
+    _, kwargs = subscription_service_mock.create_transaction.call_args
+    assert kwargs["is_founder"] is False
+
+
+@pytest.mark.asyncio
 async def test_subscription_selected_unknown_months_raises_domain_error(mocker):
     """#278: months из callback-данных (от клиента) не найден в карте тарифов —
     доменная ошибка, а не необработанный KeyError.

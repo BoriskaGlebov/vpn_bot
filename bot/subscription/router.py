@@ -473,10 +473,14 @@ class SubscriptionRouter(BaseRouter):
         user_logger = self.logger.bind(user=format_username(user))
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             months = callback_data.months
-            founder = callback_data.founder
             user_logger.info(f"Выбор периода подписки: {months} мес")
             data = await state.get_data()
             is_premium = data.get("premium", False)
+            # #279: founder — признак, который сервер уже проверил и положил
+            # в состояние в _show_subscription_options; данные кнопки
+            # (callback_data.founder) для расчёта суммы не используются —
+            # иначе её можно было бы подменить до проверки сервером.
+            founder = data.get("founder", False)
             price_map = get_correct_price_map(premium=is_premium, founder=founder)
             sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
             price = price_map.get(months)
@@ -586,13 +590,14 @@ class SubscriptionRouter(BaseRouter):
 
         """
         months = callback_data.months
-        founder = callback_data.founder
         transaction_id = callback_data.transaction_id
         if transaction_id is None:
             raise TransactionIdMissingError()
 
         data = await state.get_data()
         is_premium = data.get("premium", False)
+        # #279: founder — из состояния, не из данных кнопки, см. subscription_selected.
+        founder = data.get("founder", False)
         price_map = get_correct_price_map(premium=is_premium, founder=founder)
         sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
         price = price_map.get(months)
@@ -704,11 +709,13 @@ class SubscriptionRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             await state.set_state(SubscriptionStates.wait_for_paid)
             months = callback_data.months
-            founder = callback_data.founder
             transaction_id = callback_data.transaction_id
             if transaction_id is None:
                 raise TransactionIdMissingError()
-            premium = (await state.get_data()).get("premium", False)
+            data = await state.get_data()
+            premium = data.get("premium", False)
+            # #279: founder — из состояния, не из данных кнопки, см. subscription_selected.
+            founder = data.get("founder", False)
             price_map = get_correct_price_map(premium=premium, founder=founder)
             price = price_map.get(months)
             if price is None:
