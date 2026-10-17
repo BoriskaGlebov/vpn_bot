@@ -1,7 +1,27 @@
+from zoneinfo import ZoneInfo
+
 import pytest
 
 from shared.config import app_config
-from shared.config.app_config import deep_merge, load_toml_config
+from shared.config.app_config import SettingsApp, deep_merge, load_toml_config
+
+
+def test_settings_app_timezone_defaults_to_moscow() -> None:
+    """По умолчанию `timezone` — Europe/Moscow (см. #255), а не UTC:
+    контейнеры проекта уже работают в этой зоне (TZ в
+    docker-compose.common.yml), единая настройка убирает расхождение между
+    naive datetime.now() (читает OS-зону) и explicit datetime.now(UTC).
+    """
+    assert SettingsApp().timezone == "Europe/Moscow"
+
+
+def test_settings_app_tzinfo_builds_zoneinfo_from_timezone() -> None:
+    """`tzinfo` — вычисляемое свойство из `timezone`, а не отдельное поле,
+    которое можно было бы задать несогласованно с ним.
+    """
+    settings = SettingsApp(timezone="UTC")
+
+    assert settings.tzinfo == ZoneInfo("UTC")
 
 
 def test_deep_merge_overrides_scalar_and_keeps_untouched_keys() -> None:

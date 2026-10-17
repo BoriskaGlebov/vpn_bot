@@ -1,10 +1,11 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from api.core.config import settings_api
 from api.payment.model import PaymentSource
 from api.referrals.schemas import GrantReferralBonusResponse
 from api.users.schemas import SUserOut
@@ -175,7 +176,9 @@ class SAdminConfirmPayment(STransactionIDFilter):
 class SPaidAt(BaseModel):
     """Схема установки даты оплаты."""
 
-    paid_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    paid_at: datetime = Field(
+        default_factory=lambda: datetime.now(settings_api.core.tzinfo)
+    )
 
 
 class SPaymentStatusCancel(BaseModel):

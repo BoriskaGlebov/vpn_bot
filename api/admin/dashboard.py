@@ -1,10 +1,11 @@
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from fastapi import Request
 from sqladmin import BaseView, expose
 from sqladmin.templating import _TemplateResponse
 from sqlalchemy import func, select
 
+from api.core.config import settings_api
 from api.core.database import async_session
 from api.payment.model import PaymentTransaction
 from api.referrals.models import Referral
@@ -28,7 +29,7 @@ class DashboardView(BaseView):
     @expose("/dashboard", methods=["GET"], identity="dashboard")
     async def dashboard(self, request: Request) -> _TemplateResponse:
         """Собирает метрики и рендерит страницу дашборда."""
-        now = datetime.now(UTC)
+        now = datetime.now(settings_api.core.tzinfo)
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
 

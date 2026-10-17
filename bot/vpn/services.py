@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections.abc import Callable, Iterable
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 from aiogram.types import User as TGUser
@@ -283,10 +283,10 @@ class VPNService:
             # пользователь без активной подписки получил такой конфиг.
             raise SubscriptionNotFoundError(tg_id=tg_user.id)
 
-        now = datetime.now(UTC)
+        now = datetime.now(settings_bot.core.tzinfo)
         end = sub.end_date
         if end and end.tzinfo is None:
-            end = end.replace(tzinfo=UTC)
+            end = end.replace(tzinfo=settings_bot.core.tzinfo)
 
         days_left = max((end - now).days, 0) if end else 0
 
@@ -414,10 +414,10 @@ class VPNService:
             )
             return []
 
-        now = datetime.now(UTC)
+        now = datetime.now(settings_bot.core.tzinfo)
         end = sub.end_date
         if end and end.tzinfo is None:
-            end = end.replace(tzinfo=UTC)
+            end = end.replace(tzinfo=settings_bot.core.tzinfo)
         days_left = max((end - now).days, 0) if end else 0
 
         if days_left <= 0:

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from loguru import logger
@@ -9,6 +9,7 @@ from api.app_error.base_error import (
     PaymentInvalidSourceError,
     PaymentTransactionNotFoundError,
 )
+from api.core.config import settings_api
 from api.payment.dao import PaymentTransactionDAO
 from api.payment.model import PaymentSource, PaymentTransaction
 from api.payment.schemas import (
@@ -343,7 +344,7 @@ class PaymentService:
         upd_transaction = await PaymentTransactionDAO.update(
             session=session,
             filters=STransactionIDFilter(id=transaction_id),
-            values=SPaidAt(paid_at=datetime.now(UTC)),
+            values=SPaidAt(paid_at=datetime.now(settings_api.core.tzinfo)),
         )
 
         if not upd_transaction:
@@ -396,8 +397,8 @@ class PaymentService:
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
                 confirmed_by_admin_id=data.admin_id,
-                confirmed_at=datetime.now(UTC),
-                paid_at=datetime.now(UTC),
+                confirmed_at=datetime.now(settings_api.core.tzinfo),
+                paid_at=datetime.now(settings_api.core.tzinfo),
                 source=PaymentSource.MANUAL,
             ),
         )
@@ -445,8 +446,8 @@ class PaymentService:
             filters=STransactionPendingFilter(id=data.id, status=PaymentStatus.PENDING),
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
-                paid_at=datetime.now(UTC),
-                confirmed_at=datetime.now(UTC),
+                paid_at=datetime.now(settings_api.core.tzinfo),
+                confirmed_at=datetime.now(settings_api.core.tzinfo),
                 source=PaymentSource.GATEWAY,
             ),
         )
@@ -513,7 +514,8 @@ class PaymentService:
     ) -> SYearIncome:
         """Возвращает суммарный доход за указанный год.
 
-        Если год не указан — используется текущий год (UTC).
+        Если год не указан — используется текущий год в таймзоне проекта
+        (`settings_api.core.timezone`).
 
         Args:
             session: Асинхронная SQLAlchemy-сессия.
@@ -525,7 +527,7 @@ class PaymentService:
         """
         logger.info(
             f"[SERVICE] Получение годового дохода. "
-            f"Год={year or datetime.now(tz=UTC).year}"
+            f"Год={year or datetime.now(tz=settings_api.core.tzinfo).year}"
         )
         res = await PaymentTransactionDAO.get_year_income(
             session=session,

@@ -1,9 +1,10 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
 from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.core.config import settings_api
 from api.core.dao.base import BaseDAO
 from api.payment.model import PaymentTransaction
 from shared.enums.payment_enum import PaymentStatus
@@ -35,19 +36,24 @@ class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):
 
             year:
                 Год для расчета дохода.
-                Если не указан — используется текущий год.
+                Если не указан — используется текущий год в таймзоне
+                проекта (`settings_api.core.timezone`).
 
         Returns
             Суммарный доход за год в минимальных единицах валюты.
 
         """
+        tz = settings_api.core.tzinfo
         if year is None:
-            year = datetime.now(tz=UTC).year
+            year = datetime.now(tz=tz).year
         logger.info(
             f"[DAO] Расчет годового дохода для {cls.model.__name__}. Год: {year}"
         )
-        start = datetime(year, 1, 1)
-        end = datetime(year + 1, 1, 1)
+        # Границы года в таймзоне проекта, а не наивные — paid_at хранится
+        # как timestamptz (см. #255), и наивная граница сравнивалась бы по
+        # TimeZone сессии Postgres, а не по явной зоне проекта.
+        start = datetime(year, 1, 1, tzinfo=tz)
+        end = datetime(year + 1, 1, 1, tzinfo=tz)
 
         stmt = select(func.coalesce(func.sum(cls.model.amount), 0)).where(
             cls.model.status == PaymentStatus.PAID,
