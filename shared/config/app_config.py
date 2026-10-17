@@ -127,6 +127,13 @@ class SettingsApp(SettingsCommon):
      logger_level_file (str): Уровень логирования для файла логов.
      logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
      logger_diagnose_files (bool): Отладочный флаг логгера, пишет подробнее логи включая секреты
+     log_user_events_data (bool):
+            Писать ли в лог полный repr Telegram-события (`UserActionLoggingMiddleware`),
+            то есть текст любого сообщения пользователя. Раньше управлялось
+            флагом `debug_fast_api`, который по смыслу относится к отладке
+            FastAPI, а не к логированию переписки пользователей — связь не
+            видна по имени, и включение отладки FastAPI неожиданно включало
+            бы запись переписки (см. #286).
      max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
      trial_period_days (int):
             Длительность пробного периода в днях. Раньше число дней совпадало
@@ -163,6 +170,7 @@ class SettingsApp(SettingsCommon):
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
     logger_diagnose_files: bool = False
+    log_user_events_data: bool = False
     max_configs_per_user: int = 10
     trial_period_days: int = 7
     common_timeout: int = 10

@@ -53,8 +53,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await container.init()
     dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
-    log_data = True if settings_bot.core.debug_fast_api else False
-    log_time = True if settings_bot.core.debug_fast_api else False
+    # log_data управляется отдельным флагом, а не debug_fast_api (#286):
+    # debug_fast_api — это отладка FastAPI, а log_data пишет в лог полный
+    # repr Telegram-события, то есть текст переписки пользователя.
+    log_data = settings_bot.core.log_user_events_data
+    log_time = settings_bot.core.debug_fast_api
     dp.message.middleware(
         UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )

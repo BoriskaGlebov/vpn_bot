@@ -223,6 +223,9 @@ class UserDAO(BaseDAO[User]):
             SQLAlchemyError: Ошибка сохранения данных в базе.
 
         """
+        if not user.subscriptions:
+            raise SubscriptionNotFoundError(user_id=user.id, username=user.username)
+
         try:
             subscription = user.subscriptions[0]
             if subscription.is_active:

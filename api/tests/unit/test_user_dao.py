@@ -351,6 +351,31 @@ async def test_extend_subscription_not_active(session, role_user):
         )
 
 
+async def test_extend_subscription_no_subscriptions_raises_domain_error(
+    session, role_user
+):
+    """#286: продление подписки пользователю без подписок должно давать
+    SubscriptionNotFoundError, а не IndexError из user.subscriptions[0].
+    """
+    from api.users.models import User
+
+    user = User(
+        telegram_id=998,
+        username="no_subscription_user",
+        role=role_user,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await UserDAO.extend_subscription(
+            session=session,
+            user=user,
+            months=1,
+        )
+
+
 async def test_find_one_or_none(session, user):
     """Поиск пользователя по telegram_id."""
     from pydantic import BaseModel

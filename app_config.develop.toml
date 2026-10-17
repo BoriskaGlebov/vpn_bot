@@ -18,6 +18,8 @@ logger_level_stdout = "DEBUG"
 logger_level_file = "DEBUG"
 logger_error_file = "WARNING"
 logger_diagnose_files = false
+# Пишет ли UserActionLoggingMiddleware полный repr событий (переписку) в лог (см. #286).
+log_user_events_data = false
 
 
 # === FASTAPI ===
