@@ -1,7 +1,6 @@
 import json
 import secrets
 from collections.abc import Mapping
-from decimal import Decimal
 
 import httpx
 from loguru import logger
@@ -54,6 +53,8 @@ class PlategaProvider:
         payload = {
             # "paymentMethod": 11,
             "paymentDetails": {
+                # float(int) здесь безопасно (#261) — amount целое число
+                # рублей по всем слоям, без копеек; потери точности нет.
                 "amount": float(data.amount),
                 "currency": data.currency,
             },
@@ -155,7 +156,9 @@ class PlategaProvider:
         data = json.loads(body)
 
         provider_status = data["status"]
-        amount = Decimal(str(data["amount"])) if "amount" in data else None
+        # int, не Decimal (#261) — сумма платежа везде целые рубли, без
+        # копеек; сравнивается с tx.amount (int) при подтверждении (#257).
+        amount = int(data["amount"]) if "amount" in data else None
         is_chargeback = False
         is_unknown_status = False
 

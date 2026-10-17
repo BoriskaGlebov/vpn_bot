@@ -1,4 +1,3 @@
-from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -54,7 +53,7 @@ async def test_handle_event_paid_confirms_via_subscription_service(
         provider_payment_id="prov-1",
         status=PaymentStatus.PAID,
         raw_data={},
-        amount=Decimal(1000),
+        amount=1000,
     )
 
     await webhook_service.handle_event(event)
@@ -83,7 +82,7 @@ async def test_handle_event_paid_amount_mismatch_blocks_confirmation(
         provider_payment_id="prov-4",
         status=PaymentStatus.PAID,
         raw_data={},
-        amount=Decimal(1),
+        amount=1,
     )
 
     with pytest.raises(PaymentAmountMismatchError):

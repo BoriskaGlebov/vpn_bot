@@ -1,5 +1,4 @@
 from dataclasses import asdict
-from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -70,7 +69,7 @@ class PaymentService:
         else:
             sub_type = ToggleSubscriptionMode.STANDARD
         payment_data = CreatePaymentDTO(
-            amount=Decimal(amount),
+            amount=amount,
             currency="RUB",
             order_id=str(api_res.id),
             description=f"Оплата {sub_type.value} подписки на {subscription_months}мес.",
@@ -239,7 +238,7 @@ class PaymentWebhookService:
             # принимается по одной строке статуса из вебхука, без проверки
             # содержимого (подпись Platega привязана к нашим же заголовкам,
             # а не к телу, см. docstring `verify_webhook`).
-            if event.amount is None or event.amount != Decimal(tx.amount):
+            if event.amount is None or event.amount != tx.amount:
                 logger.error(
                     "Сумма вебхука не совпадает с суммой транзакции: "
                     "transaction_id={} tx_amount={} webhook_amount={}",

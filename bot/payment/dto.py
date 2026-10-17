@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from decimal import Decimal
 from typing import Any
 
 from shared.enums.payment_enum import PaymentStatus
@@ -7,15 +6,32 @@ from shared.enums.payment_enum import PaymentStatus
 
 @dataclass(slots=True)
 class CreatePaymentDTO:
-    """Данные для создания платежа у провайдера."""
+    """Данные для создания платежа у провайдера.
 
-    amount: Decimal
+    Attributes
+        amount: Сумма платежа в рублях — целое число, не копейки (см.
+            #261). Тот же домен значений, что у `api/payment/model.py`
+            (`Mapped[int]`) и `api/payment/schemas.py` (`Field(gt=0)`) —
+            решение продуктовое: копейки сейчас не нужны, поэтому тип
+            един по всем слоям, а не `Decimal`, который обнулялся бы
+            приведением к `float` перед отправкой провайдеру.
+
+    """
+
+    amount: int
     currency: str
     order_id: str
     description: str
     success_url: str | None = None
     failed_url: str | None = None
     payload: str | None = None
+
+    def __post_init__(self) -> None:
+        """Проверяет положительность суммы — не только на границе api."""
+        if self.amount <= 0:
+            raise ValueError(
+                f"amount должен быть положительным, получено {self.amount}"
+            )
 
 
 @dataclass(slots=True)
@@ -56,7 +72,7 @@ class PaymentWebhookDTO:
     status: PaymentStatus
     raw_data: dict[str, Any]
 
-    amount: Decimal | None = None
+    amount: int | None = None
     payload: str | None = None
     is_chargeback: bool = False
     is_unknown_status: bool = False

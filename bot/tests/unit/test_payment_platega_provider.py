@@ -1,5 +1,4 @@
 import json
-from decimal import Decimal
 
 import httpx
 import pytest
@@ -21,6 +20,21 @@ def make_asgi_headers(pairs: dict[str, str]) -> Headers:
 
 def make_provider() -> PlategaProvider:
     return PlategaProvider(merchant_id="merchant-1", secret_key="secret-1")
+
+
+@pytest.mark.parametrize("amount", [0, -1, -100])
+def test_create_payment_dto_rejects_non_positive_amount(amount):
+    """CreatePaymentDTO проверяет положительность суммы сама (#261) — раньше
+    проверка `gt=0` была только на границе api, а в DTO бота и в вызове
+    провайдера ограничений не было вовсе.
+    """
+    with pytest.raises(ValueError, match="положительным"):
+        CreatePaymentDTO(
+            amount=amount,
+            currency="RUB",
+            order_id="order-1",
+            description="test",
+        )
 
 
 @pytest.mark.asyncio
@@ -84,7 +98,7 @@ async def test_create_payment_success_maps_response():
 
     result = await provider.create_payment(
         data=CreatePaymentDTO(
-            amount=Decimal(100),
+            amount=100,
             currency="RUB",
             order_id="order-1",
             description="test payment",
@@ -117,7 +131,7 @@ async def test_create_payment_http_error_wrapped_in_domain_error():
     with pytest.raises(PaymentProviderError) as exc_info:
         await provider.create_payment(
             data=CreatePaymentDTO(
-                amount=Decimal(100),
+                amount=100,
                 currency="RUB",
                 order_id="order-1",
                 description="test payment",
