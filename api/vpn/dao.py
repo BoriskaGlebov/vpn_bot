@@ -141,6 +141,9 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 config_ids=config_ids,
             )
             session.add(config)
+            # flush до лога успеха — иначе config.id ещё None (см. #274,
+            # тот же класс, что #233 у add_many).
+            await session.flush()
             logger.success(
                 f"[DAO] Создан новый VPNConfig id={config.id} для пользователя {user.id} (файл='{file_name}')",
             )

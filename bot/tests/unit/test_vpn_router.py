@@ -81,7 +81,7 @@ async def test_get_config_amnezia_wg_success(
     router.redis.set.return_value = True
 
     status_msg = mocker.MagicMock()
-    status_msg.answer = mocker.AsyncMock()
+    status_msg.edit_text = mocker.AsyncMock()
 
     message.answer.return_value = status_msg
     message.answer_media_group = mocker.AsyncMock()
@@ -131,7 +131,7 @@ async def test_location_flag_reaches_handler_via_real_dispatch(
     )
 
     status_msg = mocker.MagicMock()
-    status_msg.answer = mocker.AsyncMock()
+    status_msg.edit_text = mocker.AsyncMock()
     message.answer.return_value = status_msg
     message.answer_media_group = mocker.AsyncMock()
     message.answer_photo = mocker.AsyncMock()
@@ -153,13 +153,12 @@ async def test_location_flag_reaches_handler_via_real_dispatch(
 
 
 @pytest.mark.asyncio
-async def test_three_x_ui_locations_sets_state(mocker, router, message, user, state):
+async def test_three_x_ui_locations_sends_locations(mocker, router, message):
     message.answer = mocker.AsyncMock()
 
-    await router.three_x_ui_locations(message=message, state=state)
+    await router.three_x_ui_locations(message=message)
 
     message.answer.assert_awaited_once()
-    state.set_state.assert_awaited_once()
 
 
 @pytest.mark.asyncio

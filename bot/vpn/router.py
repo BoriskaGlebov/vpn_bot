@@ -4,7 +4,6 @@ from typing import Any
 from aiogram import BaseMiddleware, Bot, F
 from aiogram.dispatcher.flags import get_flag
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     FSInputFile,
     InputMediaDocument,
@@ -40,12 +39,6 @@ from bot.vpn.services import SSHClientFactory, VPNService, ssh_client_factory_fo
 m_vpn = settings_bot.messages.modes.vpn
 m_subscription = settings_bot.messages.modes.subscription
 x_ray_messages = settings_bot.messages.modes.vpn.x_ray
-
-
-class VPNStates(StatesGroup):  # type: ignore[misc]
-    """Состояния роутера генерации конфиг файлов."""
-
-    check_location: State = State()
 
 
 class LocationFlagMiddleware(BaseMiddleware):
@@ -191,7 +184,7 @@ class VPNRouter(BaseRouter):
                 )
 
                 try:
-                    await status_msg.answer(text=m_vpn.config_ready)
+                    await status_msg.edit_text(text=m_vpn.config_ready)
 
                     await message.answer_media_group(
                         media=[
@@ -264,15 +257,12 @@ class VPNRouter(BaseRouter):
 
     @BaseRouter.log_method
     @BaseRouter.require_user
-    async def three_x_ui_locations(
-        self, message: Message, user: TgUser, state: FSMContext
-    ) -> None:
-        """Отправляет список доступных XRay-локаций и переводит пользователя в FSM состояние выбора.
+    async def three_x_ui_locations(self, message: Message, user: TgUser) -> None:
+        """Отправляет список доступных XRay-локаций.
 
         Args:
             message (Message): входящее сообщение.
             user (TgUser): пользователь.
-            state (FSMContext): FSM контекст.
 
         Returns
             None
@@ -282,7 +272,6 @@ class VPNRouter(BaseRouter):
             await message.answer(
                 text=x_ray_messages.intro, reply_markup=premium_locations_kb()
             )
-            await state.set_state(VPNStates.check_location)
 
     @BaseRouter.log_method
     @BaseRouter.require_user
