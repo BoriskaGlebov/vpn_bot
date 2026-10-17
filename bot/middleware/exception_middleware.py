@@ -76,7 +76,6 @@ _SAFE_USER_FACING_CODES: frozenset[str] = frozenset(
         "transaction_id_missing",
         "subscription_activation_failed",
         "payment_link_missing",
-        "vpn_location_not_determined",
         "no_admin_configured",
         "vpn_config_deletion_failed",
         "vpn_config_not_found",

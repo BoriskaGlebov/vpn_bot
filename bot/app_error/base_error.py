@@ -284,19 +284,6 @@ class PaymentLinkMissingError(AppError):
         )
 
 
-class VPNLocationNotDeterminedError(AppError):
-    """Не удалось определить VPN-локацию по нажатой кнопке главного меню."""
-
-    code = "vpn_location_not_determined"
-    status_code = 400
-
-    def __init__(self, reason: str) -> None:
-        super().__init__(
-            message="Не удалось определить локацию сервера, попробуйте ещё раз.",
-            details={"reason": reason},
-        )
-
-
 class NoAdminConfiguredError(AppError):
     """В конфигурации бота не указан ни один администратор (admin_ids пуст)."""
 

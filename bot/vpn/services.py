@@ -194,25 +194,46 @@ class VPNService:
                         ssh.__class__.__name__,
                     )
 
-        try:
-            await self.api_adapter.add_config(
-                tg_id=user.telegram_id,
-                file_name=f"{file_path1.name} / {file_path2.name} / {file_path3.name}",
-                pub_key=pub_key,
-                node_name=node_name,
-                backend=VPNBackend.AMNEZIA,
-                protocol=VPNProtocol.for_wg(server_info.protocol_version),
-            )
-            logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
+                # Сохранение в БД и откат идут здесь, внутри `async with` —
+                # `ssh.full_delete_user` в except-ветке должен обращаться к
+                # ещё живому соединению. Снаружи этого блока `__aexit__` уже
+                # вызвал `close()`, после чего любая команда по SSH падает
+                # (см. #267), а исходная `APIClientError` подменяется ошибкой
+                # SSH.
+                try:
+                    await self.api_adapter.add_config(
+                        tg_id=user.telegram_id,
+                        file_name=(
+                            f"{file_path1.name} / {file_path2.name} / {file_path3.name}"
+                        ),
+                        pub_key=pub_key,
+                        node_name=node_name,
+                        backend=VPNBackend.AMNEZIA,
+                        protocol=VPNProtocol.for_wg(server_info.protocol_version),
+                    )
+                    logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
 
-        except APIClientError as exc:
-            logger.error(
-                "Ошибка сохранения в БД, откат SSH tg_id={} error={}",
-                tg_user.id,
-                exc,
-            )
-            await ssh.full_delete_user(public_key=pub_key)
-            raise
+                except APIClientError as exc:
+                    logger.error(
+                        "Ошибка сохранения в БД, откат SSH tg_id={} error={}",
+                        tg_user.id,
+                        exc,
+                    )
+                    try:
+                        await ssh.full_delete_user(public_key=pub_key)
+                    except AmneziaError as rollback_exc:
+                        # Откат не заменяет собой исходную ошибку — иначе
+                        # наверх уходит сообщение не о той проблеме, которая
+                        # произошла (см. #267). Пир остаётся на ноде, нужна
+                        # ручная очистка — это фиксируется только логом.
+                        logger.critical(
+                            "Откат SSH-пира не удался tg_id={} pub_key={} — "
+                            "требуется ручная очистка на ноде: {}",
+                            tg_user.id,
+                            pub_key,
+                            rollback_exc,
+                        )
+                    raise
 
         return file_path1, file_path2, file_path3, pub_key
 
@@ -288,14 +309,18 @@ class VPNService:
         if end and end.tzinfo is None:
             end = end.replace(tzinfo=settings_bot.core.tzinfo)
 
-        days_left = max((end - now).days, 0) if end else 0
+        if end is not None and end <= now:
+            # is_active мог устареть (обновляется только планировщиком, см.
+            # #275) — если по факту срок уже прошёл, выдавать бессрочный
+            # доступ нельзя, даже если флаг ещё не снят.
+            raise SubscriptionNotFoundError(tg_id=tg_user.id)
 
-        logger.debug("Осталось дней tg_id={} days={}", tg_user.id, days_left)
+        logger.debug("Подписка tg_id={} действует до {}", tg_user.id, end)
         adapter = self.xray_registry.get(name=location)
         async with xray_lock:
             sub_info, sub_url = await adapter.add_new_config(
                 tg_id=tg_user.id,
-                days=days_left,
+                expires_at=end,
             )
 
         sub_ids = sub_info.get("sub_ids", [])
@@ -343,12 +368,13 @@ class VPNService:
         по-прежнему приходится перебирать все ноды (см. `xray_registry.all()`
         в вызывающем коде).
 
-        `config_ids` берётся из одноимённого поля, если оно заполнено; иначе
-        (старые записи) — из `pub_key`, который для XRay-конфигов является
-        JSON-списком `config_id` (см. `ThreeXUIAdapter.add_new_config`). У
-        WireGuard-конфигов `pub_key` — сырой публичный ключ, который как JSON
-        не парсится, поэтому такие конфиги просто пропускаются (WireGuard не
-        хранит срок действия на сервере — продлевать там нечего).
+        Берутся только конфиги с `backend=XRAY` и заполненным `config_ids`.
+        Раньше для записей без `config_ids` (старые, до появления этого поля)
+        он парсился из `pub_key` — перегрузка одного поля под два бэкенда
+        (см. #270); миграция `1a242e081dff` заполнила `config_ids` для всех
+        таких записей, поэтому парсинг не нужен — WireGuard-конфиги просто
+        пропускаются по `backend` (они не хранят срок действия на сервере —
+        продлевать там нечего).
 
         Args:
             configs: Список VPN-конфигов пользователя.
@@ -361,21 +387,12 @@ class VPNService:
         by_node: dict[str, set[str]] = {}
         legacy: set[str] = set()
         for config in configs:
-            if config.backend and config.backend != VPNBackend.XRAY:
+            if config.backend != VPNBackend.XRAY or config.config_ids is None:
                 continue
-            ids = config.config_ids
-            if ids is None:
-                try:
-                    parsed = json.loads(config.pub_key)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(parsed, list):
-                    continue
-                ids = parsed
             if config.node_name:
-                by_node.setdefault(config.node_name, set()).update(ids)
+                by_node.setdefault(config.node_name, set()).update(config.config_ids)
             else:
-                legacy.update(ids)
+                legacy.update(config.config_ids)
         return by_node, legacy
 
     async def extend_user_xray_subscription(self, user: SUserOut) -> list[str]:
@@ -594,7 +611,6 @@ class VPNService:
 
     async def _delete_from_xray(
         self,
-        pub_key: str,
         file_name: str,
         node_name: str | None = None,
         config_ids: list[str] | None = None,
@@ -606,27 +622,21 @@ class VPNService:
         нода с тех пор пропала из реестра) — перебирает все зарегистрированные
         ноды, как раньше.
 
-        `config_ids`, если передан, используется напрямую; иначе (старые
-        записи) парсится из `pub_key` — для XRay-конфигов это JSON-список
-        `config_id` (по одному на каждый inbound). Если он не парсится как
-        JSON, значит это не XRay-конфиг вовсе (WireGuard хранит там сырой
-        публичный ключ).
+        `config_ids=None` означает, что конфига в 3x-ui нет (вызывающий код
+        передаёт `config.config_ids` из БД — для XRay-конфигов он всегда
+        заполнен после миграции `1a242e081dff`, см. #270).
 
         Args:
-            pub_key: Публичный ключ (для XRay — JSON-список config_id).
             file_name: Имя файла — только для логирования.
             node_name: Имя ноды, на которой создан конфиг, если известно.
-            config_ids: Список config_id, если известен заранее.
+            config_ids: Список config_id.
 
         Returns
             tuple[bool, bool]: (найден_и_удалён, была_ошибка_запроса).
 
         """
         if config_ids is None:
-            try:
-                config_ids = json.loads(pub_key)
-            except json.JSONDecodeError:
-                return False, False
+            return False, False
 
         adapters = self.xray_registry.all()
         known_adapter = self.xray_registry.get_optional(node_name)
@@ -694,7 +704,6 @@ class VPNService:
         if not deleted and config.backend != VPNBackend.AMNEZIA:
             async with xray_lock:
                 deleted, xray_error = await self._delete_from_xray(
-                    config.pub_key,
                     config.file_name,
                     node_name=config.node_name,
                     config_ids=config.config_ids,

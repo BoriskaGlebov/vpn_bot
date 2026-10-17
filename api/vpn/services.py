@@ -2,7 +2,6 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import UserNotFoundError
-from api.subscription.models import DEVICE_LIMITS
 from api.users.dao import UserDAO
 from api.users.schemas import SUserTelegramID
 from api.vpn.dao import VPNConfigDAO
@@ -32,7 +31,8 @@ class VPNService:
             tg_id (int): Telegram ID пользователя.
 
         Raises
-            UserNotFoundError: Если пользователь не найден или у него нет подписки.
+            UserNotFoundError: Если пользователь не найден.
+            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
 
         Returns
             SVPNCheckLimitResponse: Информация о лимите конфигов и текущем количестве.
@@ -44,28 +44,22 @@ class VPNService:
             filters=SUserTelegramID(telegram_id=tg_id),
             options=UserDAO.base_options,
         )
-        if not user or not user.current_subscription:
-            logger.warning("Пользователь или подписка не найдены tg_id={}", tg_id)
+        if not user:
+            logger.warning("Пользователь не найден tg_id={}", tg_id)
             raise UserNotFoundError(tg_id=tg_id)
-        subscription = user.current_subscription
-        can_add = await VPNConfigDAO.can_add_config(
-            session=session,
-            user_id=user.id,
-        )
 
-        limit = DEVICE_LIMITS.get(subscription.type, 0)
-        current = len(user.vpn_configs)
+        status = await VPNConfigDAO.get_limit_status(session=session, user=user)
         logger.info(
             "Проверка лимита VPN tg_id={} can_add={} current={} limit={}",
             tg_id,
-            can_add,
-            current,
-            limit,
+            status.can_add,
+            status.current,
+            status.limit,
         )
         return SVPNCheckLimitResponse(
-            can_add=can_add,
-            limit=limit,
-            current=current,
+            can_add=status.can_add,
+            limit=status.limit,
+            current=status.current,
         )
 
     async def add_config(
@@ -93,6 +87,8 @@ class VPNService:
 
         Raises
             UserNotFoundError: Если пользователь не найден.
+            SubscriptionNotFoundError: Если у пользователя нет активной подписки.
+            VPNLimitError: Если пользователь достиг лимита конфигов.
 
         Returns
             SVPNCreateResponse: Подтверждение создания конфига с именем файла и публичным ключом.
@@ -111,7 +107,7 @@ class VPNService:
 
         await VPNConfigDAO.add_config(
             session=session,
-            user_id=user.id,
+            user=user,
             file_name=file_name,
             pub_key=pub_key,
             node_name=node_name,

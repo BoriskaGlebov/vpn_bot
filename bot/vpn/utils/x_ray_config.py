@@ -3,6 +3,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Any
 
 from loguru import logger
@@ -436,10 +437,17 @@ class ThreeXUIAdapter:
     async def _get_inbound(self, inbounds_cfg: list[SInbound]) -> list[Inbound]:
         """Получает inbound-конфигурации, соответствующие заданным критериям.
 
-        Сопоставление выполняется по портам и имени (remark). Найденным
-        inbound проставляется `protocol` из совпавшей конфигурации — он
-        известен только тут, т.к. `_get_all_inbounds` отдаёт «сырые» inbound
-        панели без привязки к `self.inbounds_name`.
+        Сопоставление выполняется только по порту — порт на панели уникален
+        для каждого inbound и однозначно его определяет, а `remark` (имя)
+        на стороне панели — чистая косметика для администратора. Раньше
+        матчинг шёл по паре (порт, имя), и переименование inbound на
+        панели (даже на один символ) без синхронной правки `name` в
+        конфиге бота приводило к `ThreeXUIInboundNotFoundError`, хотя порт
+        никуда не менялся.
+
+        Найденным inbound проставляется `protocol` из совпавшей
+        конфигурации — он известен только тут, т.к. `_get_all_inbounds`
+        отдаёт «сырые» inbound панели без привязки к `self.inbounds_name`.
 
         Args:
             inbounds_cfg: Список ожидаемых inbound-конфигураций.
@@ -452,10 +460,10 @@ class ThreeXUIAdapter:
 
         """
         all_inbounds = await self._get_all_inbounds()
-        cfg_by_key = {(cfg.port, cfg.name): cfg for cfg in inbounds_cfg}
+        cfg_by_port = {cfg.port: cfg for cfg in inbounds_cfg}
         find_inb = []
         for inb in all_inbounds:
-            cfg = cfg_by_key.get((inb.port, inb.remark))
+            cfg = cfg_by_port.get(inb.port)
             if cfg is None:
                 continue
             inb.protocol = cfg.protocol
@@ -470,7 +478,7 @@ class ThreeXUIAdapter:
     async def add_new_config(
         self,
         tg_id: int,
-        days: int = 0,
+        expires_at: datetime | None = None,
     ) -> tuple[dict[str, list[str]], str]:
         """Создаёт новую VPN-конфигурацию пользователя.
 
@@ -484,8 +492,11 @@ class ThreeXUIAdapter:
 
         Args:
             tg_id: Telegram ID пользователя.
-            days: Срок действия конфигурации в днях.
-                0 — бессрочная конфигурация.
+            expires_at: Абсолютный момент окончания действия конфигурации.
+                `None` — бессрочная конфигурация. Передаётся как точка во
+                времени (а не как число дней от момента выдачи), чтобы срок
+                конфига на панели не мог разъехаться со сроком подписки из-за
+                округления.
 
         Returns
             tuple: (
@@ -503,7 +514,8 @@ class ThreeXUIAdapter:
             APIClientError: При ошибках API.
 
         """
-        logger.info("Создание новой конфигурации для tg_id={} на {} дней", tg_id, days)
+        logger.info("Создание новой конфигурации для tg_id={} до {}", tg_id, expires_at)
+        expiry_time_ms = int(expires_at.timestamp() * 1000) if expires_at else 0
         # Уникальный suffix на каждый вызов add_new_config — иначе subId
         # получается детерминированным (одинаковым для user_id+ноды) и
         # повторная генерация просто доливает клиентов в ту же подписку
@@ -522,11 +534,6 @@ class ThreeXUIAdapter:
             for inb in inbounds_correct:
                 uid = str(uuid.uuid4())
                 logger.debug("Сгенерирован UUID пользователя: {}", uid)
-                remaining_days = (
-                    (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
-                    if days > 0
-                    else 0
-                )
                 if inb.protocol is None:
                     # _get_inbound всегда проставляет protocol из совпавшей
                     # SInbound — None здесь означает рассинхронизацию между
@@ -551,7 +558,7 @@ class ThreeXUIAdapter:
                     flow=flow,
                     limitIp=0,
                     totalGB=0,
-                    expiryTime=remaining_days,
+                    expiryTime=expiry_time_ms,
                     reset=0,
                     enable=True,
                     comment="Пользователь добавил конфиг через бота",
@@ -701,11 +708,12 @@ class ThreeXUIAdapter:
         """
         async with self._session():
             inbounds_with_clients = await self._get_inbounds_with_clients()
-            allow_inb = {(cfg.port, cfg.name) for cfg in self.inbounds_name}
+            # Только порт — см. docstring `_get_inbound`: remark/name — косметика.
+            allow_ports = {cfg.port for cfg in self.inbounds_name}
             correct = [
                 (inb, uuids)
                 for inb, uuids in inbounds_with_clients
-                if (inb.port, inb.remark) in allow_inb
+                if inb.port in allow_ports
             ]
             if len(correct) < len(self.inbounds_name):
                 logger.error(f"Не все Inbound найдены.{[inb for inb, _ in correct]}")

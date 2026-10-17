@@ -54,7 +54,7 @@ url = "api"
 port = 8089
 
 # === VPN SERVERS ===
-[vpn.nodes.main]
+[vpn.nodes.de]
 #Сервер на котором крутится бот потому для него он локально может подключиться
 host = "amn-boris.ru"
 username = "prod_server"
@@ -83,6 +83,7 @@ protocol_version = "v2"
 use_local = false
 location_prefix= "SOF"
 flag= "🇧🇬"
+premium = true
 
 
 # === PROXY ===
@@ -106,7 +107,7 @@ flag= "🇧🇬"
 
 # === X-RAY ===
 
-[vpn.nodes.main.xray]
+[vpn.nodes.de.xray]
 host = "amn-boris.ru"
 panel_prefix = "panel-45gh65"
 subscription_prefix = "sub-45gh45"
@@ -114,12 +115,12 @@ panel_port = 5443
 subscription_port = 2096
 username = "admin"
 
-[[vpn.nodes.main.xray.inbounds]]
+[[vpn.nodes.de.xray.inbounds]]
 port = 2054
 name = "🇩🇪 | XHTTP Test"
 protocol = "vless_reality_xhttp"
 
-[[vpn.nodes.main.xray.inbounds]]
+[[vpn.nodes.de.xray.inbounds]]
 port = 2055
 name = "🇩🇪 | TCP Reality Test"
 protocol = "vless_reality_tcp"

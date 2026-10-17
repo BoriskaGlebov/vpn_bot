@@ -2,8 +2,16 @@ from pathlib import Path
 
 import pytest
 
+from bot.core.config import settings_bot
 from bot.subscription.router import SubscriptionStates
+from bot.users.utils.text_generator import vpn_button_text
 from bot.vpn.router import VPNRouter
+from shared.enums.vpn_enum import VPNBackend
+
+# Ключ ноды не фиксирован ("main"/"de"/...) — берём любую реально
+# сконфигурированную стандартную ноду, а не угадываем имя (см. #268: смена
+# ключа ноды в конфиге уже один раз сломала тест, завязанный на "main").
+STANDARD_LOCATION = next(iter(settings_bot.vpn.standard_nodes()))
 
 
 @pytest.fixture
@@ -69,70 +77,6 @@ async def test_check_acquired_already_running(router, message):
     message.answer.assert_awaited_once()
 
 
-# @pytest.mark.asyncio
-# async def test_get_config_amnezia_vpn_success(mocker, router, message, user, state):
-#     router.redis.set.return_value = True
-#
-#     # FIX: обходим логику определения локации
-#     mocker.patch.object(
-#         router,
-#         "_get_location_server",
-#         return_value="fi",
-#     )
-#
-#     server_info = mocker.Mock()
-#     router._get_location_server.return_value = "fi"
-#     router.vpn_service.generate_user_config.return_value = (
-#         Path("/tmp/test.conf"),
-#         "pubkey",
-#     )
-#
-#     # mock FSM message answer
-#     status_msg = mocker.MagicMock()
-#     status_msg.answer = mocker.AsyncMock()
-#     message.answer.return_value = status_msg
-#
-#     mocker.patch("pathlib.Path.unlink")
-#
-#     await router.get_config_amnezia_vpn(
-#         message=message,
-#         state=state,
-#     )
-#
-#     router.vpn_service.generate_user_config.assert_awaited_once()
-#     message.answer_document.assert_awaited_once()
-#     state.clear.assert_awaited_once()
-#     router.redis.delete.assert_awaited_once()
-
-#
-# @pytest.mark.asyncio
-# async def test_get_config_amnezia_vpn_locked(
-#     mocker,
-#     router,
-#     message,
-#     state,
-# ):
-#     router.redis.set.return_value = False
-#
-#     # чтобы роутер не упал на определении локации
-#     mocker.patch.object(
-#         router,
-#         "_get_location_server",
-#         return_value="fi",
-#     )
-#
-#     await router.get_config_amnezia_vpn(
-#         message=message,
-#         state=state,
-#     )
-#
-#     router.vpn_service.generate_user_config.assert_not_called()
-#
-#     message.answer.assert_awaited_once_with(
-#         "⏳ Генерация вашего конфига уже в процессе, подождите немного."
-#     )
-
-
 @pytest.mark.asyncio
 async def test_get_config_amnezia_wg_success(
     mocker,
@@ -142,18 +86,6 @@ async def test_get_config_amnezia_wg_success(
 ):
     router.redis.set.return_value = True
 
-    # чтобы не падало на определении локации; "main" — единственная нода,
-    # гарантированно сконфигурированная всегда (в отличие от опциональной "fi")
-    mocker.patch.object(
-        router,
-        "_get_location_server",
-        return_value="main",
-    )
-
-    status_msg = mocker.MagicMock()
-    status_msg.answer = mocker.AsyncMock()
-
-    message.answer.return_value = status_msg
     message.answer_media_group = mocker.AsyncMock()
     message.answer_photo = mocker.AsyncMock()
 
@@ -169,6 +101,7 @@ async def test_get_config_amnezia_wg_success(
     await router.get_config_amnezia_wg(
         message=message,
         state=state,
+        location=STANDARD_LOCATION,
     )
 
     router.vpn_service.generate_user_config.assert_awaited_once()
@@ -182,13 +115,49 @@ async def test_get_config_amnezia_wg_success(
 
 
 @pytest.mark.asyncio
-async def test_three_x_ui_locations_sets_state(mocker, router, message, user, state):
+async def test_location_flag_reaches_handler_via_real_dispatch(
+    mocker, router, make_fake_message, state
+):
+    """Регрессия на #268: локация доходит до хендлера через flags, не через текст.
+
+    Раньше локация выводилась повторным разбором текста кнопки
+    (`_get_location_server`) — подстрочным совпадением, срабатывавшим
+    "случайно" (например, `'sof' in 'Sofia'`). Здесь сообщение с текстом
+    кнопки MAIN прогоняется через настоящий `router.router.message.trigger`
+    (не через прямой вызов хендлера) — так проверяется именно связка
+    `flags={"location": ...}` + `LocationFlagMiddleware`, а не её отдельные
+    части.
+    """
+    message = make_fake_message(
+        text=vpn_button_text(VPNBackend.AMNEZIA, STANDARD_LOCATION)
+    )
+
+    message.answer_media_group = mocker.AsyncMock()
+    message.answer_photo = mocker.AsyncMock()
+
+    router.redis.set.return_value = True
+    router.vpn_service.generate_user_config.return_value = (
+        Path("/tmp/test_wg.conf"),
+        Path("/tmp/test_wg.vpn"),
+        Path("/tmp/test_wg.png"),
+        "pubkey",
+    )
+    mocker.patch("pathlib.Path.unlink")
+
+    await router.router.message.trigger(message, state=state)
+
+    router.vpn_service.generate_user_config.assert_awaited_once()
+    kwargs = router.vpn_service.generate_user_config.await_args.kwargs
+    assert kwargs["node_name"] == STANDARD_LOCATION
+
+
+@pytest.mark.asyncio
+async def test_three_x_ui_locations_sends_locations(mocker, router, message):
     message.answer = mocker.AsyncMock()
 
-    await router.three_x_ui_locations(message=message, state=state)
+    await router.three_x_ui_locations(message=message)
 
     message.answer.assert_awaited_once()
-    state.set_state.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -200,12 +169,6 @@ async def test_generate_subscription_success(
 ):
     message.answer = mocker.AsyncMock()
 
-    mocker.patch.object(
-        router,
-        "_get_location_server",
-        return_value="fi",
-    )
-
     router.vpn_service.generate_xray_subscription = mocker.AsyncMock(
         return_value="https://subscription.url",
     )
@@ -213,6 +176,7 @@ async def test_generate_subscription_success(
     await router.generate_subscription(
         message=message,
         state=state,
+        location="fi",
     )
 
     state.clear.assert_awaited_once()
