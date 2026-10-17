@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.app_error.base_error import (
     PaymentAlreadyProcessedError,
+    PaymentInvalidSourceError,
     PaymentTransactionNotFoundError,
 )
 from api.payment.dao import PaymentTransactionDAO
@@ -583,7 +584,7 @@ class PaymentService:
             PaymentAlreadyProcessedError:
                 Если транзакция уже была обработана.
 
-            ValueError:
+            PaymentInvalidSourceError:
                 Если передан некорректный источник подтверждения
                 или отсутствует ``admin_id`` для ручного подтверждения.
 
@@ -596,7 +597,9 @@ class PaymentService:
                 data=SAdminConfirmPayment(admin_id=admin_id, id=data.id),
             )
         else:
-            raise ValueError("НЕВЕРНЫЙ payment_source или  пропущен admin_id")
+            raise PaymentInvalidSourceError(
+                payment_source=payment_source, admin_id=admin_id
+            )
         sub_res = await self.sub_service.activate_paid_subscription(
             session=session,
             user_id=tx.tg_id,

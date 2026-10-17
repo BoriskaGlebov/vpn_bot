@@ -16,6 +16,7 @@ import pytest
 
 from api.app_error.base_error import (
     PaymentAlreadyProcessedError,
+    PaymentInvalidSourceError,
     PaymentTransactionNotFoundError,
 )
 from api.payment.dao import PaymentTransactionDAO
@@ -1374,10 +1375,16 @@ async def test_confirm_payment_flow_manual_missing_admin(
     payment_service,
     mock_session,
 ):
-    """MANUAL-источник без admin_id — недопустимая комбинация, бросает ValueError."""
+    """MANUAL-источник без admin_id — недопустимая комбинация.
+
+    Поднимает PaymentInvalidSourceError (#256), а не голый ValueError —
+    тот не обрабатывается ни app_error_handler, ни api_error_handler и
+    доходил бы до unhandled_exception_handler как 500 internal_error,
+    хотя это нарушение контракта вызова, а не сбой инфраструктуры.
+    """
     data = STransactionIDFilter(id=uuid4())
 
-    with pytest.raises(ValueError):
+    with pytest.raises(PaymentInvalidSourceError):
         await payment_service.confirm_payment_flow(
             session=mock_session,
             data=data,
