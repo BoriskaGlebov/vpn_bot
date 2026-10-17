@@ -185,3 +185,20 @@ async def test_parse_webhook_maps_unknown_status_to_pending():
     assert event.status == PaymentStatus.PENDING
     assert event.raw_data["status"] == "SOME_NEW_STATUS"
     assert event.is_unknown_status is True
+
+
+@pytest.mark.asyncio
+async def test_parse_webhook_non_numeric_amount_does_not_raise():
+    """#293: int(data["amount"]) падал ValueError на нецелой строке, что
+    роняло обработчик вебхука в 500 — провайдер повторял бы доставку.
+    Нечисловая/нецелая сумма теперь трактуется как "сумма неизвестна"
+    (amount=None), а не как фатальная ошибка разбора.
+    """
+    provider = make_provider()
+
+    event = await provider.parse_webhook(
+        b'{"id": "tx-5", "status": "CONFIRMED", "amount": "149.50"}'
+    )
+
+    assert event.status == PaymentStatus.PAID
+    assert event.amount is None

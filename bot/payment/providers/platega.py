@@ -158,7 +158,19 @@ class PlategaProvider:
         provider_status = data["status"]
         # int, не Decimal (#261) — сумма платежа везде целые рубли, без
         # копеек; сравнивается с tx.amount (int) при подтверждении (#257).
-        amount = int(data["amount"]) if "amount" in data else None
+        # Нецелая/нечисловая строка — не повод падать 500 (провайдер
+        # повторит доставку до трёх раз, см. #257), а повод считать сумму
+        # неизвестной: сверка amount ниже по стеку сама отклонит
+        # подтверждение платежа с неизвестной суммой (#293).
+        try:
+            amount = int(data["amount"]) if "amount" in data else None
+        except (TypeError, ValueError):
+            logger.warning(
+                "Вебхук Platega с нечисловой amount={} (provider_payment_id={})",
+                data.get("amount"),
+                data.get("id"),
+            )
+            amount = None
         is_chargeback = False
         is_unknown_status = False
 
