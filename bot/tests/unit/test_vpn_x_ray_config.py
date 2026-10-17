@@ -343,6 +343,42 @@ async def test_extend_config_not_found_raises(adapter):
 
 
 @pytest.mark.asyncio
+async def test_set_unlimited_config_success(adapter):
+    """#296: set_unlimited_config ставит expiryTime=0, в отличие от
+    extend_config, который на days<=0 отказывается работать.
+    """
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock()
+    adapter._update_client = AsyncMock()
+
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1)])
+    adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "abc"}])
+
+    result = await adapter.set_unlimited_config(config_ids=["abc"])
+
+    assert result == ["abc"]
+    sent_client = adapter._update_client.await_args.kwargs["client"]
+    assert sent_client["expiryTime"] == 0
+    adapter._restart_x_ray.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_set_unlimited_config_not_found_raises(adapter):
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError
+
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock()
+
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1)])
+    adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "other"}])
+
+    with pytest.raises(ThreeXUIConfigNotFoundError):
+        await adapter.set_unlimited_config(config_ids=["missing"])
+
+
+@pytest.mark.asyncio
 async def test_delete_config_not_found(adapter):
     adapter._login = AsyncMock()
     adapter._logout = AsyncMock()
