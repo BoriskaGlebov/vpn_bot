@@ -71,6 +71,10 @@ class LocationFlagMiddleware(BaseMiddleware):
 class VPNRouter(BaseRouter):
     """Роутер для обработки команд VPN."""
 
+    # TTL страховочной Redis-блокировки от повторного нажатия кнопки
+    # выдачи конфига — см. docstring `_check_acquired`.
+    GENERATION_LOCK_TTL_SECONDS = 300
+
     def __init__(
         self,
         bot: Bot,
@@ -125,8 +129,25 @@ class VPNRouter(BaseRouter):
             )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
-        """Проверка от повторного создания конфиг файла."""
-        acquired = await self.redis.set(redis_key, "1", 60, True)
+        """Проверка от повторного создания конфиг файла.
+
+        `GENERATION_LOCK_TTL_SECONDS` — страховка на случай падения
+        процесса, а не рабочий механизм освобождения: ключ снимается в
+        `finally` по завершении генерации. Генерация AmneziaWG идёт по SSH
+        несколькими командами в контейнере, и вся выдача сериализована
+        глобальным `ssh_lock` — при очереди время ожидания одного
+        пользователя складывается с генерацией всех, кто встал в очередь
+        раньше. Значение — консервативный запас, а не измеренный на стенде
+        худший случай (см. #273): время в очереди в принципе растёт с её
+        глубиной, поэтому любое фиксированное число остаётся эвристикой,
+        а не гарантией.
+        """
+        acquired = await self.redis.set(
+            key=redis_key,
+            value="1",
+            expire=self.GENERATION_LOCK_TTL_SECONDS,
+            nx=True,
+        )
         if not acquired:
             await message.answer(
                 "⏳ Генерация вашего конфига уже в процессе, подождите немного."
