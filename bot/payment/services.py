@@ -13,6 +13,7 @@ from bot.payment.dto import (
     PaymentStatus,
     PaymentWebhookDTO,
 )
+from bot.payment.exceptions import PaymentAmountMismatchError
 from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.schemas import (
     SConfirmPaymentResponse,
@@ -238,6 +239,23 @@ class PaymentWebhookService:
             event.status,
         )
         if event.status == PaymentStatus.PAID:
+            # Сверка суммы — см. #257: без неё решение "платёж прошёл"
+            # принимается по одной строке статуса из вебхука, без проверки
+            # содержимого (подпись Platega привязана к нашим же заголовкам,
+            # а не к телу, см. docstring `verify_webhook`).
+            if event.amount is None or event.amount != Decimal(tx.amount):
+                logger.error(
+                    "Сумма вебхука не совпадает с суммой транзакции: "
+                    "transaction_id={} tx_amount={} webhook_amount={}",
+                    tx.id,
+                    tx.amount,
+                    event.amount,
+                )
+                raise PaymentAmountMismatchError(
+                    transaction_id=tx.id,
+                    expected_amount=tx.amount,
+                    received_amount=event.amount,
+                )
             # Через subscription_service, а не payment_service напрямую: она
             # после подтверждения транзакции и продления подписки в БД ещё
             # продлевает XRay-конфиги пользователя на панелях 3x-ui (см.

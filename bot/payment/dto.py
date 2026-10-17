@@ -38,10 +38,20 @@ class CreatedPaymentDTO:
 
 @dataclass(slots=True)
 class PaymentWebhookDTO:
-    """Событие вебхука от платёжного провайдера."""
+    """Событие вебхука от платёжного провайдера.
+
+    Attributes
+        amount: Сумма платежа, присланная провайдером в вебхуке (см. #257) —
+            `None`, если провайдер её не прислал (например, статусы
+            CANCELED/CHARGEBACKED у Platega приходят без неё). Сверяется с
+            суммой транзакции в БД перед подтверждением оплаты — иначе
+            решение "платёж прошёл" принимается по одной строке статуса.
+
+    """
 
     provider_payment_id: str
     status: PaymentStatus
     raw_data: dict[str, Any]
 
+    amount: Decimal | None = None
     payload: str | None = None

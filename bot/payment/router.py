@@ -24,6 +24,7 @@ from bot.payment.dependencies import (
     get_subscription_messages,
 )
 from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
+from bot.payment.exceptions import PaymentAmountMismatchError
 from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.utils.start_stop_bot import send_to_admins
 
@@ -153,11 +154,13 @@ async def payment_webhook(
             (тексты алертов администраторам).
 
     Returns
-        Response: 200 при успешной обработке, включая конфликтные и
-        идемпотентные случаи (см. `_notify_transaction_conflict`); 403,
-        если подлинность вебхука не подтверждена; 400, если тело вебхука
-        не удалось разобрать; 500 при неожиданной ошибке обработки
-        (провайдер повторит доставку).
+        Response: 200 при успешной обработке, включая конфликтные,
+        идемпотентные случаи (см. `_notify_transaction_conflict`) и
+        несовпадение суммы (см. `PaymentAmountMismatchError` — повторная
+        доставка не изменит сумму, поэтому провайдеру не нужно повторять
+        запрос); 403, если подлинность вебхука не подтверждена; 400, если
+        тело вебхука не удалось разобрать; 500 при неожиданной ошибке
+        обработки (провайдер повторит доставку).
 
     """
     body: bytes = await request.body()
@@ -190,6 +193,19 @@ async def payment_webhook(
         await payment_webhook_service.handle_event(event)
     except APIClientConflictError as exc:
         await _notify_transaction_conflict(exc, event, bot, logger, m_subscription)
+        return Response(status_code=200)
+    except PaymentAmountMismatchError as exc:
+        # Сумма не изменится при повторной доставке того же вебхука — 200,
+        # чтобы провайдер не повторял запрос; подтверждение остаётся
+        # заблокировано (транзакция в PENDING) до ручной проверки.
+        await send_to_admins(
+            bot=bot,
+            message_text=m_subscription.gateway_alert.amount_mismatch.format(
+                transaction_id=exc.details["transaction_id"],
+                expected_amount=exc.details["expected_amount"],
+                received_amount=exc.details["received_amount"],
+            ),
+        )
         return Response(status_code=200)
     except Exception:
         logger.exception(

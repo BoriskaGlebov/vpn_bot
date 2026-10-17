@@ -28,6 +28,7 @@ from bot.payment.dependencies import (
     get_subscription_messages,
 )
 from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
+from bot.payment.exceptions import PaymentAmountMismatchError
 from bot.payment.router import router
 
 m_subscription = settings_bot.messages.modes.subscription
@@ -286,6 +287,37 @@ async def test_conflict_on_cancel_webhook_for_already_paid_alerts_admins(
     assert kwargs["bot"] is bot_mock
     assert "tx-8" in kwargs["message_text"]
     assert "вручную администратором" in kwargs["message_text"]
+
+
+@pytest.mark.asyncio
+async def test_amount_mismatch_returns_200_and_alerts_admins(
+    client, payment_service_mock, payment_webhook_service_mock, bot_mock, mocker
+):
+    """Несовпадение суммы (#257) — 200 без повторной доставки + алерт админам.
+
+    200, а не 500: повторная доставка того же вебхука не изменит сумму,
+    поэтому нет смысла просить провайдера повторить запрос. Подтверждение
+    остаётся заблокировано — об этом должен узнать администратор.
+    """
+    send_to_admins_mock = mocker.patch(
+        "bot.payment.router.send_to_admins", new=AsyncMock()
+    )
+
+    payment_service_mock.provider.verify_webhook.return_value = True
+    payment_service_mock.provider.parse_webhook.return_value = make_event()
+    payment_webhook_service_mock.handle_event.side_effect = PaymentAmountMismatchError(
+        transaction_id="tx-9",
+        expected_amount="1000",
+        received_amount="1",
+    )
+
+    response = await client.post("/platega/payment-webhook", json={"id": "prov-123"})
+
+    assert response.status_code == 200
+    send_to_admins_mock.assert_awaited_once()
+    _, kwargs = send_to_admins_mock.await_args
+    assert kwargs["bot"] is bot_mock
+    assert "tx-9" in kwargs["message_text"]
 
 
 @pytest.mark.asyncio

@@ -1,9 +1,11 @@
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
 from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
+from bot.payment.exceptions import PaymentAmountMismatchError
 from bot.payment.services import PaymentWebhookService
 
 
@@ -51,6 +53,7 @@ async def test_handle_event_paid_confirms_via_subscription_service(
         provider_payment_id="prov-1",
         status=PaymentStatus.PAID,
         raw_data={},
+        amount=Decimal(1000),
     )
 
     await webhook_service.handle_event(event)
@@ -62,6 +65,53 @@ async def test_handle_event_paid_confirms_via_subscription_service(
     webhook_service.notification_service.notify_payment_confirmed.assert_awaited_once_with(
         confirm, provider_name=payment_service_mock.provider.provider_name
     )
+
+
+@pytest.mark.asyncio
+async def test_handle_event_paid_amount_mismatch_blocks_confirmation(
+    webhook_service, payment_service_mock, subscription_service_mock
+):
+    """Если сумма в вебхуке не совпадает с суммой транзакции (#257),
+    подтверждение должно быть заблокировано, а не принято по одному
+    статусу — иначе решение "платёж прошёл" ничем не проверяется.
+    """
+    tx = SimpleNamespace(id="tx-4", tg_id=123, amount=1000)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-4",
+        status=PaymentStatus.PAID,
+        raw_data={},
+        amount=Decimal(1),
+    )
+
+    with pytest.raises(PaymentAmountMismatchError):
+        await webhook_service.handle_event(event)
+
+    subscription_service_mock.webhook_confirm_transaction.assert_not_called()
+    webhook_service.notification_service.notify_payment_confirmed.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_event_paid_missing_amount_blocks_confirmation(
+    webhook_service, payment_service_mock, subscription_service_mock
+):
+    """Отсутствие суммы в вебхуке (провайдер её не прислал) — тоже
+    недостаточно для подтверждения, сверка не может быть пройдена молча.
+    """
+    tx = SimpleNamespace(id="tx-5", tg_id=123, amount=1000)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-5",
+        status=PaymentStatus.PAID,
+        raw_data={},
+    )
+
+    with pytest.raises(PaymentAmountMismatchError):
+        await webhook_service.handle_event(event)
+
+    subscription_service_mock.webhook_confirm_transaction.assert_not_called()
 
 
 @pytest.mark.asyncio

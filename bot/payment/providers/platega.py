@@ -1,6 +1,7 @@
 import json
 import secrets
 from collections.abc import Mapping
+from decimal import Decimal
 
 import httpx
 from loguru import logger
@@ -153,6 +154,7 @@ class PlategaProvider:
         data = json.loads(body)
 
         provider_status = data["status"]
+        amount = Decimal(str(data["amount"])) if "amount" in data else None
 
         if provider_status == "CONFIRMED":
             status = PaymentStatus.PAID
@@ -176,6 +178,7 @@ class PlategaProvider:
             provider_payment_id=data["id"],
             status=status,
             raw_data=data,
+            amount=amount,
         )
 
     async def close(self) -> None:
