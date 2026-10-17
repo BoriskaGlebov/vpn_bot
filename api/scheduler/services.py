@@ -3,6 +3,7 @@ import datetime
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.core.config import settings_api
 from api.scheduler.domain.event import (
     AdminNotifyEvent,
     DeletedVPNConfig,
@@ -166,7 +167,7 @@ class SubscriptionScheduler:
             )
 
         if sub.end_date:
-            delta = datetime.datetime.now(datetime.UTC) - sub.end_date
+            delta = datetime.datetime.now(settings_api.core.tzinfo) - sub.end_date
 
             if delta.days >= 1:
                 deleted_configs = await self._delete_configs(

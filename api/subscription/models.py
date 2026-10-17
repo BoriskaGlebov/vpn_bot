@@ -98,7 +98,7 @@ class Subscription(Base):
     )
     start_date: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.datetime.now(datetime.UTC),
+        default=lambda: datetime.datetime.now(settings_api.core.tzinfo),
     )
     end_date: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -135,7 +135,7 @@ class Subscription(Base):
             month_num (int|None): Количество месяцев на подписку
 
         """
-        now = datetime.datetime.now(tz=datetime.UTC)
+        now = datetime.datetime.now(tz=settings_api.core.tzinfo)
         self.type = sub_type
         self.is_active = True
         self.start_date = now
@@ -160,9 +160,11 @@ class Subscription(Base):
             months (int): Количество месяцев для продления.
 
         """
-        if not self.end_date or self.end_date < datetime.datetime.now(datetime.UTC):
+        if not self.end_date or self.end_date < datetime.datetime.now(
+            settings_api.core.tzinfo
+        ):
             # если подписка бессрочная или уже истекла → начинаем с текущей даты
-            new_start = datetime.datetime.now(datetime.UTC)
+            new_start = datetime.datetime.now(settings_api.core.tzinfo)
         else:
             # если подписка активна → начинаем с текущей даты окончания
             new_start = self.end_date
@@ -178,7 +180,7 @@ class Subscription(Base):
     def deactivate(self) -> None:
         """Деактивирует подписку."""
         self.is_active = False
-        self.end_date = datetime.datetime.now(tz=datetime.UTC)
+        self.end_date = datetime.datetime.now(tz=settings_api.core.tzinfo)
 
     def is_expired(self) -> bool:
         """Проверяет, истекла ли подписка.
@@ -190,7 +192,8 @@ class Subscription(Base):
         if not self.is_active:
             return True
         return bool(
-            self.end_date and datetime.datetime.now(datetime.UTC) > self.end_date
+            self.end_date
+            and datetime.datetime.now(settings_api.core.tzinfo) > self.end_date
         )
 
     def remaining_days(self) -> int | None:
@@ -211,7 +214,7 @@ class Subscription(Base):
         if not self.end_date:
             return None
         delta_seconds = (
-            self.end_date - datetime.datetime.now(tz=datetime.UTC)
+            self.end_date - datetime.datetime.now(tz=settings_api.core.tzinfo)
         ).total_seconds()
         if delta_seconds <= 0:
             return 0

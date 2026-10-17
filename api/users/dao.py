@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api.app_error.base_error import RoleNotFoundError, SubscriptionNotFoundError
+from api.core.config import settings_api
 from api.core.dao.base import BaseDAO
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.models import Role, User
@@ -195,11 +196,10 @@ class UserDAO(BaseDAO[User]):
             user.role = role
 
             if role.name == RoleEnum.FOUNDER:
-                now = datetime.datetime.now(tz=datetime.UTC)
+                tz = settings_api.core.tzinfo
+                now = datetime.datetime.now(tz=tz)
                 if now.year == 2025:
-                    next_year = datetime.datetime(
-                        now.year + 1, 1, 1, tzinfo=datetime.UTC
-                    )
+                    next_year = datetime.datetime(now.year + 1, 1, 1, tzinfo=tz)
                     delta = next_year - now
                     user.subscriptions[0].activate(days=delta.days)
                     user.subscriptions[0].type = SubscriptionType.PREMIUM

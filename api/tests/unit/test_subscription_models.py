@@ -74,3 +74,25 @@ def test_activate_trial_does_not_touch_related_user():
     sub.activate(days=7, sub_type=SubscriptionType.TRIAL)
     assert sub.type == SubscriptionType.TRIAL
     assert sub.is_active is True
+
+
+def test_activate_uses_project_timezone_not_hardcoded_utc():
+    """Subscription.activate()/extend()/deactivate() должны считать "сейчас"
+    через settings_api.core.tzinfo, а не datetime.UTC напрямую — иначе
+    расхождение с остальным проектом (см. #255). Тестовое окружение по
+    умолчанию настроено на Europe/Moscow (UTC+3), поэтому хардкод UTC
+    отличимый по смещению offset=0 от настоящего offset=+3:00.
+    """
+    sub = Subscription()
+    sub.activate(days=1, sub_type=SubscriptionType.STANDARD)
+
+    assert sub.start_date.utcoffset() == datetime.timedelta(hours=3)
+
+
+def test_deactivate_uses_project_timezone_not_hardcoded_utc():
+    sub = Subscription()
+    sub.is_active = True
+    sub.deactivate()
+
+    assert sub.end_date is not None
+    assert sub.end_date.utcoffset() == datetime.timedelta(hours=3)
