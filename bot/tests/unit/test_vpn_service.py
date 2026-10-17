@@ -821,6 +821,62 @@ async def test_delete_user_config_passes_node_name_through(mocker):
     ssh_mock.assert_awaited_once_with("PUBKEY", "conf1.conf", node_name="sof")
 
 
+def test_group_xray_config_ids_backfilled_legacy_record():
+    """Регрессия на #270: запись без `config_ids` после backfill — пропускается.
+
+    Раньше для старых записей без `config_ids` бэкенд угадывался разбором
+    `pub_key` как JSON. Миграция `1a242e081dff` заполнила `config_ids` для
+    всех реальных XRay-записей, поэтому после неё запись без `config_ids`
+    однозначно не XRay (WG-ключ в `pub_key`) — её нельзя спутать и не нужно
+    разбирать. Этот тест проверяет оба случая одним списком конфигов: WG
+    (без config_ids) пропускается, XRay (c config_ids) группируется.
+    """
+    configs = [
+        SVPNConfigOut(
+            id=1,
+            file_name="wg.conf",
+            pub_key="raw-wg-pubkey",
+            backend="amnezia",
+            created_at=datetime(2026, 1, 1),
+        ),
+        SVPNConfigOut(
+            id=2,
+            file_name="xray.conf",
+            pub_key='["cfg1", "cfg2"]',
+            backend="xray",
+            node_name="sof",
+            config_ids=["cfg1", "cfg2"],
+            created_at=datetime(2026, 1, 1),
+        ),
+    ]
+
+    by_node, legacy = VPNService._group_xray_config_ids(configs)
+
+    assert by_node == {"sof": {"cfg1", "cfg2"}}
+    assert legacy == set()
+
+
+@pytest.mark.asyncio
+async def test_delete_from_xray_no_config_ids_returns_not_found(mocker):
+    """`config_ids=None` — не XRay-конфиг, ничего не удаляем и не ошибаемся.
+
+    Регрессия на #270: раньше в этом случае код пытался разобрать `pub_key`
+    как JSON. После backfill (миграция `1a242e081dff`) `config_ids=None`
+    однозначно значит "не XRay" — разбирать нечего.
+    """
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    deleted, had_error = await service._delete_from_xray(
+        "file.conf", node_name=None, config_ids=None
+    )
+
+    assert (deleted, had_error) == (False, False)
+    xray_registry.all.assert_not_called()
+
+
 @pytest.mark.asyncio
 async def test_extend_user_xray_subscription_no_active_subscription(mocker, user_out):
     api_adapter = mocker.AsyncMock()
@@ -888,6 +944,8 @@ async def test_extend_user_xray_subscription_success(mocker, user_out):
                     id=1,
                     file_name="loc_user_123",
                     pub_key='["cfg1", "cfg2"]',
+                    backend="xray",
+                    config_ids=["cfg1", "cfg2"],
                     created_at=datetime(2026, 1, 1),
                 )
             ],
@@ -971,6 +1029,8 @@ async def test_extend_user_xray_subscription_not_found_anywhere_raises(
                     id=1,
                     file_name="loc_user_123",
                     pub_key='["cfg1"]',
+                    backend="xray",
+                    config_ids=["cfg1"],
                     created_at=datetime(2026, 1, 1),
                 )
             ],

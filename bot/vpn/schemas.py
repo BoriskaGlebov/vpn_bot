@@ -28,17 +28,26 @@ class SVPNCreateRequest(BaseModel):
     config_ids: list[str] | None = None
 
 
-class SVPNCreateResponse(BaseModel):
-    """Схема ответа после успешного создания VPN-конфига.
+class SVPNConfigIdentity(BaseModel):
+    """Пара полей, идентифицирующих конкретный VPN-конфиг.
+
+    Общий родитель для схем создания и удаления — раньше запрос на
+    удаление (`SVPNDeleteRequest`) наследовался от ответа на создание
+    (`SVPNCreateResponse`), и изменение формата ответа молча меняло
+    контракт удаления (см. #270).
 
     Attributes
-        file_name (str): Имя созданного файла конфигурации.
+        file_name (str): Имя файла конфигурации.
         pub_key (str): Публичный ключ пользователя.
 
     """
 
     file_name: str
     pub_key: str
+
+
+class SVPNCreateResponse(SVPNConfigIdentity):
+    """Схема ответа после успешного создания VPN-конфига."""
 
 
 class SVPNCheckLimitResponse(BaseModel):
@@ -56,10 +65,8 @@ class SVPNCheckLimitResponse(BaseModel):
     current: int
 
 
-class SVPNDeleteRequest(SVPNCreateResponse):
+class SVPNDeleteRequest(SVPNConfigIdentity):
     """Запрос на удаление файла."""
-
-    ...
 
 
 class SVPNDeleteResponse(BaseModel):

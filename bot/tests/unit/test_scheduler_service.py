@@ -249,8 +249,7 @@ async def test_delete_from_ssh_not_found(service, monkeypatch):
 @pytest.mark.asyncio
 async def test_fallback_delete_3xui(service):
     cfg = MagicMock()
-    cfg.pub_key = '["id1","id2"]'
-    cfg.config_ids = None
+    cfg.config_ids = ["id1", "id2"]
 
     await service._fallback_delete_3xui(cfg)
 
@@ -290,9 +289,8 @@ async def test_delete_from_ssh_known_node_name_used_directly(
 async def test_fallback_delete_3xui_known_node_name_used_directly(service):
     """node_name известен и адаптер для него найден — обращаемся только к нему."""
     cfg = MagicMock()
-    cfg.pub_key = '["id1","id2"]'
     cfg.node_name = "sof"
-    cfg.config_ids = None
+    cfg.config_ids = ["id1", "id2"]
 
     known_adapter = AsyncMock()
     known_adapter.delete_config = AsyncMock(return_value=True)
@@ -405,16 +403,16 @@ async def test_trigger_config_deletion_both_not_found_cleans_up_db(service, mock
 
 
 @pytest.mark.asyncio
-async def test_fallback_delete_3xui_invalid_json(service):
-    """Невалидный pub_key (не JSON-список config_id) — это WG-ключ, не 3x-ui.
+async def test_fallback_delete_3xui_no_config_ids(service):
+    """`config_ids=None` — это не XRay-конфиг (WG-ключ в pub_key), не 3x-ui.
 
-    `json.loads` бросает `JSONDecodeError` до того, как код успевает дойти
-    до `xray_registry`/`adapter.delete_config`. Такой pub_key по формату не
-    может быть конфигом 3x-ui, поэтому результат — детерминированный
-    NOT_FOUND (а не ERROR), чтобы `_trigger_config_deletion` корректно
-    удалил запись из БД, а не слал ложное уведомление об ошибке.
+    После миграции `1a242e081dff` (backfill #270) `config_ids` заполнен для
+    всех реальных XRay-записей — `None` однозначно значит "не XRay", без
+    обращения к `xray_registry`/`adapter.delete_config`. Результат —
+    детерминированный NOT_FOUND (а не ERROR), чтобы `_trigger_config_deletion`
+    корректно удалил запись из БД, а не слал ложное уведомление об ошибке.
     """
-    cfg = MagicMock(pub_key="not_json", node_name=None, config_ids=None)
+    cfg = MagicMock(node_name=None, config_ids=None)
 
     result = await service._fallback_delete_3xui(cfg)
 

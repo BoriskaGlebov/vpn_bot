@@ -1,4 +1,3 @@
-import json
 from dataclasses import dataclass
 
 from aiogram import Bot
@@ -292,42 +291,32 @@ class SchedulerBotService:
         запись без `node_name`, либо нода с тех пор пропала из реестра) —
         перебирает все локации (`ALL_LOCATIONS`), как раньше.
 
-        `cfg.config_ids`, если заполнен, используется напрямую; иначе (старые
-        записи) парсится из `cfg.pub_key`, который в этом сценарии — не
-        WG-публичный ключ, а JSON-список `config_id` в 3x-ui (перегрузка
-        одного поля под два бэкенда, см. `DeletedVPNConfigSchema`).
+        `cfg.config_ids` — единственный источник списка config_id. Раньше при
+        его отсутствии (старые записи) он парсился из `cfg.pub_key` —
+        перегрузка одного поля под два бэкенда (см. `DeletedVPNConfigSchema`);
+        миграция `1a242e081dff` заполнила `config_ids` для всех XRay-записей,
+        поэтому разбор `pub_key` больше не нужен (см. #270).
 
         Args:
-            cfg: Данные удаляемого конфига; `pub_key` ожидается как
-                JSON-массив идентификаторов конфигов в 3x-ui, если
-                `config_ids` не заполнен.
+            cfg: Данные удаляемого конфига.
 
         Returns
             DeleteStatus: `DELETED`, если все config_id успешно удалены в
                 какой-то одной локации; `NOT_FOUND`, если ошибок не было, но
-                удалить нечего (включая случай, когда `pub_key` не является
-                JSON — это WG-ключ, а значит конфига в 3x-ui не может быть
-                по формату); `ERROR`, если удаление хотя бы одного config_id
-                завершилось ошибкой.
+                удалить нечего (включая случай, когда `config_ids` не
+                заполнен — значит это не XRay-конфиг); `ERROR`, если удаление
+                хотя бы одного config_id завершилось ошибкой.
 
         """
         logger.info("Fallback: проверка 3x-ui")
         deletion_statistic = []
 
-        if cfg.config_ids is not None:
-            all_configs = cfg.config_ids
-        else:
-            try:
-                all_configs = json.loads(cfg.pub_key)
-            except json.JSONDecodeError:
-                # pub_key не JSON — значит это WG-ключ, а не список config_id
-                # 3x-ui, т.е. такого конфига в 3x-ui не может быть по формату.
-                # Это не ошибка, а детерминированный "не найдено".
-                logger.debug(
-                    "pub_key не похож на 3x-ui (не JSON) — конфиг {} не из 3x-ui",
-                    cfg.file_name,
-                )
-                return DeleteStatus.NOT_FOUND
+        if cfg.config_ids is None:
+            # Нет config_ids — значит это не XRay-конфиг (WG-ключ в pub_key).
+            # Детерминированный "не найдено", а не ошибка.
+            logger.debug("У конфига {} нет config_ids — не XRay-конфиг", cfg.file_name)
+            return DeleteStatus.NOT_FOUND
+        all_configs = cfg.config_ids
 
         known_adapter = self.xray_registry.get_optional(cfg.node_name)
         locations: list[str] = (
