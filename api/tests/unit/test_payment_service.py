@@ -35,6 +35,17 @@ from api.payment.services import PaymentService
 from shared.enums.payment_enum import PaymentStatus
 
 
+def test_paid_at_and_confirmed_at_are_timezone_aware():
+    """paid_at/confirmed_at объявлены как DateTime(timezone=True) (#255) —
+    их ставит процесс (datetime.now(UTC)), а created_at/updated_at ставит
+    Postgres (func.now()); без единой таймзоны на этих колонках
+    "paid_at - created_at" было бы бессмысленно при расхождении TZ
+    контейнеров.
+    """
+    assert PaymentTransaction.__table__.c.paid_at.type.timezone is True
+    assert PaymentTransaction.__table__.c.confirmed_at.type.timezone is True
+
+
 def make_transaction(**overrides) -> SimpleNamespace:
     """Строит объект транзакции с полями, валидными для SPaymentTransactionResponse.
 

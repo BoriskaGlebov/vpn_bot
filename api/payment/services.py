@@ -342,7 +342,7 @@ class PaymentService:
         upd_transaction = await PaymentTransactionDAO.update(
             session=session,
             filters=STransactionIDFilter(id=transaction_id),
-            values=SPaidAt(paid_at=datetime.now()),
+            values=SPaidAt(paid_at=datetime.now(UTC)),
         )
 
         if not upd_transaction:
@@ -395,8 +395,8 @@ class PaymentService:
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
                 confirmed_by_admin_id=data.admin_id,
-                confirmed_at=datetime.now(),
-                paid_at=datetime.now(),
+                confirmed_at=datetime.now(UTC),
+                paid_at=datetime.now(UTC),
                 source=PaymentSource.MANUAL,
             ),
         )
@@ -444,8 +444,8 @@ class PaymentService:
             filters=STransactionPendingFilter(id=data.id, status=PaymentStatus.PENDING),
             values=SPaymentStatusUpdate(
                 status=PaymentStatus.PAID,
-                paid_at=datetime.now(),
-                confirmed_at=datetime.now(),
+                paid_at=datetime.now(UTC),
+                confirmed_at=datetime.now(UTC),
                 source=PaymentSource.GATEWAY,
             ),
         )

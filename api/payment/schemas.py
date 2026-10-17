@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 from uuid import UUID
@@ -175,7 +175,7 @@ class SAdminConfirmPayment(STransactionIDFilter):
 class SPaidAt(BaseModel):
     """Схема установки даты оплаты."""
 
-    paid_at: datetime = Field(default_factory=datetime.now)
+    paid_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class SPaymentStatusCancel(BaseModel):

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON
+from sqlalchemy import JSON, DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -148,8 +148,16 @@ class PaymentTransaction(Base):
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    confirmed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    paid_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # timezone=True — см. #255: сверить с временем провайдера (Platega
+    # присылает своё время в вебхуке) нельзя, пока неизвестно, в какой зоне
+    # записан paid_at; наивная метка в час перехода на летнее время вообще
+    # неразрешимо двусмысленна.
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     def __str__(self) -> str:
         """Возвращает краткое строковое представление транзакции.

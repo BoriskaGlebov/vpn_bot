@@ -3,7 +3,7 @@ from datetime import datetime
 from functools import wraps
 from typing import Annotated, Any, Literal, TypeVar
 
-from sqlalchemy import func
+from sqlalchemy import DateTime, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
@@ -117,9 +117,18 @@ def redact(values: dict[str, Any]) -> dict[str, Any]:
 
 
 int_pk = Annotated[int, mapped_column(primary_key=True, autoincrement=True)]
-created_at = Annotated[datetime, mapped_column(server_default=func.now())]
+# timezone=True — см. #255: без неё колонка хранит TIMESTAMP WITHOUT TIME
+# ZONE, и created_at/updated_at (которые ставит Postgres через func.now())
+# оказываются в одной таблице с полями, которые ставит сам процесс (напр.
+# PaymentTransaction.paid_at/confirmed_at) без единой договорённости о зоне.
+created_at = Annotated[
+    datetime, mapped_column(DateTime(timezone=True), server_default=func.now())
+]
 updated_at = Annotated[
-    datetime, mapped_column(server_default=func.now(), onupdate=func.now())
+    datetime,
+    mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    ),
 ]
 str_uniq = Annotated[str, mapped_column(unique=True, nullable=False)]
 str_null_true = Annotated[str, mapped_column(nullable=True)]

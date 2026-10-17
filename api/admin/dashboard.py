@@ -29,23 +29,20 @@ class DashboardView(BaseView):
     async def dashboard(self, request: Request) -> _TemplateResponse:
         """Собирает метрики и рендерит страницу дашборда."""
         now = datetime.now(UTC)
-        now_naive = now.replace(tzinfo=None)
-        week_ago_naive = now_naive - timedelta(days=7)
-        month_ago_naive = now_naive - timedelta(days=30)
+        week_ago = now - timedelta(days=7)
+        month_ago = now - timedelta(days=30)
 
         async with async_session() as session:
             users_total = await session.scalar(select(func.count(User.id))) or 0
             users_new_7d = (
                 await session.scalar(
-                    select(func.count(User.id)).where(User.created_at >= week_ago_naive)
+                    select(func.count(User.id)).where(User.created_at >= week_ago)
                 )
                 or 0
             )
             users_new_30d = (
                 await session.scalar(
-                    select(func.count(User.id)).where(
-                        User.created_at >= month_ago_naive
-                    )
+                    select(func.count(User.id)).where(User.created_at >= month_ago)
                 )
                 or 0
             )
@@ -85,7 +82,7 @@ class DashboardView(BaseView):
                 await session.scalar(
                     select(func.coalesce(func.sum(PaymentTransaction.amount), 0)).where(
                         PaymentTransaction.status == PaymentStatus.PAID,
-                        PaymentTransaction.paid_at >= month_ago_naive,
+                        PaymentTransaction.paid_at >= month_ago,
                     )
                 )
                 or 0
