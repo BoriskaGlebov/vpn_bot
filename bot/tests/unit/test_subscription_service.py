@@ -32,7 +32,9 @@ async def test_check_premium(service, adapter_mock):
 
     result = await service.check_premium(tg_id=123)
 
-    assert result == (True, RoleEnum.USER, True, True)
+    assert result == SSubscriptionCheck(
+        premium=True, role=RoleEnum.USER, is_active=True, used_trial=True
+    )
 
     adapter_mock.check_premium.assert_awaited_once_with(tg_id=123)
 

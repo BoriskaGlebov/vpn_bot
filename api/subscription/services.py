@@ -9,13 +9,14 @@ from api.app_error.base_error import (
 from api.core.mapper.user_mapper import UserMapper
 from api.subscription.dao import SubscriptionDAO
 from api.subscription.models import SubscriptionType
-from api.subscription.schemas import SSubscriptionInfo, SVPNConfig
+from api.subscription.schemas import SSubscriptionCheck, SSubscriptionInfo, SVPNConfig
 from api.users.dao import UserDAO
 from api.users.schemas import SUserOut, SUserTelegramID
 from shared.enums.admin_enum import RoleEnum
 from shared.enums.subscription_enum import (
     SubscriptionInfoStatus,
     ToggleSubscriptionMode,
+    TrialStatus,
 )
 
 
@@ -23,9 +24,7 @@ class SubscriptionService:
     """Сервис для бизнес-логики подписки."""
 
     @staticmethod
-    async def check_premium(
-        session: AsyncSession, tg_id: int
-    ) -> tuple[bool, RoleEnum, bool, bool]:
+    async def check_premium(session: AsyncSession, tg_id: int) -> SSubscriptionCheck:
         """Проверяет наличие активной премиум-подписки у пользователя.
 
         Args:
@@ -33,11 +32,9 @@ class SubscriptionService:
             tg_id: Telegram ID пользователя.
 
         Returns
-            tuple[bool, RoleEnum, bool]:
-                - bool: True, если активна премиум-подписка
-                - RoleEnum: роль пользователя
-                - bool: активна ли текущая подписка
-                - bool: использовал ли триал.
+            SSubscriptionCheck: активна ли премиум-подписка, роль
+                пользователя, активность текущей подписки, использован ли
+                триал.
 
         Raises
             UserNotFoundError: если пользователь не найден
@@ -63,7 +60,6 @@ class SubscriptionService:
             )
 
         premium = subscription.type
-        founder = user_model.role
         is_active_sbscr = bool(subscription.is_active)
         logger.info(
             "Проверка premium завершена: tg_id={}, premium={}, active={}",
@@ -71,25 +67,17 @@ class SubscriptionService:
             subscription.type,
             subscription.is_active,
         )
-        if premium and premium == ToggleSubscriptionMode.PREMIUM:
-            return (
-                True,
-                RoleEnum(founder.name),
-                is_active_sbscr,
-                user_model.has_used_trial,
-            )
-        else:
-            return (
-                False,
-                RoleEnum(founder.name),
-                is_active_sbscr,
-                user_model.has_used_trial,
-            )
+        return SSubscriptionCheck(
+            premium=bool(premium and premium == ToggleSubscriptionMode.PREMIUM),
+            role=RoleEnum(user_model.role.name),
+            is_active=is_active_sbscr,
+            used_trial=user_model.has_used_trial,
+        )
 
     @staticmethod
     async def start_trial_subscription(
         session: AsyncSession, tg_id: int, days: int
-    ) -> None:
+    ) -> TrialStatus:
         """Активирует или продлевает trial-подписку пользователя.
 
         Логика:
@@ -101,6 +89,11 @@ class SubscriptionService:
             session: Асинхронная SQLAlchemy сессия.
             tg_id: Telegram ID пользователя.
             days: длительность trial в днях.
+
+        Returns
+            TrialStatus: EXTENDED, если продлена существующая активная
+                подписка, STARTED, если создана новая trial-подписка (#283
+                — раньше оба случая отвечали одним и тем же значением).
 
         Raises
             UserNotFoundError: если пользователь не найден
@@ -129,22 +122,20 @@ class SubscriptionService:
                 tg_id,
                 days,
             )
-            return
-        if subscription and subscription.is_active and user_model.has_used_trial:
-            logger.warning(
-                "Нельзя активировать trial — уже был использован: tg_id={}",
-                tg_id,
-            )
-            raise TrialAlreadyUsedError(
-                user_id=user_model.id, username=user_model.username
-            )
+            return TrialStatus.EXTENDED
 
+        # Вторая ветвь (subscription активна и has_used_trial) была
+        # недостижима — подмножество проверки ниже с тем же исключением и
+        # аргументами (см. #283), поэтому убрана.
         if user_model.has_used_trial:
             logger.warning("Trial уже использован: tg_id={}", tg_id)
             raise TrialAlreadyUsedError(
                 user_id=user_model.id, username=user_model.username
             )
 
+        # Правило «один раз» целиком в сервисе (#283) — Subscription.activate()
+        # больше не проверяет и не выставляет has_used_trial сам.
+        user_model.has_used_trial = True
         await SubscriptionDAO.activate_subscription(
             session=session,
             stelegram_id=schema_user,
@@ -155,10 +146,11 @@ class SubscriptionService:
             user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
         )
         logger.debug("Trial подписка активирована: tg_id={}", tg_id)
+        return TrialStatus.STARTED
 
     @staticmethod
     async def activate_paid_subscription(
-        session: AsyncSession, user_id: int, months: int, premium: bool
+        session: AsyncSession, tg_id: int, months: int, premium: bool
     ) -> SUserOut:
         """Активирует или продлевает платную подписку пользователя.
 
@@ -169,7 +161,7 @@ class SubscriptionService:
 
         Args:
             session: Асинхронная SQLAlchemy сессия.
-            user_id: Telegram ID пользователя.
+            tg_id: Telegram ID пользователя.
             months: срок подписки в месяцах.
             premium: True → PREMIUM, False → STANDARD
 
@@ -181,18 +173,18 @@ class SubscriptionService:
 
         """
         logger.debug(
-            "Начало активации платной подписки: user_id={}, months={}, premium={}",
-            user_id,
+            "Начало активации платной подписки: tg_id={}, months={}, premium={}",
+            tg_id,
             months,
             premium,
         )
-        schema_user = SUserTelegramID(telegram_id=user_id)
+        schema_user = SUserTelegramID(telegram_id=tg_id)
         user_model = await UserDAO.find_one_or_none(
             session=session, filters=schema_user, options=UserDAO.base_options
         )
         if not user_model:
-            logger.warning("Пользователь не найден: user_id={}", user_id)
-            raise UserNotFoundError(tg_id=user_id)
+            logger.warning("Пользователь не найден: tg_id={}", tg_id)
+            raise UserNotFoundError(tg_id=tg_id)
         if user_model.role.name == RoleEnum.FOUNDER:
             sub_type = SubscriptionType.FOUNDER
         elif premium:
@@ -209,8 +201,8 @@ class SubscriptionService:
         )
         if active_sub:
             logger.info(
-                "Продление подписки: user_id={}, months={}, type={}",
-                user_id,
+                "Продление подписки: tg_id={}, months={}, type={}",
+                tg_id,
                 months,
                 sub_type,
             )
@@ -218,8 +210,8 @@ class SubscriptionService:
             return UserMapper.to_schema(user=user_model)
         elif user_model.role.name == RoleEnum.FOUNDER:
             logger.info(
-                "Основатель: принудительная установка PREMIUM подписки: user_id={}, months={}",
-                user_id,
+                "Основатель: принудительная установка PREMIUM подписки: tg_id={}, months={}",
+                tg_id,
                 months,
             )
             current_sub = user_model.current_subscription
@@ -234,16 +226,16 @@ class SubscriptionService:
         for existing_sub in user_model.subscriptions:
             if existing_sub.is_active:
                 logger.info(
-                    "Деактивация прежней подписки другого типа: user_id={}, "
+                    "Деактивация прежней подписки другого типа: tg_id={}, "
                     "type={}, new_type={}",
-                    user_id,
+                    tg_id,
                     existing_sub.type,
                     sub_type,
                 )
                 existing_sub.deactivate()
         logger.info(
-            "Создание новой подписки: user_id={}, months={}, type={}",
-            user_id,
+            "Создание новой подписки: tg_id={}, months={}, type={}",
+            tg_id,
             months,
             sub_type,
         )
@@ -251,8 +243,8 @@ class SubscriptionService:
             session=session, stelegram_id=schema_user, month=months, sub_type=sub_type
         )
         logger.success(
-            "Подписка успешно активирована: user_id={}, months={}",
-            user_id,
+            "Подписка успешно активирована: tg_id={}, months={}",
+            tg_id,
             months,
         )
         await session.refresh(

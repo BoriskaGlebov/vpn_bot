@@ -19,7 +19,6 @@ from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from bot.utils.formatting import format_vpn_config_date, format_vpn_location
 from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
-from shared.enums.admin_enum import RoleEnum
 from shared.enums.subscription_enum import SubscriptionInfoStatus
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -40,26 +39,24 @@ class SubscriptionService:
         self.payment_service = payment_service
         self.vpn_service = vpn_service
 
-    async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool, bool]:
+    async def check_premium(self, tg_id: int) -> SSubscriptionCheck:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
 
         Args:
             tg_id (int): Telegram ID пользователя.
 
         Returns
-            tuple[bool, str, bool]: Кортеж из трёх значений:
-                - bool: True, если у пользователя премиум-подписка, иначе False.
-                - RoleEnum: Роль пользователя (например, "founder", "user" и т.д.).
-                - bool: True, если подписка активна, иначе False.
-                - bool: Использовал ли триал.
+            SSubscriptionCheck: активна ли премиум-подписка, роль
+                пользователя, активность текущей подписки, использован ли
+                триал.
 
         Raises
             UserNotFoundError: Если пользователь с указанным Telegram ID не найден.
 
         """
-        data = await self.api_adapter.check_premium(tg_id=tg_id)
-        check = SSubscriptionCheck.model_validate(data)
-        return check.premium, check.role, check.is_active, check.used_trial
+        # api_adapter уже возвращает SSubscriptionCheck (валидация произошла
+        # там) — повторный model_validate() здесь был избыточен (#283).
+        return await self.api_adapter.check_premium(tg_id=tg_id)
 
     async def start_trial_subscription(self, tg_id: int, days: int) -> None:
         """Активирует пробный период подписки для пользователя.

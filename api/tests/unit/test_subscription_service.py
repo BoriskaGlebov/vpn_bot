@@ -10,6 +10,7 @@ from api.subscription.models import Subscription, SubscriptionType
 from api.subscription.services import SubscriptionService
 from api.users.models import User
 from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import TrialStatus
 
 
 @pytest.fixture
@@ -57,8 +58,8 @@ async def test_check_premium_true(user, session, monkeypatch):
 
     result = await SubscriptionService.check_premium(session, tg_id=123)
 
-    assert result[0] is False  # STANDARD в фикстуре
-    assert result[1] is not None
+    assert result.premium is False  # STANDARD в фикстуре
+    assert result.role is not None
 
 
 @pytest.mark.asyncio
@@ -81,10 +82,14 @@ async def test_start_trial_extend(user, session, monkeypatch):
         AsyncMock(return_value=user),
     )
 
-    await SubscriptionService.start_trial_subscription(session, tg_id=123, days=10)
+    result = await SubscriptionService.start_trial_subscription(
+        session, tg_id=123, days=10
+    )
 
     user.current_subscription.extend.assert_called_once_with(days=10)
     assert user.has_used_trial is True
+    # #283: продление отвечает EXTENDED, а не тем же значением, что создание.
+    assert result == TrialStatus.EXTENDED
 
 
 @pytest.mark.asyncio
@@ -122,13 +127,17 @@ async def test_start_trial_create_new(session, monkeypatch):
         activate_mock,
     )
 
-    await SubscriptionService.start_trial_subscription(
+    result = await SubscriptionService.start_trial_subscription(
         session,
         tg_id=123,
         days=10,
     )
 
     activate_mock.assert_awaited_once()
+    assert user.has_used_trial is True
+    # #283: Subscription.activate() больше не выставляет has_used_trial сам —
+    # это делает сервис; создание (в отличие от продления) отвечает STARTED.
+    assert result == TrialStatus.STARTED
 
     session.refresh.assert_awaited_once_with(
         user,
@@ -147,7 +156,7 @@ async def test_activate_paid_extend(user, session, monkeypatch):
     user.subscriptions = [user.current_subscription]
 
     result = await SubscriptionService.activate_paid_subscription(
-        session, user_id=123, months=3, premium=False
+        session, tg_id=123, months=3, premium=False
     )
 
     user.current_subscription.extend.assert_called_once_with(months=3)
@@ -165,7 +174,7 @@ async def test_activate_paid_founder(user, session, monkeypatch):
     )
 
     result = await SubscriptionService.activate_paid_subscription(
-        session, user_id=123, months=3, premium=True
+        session, tg_id=123, months=3, premium=True
     )
 
     assert result is not None
@@ -196,7 +205,7 @@ async def test_activate_paid_create(session, monkeypatch):
     )
 
     result = await SubscriptionService.activate_paid_subscription(
-        session, user_id=123, months=3, premium=False
+        session, tg_id=123, months=3, premium=False
     )
 
     mock_dao.assert_awaited_once()
@@ -236,7 +245,7 @@ async def test_activate_paid_create_deactivates_other_active_type(session, monke
     )
 
     await SubscriptionService.activate_paid_subscription(
-        session, user_id=123, months=3, premium=False
+        session, tg_id=123, months=3, premium=False
     )
 
     abandoned_trial.deactivate.assert_called_once()

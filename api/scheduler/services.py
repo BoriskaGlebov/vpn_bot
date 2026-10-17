@@ -260,7 +260,7 @@ class SubscriptionScheduler:
                     message=f"Осталось {remaining} дней подписки",
                     subscription_type=(
                         current_subscription.type.value.upper()
-                        if current_subscription
+                        if current_subscription and current_subscription.type
                         else "UNKNOWN"
                     ),
                     remaining_days=(
@@ -304,7 +304,7 @@ class SubscriptionScheduler:
         if not sub or not sub.is_active:
             return stats, events
 
-        limit = DEVICE_LIMITS.get(sub.type, 0)
+        limit = DEVICE_LIMITS.get(sub.type, 0) if sub.type else 0
         configs = user.vpn_configs or []
 
         if limit <= 0 or len(configs) <= limit:

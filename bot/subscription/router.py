@@ -401,12 +401,10 @@ class SubscriptionRouter(BaseRouter):
         user_logger = self.logger.bind(user=format_username(user))
         user_logger.info("Начало оформления подписки")
         async with ChatActionSender.typing(bot=self.bot, chat_id=chat_id):
-            (
-                is_premium,
-                role,
-                is_active_sbscr,
-                used_trial,
-            ) = await self.subscription_service.check_premium(tg_id=user.id)
+            check = await self.subscription_service.check_premium(tg_id=user.id)
+            is_premium = check.premium
+            role = check.role
+            used_trial = check.used_trial
             await self.bot.send_message(
                 chat_id=chat_id,
                 text="Начнем оформление подписки",

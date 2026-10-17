@@ -16,7 +16,6 @@ from api.subscription.schemas import (
 from api.subscription.services import SubscriptionService
 from api.users.models import User
 from api.users.schemas import SUserOut
-from shared.enums.subscription_enum import TrialStatus
 
 router = APIRouter(prefix="/subscriptions", tags=["bot", "SUBSCRIPTION"])
 
@@ -45,14 +44,7 @@ async def check_premium(
         SSubscriptionCheck: статус подписки, роль и активность.
 
     """
-    premium, role, is_active, used_trial = await service.check_premium(
-        session=session,
-        tg_id=tg_id,
-    )
-
-    return SSubscriptionCheck(
-        premium=premium, role=role, is_active=is_active, used_trial=used_trial
-    )
+    return await service.check_premium(session=session, tg_id=tg_id)
 
 
 @router.post(
@@ -84,14 +76,12 @@ async def start_trial(
         TrialAlreadyUsedError
 
     """
-    await service.start_trial_subscription(
+    trial_status = await service.start_trial_subscription(
         session=session,
         tg_id=data.tg_id,
         days=data.days,
     )
-    return STrialActivateResponse(
-        status=TrialStatus.STARTED,
-    )
+    return STrialActivateResponse(status=trial_status)
 
 
 @router.post(
@@ -121,7 +111,7 @@ async def activate_subscription(
     """
     return await service.activate_paid_subscription(
         session=session,
-        user_id=data.tg_id,
+        tg_id=data.tg_id,
         months=data.months,
         premium=data.premium,
     )

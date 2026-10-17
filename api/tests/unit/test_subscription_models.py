@@ -62,3 +62,15 @@ def test_remaining_days_zero_when_already_expired():
 def test_remaining_days_none_for_unlimited():
     sub = Subscription(end_date=None)
     assert sub.remaining_days() is None
+
+
+def test_activate_trial_does_not_touch_related_user():
+    """#283: правило «пробный период один раз» живёт в сервисе, а не в
+    модели — activate() не должен трогать user.has_used_trial и не должен
+    требовать self.user вовсе (иначе бросит AttributeError на объекте без
+    связанного пользователя, как ниже).
+    """
+    sub = Subscription()
+    sub.activate(days=7, sub_type=SubscriptionType.TRIAL)
+    assert sub.type == SubscriptionType.TRIAL
+    assert sub.is_active is True

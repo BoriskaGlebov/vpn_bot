@@ -71,7 +71,8 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 user_id=user.id, status=VPNConfigStatus.ACTIVE
             ),
         )
-        limit = DEVICE_LIMITS.get(user.current_subscription.type, 0)
+        sub_type = user.current_subscription.type
+        limit = DEVICE_LIMITS.get(sub_type, 0) if sub_type else 0
         logger.debug(
             f"[DAO] Лимит конфигов для пользователя {user.id} "
             f"({user.current_subscription.type}): {current}/{limit}",

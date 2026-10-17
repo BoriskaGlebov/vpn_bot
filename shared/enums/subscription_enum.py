@@ -19,9 +19,19 @@ class ToggleSubscriptionMode(StrEnum):
 
 
 class TrialStatus(str, Enum):
-    """Статус активации пробного периода."""
+    """Статус активации пробного периода.
+
+    Attributes
+        STARTED: Создана новая trial-подписка.
+        EXTENDED: Продлена уже существующая активная подписка (#283) —
+            раньше оба случая отвечали одним и тем же "trial_started",
+            хотя сервис мог как создать подписку, так и продлить
+            существующую.
+
+    """
 
     STARTED = "trial_started"
+    EXTENDED = "trial_extended"
 
 
 class SubscriptionInfoStatus(StrEnum):

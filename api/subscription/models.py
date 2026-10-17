@@ -10,7 +10,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from api.app_error.base_error import AppError, TrialAlreadyUsedError
+from api.app_error.base_error import AppError
 from api.core.config import settings_api
 from api.core.database import Base, int_pk
 
@@ -78,7 +78,8 @@ class Subscription(Base):
         start_date (datetime): Дата начала подписки.
         end_date (datetime | None): Дата окончания подписки (None — бессрочная).
         user (User): Пользователь, владелец подписки.
-        type: (SubscriptionType): Тип подписки TRIAL, STANDARD, PREMIUM.
+        type (SubscriptionType | None): Тип подписки; None до первого
+            activate() (запись только создана, ещё не активирована).
 
     """
 
@@ -87,7 +88,12 @@ class Subscription(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
     )
     is_active: Mapped[bool] = mapped_column(default=False)
-    type: Mapped[SubscriptionType] = mapped_column(
+    # Optional: до вызова activate() у только что созданной записи (см.
+    # SubscriptionDAO.activate_subscription) тип не задан — аннотация без
+    # None противоречила бы nullable=True и фактическому поведению кода,
+    # который везде защищается `subscription.type.value if subscription.type
+    # else None` (#283).
+    type: Mapped[SubscriptionType | None] = mapped_column(
         SQLEnum(SubscriptionType, name="subscription_type"), default=None, nullable=True
     )
     start_date: Mapped[datetime.datetime] = mapped_column(
@@ -117,6 +123,12 @@ class Subscription(Base):
     ) -> None:
         """Активирует подписку на указанное количество дней или месяцев.
 
+        Правило «пробный период даётся один раз» (`User.has_used_trial`)
+        здесь не проверяется и не выставляется — это бизнес-правило живёт
+        в `SubscriptionService.start_trial_subscription`, а не в модели
+        подписки: иначе метод модели менял бы соседнюю сущность (`User`),
+        дублируя проверку с сервисом (см. #283, тот же класс, что #244).
+
         Args:
             sub_type (SubscriptionType): Тип подписки пользователя, по умолчанию Стандарт
             days (int|None): Количество дней на подписку
@@ -124,13 +136,6 @@ class Subscription(Base):
 
         """
         now = datetime.datetime.now(tz=datetime.UTC)
-        if sub_type == SubscriptionType.TRIAL:
-            if self.user.has_used_trial:
-                raise TrialAlreadyUsedError(
-                    user_id=self.user.id,
-                    username=self.user.username,
-                )
-            self.user.has_used_trial = True
         self.type = sub_type
         self.is_active = True
         self.start_date = now
