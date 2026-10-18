@@ -96,24 +96,24 @@ def vpn_config():
 async def test_handle_expired_subscription(
     scheduler, session, user, expired_subscription, vpn_config
 ):
-    """Истёкшая подписка: конфиги помечаются на удаление, шлются user/admin-уведомления."""
+    """Истёкшая подписка деактивируется и шлёт пользователю уведомление.
+
+    Удаление конфигов в `_handle_expired` больше не входит (#318) — см.
+    тесты `_handle_config_cleanup` ниже.
+    """
     user.current_subscription = expired_subscription
     user.vpn_configs = [vpn_config]
 
     stats, events = await scheduler._handle_expired(session, user, expired_subscription)
 
-    # Проверка статистики
     assert isinstance(stats, SubscriptionStats)
     assert stats.expired == 1
-    assert stats.configs_deleted == 1
+    assert stats.configs_deleted == 0
+    assert vpn_config.status is None
 
-    # Проверка изменения статуса конфигурации
-    assert vpn_config.status == VPNConfigStatus.PENDING_DELETE
-
-    # Проверка типов событий
     assert any(isinstance(e, UserNotifyEvent) for e in events)
-    assert any(isinstance(e, DeleteVPNConfigsEvent) for e in events)
-    assert any(isinstance(e, AdminNotifyEvent) for e in events)
+    assert not any(isinstance(e, DeleteVPNConfigsEvent) for e in events)
+    assert not any(isinstance(e, AdminNotifyEvent) for e in events)
 
 
 @pytest.mark.asyncio
@@ -169,9 +169,60 @@ async def test_handle_expired_notifies_about_expired_type_with_other_valid(
     assert len(notify_events) == 1
     assert notify_events[0].subscription_type == "PREMIUM"
     assert notify_events[0].active_sbs is False
-    # Конфиги при этом не удаляются — другая подписка (active_subscription)
-    # живая и неистёкшая (#299).
+
+
+@pytest.mark.asyncio
+async def test_handle_config_cleanup_deletes_when_no_valid_subscription(
+    scheduler, session, user, expired_subscription, vpn_config
+):
+    """Нет ни одной валидной подписки, прошли сутки — конфиги удаляются."""
+    expired_subscription.is_active = False
+    user.subscriptions = [expired_subscription]
+    user.vpn_configs = [vpn_config]
+
+    stats, events = await scheduler._handle_config_cleanup(session, user)
+
+    assert stats.configs_deleted == 1
+    assert vpn_config.status == VPNConfigStatus.PENDING_DELETE
+    assert any(isinstance(e, DeleteVPNConfigsEvent) for e in events)
+    assert any(isinstance(e, AdminNotifyEvent) for e in events)
+
+
+@pytest.mark.asyncio
+async def test_handle_config_cleanup_keeps_configs_with_other_valid_subscription(
+    scheduler, session, user, active_subscription, expired_subscription, vpn_config
+):
+    """Рядом есть живая неистёкшая подписка (#299) — конфиги не трогаем."""
+    expired_subscription.is_active = False
+    user.subscriptions = [expired_subscription, active_subscription]
+    user.vpn_configs = [vpn_config]
+
+    stats, events = await scheduler._handle_config_cleanup(session, user)
+
     assert stats.configs_deleted == 0
+    assert vpn_config.status is None
+    assert events == []
+
+
+@pytest.mark.asyncio
+async def test_handle_config_cleanup_waits_a_day_after_last_expiry(
+    scheduler, session, user, vpn_config
+):
+    """Истекла меньше суток назад — удаление откладывается (#299)."""
+    recently_expired = SimpleNamespace(
+        is_active=False,
+        type=SubscriptionType.STANDARD,
+        end_date=datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=5),
+        is_expired=lambda: True,
+        remaining_days=lambda: 0,
+    )
+    user.subscriptions = [recently_expired]
+    user.vpn_configs = [vpn_config]
+
+    stats, events = await scheduler._handle_config_cleanup(session, user)
+
+    assert stats.configs_deleted == 0
+    assert events == []
 
 
 @pytest.mark.asyncio
@@ -296,6 +347,45 @@ async def test_process_user_keeps_configs_when_other_subscription_still_valid(
     assert stats.configs_deleted == 0
     assert vpn_config.status is None
     assert not any(isinstance(e, DeleteVPNConfigsEvent) for e in events)
+
+
+@pytest.mark.asyncio
+async def test_process_user_deletes_configs_once_for_two_expired_subscriptions(
+    scheduler, session, user, vpn_config
+):
+    """#318: у пользователя две истёкшие подписки (приоритетная + брошенная) —
+    конфиги должны уйти на удаление ровно один раз за прогон, а не дважды.
+
+    Регрессия на правку #299: `_handle_expired` вызывается для каждой
+    истёкшей записи, и раньше конфиги помечались на удаление в каждом
+    вызове — удвоенные уведомления и статистика на тех же двух конфигах.
+    """
+    priority_sub = SimpleNamespace(
+        is_active=True,
+        type=SubscriptionType.PREMIUM,
+        end_date=datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=10),
+        is_expired=lambda: True,
+        remaining_days=lambda: -10,
+    )
+    abandoned_sub = SimpleNamespace(
+        is_active=True,
+        type=SimpleNamespace(value="trial"),
+        end_date=datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=30),
+        is_expired=lambda: True,
+        remaining_days=lambda: -30,
+    )
+
+    user.current_subscription = priority_sub
+    user.subscriptions = [priority_sub, abandoned_sub]
+    user.vpn_configs = [vpn_config]
+
+    stats, events = await scheduler._process_user(session, user)
+
+    assert priority_sub.is_active is False
+    assert abandoned_sub.is_active is False
+    assert stats.configs_deleted == 1
+    assert len([e for e in events if isinstance(e, DeleteVPNConfigsEvent)]) == 1
+    assert len([e for e in events if isinstance(e, AdminNotifyEvent)]) == 1
 
 
 @pytest.mark.asyncio
