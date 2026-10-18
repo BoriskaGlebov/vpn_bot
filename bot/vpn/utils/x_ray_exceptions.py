@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from bot.app_error.base_error import AppError
@@ -107,19 +108,19 @@ class ThreeXUIConfigNotFoundError(ThreeXUIError):
 
 
 class ThreeXUIInvalidExpiryError(ThreeXUIError):
-    """Некорректное количество дней для продления подписки (`days <= 0`).
+    """Некорректный момент продления подписки — `expires_at` не в будущем.
 
     Args:
-        days (int): Переданное количество дней.
+        expires_at (datetime): Переданный момент окончания действия.
 
     """
 
     code = "three_x_ui_invalid_expiry"
     status_code = 400
 
-    def __init__(self, days: int) -> None:
+    def __init__(self, expires_at: datetime) -> None:
         super().__init__(
-            message=f"Некорректное количество дней для продления подписки: {days}",
-            details={"days": days},
+            message=f"Некорректный момент продления подписки: {expires_at}",
+            details={"expires_at": expires_at.isoformat()},
         )
-        self.days = days
+        self.expires_at = expires_at

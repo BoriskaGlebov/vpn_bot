@@ -104,6 +104,10 @@ class SubscriptionScheduler:
                 stats.add(s)
                 events.extend(e)
 
+        s, e = await self._handle_config_cleanup(session, user)
+        stats.add(s)
+        events.extend(e)
+
         s, e = await self._handle_active_limit_exceeded(session, user)
         stats.add(s)
         events.extend(e)
@@ -113,14 +117,18 @@ class SubscriptionScheduler:
     async def _handle_expired(
         self, session: AsyncSession, user: User, sub: Subscription
     ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
-        """Обрабатывает истёкшую подписку пользователя.
+        """Деактивирует истёкшую подписку пользователя и уведомляет его.
 
-        Если подписка активна, деактивирует её и отправляет уведомление пользователю.
-        Если подписка закончилась более чем на один день назад и у пользователя не
-        осталось другой активной неистёкшей подписки, удаляет все VPN-конфиги
-        пользователя и уведомляет администраторов (#299: раньше удаление не
-        проверяло остальные подписки — брошенная истёкшая запись рядом с живой
-        оплаченной подпиской удаляла доступ у платящего пользователя).
+        Удаление VPN-конфигов в этот метод не входит — см.
+        `_handle_config_cleanup`. Раньше оно было здесь и запускалось на
+        каждую истёкшую подписку пользователя; при двух истёкших записях
+        (приоритетной и брошенной, см. #275) это приводило к повторному
+        удалению одних и тех же конфигов за один прогон планировщика —
+        удвоенным уведомлениям и завышенной статистике (#318). Решение о
+        том, остался ли у пользователя доступ, зависит от состояния всех
+        его подписок сразу, а не от одной переданной записи, поэтому оно
+        вынесено на уровень `_process_user` и выполняется один раз на
+        пользователя.
 
         Args:
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
@@ -128,9 +136,10 @@ class SubscriptionScheduler:
             sub (Subscription): Экземпляр подписки пользователя.
 
         Returns
-            Dict[str, int]: Статистика по обработке с ключами:
-                - "expired": количество истёкших подписок (0 или 1)
-                - "configs_deleted": количество удалённых VPN-конфигов
+            SubscriptionStats: Статистика по обработке с ключом "expired"
+                (0 или 1); "configs_deleted" здесь всегда 0.
+            list[SubscriptionEvent]: Уведомление пользователю об истечении,
+                если подписка была активна.
 
         """
         stats = SubscriptionStats()
@@ -168,79 +177,98 @@ class SubscriptionScheduler:
                 )
             )
 
-        if sub.end_date:
-            delta = datetime.datetime.now(settings_api.core.tzinfo) - sub.end_date
+        return stats, events
 
-            # Удаляем конфиги только если у пользователя не осталось другой
-            # активной неистёкшей подписки (#299). Проверка только на
-            # is_active недостаточна: брошенная is_active=True запись сама
-            # может быть истёкшей. is_expired() учитывает оба условия
-            # (is_active и end_date), поэтому достаточно одной проверки.
-            has_other_valid_subscription = any(
-                not other.is_expired()
-                for other in user.subscriptions
-                if other is not sub
+    async def _handle_config_cleanup(
+        self, session: AsyncSession, user: User
+    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
+        """Удаляет все VPN-конфиги пользователя, если не осталось валидной подписки.
+
+        Вызывается один раз за прогон на пользователя, а не на каждую
+        истёкшую запись (#318).
+
+        Удаление откладывается на сутки после момента, когда доступ
+        пропал на самом деле (#299): пользователь не должен терять доступ
+        в день истечения просто потому, что планировщик успел добежать
+        до него. Момент отсчёта — самая поздняя из дат окончания среди
+        подписок пользователя: именно она определяет, когда валидного
+        доступа не осталось вообще, а не дата конкретной истёкшей записи.
+        Бессрочные подписки (`end_date is None`) в отсчёте не участвуют:
+        если все записи пользователя бессрочны, но деактивированы, точной
+        даты потери доступа нет — удаление пропускается, как и раньше.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy.
+            user (User): Экземпляр пользователя.
+
+        Returns
+            SubscriptionStats: Статистика с заполненным "configs_deleted".
+            list[SubscriptionEvent]: Событие удаления конфигов и уведомления
+                администраторов, если удаление произошло.
+
+        """
+        stats = SubscriptionStats()
+        events: list[SubscriptionEvent] = []
+
+        has_valid_subscription = any(
+            not other.is_expired() for other in user.subscriptions
+        )
+        if has_valid_subscription:
+            return stats, events
+
+        dated_ends = [s.end_date for s in user.subscriptions if s.end_date]
+        if not dated_ends:
+            return stats, events
+
+        delta = datetime.datetime.now(settings_api.core.tzinfo) - max(dated_ends)
+        if delta.days < 1:
+            return stats, events
+
+        deleted_configs = await self._delete_configs(session, user, user.vpn_configs)
+        stats.configs_deleted += len(deleted_configs)
+
+        if not deleted_configs:
+            return stats, events
+
+        files = [
+            DeletedVPNConfigSchema(
+                file_name=c.file_name,
+                pub_key=c.pub_key,
+                node_name=c.node_name,
+                backend=c.backend,
+                config_ids=c.config_ids,
             )
-
-            if delta.days >= 1 and has_other_valid_subscription:
-                logger.info(
-                    f"Подписка пользователя {user.username} истекла, но есть "
-                    f"другая активная неистёкшая подписка — конфиги не удаляются"
+            for c in deleted_configs
+        ]
+        events.append(
+            DeleteVPNConfigsEvent(
+                type=SubscriptionEventType.DELETE_VPN_CONFIGS,
+                user_id=user.telegram_id,
+                username=user.username or "undefined",
+                first_name=user.first_name or "undefined",
+                last_name=user.last_name or "undefined",
+                configs=files,
+            )
+        )
+        logger.warning(
+            f"Отмечено для удаления {len(deleted_configs)} VPN-конфигов пользователя {user.username}"
+        )
+        for file in files:
+            events.append(
+                AdminNotifyEvent(
+                    type=SubscriptionEventType.ADMIN_NOTIFY,
+                    user_id=user.telegram_id,
+                    username=user.username or "undefined",
+                    first_name=user.first_name or "undefined",
+                    last_name=user.last_name or "undefined",
+                    message=(
+                        f"⚠️ Удаляется VPN-конфиг\n"
+                        f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
+                        f"📄 Файл: {file}\n"
+                        f"⏳ Причина: истекла подписка"
+                    ),
                 )
-            elif delta.days >= 1:
-                deleted_configs = await self._delete_configs(
-                    session, user, user.vpn_configs
-                )
-
-                stats.configs_deleted += len(deleted_configs)
-
-                if deleted_configs:
-                    files = [
-                        DeletedVPNConfigSchema(
-                            file_name=c.file_name,
-                            pub_key=c.pub_key,
-                            node_name=c.node_name,
-                            backend=c.backend,
-                            config_ids=c.config_ids,
-                        )
-                        for c in deleted_configs
-                    ]
-                    events.append(
-                        DeleteVPNConfigsEvent(
-                            type=SubscriptionEventType.DELETE_VPN_CONFIGS,
-                            user_id=user.telegram_id,
-                            username=user.username or "undefined",
-                            first_name=user.first_name or "undefined",
-                            last_name=user.last_name or "undefined",
-                            configs=files,
-                        )
-                    )
-                    logger.warning(
-                        f"Отмечено для удаления {len(deleted_configs)} VPN-конфигов пользователя {user.username}"
-                    )
-
-                    # events.append(
-                    #     DeleteProxyEvent(
-                    #         type=SubscriptionEventType.DELETE_PROXY,
-                    #         user_id=user.telegram_id,
-                    #     )
-                    # )
-                    for file in files:
-                        events.append(
-                            AdminNotifyEvent(
-                                type=SubscriptionEventType.ADMIN_NOTIFY,
-                                user_id=user.telegram_id,
-                                username=user.username or "undefined",
-                                first_name=user.first_name or "undefined",
-                                last_name=user.last_name or "undefined",
-                                message=(
-                                    f"⚠️ Удаляется VPN-конфиг\n"
-                                    f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
-                                    f"📄 Файл: {file}\n"
-                                    f"⏳ Причина: истекла подписка"
-                                ),
-                            )
-                        )
+            )
 
         return stats, events
 

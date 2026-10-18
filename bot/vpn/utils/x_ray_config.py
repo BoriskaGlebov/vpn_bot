@@ -1,5 +1,4 @@
 import json
-import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -585,7 +584,7 @@ class ThreeXUIAdapter:
     async def extend_config(
         self,
         config_ids: list[str],
-        days: int,
+        expires_at: datetime,
     ) -> list[str]:
         """Продлевает срок действия уже существующих VPN-конфигураций пользователя.
 
@@ -611,9 +610,13 @@ class ThreeXUIAdapter:
         Args:
             config_ids: UUID существующих конфигураций клиента, которые нужно
                 продлить.
-            days: Новый срок действия в днях от текущего момента. Должен быть
-                больше 0 — бессрочные конфиги (`expiryTime=0`) через этот
-                метод не создаются и не проставляются.
+            expires_at: Абсолютный момент окончания действия — тот же момент,
+                что передаётся в `add_new_config` при выдаче. Раньше метод
+                принимал `days: int`, посчитанный через `timedelta.days`,
+                который отбрасывает дробную часть суток и терял на каждом
+                продлении до 23 часов 59 минут оплаченного срока (#317).
+                Должен быть в будущем — бессрочные конфиги (`expiryTime=0`)
+                через этот метод не создаются и не проставляются.
 
         Returns
             list[str]: `config_id` конфигураций, которые реально были найдены
@@ -622,7 +625,7 @@ class ThreeXUIAdapter:
                 вызов для оставшихся `config_id` на других нодах реестра.
 
         Raises
-            ThreeXUIInvalidExpiryError: Если `days <= 0`.
+            ThreeXUIInvalidExpiryError: Если `expires_at` не в будущем.
             ThreeXUIInboundNotFoundError: Если не все ожидаемые inbound найдены.
             ThreeXUIConfigNotFoundError: Если ни один `config_id` не найден ни
                 в одном inbound этой ноды.
@@ -630,12 +633,13 @@ class ThreeXUIAdapter:
             APIClientError: При ошибках API.
 
         """
-        if days <= 0:
-            raise ThreeXUIInvalidExpiryError(days=days)
+        now = datetime.now(expires_at.tzinfo)
+        if expires_at <= now:
+            raise ThreeXUIInvalidExpiryError(expires_at=expires_at)
 
-        logger.info("Продление конфигураций {} на {} дней", config_ids, days)
+        logger.info("Продление конфигураций {} до {}", config_ids, expires_at)
 
-        new_expiry = (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
+        new_expiry = int(expires_at.timestamp() * 1000)
         return await self._set_clients_expiry(config_ids, new_expiry)
 
     async def set_unlimited_config(self, config_ids: list[str]) -> list[str]:
