@@ -1,6 +1,7 @@
 import json
 import secrets
 from collections.abc import Mapping
+from decimal import Decimal, InvalidOperation
 
 import httpx
 from loguru import logger
@@ -156,15 +157,16 @@ class PlategaProvider:
         data = json.loads(body)
 
         provider_status = data["status"]
-        # int, не Decimal (#261) — сумма платежа везде целые рубли, без
-        # копеек; сравнивается с tx.amount (int) при подтверждении (#257).
-        # Нецелая/нечисловая строка — не повод падать 500 (провайдер
-        # повторит доставку до трёх раз, см. #257), а повод считать сумму
-        # неизвестной: сверка amount ниже по стеку сама отклонит
-        # подтверждение платежа с неизвестной суммой (#293).
+        # Decimal, не int (#293) — формат этого поля провайдером не
+        # документирован, а округление до целого рубля здесь пропустило бы
+        # расхождение меньше рубля (149.50 от провайдера против 149 в
+        # транзакции совпали бы после int()). Нечисловая строка — не повод
+        # падать 500 (провайдер повторит доставку до трёх раз, см. #257), а
+        # повод считать сумму неизвестной: сверка amount ниже по стеку сама
+        # отклонит подтверждение платежа с неизвестной суммой.
         try:
-            amount = int(data["amount"]) if "amount" in data else None
-        except (TypeError, ValueError):
+            amount = Decimal(str(data["amount"])) if "amount" in data else None
+        except InvalidOperation:
             logger.warning(
                 "Вебхук Platega с нечисловой amount={} (provider_payment_id={})",
                 data.get("amount"),

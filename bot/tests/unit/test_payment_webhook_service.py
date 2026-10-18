@@ -1,3 +1,4 @@
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -90,6 +91,30 @@ async def test_handle_event_paid_amount_mismatch_blocks_confirmation(
 
     subscription_service_mock.webhook_confirm_transaction.assert_not_called()
     webhook_service.notification_service.notify_payment_confirmed.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_event_paid_fractional_mismatch_blocks_confirmation(
+    webhook_service, payment_service_mock, subscription_service_mock
+):
+    """#293: расхождение меньше рубля (1000.50 против 1000) раньше не
+    ловилось — int(data["amount"]) обрезал дробную часть на границе
+    разбора вебхука, и 1000.50 совпадало бы с транзакцией на 1000.
+    """
+    tx = SimpleNamespace(id="tx-7", tg_id=123, amount=1000)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-7",
+        status=PaymentStatus.PAID,
+        raw_data={},
+        amount=Decimal("1000.50"),
+    )
+
+    with pytest.raises(PaymentAmountMismatchError):
+        await webhook_service.handle_event(event)
+
+    subscription_service_mock.webhook_confirm_transaction.assert_not_called()
 
 
 @pytest.mark.asyncio

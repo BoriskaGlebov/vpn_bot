@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 
 import httpx
 import pytest
@@ -191,14 +192,31 @@ async def test_parse_webhook_maps_unknown_status_to_pending():
 async def test_parse_webhook_non_numeric_amount_does_not_raise():
     """#293: int(data["amount"]) падал ValueError на нецелой строке, что
     роняло обработчик вебхука в 500 — провайдер повторял бы доставку.
-    Нечисловая/нецелая сумма теперь трактуется как "сумма неизвестна"
+    Нечисловая строка теперь трактуется как "сумма неизвестна"
     (amount=None), а не как фатальная ошибка разбора.
     """
     provider = make_provider()
 
     event = await provider.parse_webhook(
-        b'{"id": "tx-5", "status": "CONFIRMED", "amount": "149.50"}'
+        b'{"id": "tx-5", "status": "CONFIRMED", "amount": "not-a-number"}'
     )
 
     assert event.status == PaymentStatus.PAID
     assert event.amount is None
+
+
+@pytest.mark.asyncio
+async def test_parse_webhook_fractional_amount_not_truncated():
+    """#293: int(data["amount"]) обрезал дробную часть молча — 149.50 от
+    провайдера совпадало бы с транзакцией на 149 после round-trip через
+    int(). Decimal сохраняет точное значение, расхождение меньше рубля
+    теперь можно поймать сверкой на стороне сервиса.
+    """
+    provider = make_provider()
+
+    event = await provider.parse_webhook(
+        b'{"id": "tx-6", "status": "CONFIRMED", "amount": "149.50"}'
+    )
+
+    assert event.amount == Decimal("149.50")
+    assert event.amount != 149

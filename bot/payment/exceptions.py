@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID
 
 from bot.app_error.base_error import AppError
@@ -33,8 +34,10 @@ class PaymentAmountMismatchError(AppError):
     Args:
         transaction_id (UUID): Идентификатор транзакции.
         expected_amount (int): Сумма транзакции, ожидаемая по данным БД.
-        received_amount (int | None): Сумма, присланная в вебхуке
-            (``None``, если провайдер её не прислал).
+        received_amount (Decimal | None): Сумма, присланная в вебхуке —
+            `Decimal`, а не `int` (см. #293), т.к. формат этого поля
+            провайдером не документирован (``None``, если провайдер её
+            не прислал).
 
     """
 
@@ -45,7 +48,7 @@ class PaymentAmountMismatchError(AppError):
         self,
         transaction_id: UUID,
         expected_amount: int,
-        received_amount: int | None,
+        received_amount: Decimal | None,
     ) -> None:
         super().__init__(
             message=(
