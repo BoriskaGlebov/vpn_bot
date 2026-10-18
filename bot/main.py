@@ -41,6 +41,19 @@ tags_metadata: list[dict[str, Any]] = [
 container = Container(bot=bot)
 
 
+def _log_resume_broadcast_result(task: asyncio.Task[None]) -> None:
+    """Логирует исключение из фоновой задачи возобновления рассылки (#319).
+
+    Без этого колбэка падение `resume_pending_broadcast` в фоне было бы не видно
+    нигде — задача ни с чем не связана и её результат никто не ждёт.
+    """
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.exception("Возобновление рассылки упало в фоне: {}", exc)
+
+
 @asynccontextmanager
 @logger.catch  # type: ignore[misc]
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -118,8 +131,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Возобновляем рассылку, прерванную прошлым падением/деплоем (#285), не
     # дожидаясь старта polling/webhook — фоновой задачей, чтобы не блокировать
-    # запуск остальной части приложения.
-    asyncio.create_task(news_router.resume_pending_broadcast())
+    # запуск остальной части приложения. Ссылка на задачу сохраняется, иначе
+    # event loop держит её только через слабую ссылку и может собрать сборщиком
+    # мусора до завершения (#319); колбэк логирует необработанное исключение,
+    # которое иначе никуда не всплывёт.
+    resume_broadcast_task = asyncio.create_task(news_router.resume_pending_broadcast())
+    resume_broadcast_task.add_done_callback(_log_resume_broadcast_result)
 
     # if container.chat_service is None:
     #     raise RuntimeError("ChatService ещё не инициализирован!")
@@ -179,6 +196,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     logger.info("Завершение работы бота...")
+    if not resume_broadcast_task.done():
+        resume_broadcast_task.cancel()
     try:
         await bot.delete_webhook()
         logger.info("Вебхук удалён")
