@@ -141,14 +141,17 @@ class SubscriptionScheduler:
             stats.expired += 1
             logger.info(f"Деактивирована подписка пользователя {user.username}")
 
-            # #275: не берём current_subscription сразу после смены флага —
-            # отсортированная при загрузке коллекция user.subscriptions не
-            # пересортируется в памяти при мутации is_active, поэтому ищем
-            # явно другую активную запись, а не полагаемся на порядок.
-            other_active = next(
-                (s for s in user.subscriptions if s is not sub and s.is_active),
-                None,
-            )
+            # Уведомление про ИСТЁКШУЮ подписку должно называть её тип, а не
+            # тип какой-то другой записи: раньше subscription_type брался из
+            # other_active ("другая активная подписка, если есть") — если
+            # other_active не находился (пользователь лишился доступа
+            # полностью — обычный случай), пользователь получал нелепое
+            # "Ваша подписка UNKNOWN закончилась" вместо реального типа
+            # (например, PREMIUM). Шаблон `now` в dialog_messages.yaml
+            # описывает именно ту подписку, что закончилась, см. его текст.
+            # active_sbs=False форсирует шаблон `now` (а не `soon`,
+            # предназначенный для _handle_expiring_soon) — это уведомление
+            # об истечении, не о скором истечении.
             events.append(
                 UserNotifyEvent(
                     type=SubscriptionEventType.USER_NOTIFY,
@@ -156,16 +159,12 @@ class SubscriptionScheduler:
                     username=user.username or "undefined",
                     first_name=user.first_name or "undefined",
                     last_name=user.last_name or "undefined",
-                    active_sbs=bool(other_active.is_active) if other_active else False,
+                    active_sbs=False,
                     message="Подписка истекла",
                     subscription_type=(
-                        other_active.type.value.upper()
-                        if other_active and other_active.type
-                        else "UNKNOWN"
+                        sub.type.value.upper() if sub.type else "UNKNOWN"
                     ),
-                    remaining_days=(
-                        other_active.remaining_days() if other_active else 0
-                    ),
+                    remaining_days=0,
                 )
             )
 
@@ -173,11 +172,10 @@ class SubscriptionScheduler:
             delta = datetime.datetime.now(settings_api.core.tzinfo) - sub.end_date
 
             # Удаляем конфиги только если у пользователя не осталось другой
-            # активной неистёкшей подписки (#299). `other_active` выше (если
-            # вычислен) смотрит только на is_active, без проверки срока —
-            # этого недостаточно: брошенная is_active=True запись сама может
-            # быть истёкшей. is_expired() учитывает оба условия (is_active и
-            # end_date), поэтому достаточно одной проверки.
+            # активной неистёкшей подписки (#299). Проверка только на
+            # is_active недостаточна: брошенная is_active=True запись сама
+            # может быть истёкшей. is_expired() учитывает оба условия
+            # (is_active и end_date), поэтому достаточно одной проверки.
             has_other_valid_subscription = any(
                 not other.is_expired()
                 for other in user.subscriptions
