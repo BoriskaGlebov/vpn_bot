@@ -424,6 +424,7 @@ class SubscriptionRouter(BaseRouter):
                 kb = subscription_options_kb(premium=False, trial=True, founder=True)
             elif not is_premium:
                 text = m_subscription.start.format(
+                    days=settings_bot.core.trial_period_days,
                     device_limit=settings_bot.core.max_configs_per_user,
                     month=self.price_map.price_map.get(1, 0),
                     quarter=self.price_map.price_map.get(3, 0),
@@ -557,7 +558,9 @@ class SubscriptionRouter(BaseRouter):
                 await msg.delete()
                 await self.bot.send_message(
                     chat_id=query.from_user.id,
-                    text=m_subscription.trial_period,
+                    text=m_subscription.trial_period.format(
+                        days=settings_bot.core.trial_period_days,
+                    ),
                     reply_markup=main_kb(active_subscription=True),
                 )
                 await state.clear()
@@ -668,6 +671,7 @@ class SubscriptionRouter(BaseRouter):
             )
             if premium
             else m_subscription.start.format(
+                days=settings_bot.core.trial_period_days,
                 device_limit=settings_bot.core.max_configs_per_user,
                 month=self.price_map.price_map.get(1, 0),
                 quarter=self.price_map.price_map.get(3, 0),

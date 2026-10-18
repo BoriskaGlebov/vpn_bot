@@ -11,6 +11,7 @@ timezone = "Europe/Moscow"
 
 
 admin_ids = [439653349,]
+trial_period_days = 2
 
 # === LOGGER ===
 # *Уровни логирования по умолчанию INFO, INFO WARNING
@@ -47,7 +48,6 @@ use_polling = false
 price_map = {1 = 149, 3 = 399, 6 = 749, 12 = 1390}
 price_map_premium = {1 = 249, 3 = 699, 6 = 1290, 12 = 2490}
 price_map_founder = {1 = 199, 3 = 549, 6 = 1049, 12 = 1990}
-trial_period_days = 2
 
 # === API ===
 [api]
