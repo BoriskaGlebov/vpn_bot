@@ -129,6 +129,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 raise VPNLimitError(
                     user_id=user.id,
                     limit=status.limit,
+                    current=status.current,
                     username=user.username or "",
                 )
 

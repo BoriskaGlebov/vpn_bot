@@ -116,6 +116,60 @@ class RedisAdminMessageStorage:
         logger.debug(f"🗑️ Очищены сообщения админов для user_id={user_id}")
 
 
+class RedisNewsBroadcastStorage:
+    """Хранит прогресс рассылки новости всем пользователям.
+
+    Нужно, чтобы деплой или падение процесса в середине рассылки не терял
+    оставшихся получателей и не дублировал доставку тем, кто новость уже
+    получил (#285): раньше прогресс жил только в памяти цикла и пропадал
+    вместе с процессом.
+    """
+
+    _KEY = "news_broadcast:pending"
+
+    def __init__(self, redis: RedisClient) -> None:
+        self.redis = redis
+
+    async def save(self, news: dict[str, Any], recipients: list[int]) -> None:
+        """Сохраняет новость и список получателей, которым она ещё не отправлена.
+
+        Args:
+            news (dict[str, Any]): Данные новости (тип контента, текст/медиа).
+            recipients (list[int]): Telegram ID получателей, которым рассылка
+                ещё не доставлена.
+
+        """
+        await self.redis.set(self._KEY, {"news": news, "recipients": recipients})
+
+    async def get(self) -> dict[str, Any] | None:
+        """Возвращает сохранённую рассылку, если она не была завершена.
+
+        Returns
+            dict[str, Any] | None: {"news": ..., "recipients": [...]},
+            либо None, если незавершённой рассылки нет.
+
+        """
+        data = await self.redis.get(self._KEY)
+        return data or None
+
+    async def update_recipients(self, recipients: list[int]) -> None:
+        """Обновляет список получателей, которым рассылка ещё не доставлена.
+
+        Args:
+            recipients (list[int]): Оставшиеся Telegram ID.
+
+        """
+        data = await self.get()
+        if data is None:
+            return
+        data["recipients"] = recipients
+        await self.redis.set(self._KEY, data)
+
+    async def clear(self) -> None:
+        """Удаляет сохранённый прогресс — рассылка завершена."""
+        await self.redis.delete(self._KEY)
+
+
 class RedisEmbeddingCache:
     """Redis-кэш для хранения эмбеддингов текстов.
 

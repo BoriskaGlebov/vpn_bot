@@ -120,7 +120,7 @@ class ReferralService:
                 f"У пользователя не было приглашения {invited_user.telegram_id}"
             )
             message = f"У пользователя не было приглашения {invited_user.telegram_id}"
-            return False, invited_user.telegram_id, message
+            return False, None, message
 
         inviter = referral.inviter
         if inviter is None:

@@ -18,6 +18,7 @@ from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.redis_service import (
     RedisAdminMessageStorage,
     RedisEmbeddingCache,
+    RedisNewsBroadcastStorage,
     RedisPaymentMessageStorage,
 )
 from bot.referrals.adapter import ReferralAPIAdapter
@@ -86,6 +87,7 @@ class Container:
         redis_admin_mess_storage (RedisAdminMessageStorage)
         redis_payment_mess_storage (RedisPaymentMessageStorage)
         redis_embedding_cache (RedisEmbeddingCache)
+        redis_news_broadcast_storage (RedisNewsBroadcastStorage)
 
         bot (Bot): экземпляр aiogram Bot (используется в scheduler).
 
@@ -132,6 +134,7 @@ class Container:
     redis_admin_mess_storage: RedisAdminMessageStorage
     redis_payment_mess_storage: RedisPaymentMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
+    redis_news_broadcast_storage: RedisNewsBroadcastStorage
 
     # chat_service: ChatService | None
 
@@ -145,6 +148,9 @@ class Container:
         self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)
         self.redis_payment_mess_storage = RedisPaymentMessageStorage(self.redis_manager)
         self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
+        self.redis_news_broadcast_storage = RedisNewsBroadcastStorage(
+            self.redis_manager
+        )
         self.api_client = APIClient(
             base_url=settings_bot.api.url,
             port=settings_bot.api.port,

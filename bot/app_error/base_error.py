@@ -100,18 +100,22 @@ class VPNLimitError(AppError):
     code = "vpn_limit_reached"
     status_code = 429
 
-    def __init__(self, tg_id: int, limit: int, username: str = "") -> None:
+    def __init__(
+        self, tg_id: int, limit: int, current: int, username: str = ""
+    ) -> None:
         super().__init__(
-            message=f"Пользователь достиг лимита VPN-конфигов ({limit})",
+            message=f"Пользователь достиг лимита VPN-конфигов ({current}/{limit})",
             details={
                 "tg_id": tg_id,
                 "limit": limit,
+                "current": current,
                 "username": username,
             },
         )
 
         self.tg_id = tg_id
         self.limit = limit
+        self.current = current
         self.username = username
 
 

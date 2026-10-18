@@ -126,6 +126,7 @@ async def test_add_config_raises_limit_with_applied_limit(session, monkeypatch, 
         )
 
     assert exc.value.details["limit"] == 1
+    assert exc.value.details["current"] == 1
 
 
 @pytest.mark.asyncio

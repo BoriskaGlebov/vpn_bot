@@ -142,6 +142,7 @@ async def test_generate_user_config_limit_reached(mocker, user_out):
 
     assert err.tg_id == 123456
     assert err.limit == 1
+    assert err.current == 1
 
     ssh_factory.assert_not_called()
     api_adapter.add_config.assert_not_called()
@@ -959,6 +960,47 @@ async def test_extend_user_xray_subscription_success(mocker, user_out):
     called_kwargs = xray_adapter.extend_config.await_args.kwargs
     assert set(called_kwargs["config_ids"]) == {"cfg1", "cfg2"}
     assert called_kwargs["days"] > 0
+
+
+@pytest.mark.asyncio
+async def test_extend_user_xray_subscription_unlimited_snaps_expiry(mocker, user_out):
+    """#296: бессрочная подписка (end_date=None) снимает срок у конфигов
+    через set_unlimited_config, а не пропускается как "нечего продлевать".
+    """
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+
+    xray_adapter = mocker.AsyncMock()
+    xray_adapter.set_unlimited_config.return_value = ["cfg1", "cfg2"]
+    xray_registry = mocker.Mock()
+    xray_registry.all.return_value = [xray_adapter]
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = user_out.model_copy(
+        update={
+            "telegram_id": 123,
+            "current_subscription": SimpleNamespace(is_active=True, end_date=None),
+            "vpn_configs": [
+                SVPNConfigOut(
+                    id=1,
+                    file_name="loc_user_123",
+                    pub_key='["cfg1", "cfg2"]',
+                    backend="xray",
+                    config_ids=["cfg1", "cfg2"],
+                    created_at=datetime(2026, 1, 1),
+                )
+            ],
+        }
+    )
+
+    result = await service.extend_user_xray_subscription(user=user)
+
+    assert set(result) == {"cfg1", "cfg2"}
+    xray_adapter.set_unlimited_config.assert_awaited_once()
+    xray_adapter.extend_config.assert_not_called()
+    called_kwargs = xray_adapter.set_unlimited_config.await_args.kwargs
+    assert set(called_kwargs["config_ids"]) == {"cfg1", "cfg2"}
 
 
 @pytest.mark.asyncio

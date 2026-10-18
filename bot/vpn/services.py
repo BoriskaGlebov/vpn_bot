@@ -1,6 +1,6 @@
 import asyncio
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime
 from pathlib import Path
 
@@ -25,7 +25,7 @@ from bot.vpn.utils.amnezia_wg import (
     AsyncSSHClientWG3,
 )
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
-from bot.vpn.utils.x_ray_config import XRayRegistry
+from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError, ThreeXUIError
 from shared.enums.vpn_enum import VPNBackend, VPNProtocol
 
@@ -120,6 +120,7 @@ class VPNService:
             raise VPNLimitError(
                 tg_id=user.telegram_id,
                 limit=limit.limit,
+                current=limit.current,
                 username=user.username or "",
             )
 
@@ -435,11 +436,18 @@ class VPNService:
         end = sub.end_date
         if end and end.tzinfo is None:
             end = end.replace(tzinfo=settings_bot.core.tzinfo)
+
+        # `end=None` (бессрочная подписка) и «days_left<=0» (срок истёк/
+        # истекает сегодня) — разные ситуации, раньше схлопнутые в одну
+        # ветку «пропустить» (#296). Бессрочной подписке продление НУЖНО:
+        # выданный ранее конфиг хранит свой собственный expiryTime и не
+        # станет бессрочным сам. Истинно истёкшей — действительно no-op.
+        is_unlimited = end is None
         days_left = max((end - now).days, 0) if end else 0
 
-        if days_left <= 0:
+        if not is_unlimited and days_left <= 0:
             logger.debug(
-                "Подписка истекает сегодня/бессрочная — пропуск продления XRay tg_id={}",
+                "Подписка истекла — пропуск продления XRay tg_id={}",
                 user.telegram_id,
             )
             return []
@@ -453,11 +461,26 @@ class VPNService:
             return []
 
         logger.info(
-            "Продление XRay-конфигов tg_id={} by_node={} legacy={} days={}",
+            "Продление XRay-конфигов tg_id={} by_node={} legacy={} "
+            "unlimited={} days={}",
             user.telegram_id,
             by_node,
             legacy,
+            is_unlimited,
             days_left,
+        )
+
+        # Бессрочной подписке конфиги не продлеваются на N дней — им снимают
+        # срок действия целиком (#296). См. предупреждение о непроверенном
+        # поведении панели в докстринге set_unlimited_config.
+        extend_fn: Callable[[ThreeXUIAdapter, Iterable[str]], Awaitable[list[str]]] = (
+            (lambda adapter, ids: adapter.set_unlimited_config(config_ids=list(ids)))
+            if is_unlimited
+            else (
+                lambda adapter, ids: adapter.extend_config(
+                    config_ids=list(ids), days=days_left
+                )
+            )
         )
 
         extended: list[str] = []
@@ -475,9 +498,7 @@ class VPNService:
                     legacy.update(ids)
                     continue
                 try:
-                    done = await adapter.extend_config(
-                        config_ids=list(ids), days=days_left
-                    )
+                    done = await extend_fn(adapter, ids)
                 except ThreeXUIConfigNotFoundError:
                     pending.update(ids)
                     continue
@@ -500,9 +521,7 @@ class VPNService:
                 if not legacy:
                     break
                 try:
-                    done = await adapter.extend_config(
-                        config_ids=list(legacy), days=days_left
-                    )
+                    done = await extend_fn(adapter, legacy)
                 except ThreeXUIConfigNotFoundError:
                     continue
                 except ThreeXUIError as exc:

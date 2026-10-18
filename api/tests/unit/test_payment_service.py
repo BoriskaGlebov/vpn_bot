@@ -1391,3 +1391,17 @@ async def test_confirm_payment_flow_manual_missing_admin(
             payment_source=PaymentSource.MANUAL,
             admin_id=None,
         )
+
+
+def test_pending_filters_require_status_explicitly():
+    """#293: регрессионный тест на #263, который реально его ловит.
+
+    Существовавшие тесты проверяли только `isinstance(filters,
+    STransactionPendingFilter)` — это истинно независимо от того,
+    доходит ли `status` до `WHERE`. Если `status` снова получит значение
+    по умолчанию, `BaseDAO._to_dict` (`model_dump(exclude_unset=True)`)
+    снова будет терять его из фильтра конструктора без явной передачи —
+    этот тест ловит именно отсутствие дефолта, а не поведение ORM.
+    """
+    assert STransactionPendingFilter.model_fields["status"].is_required()
+    assert SUserPendingTransactionsFilter.model_fields["status"].is_required()

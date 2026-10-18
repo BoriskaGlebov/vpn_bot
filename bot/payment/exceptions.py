@@ -1,3 +1,6 @@
+from decimal import Decimal
+from uuid import UUID
+
 from bot.app_error.base_error import AppError
 
 
@@ -29,10 +32,12 @@ class PaymentAmountMismatchError(AppError):
     остаётся в PENDING до ручной проверки администратором.
 
     Args:
-        transaction_id: Идентификатор транзакции.
-        expected_amount (Decimal): Сумма транзакции, ожидаемая по данным БД.
-        received_amount (Decimal | None): Сумма, присланная в вебхуке
-            (``None``, если провайдер её не прислал).
+        transaction_id (UUID): Идентификатор транзакции.
+        expected_amount (int): Сумма транзакции, ожидаемая по данным БД.
+        received_amount (Decimal | None): Сумма, присланная в вебхуке —
+            `Decimal`, а не `int` (см. #293), т.к. формат этого поля
+            провайдером не документирован (``None``, если провайдер её
+            не прислал).
 
     """
 
@@ -41,9 +46,9 @@ class PaymentAmountMismatchError(AppError):
 
     def __init__(
         self,
-        transaction_id: object,
-        expected_amount: object,
-        received_amount: object,
+        transaction_id: UUID,
+        expected_amount: int,
+        received_amount: Decimal | None,
     ) -> None:
         super().__init__(
             message=(
@@ -69,9 +74,10 @@ class PaymentUnknownStatusError(AppError):
     единого уведомления.
 
     Args:
-        transaction_id: Идентификатор транзакции.
-        provider_status: Статус, присланный провайдером (как есть, без
-            нормализации).
+        transaction_id (UUID): Идентификатор транзакции.
+        provider_status (str | None): Статус, присланный провайдером (как
+            есть, без нормализации; `None`, если поле статуса отсутствовало
+            в `raw_data`).
 
     """
 
@@ -80,8 +86,8 @@ class PaymentUnknownStatusError(AppError):
 
     def __init__(
         self,
-        transaction_id: object,
-        provider_status: object,
+        transaction_id: UUID,
+        provider_status: str | None,
     ) -> None:
         super().__init__(
             message=(

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from shared.enums.payment_enum import PaymentStatus
@@ -55,6 +56,13 @@ class PaymentWebhookDTO:
             CANCELED/CHARGEBACKED у Platega приходят без неё). Сверяется с
             суммой транзакции в БД перед подтверждением оплаты — иначе
             решение "платёж прошёл" принимается по одной строке статуса.
+            Тип `Decimal`, а не `int` (см. #293): формат этого поля
+            провайдером не документирован, и округление до целого рубля на
+            границе разбора пропустило бы расхождение меньше рубля
+            (`149.50` от провайдера против `149` в транзакции совпали бы
+            после `int()`). Домен "целые рубли" (#261) относится к суммам,
+            которые создаёт сама система — на этой границе формат нам не
+            принадлежит.
         is_chargeback: Возврат уже полученных средств плательщику.
             Выражено явным полем DTO (см. #259), а не разбором
             `raw_data["status"] == "CHARGEBACKED"` в сервисном слое —
@@ -72,7 +80,7 @@ class PaymentWebhookDTO:
     status: PaymentStatus
     raw_data: dict[str, Any]
 
-    amount: int | None = None
+    amount: Decimal | None = None
     payload: str | None = None
     is_chargeback: bool = False
     is_unknown_status: bool = False

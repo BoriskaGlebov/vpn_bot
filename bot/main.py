@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -52,8 +53,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await container.init()
     dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
-    log_data = True if settings_bot.core.debug_fast_api else False
-    log_time = True if settings_bot.core.debug_fast_api else False
+    # log_data управляется отдельным флагом, а не debug_fast_api (#286):
+    # debug_fast_api — это отладка FastAPI, а log_data пишет в лог полный
+    # repr Telegram-события, то есть текст переписки пользователя.
+    log_data = settings_bot.core.log_user_events_data
+    log_time = settings_bot.core.debug_fast_api
     dp.message.middleware(
         UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )
@@ -101,6 +105,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
         news_service=container.news_service,
+        broadcast_storage=container.redis_news_broadcast_storage,
     )
 
     dp.include_router(user_router.router)
@@ -110,6 +115,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(vpn_router.router)
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
+
+    # Возобновляем рассылку, прерванную прошлым падением/деплоем (#285), не
+    # дожидаясь старта polling/webhook — фоновой задачей, чтобы не блокировать
+    # запуск остальной части приложения.
+    asyncio.create_task(news_router.resume_pending_broadcast())
 
     # if container.chat_service is None:
     #     raise RuntimeError("ChatService ещё не инициализирован!")

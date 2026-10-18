@@ -38,7 +38,7 @@ class DummyRequest(Request):
         (TrialAlreadyUsedError(user_id=42, username="test"), 409),
         (ReferralNotFoundError(invited_user_id=42, username="test"), 404),
         (ReferralError("Generic referral error"), 400),
-        (VPNLimitError(user_id=99, limit=5, username="test"), 409),
+        (VPNLimitError(user_id=99, limit=5, current=5, username="test"), 409),
     ],
 )
 async def test_app_error_handler_returns_expected_status(

@@ -152,7 +152,6 @@ branch = true
 omit = [
     "*/tests/*",
     "*/migrations/*",
-    "bot/vpn/utils/*",
     "ai_service/*",
     "bot/ai/*",
 ]

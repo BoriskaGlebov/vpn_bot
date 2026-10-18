@@ -30,6 +30,7 @@ from bot.news.keyboards.inline_kb import (
     target_choice_kb,
 )
 from bot.news.services import NewsService
+from bot.redis_service import RedisNewsBroadcastStorage
 from bot.utils.base_router import BaseRouter
 from bot.utils.formatting import format_username
 from bot.utils.start_stop_bot import send_to_admins
@@ -61,12 +62,22 @@ class NewsRouter(BaseRouter):
         bot (Bot): Экземпляр бота Aiogram.
         logger (Logger): Логгер Loguru.
         news_service (NewsService): Сервис для работы с новостями и получателями.
+        broadcast_storage (RedisNewsBroadcastStorage): хранение прогресса
+            рассылки всем пользователям — позволяет возобновить её после
+            рестарта процесса (#285).
 
     """
 
-    def __init__(self, bot: Bot, logger: Logger, news_service: NewsService) -> None:
+    def __init__(
+        self,
+        bot: Bot,
+        logger: Logger,
+        news_service: NewsService,
+        broadcast_storage: RedisNewsBroadcastStorage,
+    ) -> None:
         super().__init__(bot, logger)
         self.news_service = news_service
+        self.broadcast_storage = broadcast_storage
 
     def _register_handlers(self) -> None:
         is_admin = IsAdmin()
@@ -140,6 +151,167 @@ class NewsRouter(BaseRouter):
         await message.answer(
             "❌ Создание рассылки отменено.", reply_markup=ReplyKeyboardRemove()
         )
+
+    @staticmethod
+    def _format_id_list(ids: list[int], limit: int = 5) -> str:
+        """Форматирует список id для отчёта: первые `limit` + "и ещё N"."""
+        if not ids:
+            return ""
+        head = ", ".join(str(i) for i in ids[:limit])
+        rest = len(ids) - limit
+        return f"{head} и ещё {rest}" if rest > 0 else head
+
+    def _format_broadcast_summary(
+        self,
+        sent: int,
+        forbidden_ids: list[int],
+        bad_request_ids: list[int],
+        other_ids: list[int],
+    ) -> str:
+        """Собирает один итоговый отчёт админам вместо сообщения на каждую неудачу.
+
+        (#285): на базе с заметной долей заблокировавших бота цикл рассылки
+        иначе превращается в сотни отдельных сообщений админам.
+        """
+        failed = len(forbidden_ids) + len(bad_request_ids) + len(other_ids)
+        lines = [
+            "📰 Рассылка новостей завершена.",
+            f"Доставлено: {sent}",
+            f"Не доставлено: {failed}",
+        ]
+        if forbidden_ids:
+            lines.append(
+                f"— заблокировали бота ({len(forbidden_ids)}): "
+                f"{self._format_id_list(forbidden_ids)}"
+            )
+        if bad_request_ids:
+            lines.append(
+                f"— TelegramBadRequest ({len(bad_request_ids)}): "
+                f"{self._format_id_list(bad_request_ids)}"
+            )
+        if other_ids:
+            lines.append(
+                f"— прочие ошибки ({len(other_ids)}): {self._format_id_list(other_ids)}"
+            )
+        return "\n".join(lines)
+
+    async def _broadcast_to_all(
+        self,
+        news: dict[str, Any],
+        recipients: list[int],
+        initiated_by: str,
+    ) -> tuple[int, int]:
+        """Рассылает новость всем `recipients`, сохраняя прогресс в Redis.
+
+        Прогресс (кому новость ещё не доставлена) пишется в
+        `broadcast_storage` перед циклом и обновляется после каждого
+        получателя, а очищается только по завершении. Если процесс
+        упадёт или будет передеплоен в середине, оставшиеся получатели
+        не потеряются — `resume_pending_broadcast` подхватит их при
+        следующем старте (#285).
+
+        Args:
+            news (dict[str, Any]): Данные новости (тип контента, текст/медиа).
+            recipients (list[int]): Telegram ID получателей, которым новость
+                ещё не доставлена.
+            initiated_by (str): Кто инициировал рассылку — имя админа или
+                "restart-resume" при возобновлении после рестарта (для логов).
+
+        Returns
+            tuple[int, int]: (отправлено, не отправлено).
+
+        """
+        self.logger.bind(user=initiated_by).info(
+            f"Начата рассылка новостей, получателей: {len(recipients)}, "
+            f"тип новости: {news['content_type']}"
+        )
+        remaining = list(recipients)
+        await self.broadcast_storage.save(news=news, recipients=remaining)
+
+        sent = 0
+        failed = 0
+        forbidden_ids: list[int] = []
+        bad_request_ids: list[int] = []
+        other_ids: list[int] = []
+
+        for user_id in list(remaining):
+            try:
+                await self._send_news(user_id, news)
+                sent += 1
+
+            except TelegramRetryAfter as e:
+                self.logger.warning(f"FloodWait {e.retry_after}s для {user_id}, жду...")
+                await asyncio.sleep(e.retry_after)
+                try:
+                    await self._send_news(user_id, news)
+                    sent += 1
+                except Exception as exc:
+                    failed += 1
+                    other_ids.append(user_id)
+                    self.logger.exception(
+                        f"Повторная отправка не удалась {user_id}: {exc}"
+                    )
+
+            except TelegramForbiddenError:
+                failed += 1
+                forbidden_ids.append(user_id)
+                self.logger.warning(
+                    f"Пользователь {user_id} заблокировал бота, пропускаем."
+                )
+
+            except TelegramBadRequest as e:
+                failed += 1
+                bad_request_ids.append(user_id)
+                self.logger.warning(f"Ошибка TelegramBadRequest для {user_id}: {e}")
+            except Exception as exc:
+                failed += 1
+                other_ids.append(user_id)
+                self.logger.exception(
+                    f"Неизвестная ошибка при отправке {user_id}: {exc}"
+                )
+
+            remaining.remove(user_id)
+            await self.broadcast_storage.update_recipients(remaining)
+            await asyncio.sleep(0.05)
+
+        await self.broadcast_storage.clear()
+        self.logger.bind(user=initiated_by).info(
+            f"Рассылка завершена. Отправлено: {sent}, ошибок: {failed}"
+        )
+        if failed:
+            await send_to_admins(
+                bot=self.bot,
+                message_text=self._format_broadcast_summary(
+                    sent=sent,
+                    forbidden_ids=forbidden_ids,
+                    bad_request_ids=bad_request_ids,
+                    other_ids=other_ids,
+                ),
+            )
+        return sent, failed
+
+    async def resume_pending_broadcast(self) -> None:
+        """Возобновляет рассылку, прерванную рестартом или падением процесса.
+
+        Вызывается один раз при старте бота. Если в Redis остался
+        незавершённый прогресс рассылки (#285) — отправляет новость
+        оставшимся получателям, не дожидаясь, пока админ заметит и
+        запустит рассылку заново (что продублировало бы доставку тем,
+        кто уже получил новость).
+        """
+        data = await self.broadcast_storage.get()
+        if not data:
+            return
+        news = data.get("news")
+        recipients = data.get("recipients") or []
+        if not news or not recipients:
+            await self.broadcast_storage.clear()
+            return
+        self.logger.warning(
+            f"Найдена прерванная рассылка новостей, осталось "
+            f"{len(recipients)} получателей — возобновляю"
+        )
+        await self._broadcast_to_all(news, recipients, initiated_by="restart-resume")
 
     async def _send_news(self, user_id: int, news_data: dict[str, Any]) -> None:
         """Отправляет одну новость пользователю по её типу (текст/фото/видео)."""
@@ -366,64 +538,10 @@ class NewsRouter(BaseRouter):
 
             elif target == "all":
                 recipients = await self.news_service.all_users_id()
-
-                self.logger.bind(user=format_username(query.from_user)).info(
-                    f"Начата рассылка новостей "
-                    f"({query.from_user.id}), тип новости: {news['content_type']}"
+                sent, failed = await self._broadcast_to_all(
+                    news, recipients, initiated_by=format_username(query.from_user)
                 )
-                for user_id in recipients:
-                    try:
-                        await self._send_news(user_id, news)
-                        sent += 1
 
-                    except TelegramRetryAfter as e:
-                        self.logger.warning(
-                            f"FloodWait {e.retry_after}s для {user_id}, жду..."
-                        )
-                        await asyncio.sleep(e.retry_after)
-                        try:
-                            await self._send_news(user_id, news)
-                            sent += 1
-                        except Exception as exc:
-                            failed += 1
-                            self.logger.exception(
-                                f"Повторная отправка не удалась {user_id}: {exc}"
-                            )
-
-                    except TelegramForbiddenError:
-                        failed += 1
-                        self.logger.warning(
-                            f"Пользователь {user_id} заблокировал бота, пропускаем."
-                        )
-                        await send_to_admins(
-                            bot=self.bot,
-                            message_text=f"Пользователь {user_id} "
-                            f"заблокировал бота, пропускаем.",
-                        )
-
-                    except TelegramBadRequest as e:
-                        failed += 1
-                        self.logger.warning(
-                            f"Ошибка TelegramBadRequest для {user_id}: {e}"
-                        )
-                        await send_to_admins(
-                            bot=self.bot,
-                            message_text=f"Ошибка TelegramBadRequest для {user_id}: {e}",
-                        )
-                    except Exception as exc:
-                        failed += 1
-                        self.logger.exception(
-                            f"Неизвестная ошибка при отправке {user_id}: {exc}"
-                        )
-                        await send_to_admins(
-                            bot=self.bot,
-                            message_text=f"Неизвестная ошибка при отправке {user_id}: {exc}",
-                        )
-
-                    await asyncio.sleep(0.05)
-            self.logger.bind(user=format_username(query.from_user)).info(
-                f"Рассылка завершена. Отправлено: {sent}, ошибок: {failed}"
-            )
             await state.clear()
             result_text = f"✅ Новость отправлена.\nПолучателей: {sent}"
             if failed:

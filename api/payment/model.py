@@ -143,7 +143,17 @@ class PaymentTransaction(Base):
     )
 
     # GATEWAY FUTURE
-    gateway_transaction_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # index=True (#288): индекс ix_paymenttransactions_gateway_transaction_id
+    # уже есть в базе (создан миграцией f5bf5fd690ef), но модель его не
+    # объявляла — для alembic модель это источник истины, поэтому
+    # autogenerate каждый раз предлагал его удалить (уже один раз просочилось
+    # в миграцию 21a061efdaf6 и было убрано руками). По этой колонке идёт
+    # поиск транзакции на каждом вебхуке платёжного шлюза
+    # (PaymentService.get_by_gateway_id) — без индекса деградирует до
+    # полного сканирования таблицы по мере роста.
+    gateway_transaction_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, index=True
+    )
     gateway_payload: Mapped[dict[Any, Any] | None] = mapped_column(JSON, nullable=True)
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

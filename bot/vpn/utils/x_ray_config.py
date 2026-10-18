@@ -636,7 +636,50 @@ class ThreeXUIAdapter:
         logger.info("Продление конфигураций {} на {} дней", config_ids, days)
 
         new_expiry = (int(time.time()) * 1000) + days * 24 * 60 * 60 * 1000
+        return await self._set_clients_expiry(config_ids, new_expiry)
 
+    async def set_unlimited_config(self, config_ids: list[str]) -> list[str]:
+        """Снимает срок действия у уже существующих конфигураций (`expiryTime=0`).
+
+        Нужен отдельно от `extend_config`, который сознательно отказывается
+        ставить `expiryTime=0` — здесь это не побочный эффект, а сам смысл
+        вызова: продление XRay для пользователя с бессрочной подпиской
+        (см. `extend_user_xray_subscription`, #296) не может выразиться
+        числом дней.
+
+        ⚠️ Предположение «панель трактует `expiryTime=0` как бессрочно»
+        взято из докстринга `add_new_config` и не проверялось на реальной
+        панели (см. отчёт аудита, п.8) — перед выкладкой в прод стоит
+        убедиться на тестовой панели 3x-ui.
+
+        Args:
+            config_ids: UUID существующих конфигураций клиента, которым
+                нужно снять срок действия.
+
+        Returns
+            list[str]: `config_id` конфигураций, которые реально были
+                найдены и обновлены. Может быть короче `config_ids`, если
+                часть из них принадлежит другой XRay-ноде.
+
+        Raises
+            ThreeXUIInboundNotFoundError: Если не все ожидаемые inbound найдены.
+            ThreeXUIConfigNotFoundError: Если ни один `config_id` не найден ни
+                в одном inbound этой ноды.
+            ThreeXUIRequestError: Если панель ответила `success: false`.
+            APIClientError: При ошибках API.
+
+        """
+        logger.info("Снятие срока действия конфигураций {}", config_ids)
+        return await self._set_clients_expiry(config_ids, 0)
+
+    async def _set_clients_expiry(
+        self, config_ids: list[str], new_expiry: int
+    ) -> list[str]:
+        """Находит клиентов по `config_id` и проставляет им `expiryTime`.
+
+        Общая часть `extend_config` и `set_unlimited_config`, различающихся
+        только значением `expiryTime`.
+        """
         pending = set(config_ids)
         extended: list[str] = []
 
@@ -660,8 +703,8 @@ class ThreeXUIAdapter:
 
             if await self._restart_x_ray() is None:
                 logger.warning(
-                    "XRay не перезапущен после продления конфигураций {} — "
-                    "новый expiryTime может не применяться до следующего "
+                    "XRay не перезапущен после обновления expiryTime конфигураций {} — "
+                    "новое значение может не применяться до следующего "
                     "штатного перезапуска",
                     extended,
                 )
@@ -670,7 +713,7 @@ class ThreeXUIAdapter:
             raise ThreeXUIConfigNotFoundError(config_ids=config_ids)
 
         logger.info(
-            "Продлено конфигураций: {} из {} ({})",
+            "Обновлено expiryTime для {} из {} конфигураций ({})",
             len(extended),
             len(config_ids),
             extended,
