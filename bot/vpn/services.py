@@ -3,6 +3,7 @@ import json
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from aiogram.types import User as TGUser
 from loguru import logger
@@ -437,15 +438,14 @@ class VPNService:
         if end and end.tzinfo is None:
             end = end.replace(tzinfo=settings_bot.core.tzinfo)
 
-        # `end=None` (бессрочная подписка) и «days_left<=0» (срок истёк/
+        # `end=None` (бессрочная подписка) и «end уже в прошлом» (срок истёк/
         # истекает сегодня) — разные ситуации, раньше схлопнутые в одну
         # ветку «пропустить» (#296). Бессрочной подписке продление НУЖНО:
         # выданный ранее конфиг хранит свой собственный expiryTime и не
         # станет бессрочным сам. Истинно истёкшей — действительно no-op.
         is_unlimited = end is None
-        days_left = max((end - now).days, 0) if end else 0
 
-        if not is_unlimited and days_left <= 0:
+        if end is not None and end <= now:
             logger.debug(
                 "Подписка истекла — пропуск продления XRay tg_id={}",
                 user.telegram_id,
@@ -461,24 +461,28 @@ class VPNService:
             return []
 
         logger.info(
-            "Продление XRay-конфигов tg_id={} by_node={} legacy={} "
-            "unlimited={} days={}",
+            "Продление XRay-конфигов tg_id={} by_node={} legacy={} unlimited={} end={}",
             user.telegram_id,
             by_node,
             legacy,
             is_unlimited,
-            days_left,
+            end,
         )
 
-        # Бессрочной подписке конфиги не продлеваются на N дней — им снимают
+        # Бессрочной подписке конфиги не продлеваются до момента — им снимают
         # срок действия целиком (#296). См. предупреждение о непроверенном
-        # поведении панели в докстринге set_unlimited_config.
+        # поведении панели в докстринге set_unlimited_config. Иначе —
+        # абсолютный момент `end`, тот же, что получает `add_new_config` при
+        # выдаче (#317: раньше здесь считались days через timedelta.days,
+        # что теряло до суток оплаченного срока на каждом продлении). `cast`
+        # здесь безопасен: ветка `extend_config` берётся только когда
+        # `is_unlimited` ложно, то есть `end is not None`.
         extend_fn: Callable[[ThreeXUIAdapter, Iterable[str]], Awaitable[list[str]]] = (
             (lambda adapter, ids: adapter.set_unlimited_config(config_ids=list(ids)))
             if is_unlimited
             else (
                 lambda adapter, ids: adapter.extend_config(
-                    config_ids=list(ids), days=days_left
+                    config_ids=list(ids), expires_at=cast(datetime, end)
                 )
             )
         )

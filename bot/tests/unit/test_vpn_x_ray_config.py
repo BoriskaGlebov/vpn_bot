@@ -203,10 +203,7 @@ async def test_add_new_config(adapter):
         ]
     )
 
-    with (
-        patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"),
-        patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000),
-    ):
+    with patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"):
         result, url = await adapter.add_new_config(
             tg_id=123,
             expires_at=datetime(2030, 1, 1, tzinfo=UTC),
@@ -264,7 +261,6 @@ async def test_add_new_config_warns_when_restart_failed(adapter):
 
     with (
         patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"),
-        patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000),
         patch("bot.vpn.utils.x_ray_config.logger") as mock_logger,
     ):
         result, url = await adapter.add_new_config(
@@ -276,11 +272,13 @@ async def test_add_new_config_warns_when_restart_failed(adapter):
 
 
 @pytest.mark.asyncio
-async def test_extend_config_invalid_days(adapter):
+async def test_extend_config_invalid_expiry(adapter):
+    """#317: expires_at не в будущем отклоняется."""
     from bot.vpn.utils.x_ray_exceptions import ThreeXUIInvalidExpiryError
 
+    past = datetime(2000, 1, 1, tzinfo=UTC)
     with pytest.raises(ThreeXUIInvalidExpiryError):
-        await adapter.extend_config(config_ids=["a"], days=0)
+        await adapter.extend_config(config_ids=["a"], expires_at=past)
 
 
 @pytest.mark.asyncio
@@ -298,13 +296,17 @@ async def test_extend_config_success(adapter):
         ]
     )
 
-    with patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000):
-        result = await adapter.extend_config(config_ids=["abc", "def"], days=5)
+    expires_at = datetime(2030, 1, 1, 12, 30, tzinfo=UTC)
+    result = await adapter.extend_config(
+        config_ids=["abc", "def"], expires_at=expires_at
+    )
 
     assert set(result) == {"abc", "def"}
     assert adapter._update_client.await_count == 2
     adapter._restart_x_ray.assert_awaited_once()
     adapter._logout.assert_awaited_once()
+    sent_client = adapter._update_client.await_args.kwargs["client"]
+    assert sent_client["expiryTime"] == int(expires_at.timestamp() * 1000)
 
 
 @pytest.mark.asyncio
@@ -317,11 +319,10 @@ async def test_extend_config_warns_when_restart_failed(adapter):
     adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1)])
     adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "abc"}])
 
-    with (
-        patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000),
-        patch("bot.vpn.utils.x_ray_config.logger") as mock_logger,
-    ):
-        result = await adapter.extend_config(config_ids=["abc"], days=5)
+    with patch("bot.vpn.utils.x_ray_config.logger") as mock_logger:
+        result = await adapter.extend_config(
+            config_ids=["abc"], expires_at=datetime(2030, 1, 1, tzinfo=UTC)
+        )
 
     assert result == ["abc"]
     mock_logger.warning.assert_called_once()
@@ -339,13 +340,15 @@ async def test_extend_config_not_found_raises(adapter):
     adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "other"}])
 
     with pytest.raises(ThreeXUIConfigNotFoundError):
-        await adapter.extend_config(config_ids=["missing"], days=5)
+        await adapter.extend_config(
+            config_ids=["missing"], expires_at=datetime(2030, 1, 1, tzinfo=UTC)
+        )
 
 
 @pytest.mark.asyncio
 async def test_set_unlimited_config_success(adapter):
     """#296: set_unlimited_config ставит expiryTime=0, в отличие от
-    extend_config, который на days<=0 отказывается работать.
+    extend_config, который на не-будущих expires_at отказывается работать.
     """
     adapter._login = AsyncMock()
     adapter._logout = AsyncMock()

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -959,7 +959,59 @@ async def test_extend_user_xray_subscription_success(mocker, user_out):
     xray_adapter.extend_config.assert_awaited_once()
     called_kwargs = xray_adapter.extend_config.await_args.kwargs
     assert set(called_kwargs["config_ids"]) == {"cfg1", "cfg2"}
-    assert called_kwargs["days"] > 0
+    # #317: передаётся тот же абсолютный момент, что в подписке, без
+    # округления до целых суток.
+    assert called_kwargs["expires_at"].replace(tzinfo=None) == datetime(2999, 1, 1)
+
+
+@pytest.mark.asyncio
+async def test_extend_user_xray_subscription_less_than_a_day_left_still_extends(
+    mocker, user_out
+):
+    """#317: остаток меньше суток больше не схлопывается в "нечего продлевать".
+
+    Раньше `days_left = (end - now).days` давало 0 при остатке 5 часов, и
+    весь вызов пропускался — панель получала срок короче оплаченного на
+    сутки. Теперь передаётся точный момент `end`, и продление происходит.
+    """
+    from bot.core.config import settings_bot
+
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+
+    xray_adapter = mocker.AsyncMock()
+    xray_adapter.extend_config.return_value = ["cfg1"]
+    xray_registry = mocker.Mock()
+    xray_registry.all.return_value = [xray_adapter]
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    end_date = datetime.now(settings_bot.core.tzinfo).replace(tzinfo=None) + timedelta(
+        hours=5
+    )
+    user = user_out.model_copy(
+        update={
+            "telegram_id": 123,
+            "current_subscription": SimpleNamespace(is_active=True, end_date=end_date),
+            "vpn_configs": [
+                SVPNConfigOut(
+                    id=1,
+                    file_name="loc_user_123",
+                    pub_key='["cfg1"]',
+                    backend="xray",
+                    config_ids=["cfg1"],
+                    created_at=datetime(2026, 1, 1),
+                )
+            ],
+        }
+    )
+
+    result = await service.extend_user_xray_subscription(user=user)
+
+    assert result == ["cfg1"]
+    xray_adapter.extend_config.assert_awaited_once()
+    called_kwargs = xray_adapter.extend_config.await_args.kwargs
+    assert called_kwargs["expires_at"].replace(tzinfo=None) == end_date
 
 
 @pytest.mark.asyncio
