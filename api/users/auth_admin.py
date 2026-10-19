@@ -121,18 +121,6 @@ class AdminAuth(AuthenticationBackend):
         return True
 
     async def authenticate(self, request: Request) -> bool:
-        """Проверяет, авторизован ли пользователь.
-
-        Метод вызывается перед обработкой каждого запроса
-        к административной панели.
-
-        Args:
-            request: Входящий HTTP-запрос Starlette.
-
-        Returns
-            True, если пользователь ранее прошёл авторизацию.
-            False в противном случае.
-
-        """
+        """Проверяет авторизацию; вызывается перед обработкой каждого запроса к админ-панели."""
         is_admin = request.session.get("admin")
         return bool(is_admin)

@@ -54,7 +54,7 @@ class UserService:
         if user:
             logger.info("Пользователь найден в базе")
             if telegram_user.username != user.username:
-                # username изменяем и переиспользуем (#242) — обновляем при
+                # username изменяем и переиспользуем — обновляем при
                 # каждом входе, чтобы хранимое значение не старело.
                 logger.info(
                     "Username изменился telegram_id={}: {!r} -> {!r}",
