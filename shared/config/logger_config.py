@@ -45,34 +45,15 @@ class LoggerConfig:
         self._setup_logging()
 
     def _ensure_log_dir_exists(self) -> None:
-        """Создает директорию для логов, если она не существует, и устанавливает права доступа."""
         self.log_dir.mkdir(parents=True, exist_ok=True, mode=0o755)
 
     @staticmethod
     def _user_filter(record: Mapping[str, Any]) -> bool:
-        """Фильтр для логов с указанным пользователем.
-
-        Args:
-            record (Mapping[str, Any]): Запись лога.
-
-        Returns
-            bool: True, если поле 'user' в extra присутствует и не равно "-".
-
-        """
         user = record.get("extra", {}).get("user")
         return bool(user and user != "undefined_user")
 
     @staticmethod
     def _default_filter(record: Mapping[str, Any]) -> bool:
-        """Фильтр для логов без данных пользователя.
-
-        Args:
-            record (Mapping[str, Any]): Запись лога.
-
-        Returns
-            bool: True, если поле 'user' отсутствует или равно "-".
-
-        """
         user = record.get("extra", {}).get("user")
         return user in (None, "undefined_user")
 
@@ -93,21 +74,11 @@ class LoggerConfig:
         return int(record["level"].no) < int(logger.level("WARNING").no)
 
     def _filter_for_files(self, record: Mapping[str, Any]) -> bool:
-        """Объединенный фильтр для файловых логов.
-
-        Args:
-            record (Mapping[str, Any]): Запись лога.
-
-        Returns
-            bool: True, если запись подходит по фильтру пользователя и не является ошибкой.
-
-        """
         return (
             self._user_filter(record) or self._default_filter(record)
         ) and self._exclude_errors(record)
 
     def _setup_logging(self) -> None:
-        """Конфигурирует логирование, удаляя все текущие обработчики и добавляя новые."""
         logger.remove()
         logger.configure(
             extra=self.extra_defaults,
@@ -117,7 +88,6 @@ class LoggerConfig:
         self._add_file_handlers()
 
     def _add_stdout_handler(self) -> None:
-        """Добавляет обработчик для вывода логов в stdout."""
         logger.add(
             sys.stdout,
             level=self.logger_level_stdout,
@@ -129,7 +99,6 @@ class LoggerConfig:
         )
 
     def _add_file_handlers(self) -> None:
-        """Добавляет обработчики для записи логов в файлы."""
         log_file_path = self.log_dir / "file.log"
         error_log_file_path = self.log_dir / "error.log"
 
@@ -161,12 +130,6 @@ class LoggerConfig:
 
     @staticmethod
     def _get_format() -> str:
-        """Возвращает формат строки для логов.
-
-        Returns
-            str: Формат строки для loguru.
-
-        """
         return (
             "<green>{time:YYYY-MM-DD HH:mm:ss}</green> - "
             "<level>{level:^10}</level> - "
