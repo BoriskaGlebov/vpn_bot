@@ -90,7 +90,6 @@ class PaymentTransaction(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
-    # USER
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         index=True,
@@ -121,7 +120,6 @@ class PaymentTransaction(Base):
     is_premium: Mapped[bool] = mapped_column(default=False)
     is_founder: Mapped[bool] = mapped_column(default=False)
 
-    # ADMIN AUDIT
     created_by_admin_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,

@@ -10,7 +10,7 @@ from shared.enums.admin_enum import RoleEnum
 
 
 def get_admin_service() -> AdminService:
-    """Depends для AdminService."""
+    """Создаёт экземпляр AdminService."""
     return AdminService()
 
 

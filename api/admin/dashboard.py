@@ -28,7 +28,7 @@ class DashboardView(BaseView):
 
     @expose("/dashboard", methods=["GET"], identity="dashboard")
     async def dashboard(self, request: Request) -> _TemplateResponse:
-        """Собирает метрики и рендерит страницу дашборда."""
+        """Рендерит страницу дашборда."""
         now = datetime.now(settings_api.core.tzinfo)
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
