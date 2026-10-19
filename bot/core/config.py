@@ -541,7 +541,6 @@ LoggerConfig(
     logger_error_file=settings_bot.core.logger_error_file,
     diagnose_files=settings_bot.core.logger_diagnose_files,
 )
-# Инициализируем бота и диспетчер
 bot: Bot = Bot(
     token=settings_bot.bot.token.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -549,7 +548,7 @@ bot: Bot = Bot(
 # # Хранилище FSM
 storage = RedisStorage.from_url(
     str(settings_bot.redis.url),
-    state_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни состояния (в секундах)
-    data_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни данных FSM
+    state_ttl=settings_bot.redis.default_expire,
+    data_ttl=settings_bot.redis.default_expire,
 )
 dp = Dispatcher(storage=storage)
