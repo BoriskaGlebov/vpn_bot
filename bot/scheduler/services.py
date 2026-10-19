@@ -186,14 +186,6 @@ class SchedulerBotService:
             error,
         )
 
-        # await send_to_admins(
-        #     bot=self.bot,
-        #     message_text=(
-        #         f"⚠️ Не удалось подключиться к контейнеру\n{str(client_cls)}: {error}\n"
-        #         f"Когда удалял файл - <b>{file_name}</b>"
-        #     ),
-        # )
-
     async def _handle_xray_error(
         self,
         client_cls: ThreeXUIAdapter,
