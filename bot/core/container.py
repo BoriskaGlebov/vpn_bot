@@ -1,4 +1,3 @@
-# bot/core/container.py
 from aiogram import Bot
 
 from bot.admin.adapter import AdminAPIAdapter
@@ -138,7 +137,6 @@ class Container:
 
     def __init__(self, bot: Bot) -> None:
         """Инициализирует сервисы без асинхронных операций."""
-        # 1. БАЗОВЫЕ КЛИЕНТЫ
         self.redis_manager = RedisClient(
             str(settings_bot.redis.url),
             default_expire=settings_bot.redis.default_expire,
@@ -154,7 +152,6 @@ class Container:
             port=settings_bot.api.port,
             internal_secret=settings_bot.api.secret.get_secret_value(),
         )
-        # 2. ADAPTERS API (обычные)
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAPIAdapter(client=self.api_client)
@@ -200,7 +197,6 @@ class Container:
         self._xray_clients = xray_clients
         self.xray_adapters = XRayRegistry(xray_adapters)
 
-        # 4. SERVICES
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)

@@ -94,7 +94,6 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
 
     def _normalize_exception(self, exc: Exception) -> ErrorEnvelope:
         """Приводит любое исключение к ErrorEnvelope."""
-        # 1. Уже новый формат (если вдруг прилетает из API слоя)
         if isinstance(exc, AppError | APIClientError):
             return exc.to_envelope()
         if isinstance(exc, TelegramRetryAfter):
@@ -216,7 +215,6 @@ class ErrorHandlerMiddleware(BaseMiddleware):  # type: ignore[misc]
         )
 
     async def _safe_send_error(self, event: TelegramObject, text: str) -> None:
-        """Универсальная отправка сообщения пользователю."""
         try:
             if isinstance(event, Message):
                 await event.reply(text)

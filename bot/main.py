@@ -28,7 +28,6 @@ from bot.users.router import UserRouter
 from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.router import VPNRouter
 
-# API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
     {
         "name": "webhook",
@@ -93,7 +92,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger=logger,  # type: ignore[arg-type]
         admin_service=container.admin_service,
     )
-    #
     subscription_router = SubscriptionRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
@@ -160,10 +158,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         trigger=trigger,
         kwargs={"service": container.scheduler_bot_service},
         id="scheduled_check",
-        max_instances=1,  # Запрещаем параллельное выполнение
-        coalesce=True,  # Если накопилось несколько вызовов - выполнить один раз
-        misfire_grace_time=30,  # Пропустить, если опоздали на 30+ секунд
-        replace_existing=True,  # Заменить, если задача с таким id уже есть
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=30,
+        replace_existing=True,
     )
     scheduler.start()
     logger.info("🕒 Планировщик запущен — проверка {}", schedule_description)
@@ -207,7 +205,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.exception(f"Ошибка при отключении Scheduler: {e}")
 
 
-# Метаданные для OpenAPI
 app: FastAPI = FastAPI(
     debug=settings_bot.core.debug_fast_api,
     title="VPN Boriska Bot",
@@ -319,11 +316,6 @@ async def health() -> JSONResponse:
 
 
 if __name__ == "__main__":
-    """
-    Точка входа для запуска FastAPI-приложения.
-
-    Запускает сервер Uvicorn с приложением FastAPI.
-    """
     uvicorn.run(
         app="bot.main:app",
         host="0.0.0.0",
