@@ -61,8 +61,7 @@ class LoggerConfig:
     def _exclude_errors(record: Mapping[str, Any]) -> bool:
         """Исключает записи с уровнем WARNING.
 
-        Создаются два файла для обычных логов и для ошибок,
-        так вот warning идет в блок ошибок.
+        Два файла: file.log (без warning/error) и error.log (warning и выше).
 
         Args:
             record (Mapping[str, Any]): Запись лога.
