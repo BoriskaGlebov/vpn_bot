@@ -38,31 +38,7 @@ def fmt_user(m: Subscription, _: str) -> str:
 
 
 class SubscriptionAdmin(ModelView, model=Subscription):
-    """Админка для управления объектами Subscription.
-
-    Позволяет:
-        - Просматривать список подписок.
-        - Просматривать детали подписки.
-        - Редактировать подписки.
-        - Фильтровать и искать подписки по пользователю и активности.
-
-    Attributes
-        name (str): Название модели в админке в единственном числе.
-        name_plural (str): Название модели в админке во множественном числе.
-        column_list (list[str]): Список колонок для отображения в таблице.
-        column_sortable_list (list[str]): Список колонок, по которым можно сортировать.
-        column_searchable_list (list[str]): Список колонок для поиска.
-        column_filters (list[ColumnFilter]): Список фильтров для админки.
-        form_columns (list[str]): Поля, доступные для редактирования в форме.
-        column_labels (dict[str, str]): Подписи колонок в таблице.
-        column_formatters (dict[str, Callable[[Any, str], Any]]): Форматирование значений колонок.
-        can_create (bool): Разрешено ли создавать объекты.
-        can_edit (bool): Разрешено ли редактировать объекты.
-        can_delete (bool): Разрешено ли удалять объекты.
-        can_view_details (bool): Разрешено ли просматривать детальную информацию.
-        details_template (str): Кастомный шаблон для детального просмотра.
-
-    """
+    """Административное представление модели Subscription."""
 
     name = "Подписка"
     name_plural = "Подписки"

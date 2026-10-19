@@ -107,7 +107,7 @@ class Subscription(Base):
     user: Mapped["User"] = relationship(back_populates="subscriptions", lazy="selectin")
 
     def __str__(self) -> str:
-        """Строковое представление."""
+        """Строковое представление для отладки и логов."""
         status = "Активна" if self.is_active else "Неактивна"
         stat_type = self.type.value.upper() if self.type else ""
         until = (
@@ -139,10 +139,8 @@ class Subscription(Base):
         self.type = sub_type
         self.is_active = True
         self.start_date = now
-        # если указаны дни → добавляем дни
         if days is not None:
             self.end_date = now + datetime.timedelta(days=days)
-        # если указаны месяцы → добавляем месяцы
         elif month_num is not None:
             self.end_date = self.start_date + relativedelta(months=month_num)
         else:
@@ -163,10 +161,8 @@ class Subscription(Base):
         if not self.end_date or self.end_date < datetime.datetime.now(
             settings_api.core.tzinfo
         ):
-            # если подписка бессрочная или уже истекла → начинаем с текущей даты
             new_start = datetime.datetime.now(settings_api.core.tzinfo)
         else:
-            # если подписка активна → начинаем с текущей даты окончания
             new_start = self.end_date
 
         new_end = (

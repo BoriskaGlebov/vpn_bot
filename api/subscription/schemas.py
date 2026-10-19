@@ -62,12 +62,7 @@ class ActivateSubscriptionRequest(BaseModel):
 
 
 class SSubscription(BaseModel):
-    """Схема подписки пользователя.
-
-    Attributes
-        user_id (int): Идентификатор пользователя, которому принадлежит подписка.
-
-    """
+    """Схема подписки пользователя."""
 
     user_id: int = Field(..., description="User ID")
     model_config = ConfigDict(from_attributes=True)
