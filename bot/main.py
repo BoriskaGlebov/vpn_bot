@@ -39,7 +39,7 @@ container = Container(bot=bot)
 
 
 def _log_resume_broadcast_result(task: asyncio.Task[None]) -> None:
-    """Логирует исключение из фоновой задачи возобновления рассылки (#319).
+    """Логирует исключение из фоновой задачи возобновления рассылки.
 
     Без этого колбэка падение `resume_pending_broadcast` в фоне было бы не видно
     нигде — задача ни с чем не связана и её результат никто не ждёт.
@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await container.init()
     dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
-    # log_data управляется отдельным флагом, а не debug_fast_api (#286):
+    # log_data управляется отдельным флагом, а не debug_fast_api:
     # debug_fast_api — это отладка FastAPI, а log_data пишет в лог полный
     # repr Telegram-события, то есть текст переписки пользователя.
     log_data = settings_bot.core.log_user_events_data
@@ -125,11 +125,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
 
-    # Возобновляем рассылку, прерванную прошлым падением/деплоем (#285), не
+    # Возобновляем рассылку, прерванную прошлым падением/деплоем, не
     # дожидаясь старта polling/webhook — фоновой задачей, чтобы не блокировать
     # запуск остальной части приложения. Ссылка на задачу сохраняется, иначе
     # event loop держит её только через слабую ссылку и может собрать сборщиком
-    # мусора до завершения (#319); колбэк логирует необработанное исключение,
+    # мусора до завершения; колбэк логирует необработанное исключение,
     # которое иначе никуда не всплывёт.
     resume_broadcast_task = asyncio.create_task(news_router.resume_pending_broadcast())
     resume_broadcast_task.add_done_callback(_log_resume_broadcast_result)
@@ -252,15 +252,17 @@ async def webhook(request: Request) -> Response:
     Эндпоинт принимает POST-запросы от Telegram, валидирует полученные
     обновления и передаёт их в диспетчер aiogram.
 
-    Обработчик устойчив к пустым и некорректным запросам и всегда
-    возвращает HTTP 200 OK, чтобы Telegram не выполнял повторные попытки
-    доставки обновлений.
+    Пустое тело запроса считается штатным и подтверждается HTTP 200 без
+    дальнейшей обработки. Если тело непустое, но не проходит валидацию как
+    Telegram Update (ValidationError/ValueError), обработчик возвращает
+    HTTP 500 — Telegram в этом случае повторит доставку обновления.
 
     Args:
         request: Входящий запрос FastAPI с payload обновления Telegram.
 
     Returns
-        Ответ FastAPI со статусом HTTP 200.
+        Ответ FastAPI со статусом HTTP 200 в штатном случае или HTTP 500,
+        если payload не прошёл валидацию.
 
     """
     body: bytes = await request.body()

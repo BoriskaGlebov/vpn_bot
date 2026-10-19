@@ -166,7 +166,7 @@ class Container:
         self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
         self.scheduler_adapter = SchedulerAPIAdapter(client=self.api_client)
-        # 3. 🔥 ВОТ ЗДЕСЬ ВСТАВЛЯЕШЬ XRayRegistry
+        # 3. XRAY REGISTRY
         xray_adapters: dict[str, ThreeXUIAdapter] = {}
         xray_clients: list[APIClient] = []
         for name, node in settings_bot.vpn.nodes.items():
