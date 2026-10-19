@@ -29,7 +29,7 @@ m_subscription_local = settings_bot.messages.modes.subscription
 # Ключи всех реально сконфигурированных нод (стандартных и премиум) —
 # settings_bot.vpn.nodes содержит только то, что действительно поднято,
 # в отличие от прежнего статического enum Location/PremiumLocation,
-# который требовал ручной правки кода при добавлении новой локации (#268).
+# который требовал ручной правки кода при добавлении новой локации.
 ALL_LOCATIONS: tuple[str, ...] = tuple(settings_bot.vpn.nodes)
 
 
@@ -278,7 +278,7 @@ class SchedulerBotService:
         его отсутствии (старые записи) он парсился из `cfg.pub_key` —
         перегрузка одного поля под два бэкенда (см. `DeletedVPNConfigSchema`);
         миграция `1a242e081dff` заполнила `config_ids` для всех XRay-записей,
-        поэтому разбор `pub_key` больше не нужен (см. #270).
+        поэтому разбор `pub_key` больше не нужен.
 
         Args:
             cfg: Данные удаляемого конфига.
