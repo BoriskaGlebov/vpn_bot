@@ -85,7 +85,7 @@ class AdminService:
     async def change_user_role(
         cls, session: AsyncSession, telegram_id: int, role_name: RoleEnum
     ) -> SUserOut:
-        """Меняет роль пользователя и при необходимости активирует подписку.
+        """Меняет роль пользователя.
 
         Args:
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
