@@ -90,7 +90,7 @@ def connection(isolation_level: IsolationLevel | None = None) -> Callable[[F], F
 # выводом модели в строку. Общая реализация для `BaseDAO._redact` (параметры
 # DAO-операций) и `Base.to_dict_redacted` (колонки модели) — чтобы маскирование
 # не обходилось через `__repr__`/`to_dict`, которые читают значения напрямую
-# с объекта, а не из словаря параметров DAO (см. #238).
+# с объекта, а не из словаря параметров DAO.
 _SENSITIVE_KEY_MARKERS = ("password", "secret", "token", "payload", "api_key", "card")
 
 
@@ -117,9 +117,9 @@ def redact(values: dict[str, Any]) -> dict[str, Any]:
 
 
 int_pk = Annotated[int, mapped_column(primary_key=True, autoincrement=True)]
-# timezone=True — см. #255: без неё колонка хранит TIMESTAMP WITHOUT TIME
-# ZONE, и created_at/updated_at (которые ставит Postgres через func.now())
-# оказываются в одной таблице с полями, которые ставит сам процесс (напр.
+# timezone=True — без неё колонка хранит TIMESTAMP WITHOUT TIME ZONE, и
+# created_at/updated_at (которые ставит Postgres через func.now()) оказываются
+# в одной таблице с полями, которые ставит сам процесс (напр.
 # PaymentTransaction.paid_at/confirmed_at) без единой договорённости о зоне.
 created_at = Annotated[
     datetime, mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -198,9 +198,9 @@ class Base(AsyncAttrs, DeclarativeBase):
 
         Раньше печатались значения всех колонок, то есть любое попадание
         объекта модели в f-строку лога, `str()`/`repr()` в сообщении об
-        ошибке SQLAlchemy или трейсбек с `diagnose=True` (см. #226) выводило
-        запись целиком — маскирование `BaseDAO._redact` на это не влияет,
-        потому что оно применяется к словарям параметров DAO, а не к самому
+        ошибке SQLAlchemy или трейсбек с `diagnose=True` выводило запись
+        целиком — маскирование `BaseDAO._redact` на это не влияет, потому
+        что оно применяется к словарям параметров DAO, а не к самому
         объекту. Подробный вывод с маскированием — `to_dict_redacted()`,
         вызывается осознанно.
         """
