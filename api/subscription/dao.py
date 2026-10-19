@@ -10,17 +10,7 @@ from api.users.schemas import SSubscription, SUserTelegramID
 
 
 class SubscriptionDAO(BaseDAO[Subscription]):
-    """Класс DAO для работы с подписками пользователей.
-
-    Обеспечивает операции с таблицей `subscriptions`, позволяя создавать,
-    обновлять и получать подписки пользователей через ORM.
-
-    Attributes
-        model (type[Subscription]): Модель ORM, с которой работает DAO.
-            Используется для всех стандартных операций CRUD, предоставляемых
-            `BaseDAO`.
-
-    """
+    """DAO для работы с подписками пользователей."""
 
     model = Subscription
 
