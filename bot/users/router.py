@@ -354,7 +354,7 @@ class UserRouter(BaseRouter):
                 reply_markup=ReplyKeyboardRemove(),
             )
             income = await self.admin_service.year_income()
-            # Годовые расходы захардкожены — переносятся в источник данных, см. #173.
+            # Годовые расходы захардкожены — переносятся в источник данных.
             expense = 28358
             profit = income.year_income - expense
             await self.bot.send_message(

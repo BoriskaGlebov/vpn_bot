@@ -115,7 +115,7 @@ class SUserOut(BaseModel):
     id: int = Field(..., description="ID пользователя в БД")
     telegram_id: int = Field(..., description="Telegram ID пользователя")
     # Telegram-username необязателен, изменяем и переиспользуем — не может
-    # быть обязательным непустым полем (см. #242).
+    # быть обязательным непустым полем.
     username: str | None = Field(None, description="Username в Telegram")
     first_name: str | None = Field(None, description="Имя пользователя")
     last_name: str | None = Field(None, description="Фамилия пользователя")

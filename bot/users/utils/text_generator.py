@@ -4,7 +4,7 @@ from shared.enums.vpn_enum import VPNBackend
 # Подписи кнопок для бэкенда — текст для пользователя, а не значения enum.
 # Раньше это были значения отдельного bot/users/enums.py::VPNProtocol,
 # дублировавшего имя с shared/enums/vpn_enum.py::VPNProtocol (протокол
-# внутри бэкенда) при том, что по смыслу выбирал именно VPNBackend (см. #271).
+# внутри бэкенда) при том, что по смыслу выбирал именно VPNBackend.
 BACKEND_LABELS: dict[VPNBackend, str] = {
     VPNBackend.AMNEZIA: "AmneziaVPN",
     VPNBackend.XRAY: "⚡ XRay Pro",

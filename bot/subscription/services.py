@@ -55,7 +55,7 @@ class SubscriptionService:
 
         """
         # api_adapter уже возвращает SSubscriptionCheck (валидация произошла
-        # там) — повторный model_validate() здесь был избыточен (#283).
+        # там) — повторный model_validate() здесь был избыточен.
         return await self.api_adapter.check_premium(tg_id=tg_id)
 
     async def start_trial_subscription(self, tg_id: int, days: int) -> None:
@@ -232,7 +232,7 @@ class SubscriptionService:
             if data.end_date
             else "Бесконечность не предел"
         )
-        # Текст собирается здесь, а не в api/ (#282): remaining — число дней
+        # Текст собирается здесь, а не в api/: remaining — число дней
         # или None для бессрочной подписки, формулировка "N дней"/"UNLIMITED"
         # — язык интерфейса, не данные.
         remaining_text_value = (

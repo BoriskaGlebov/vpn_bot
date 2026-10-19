@@ -93,7 +93,7 @@ class SSubscriptionInfo(BaseModel):
 
     Зеркалит `api/subscription/schemas.py:SSubscriptionInfo` — `api/` отдаёт
     данные, текст для показа ("N дней"/"UNLIMITED", формат даты) собирает
-    бот в `SubscriptionService.get_subscription_info` (см. #282).
+    бот в `SubscriptionService.get_subscription_info`.
 
     Attributes
         status (SubscriptionInfoStatus): Статус подписки.

@@ -75,7 +75,7 @@ class ContainerRestoreService:
         await transport.write_archive(archive)
         # Без перезапуска контейнер продолжит работать со старой
         # конфигурацией в памяти — восстановление выглядело бы успешным,
-        # но не действовало до ручного docker restart (см. аудит, #223).
+        # но не действовало до ручного docker restart.
         await transport.restart_container()
         logger.success(f"Нода {name} восстановлена из {backup_key} и перезапущена")
         return backup_key
@@ -92,7 +92,7 @@ class ContainerRestoreService:
 
         Ключи имеют вид `{S3_BACKUP_PREFIX}/{node_name}/...` — без этой
         проверки `--key` из CLI мог развернуть конфигурацию чужой ноды
-        поверх действующей (см. аудит, issue #220).
+        поверх действующей.
 
         Raises
             AmneziaBackupError: Если ключ принадлежит другой ноде.
