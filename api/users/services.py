@@ -21,10 +21,7 @@ from api.users.schemas import (
 
 
 class UserService:
-    """Сервис для управления пользователями.
-
-    Отвечает за регистрацию и получение данных пользователя.
-    """
+    """Сервис для управления пользователями."""
 
     async def register_or_get_user(
         self, session: AsyncSession, telegram_user: SUser
@@ -120,16 +117,7 @@ class UserService:
         session: AsyncSession,
         telegram_id: int,
     ) -> SUserWithReferralStats:
-        """Получает пользователя с реферальной статистикой.
-
-        Args:
-            session (AsyncSession): Сессия БД
-            telegram_id (int): Telegram ID пользователя
-
-        Returns
-            SUserWithReferralStats
-
-        """
+        """Получает пользователя с реферальной статистикой."""
         logger.debug("Получение пользователя с реферальной статистикой")
 
         user = await UserDAO.find_one_or_none(
