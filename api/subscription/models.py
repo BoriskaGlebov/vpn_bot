@@ -38,7 +38,7 @@ class SubscriptionType(str, Enum):
     ULTIMATE = "ultimate"
 
 
-# #277: приоритет подписки при сортировке User.subscriptions — единый источник,
+# Приоритет подписки при сортировке User.subscriptions — единый источник,
 # из которого строится case() в api/users/models.py. Любое значение SubscriptionType,
 # не попавшее в этот словарь, ловится тестом (перебор enum), а не тихим else_=0.
 SUBSCRIPTION_PRIORITY: dict[SubscriptionType, int] = {
@@ -92,7 +92,7 @@ class Subscription(Base):
     # SubscriptionDAO.activate_subscription) тип не задан — аннотация без
     # None противоречила бы nullable=True и фактическому поведению кода,
     # который везде защищается `subscription.type.value if subscription.type
-    # else None` (#283).
+    # else None`.
     type: Mapped[SubscriptionType | None] = mapped_column(
         SQLEnum(SubscriptionType, name="subscription_type"), default=None, nullable=True
     )
@@ -127,7 +127,7 @@ class Subscription(Base):
         здесь не проверяется и не выставляется — это бизнес-правило живёт
         в `SubscriptionService.start_trial_subscription`, а не в модели
         подписки: иначе метод модели менял бы соседнюю сущность (`User`),
-        дублируя проверку с сервисом (см. #283, тот же класс, что #244).
+        дублируя проверку с сервисом.
 
         Args:
             sub_type (SubscriptionType): Тип подписки пользователя, по умолчанию Стандарт
@@ -197,9 +197,8 @@ class Subscription(Base):
 
         `timedelta.days` отбрасывает дробную часть, поэтому при остатке
         меньше суток (но больше нуля) показывал бы «0 дней» у подписки,
-        которая на самом деле ещё действует (см. #282, тот же источник
-        дефекта, что у #266 в выдаче XRay-конфигов). Для отображения
-        остаток меньше суток округляется вверх до 1 — на is_expired()
+        которая на самом деле ещё действует. Для отображения остаток
+        меньше суток округляется вверх (`math.ceil`) до 1 — на is_expired()
         (сравнение по точному времени) это не влияет.
 
         Returns

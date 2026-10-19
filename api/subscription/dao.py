@@ -33,7 +33,7 @@ class SubscriptionDAO(BaseDAO[Subscription]):
             sub_type (SubscriptionType): Тип подписки пользователя
 
         Raises
-            ValueError: Если пользователь с указанным Telegram ID не найден.
+            UserNotFoundError: Если пользователь с указанным Telegram ID не найден.
             SQLAlchemyError: Если произошла ошибка при сохранении изменений в базе данных.
 
         Returns

@@ -38,7 +38,7 @@ class SubscriptionService:
 
         Raises
             UserNotFoundError: если пользователь не найден
-            AppError: если отсутствует current_subscription
+            SubscriptionNotFoundError: если отсутствует current_subscription
 
         """
         logger.debug("Проверка premium подписки начата: tg_id={}", tg_id)
@@ -92,12 +92,10 @@ class SubscriptionService:
 
         Returns
             TrialStatus: EXTENDED, если продлена существующая активная
-                подписка, STARTED, если создана новая trial-подписка (#283
-                — раньше оба случая отвечали одним и тем же значением).
+                подписка, STARTED, если создана новая trial-подписка.
 
         Raises
             UserNotFoundError: если пользователь не найден
-            ActiveSubscriptionExistsError: если активна подписка и trial уже использован
             TrialAlreadyUsedError: если trial уже использован
 
         """
@@ -126,14 +124,14 @@ class SubscriptionService:
 
         # Вторая ветвь (subscription активна и has_used_trial) была
         # недостижима — подмножество проверки ниже с тем же исключением и
-        # аргументами (см. #283), поэтому убрана.
+        # аргументами, поэтому убрана.
         if user_model.has_used_trial:
             logger.warning("Trial уже использован: tg_id={}", tg_id)
             raise TrialAlreadyUsedError(
                 user_id=user_model.id, username=user_model.username
             )
 
-        # Правило «один раз» целиком в сервисе (#283) — Subscription.activate()
+        # Правило «один раз» целиком в сервисе — Subscription.activate()
         # больше не проверяет и не выставляет has_used_trial сам.
         user_model.has_used_trial = True
         await SubscriptionDAO.activate_subscription(
@@ -156,8 +154,9 @@ class SubscriptionService:
 
         Поведение:
             - Если активная подписка нужного типа существует → продление
-            - Если пользователь FOUNDER → всегда форсируется PREMIUM
-            - Иначе создаётся новая подписка
+            - Если пользователь FOUNDER → всегда форсируется тип подписки FOUNDER
+              (аргумент `premium` для него игнорируется)
+            - Иначе создаётся новая подписка (PREMIUM или STANDARD по `premium`)
 
         Args:
             session: Асинхронная SQLAlchemy сессия.
@@ -210,7 +209,7 @@ class SubscriptionService:
             return UserMapper.to_schema(user=user_model)
         elif user_model.role.name == RoleEnum.FOUNDER:
             logger.info(
-                "Основатель: принудительная установка PREMIUM подписки: tg_id={}, months={}",
+                "Основатель: принудительная установка подписки FOUNDER: tg_id={}, months={}",
                 tg_id,
                 months,
             )
@@ -219,7 +218,7 @@ class SubscriptionService:
                 current_sub.extend(months=months)
                 current_sub.type = SubscriptionType.FOUNDER
                 return UserMapper.to_schema(user=user_model)
-        # #275: активная подписка найдена выше только среди подписок того же
+        # Активная подписка найдена выше только среди подписок того же
         # типа (sub_type == sbscr.type) — активная подписка ДРУГОГО типа
         # (например, старый TRIAL) сюда не попадает и без этой деактивации
         # осталась бы брошенной: is_active=True после создания новой записи.
@@ -298,7 +297,7 @@ class SubscriptionService:
         )
 
         # Текст для показа пользователю ("N дней" / "UNLIMITED") собирает бот —
-        # отсюда уходит только число (или None для бессрочной подписки), см. #282.
+        # отсюда уходит только число (или None для бессрочной подписки).
         remaining = subscription.remaining_days()
         logger.info(
             "Инфо подписки VPN tg_id={} status={} type={}",
