@@ -2,8 +2,6 @@ from aiogram import Bot
 
 from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
-
-# from bot.ai.services.service import ChatService, build_chat_service
 from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
@@ -89,8 +87,6 @@ class Container:
         redis_news_broadcast_storage (RedisNewsBroadcastStorage)
 
         bot (Bot): экземпляр aiogram Bot (используется в scheduler).
-
-        chat_service (ChatService | None): отключён (в разработке).
 
     Notes
         - Конфигурация берётся из settings_bot (api, redis, vpn).
