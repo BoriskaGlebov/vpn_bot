@@ -475,7 +475,7 @@ class SubscriptionRouter(BaseRouter):
             user_logger.info(f"Выбор периода подписки: {months} мес")
             data = await state.get_data()
             is_premium = data.get("premium", False)
-            # #279: founder — признак, который сервер уже проверил и положил
+            # founder — признак, который сервер уже проверил и положил
             # в состояние в _show_subscription_options; данные кнопки
             # (callback_data.founder) для расчёта суммы не используются —
             # иначе её можно было бы подменить до проверки сервером.
@@ -597,7 +597,7 @@ class SubscriptionRouter(BaseRouter):
 
         data = await state.get_data()
         is_premium = data.get("premium", False)
-        # #279: founder — из состояния, не из данных кнопки, см. subscription_selected.
+        # founder — из состояния, не из данных кнопки, см. subscription_selected.
         founder = data.get("founder", False)
         price_map = get_correct_price_map(premium=is_premium, founder=founder)
         sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
@@ -680,7 +680,7 @@ class SubscriptionRouter(BaseRouter):
             )
         )
 
-        # #280: founder/used_trial терялись при переключении режима —
+        # founder/used_trial терялись при переключении режима —
         # жёсткий trial=False возвращал кнопку триала тому, кто его уже
         # использовал, а founder видел обычные тарифы вместо своих.
         # cancel_subscription рядом восстанавливает оба признака из
@@ -727,7 +727,7 @@ class SubscriptionRouter(BaseRouter):
                 raise TransactionIdMissingError()
             data = await state.get_data()
             premium = data.get("premium", False)
-            # #279: founder — из состояния, не из данных кнопки, см. subscription_selected.
+            # founder — из состояния, не из данных кнопки, см. subscription_selected.
             founder = data.get("founder", False)
             price_map = get_correct_price_map(premium=premium, founder=founder)
             price = price_map.get(months)
@@ -870,7 +870,7 @@ class SubscriptionRouter(BaseRouter):
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес), "
                 f"transaction_id={transaction_id}"
             )
-            # #276: referral_result читается после edit_admin_messages, а
+            # referral_result читается после edit_admin_messages, а
             # присваивался он только внутри try вместе с отправкой уведомления
             # пользователю — при TelegramForbiddenError/TelegramBadRequest на
             # той отправке переменная оставалась неинициализированной.
