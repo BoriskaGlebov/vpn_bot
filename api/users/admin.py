@@ -160,41 +160,12 @@ class UserAdmin(ModelView, model=User):
 
 
 def format_users_count(obj: Role, name: str) -> int:
-    """Возвращает количество пользователей, связанных с ролью.
-
-    Args:
-        obj (Role): Экземпляр роли.
-        name (str): Имя колонки (не используется, требуется API sqladmin).
-
-    Returns
-        int: Количество пользователей.
-
-    """
+    """Возвращает количество пользователей, связанных с ролью."""
     return len(obj.users) if obj.users else 0
 
 
 class RoleAdmin(ModelView, model=Role):
-    """Админка для управления ролями пользователей.
-
-    Отображает список ролей, количество пользователей в каждой роли,
-    детальную информацию и позволяет фильтровать и сортировать роли.
-
-    Attributes
-        column_list (list[str | Any]): Колонки, отображаемые в списке ролей.
-        column_details_list (list[str | Any]): Колонки, отображаемые на детальной странице.
-        details_template (str): Путь к кастомному шаблону детальной страницы.
-        column_sortable_list (list[str | Any]): Колонки, доступные для сортировки.
-        column_searchable_list (list[str | Any]): Колонки, по которым возможен поиск.
-        column_formatters (dict[str, callable]): Функции форматирования колонок.
-        can_create (bool): Разрешено ли создавать новые записи.
-        can_edit (bool): Разрешено ли редактировать записи.
-        can_delete (bool): Разрешено ли удалять записи.
-        column_labels (dict[str, str]): Человеко-понятные метки колонок.
-        name (str): Название модели в единственном числе.
-        name_plural (str): Название модели во множественном числе.
-        form_columns (list[str]): Поля, доступные для редактирования.
-
-    """
+    """Админка для управления ролями пользователей."""
 
     column_list = [Role.id, Role.name, Role.description, "users_count"]
     column_details_list = [
