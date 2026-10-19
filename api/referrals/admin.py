@@ -11,22 +11,6 @@ class ReferralAdmin(ModelView, model=Referral):
 
     В этой админке отображаются все рефералы с возможностью сортировки,
     поиска и фильтрации по пользователям и дате выдачи бонуса.
-
-    Attributes
-        name (str): Название модели в единственном числе для админки.
-        name_plural (str): Название модели во множественном числе для админки.
-        column_list (list[str]): Колонки, отображаемые в таблице.
-        column_sortable_list (list[str]): Колонки, по которым возможна сортировка.
-        column_searchable_list (list[str]): Колонки, по которым возможен поиск.
-        column_filters (list[Any]): Фильтры для админки.
-        form_columns (list[str]): Поля, доступные для редактирования.
-        column_labels (dict[str, str]): Подписи колонок.
-        column_formatters (dict[str, callable]): Форматирование отображения значений.
-        can_create (bool): Разрешено ли создавать новые записи.
-        can_edit (bool): Разрешено ли редактировать записи.
-        can_delete (bool): Разрешено ли удалять записи.
-        can_view_details (bool): Разрешено ли просматривать детальную информацию.
-
     """
 
     name = "Реферал"
