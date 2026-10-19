@@ -492,8 +492,6 @@ class VPNService:
         last_error: ThreeXUIError | None = None
 
         async with xray_lock:
-            # Конфиги с известной нодой — обращаемся сразу к нужному адаптеру,
-            # без перебора всех зарегистрированных нод.
             for node_name, ids in by_node.items():
                 adapter = self.xray_registry.get_optional(node_name)
                 if adapter is None:
@@ -519,8 +517,6 @@ class VPNService:
                 extended.extend(done)
                 pending.update(set(ids) - set(done))
 
-            # Конфиги без известной ноды (созданы до появления node_name) —
-            # старое поведение: перебор всех нод до первого совпадения.
             for adapter in self.xray_registry.all() if legacy else []:
                 if not legacy:
                     break
