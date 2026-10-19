@@ -22,23 +22,8 @@ T = TypeVar("T", bound=Base)
 
 
 class BaseDAO(Generic[T]):  # noqa: UP046
-    """Общий класс для работы с объектами моделей в базе данных.
+    """Общий класс для CRUD-операций с моделями через асинхронные сессии SQLAlchemy."""
 
-    Этот класс предоставляет базовые методы для выполнения операций
-    CRUD (создание, чтение, обновление, удаление)
-    для моделей, унаследованных от него. Он использует
-    асинхронные сессии SQLAlchemy.
-
-    Attributes
-        model (Type[T]): Модель, с которой работает данный DAO.
-        Это должен быть тип модели,
-                          указанный в дочернем классе.
-
-
-
-    """
-
-    # noinspection PyTypeHints
     model: type[T]
 
     @staticmethod
@@ -85,8 +70,6 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     def _build_filters(cls, f: dict[str, Any]) -> ColumnElement[bool]:
-        """Построение фильтров для SQLAlchemy из словаря."""
-        # noinspection PyTypeChecker
         filters = [getattr(cls.model, k) == v for k, v in f.items()]
         return and_(*filters) if filters else true()
 
@@ -94,17 +77,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
     async def find_one_or_none_by_id(
         cls, data_id: int | UUID, session: AsyncSession
     ) -> T | None:
-        """Находит запись по ID.
-
-        Args:
-            data_id (int|UUID): Идентификатор записи.
-            session (AsyncSession): Сессия для взаимодействия с БД.
-
-        Returns
-            Optional[T]: Запись с указанным ID или None, если запись не найдена.
-
-        """
-        # noinspection PyTypeChecker
+        """Находит запись по ID."""
         logger.debug(f"[DAO] Поиск {cls.model.__name__} с ID: {data_id}")
 
         query = select(cls.model).where(cls.model.id == data_id)
@@ -124,26 +97,14 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filters: BaseModel,
         options: Sequence[ORMOption] | None = None,
     ) -> T | None:
-        """Находит одну запись по фильтрам.
-
-        Args:
-            options: (Sequence|None): Дополнительные опции.
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            filters (BaseModel): Фильтры для поиска.
-
-        Returns
-            Optional[T]: Найденная запись или None.
-
-        """
+        """Находит одну запись по фильтрам."""
         filter_dict = cls._to_dict(filters=filters)
-        # noinspection PyTypeChecker
         logger.debug(
             f"[DAO] Поиск одной записи {cls.model.__name__} по фильтрам: "
             f"{cls._redact(filter_dict)}"
         )
 
         filters_clause = cls._build_filters(filter_dict)
-        # noinspection PyTypeChecker
         query = select(cls.model).where(filters_clause)
         if options:
             for option in options:
@@ -163,26 +124,14 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         filters: BaseModel | None = None,
         options: Sequence[ORMOption] | None = None,
     ) -> list[T]:
-        """Находит все записи по фильтрам.
-
-        Args:
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            filters (BaseModel): Фильтры для поиска./или без фильтар
-            options: (Sequence|None): Дополнительные опции.
-
-        Returns
-            List[T]: Список найденных записей.
-
-        """
+        """Находит все записи по фильтрам."""
         filter_dict = cls._to_dict(filters=filters)
-        # noinspection PyTypeChecker
         logger.debug(
             f"[DAO] Поиск всех записей {cls.model.__name__} по фильтрам: "
             f"{cls._redact(filter_dict)}"
         )
 
         filters_clause = cls._build_filters(filter_dict)
-        # noinspection PyTypeChecker
         query = select(cls.model).where(filters_clause)
         if options:
             for option in options:
@@ -194,18 +143,8 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     async def add(cls, session: AsyncSession, values: BaseModel) -> T:
-        """Добавляет одну запись в базу данных.
-
-        Args:
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            values (BaseModel): Значения для новой записи.
-
-        Returns
-            T: Добавленная запись.
-
-        """
+        """Добавляет одну запись в базу данных."""
         values_dict = values.model_dump(exclude_unset=True)
-        # noinspection PyTypeChecker
         logger.debug(
             f"[DAO] Добавление записи {cls.model.__name__} с параметрами: "
             f"{cls._redact(values_dict)}"
@@ -215,13 +154,11 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             session.add(new_instance)
             await session.flush()
             await session.refresh(new_instance)
-            # noinspection PyTypeChecker
             logger.info(
                 f"[DAO] Запись {cls.model.__name__} id={new_instance.id} добавлена."
             )
             return new_instance
         except SQLAlchemyError as e:
-            # noinspection PyTypeChecker
             logger.exception(
                 f"[DAO] Ошибка при добавлении записи {cls.model.__name__}: {type(e).__name__}"
             )
@@ -231,20 +168,9 @@ class BaseDAO(Generic[T]):  # noqa: UP046
     async def update(
         cls, session: AsyncSession, filters: BaseModel, values: BaseModel
     ) -> int:
-        """Обновляет записи по фильтрам.
-
-        Args:
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            filters (BaseModel): Фильтры для обновления.
-            values (BaseModel): Новые значения для обновленных записей.
-
-        Returns
-            int: Количество обновленных записей.
-
-        """
+        """Обновляет записи по фильтрам."""
         filter_dict = cls._to_dict(filters=filters)
         values_dict = cls._values_to_dict(values=values)
-        # noinspection PyTypeChecker
         logger.debug(
             f"[DAO] Обновление записей {cls.model.__name__} по фильтру: "
             f"{cls._redact(filter_dict)} с параметрами: {cls._redact(values_dict)}"
@@ -255,7 +181,6 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             raise ValueError("Нужен хотя бы один фильтр для обновления.")
 
         filters_clause = cls._build_filters(filter_dict)
-        # noinspection PyTypeChecker
         query = (
             sqlalchemy_update(cls.model)
             .where(filters_clause)
@@ -270,7 +195,6 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
             return rowcount or 0
         except SQLAlchemyError as e:
-            # noinspection PyTypeChecker
             logger.exception(
                 f"[DAO] Ошибка при обновлении записей {cls.model.__name__}: {type(e).__name__}"
             )
@@ -278,18 +202,8 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     async def delete(cls, session: AsyncSession, filters: BaseModel) -> int:
-        """Удаляет записи по фильтрам.
-
-        Args:
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            filters (BaseModel): Фильтры для удаления.
-
-        Returns
-            int: Количество удаленных записей.
-
-        """
+        """Удаляет записи по фильтрам."""
         filter_dict = cls._to_dict(filters)
-        # noinspection PyTypeChecker
         logger.debug(
             f"[DAO] Удаление записей {cls.model.__name__} по фильтру: "
             f"{cls._redact(filter_dict)}"
@@ -299,14 +213,12 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             raise ValueError("Нужен хотя бы один фильтр для удаления.")
         try:
             filters_clause = cls._build_filters(filter_dict)
-            # noinspection PyTypeChecker
             query = delete(cls.model).where(filters_clause)
             result = await session.execute(query)
             rowcount: int = getattr(result, "rowcount", 0) or 0
             logger.info(f"[DAO] Удалено {rowcount} записей {cls.model.__name__}.")
             return rowcount or 0
         except SQLAlchemyError as e:
-            # noinspection PyTypeChecker
             logger.exception(
                 f"[DAO] Ошибка при удалении записей {cls.model.__name__}: {type(e).__name__}"
             )
@@ -316,23 +228,12 @@ class BaseDAO(Generic[T]):  # noqa: UP046
     async def add_many(
         cls, session: AsyncSession, instances: Sequence[BaseModel]
     ) -> list[T]:
-        """Добавляет несколько записей в базу данных.
-
-        Args:
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            instances (List[BaseModel]): Список значений для новых записей.
-
-        Returns
-            List[T]: Список добавленных записей.
-
-        """
+        """Добавляет несколько записей в базу данных."""
         values_list = [cls._to_dict(item) for item in instances]
-        # noinspection PyTypeChecker
         logger.info(
             f"[DAO] Добавление нескольких записей {cls.model.__name__}. Количество: {len(values_list)}"
         )
         try:
-            # noinspection PyTypeChecker
             new_instances = [cls.model(**values) for values in values_list]
             session.add_all(new_instances)
             await session.flush()
@@ -341,7 +242,6 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             )
             return new_instances
         except SQLAlchemyError as e:
-            # noinspection PyTypeChecker
             logger.exception(
                 f"[DAO] Ошибка при добавлении нескольких записей {cls.model.__name__}: {type(e).__name__}"
             )
@@ -349,18 +249,8 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     async def count(cls, session: AsyncSession, filters: BaseModel) -> int:
-        """Подсчитывает количество записей по фильтрам.
-
-        Args:
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            filters (BaseModel): Фильтры для подсчета.
-
-        Returns
-            int: Количество записей.
-
-        """
+        """Подсчитывает количество записей по фильтрам."""
         filter_dict = cls._to_dict(filters=filters)
-        # noinspection PyTypeChecker
         logger.debug(
             f"[DAO] Подсчет количества записей {cls.model.__name__} по фильтру: "
             f"{cls._redact(filter_dict)}"
@@ -375,17 +265,7 @@ class BaseDAO(Generic[T]):  # noqa: UP046
 
     @classmethod
     async def find_by_ids(cls, session: AsyncSession, ids: list[int]) -> list[T]:
-        """Находит несколько записей по списку ID.
-
-        Args:
-            session (AsyncSession): Сессия для взаимодействия с БД.
-            ids (List[int]): Список ID для поиска.
-
-        Returns
-            List[T]: Список найденных записей.
-
-        """
-        # noinspection PyTypeChecker
+        """Находит несколько записей по списку ID."""
         logger.debug(f"[DAO] Поиск записей {cls.model.__name__} по списку ID: {ids}")
         if not ids:
             return []
