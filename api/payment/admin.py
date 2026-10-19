@@ -75,7 +75,6 @@ class PaymentTransactionAdmin(ModelView, model=PaymentTransaction):
         PaymentTransaction.id,
         "user",
         "amount",
-        # "currency",
         "status",
         "source",
         PaymentTransaction.subscription_months,
