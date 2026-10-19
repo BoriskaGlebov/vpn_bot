@@ -13,7 +13,7 @@ from shared.enums.admin_enum import RoleEnum
 
 
 class AdminService:
-    """Сервис для бизнес-логики управления пользователями и их ролями."""
+    """Сервис управления пользователями и ролями."""
 
     @classmethod
     async def get_user_by_telegram_id(
