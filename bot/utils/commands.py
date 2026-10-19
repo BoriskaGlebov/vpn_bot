@@ -16,13 +16,11 @@ from bot.core.config import (
     settings_bot,
 )
 
-# Команды для обычных пользователей
 user_commands: list[BotCommand] = [
     BotCommand(command=command, description=description)
     for command, description in settings_bot.messages.commands.users.items()
 ]
 
-# Команды для администраторов
 admin_commands: list[BotCommand] = [
     BotCommand(command=command, description=description)
     for command, description in settings_bot.messages.commands.admins.items()
