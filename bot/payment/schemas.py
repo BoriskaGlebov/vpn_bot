@@ -144,7 +144,6 @@ class SCreatePayment(SPaymentTransactionResponse):
 class SAttachProviderPaymentIn(BaseModel):
     """Схема привязки внешнего provider payment."""
 
-    # transaction_id: UUID
     gateway_transaction_id: str
     gateway_payload: dict[Any, Any] | None
 

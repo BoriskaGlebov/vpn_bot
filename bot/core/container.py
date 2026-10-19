@@ -136,8 +136,6 @@ class Container:
     redis_embedding_cache: RedisEmbeddingCache
     redis_news_broadcast_storage: RedisNewsBroadcastStorage
 
-    # chat_service: ChatService | None
-
     def __init__(self, bot: Bot) -> None:
         """Инициализирует сервисы без асинхронных операций."""
         # 1. БАЗОВЫЕ КЛИЕНТЫ
@@ -237,12 +235,9 @@ class Container:
             xray_registry=self.xray_adapters,
         )
 
-        # self.chat_service: ChatService | None = None
-
     async def init(self) -> None:
         """Асинхронно инициализирует сервисы, требующие await."""
         await self.redis_manager.connect()
-        # self.chat_service = await build_chat_service()
 
     async def shutdown(self) -> None:
         """Асинхронно завершает работу сервисов."""

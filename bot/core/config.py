@@ -534,8 +534,6 @@ class Settings(SettingsCommon):
 toml_loader = load_toml_config()
 settings_bot = Settings(**toml_loader)  # type: ignore
 
-# settings_ai = SettingsAI()
-
 LoggerConfig(
     log_dir=BASE_DIR / "bot" / "logs",
     logger_level_stdout=settings_bot.core.logger_level_stdout,
@@ -554,7 +552,4 @@ storage = RedisStorage.from_url(
     state_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни состояния (в секундах)
     data_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни данных FSM
 )
-# Это если работать без Redis
-# dp = Dispatcher(storage=MemoryStorage())
-# Это если работать через Redis
 dp = Dispatcher(storage=storage)

@@ -52,7 +52,6 @@ class PlategaProvider:
 
         """
         payload = {
-            # "paymentMethod": 11,
             "paymentDetails": {
                 # float(int) здесь безопасно (#261) — amount целое число
                 # рублей по всем слоям, без копеек; потери точности нет.
