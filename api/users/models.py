@@ -12,23 +12,7 @@ from api.vpn.models import VPNConfig
 
 
 class User(Base):
-    """Модель пользователя.
-
-    Attributes
-        id (int): Уникальный идентификатор пользователя.
-        telegram_id (int): Идентификатор пользователя в Telegram.
-        username (str | None): Username пользователя.
-        first_name (str | None): Имя пользователя.
-        last_name (str | None): Фамилия пользователя.
-        role_id (int | None): FK на роль.
-        role (Role): Связанная роль.
-        subscriptions (list[Subscription]): Список подписок пользователя.
-        vpn_configs (list[VPNConfig]): VPN-конфиги пользователя.
-        invited_users (list[Referral]): Рефералы, приглашённые пользователем.
-        invited_by (Referral | None): Кто пригласил пользователя.
-        has_used_trial (bool): Использовал ли пользователь триал.
-
-    """
+    """Модель пользователя."""
 
     id: Mapped[int_pk]
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
@@ -106,7 +90,7 @@ class User(Base):
     )
 
     def __str__(self) -> str:
-        """Строковое представление для записи."""
+        """Строковое представление пользователя."""
         parts = [
             self.first_name or "",
             self.last_name or "",
@@ -195,25 +179,12 @@ class User(Base):
 
     @hybrid_property
     def referrals_count(self) -> int:
-        """Возвращает количество приглашённых пользователей.
-
-        Returns
-            int: Число рефералов.
-
-        """
+        """Количество приглашённых пользователей."""
         return len(self.invited_users) if self.invited_users else 0
 
     @referrals_count.expression  # type: ignore[no-redef]
     def referrals_count(cls) -> ScalarSelect[Any]:
-        """SQL-выражение для подсчёта рефералов.
-
-        Args:
-            cls: Класс модели User.
-
-        Returns
-            ScalarSelect[int]: Подзапрос с количеством рефералов.
-
-        """
+        """SQL-выражение для подсчёта рефералов."""
         return (
             select(func.count(Referral.id))
             .where(Referral.inviter_id == cls.id)
@@ -223,12 +194,7 @@ class User(Base):
 
     @hybrid_property
     def paid_referrals_count(self) -> int:
-        """Возвращает количество рефералов, получивших бонус.
-
-        Returns
-            int: Количество рефералов с выданным бонусом.
-
-        """
+        """Количество рефералов, получивших бонус."""
         if not self.invited_users:
             return 0
 
@@ -236,15 +202,7 @@ class User(Base):
 
     @paid_referrals_count.expression  # type: ignore[no-redef]
     def paid_referrals_count(cls) -> ScalarSelect[int]:
-        """SQL-выражение для подсчёта рефералов с бонусом.
-
-        Args:
-            cls: Класс модели User.
-
-        Returns
-            ScalarSelect[int]: Подзапрос с фильтром bonus_given = True.
-
-        """
+        """SQL-выражение для подсчёта рефералов с бонусом."""
         return (
             select(func.count(Referral.id))
             .where(
@@ -272,16 +230,7 @@ class User(Base):
 
 
 class Role(Base):
-    """Модель роли пользователя.
-
-    Attributes
-        id (int): Уникальный идентификатор роли.
-        name (str): Уникальное имя роли.
-        description (str | None): Описание роли.
-        role_users (List[UserRole]): Промежуточные связи между ролями и пользователями.
-        users (List[User]): Пользователи, связанные с ролью (association proxy).
-
-    """
+    """Модель роли пользователя."""
 
     id: Mapped[int_pk]
     name: Mapped[str_uniq]
@@ -292,10 +241,10 @@ class Role(Base):
     )
 
     def __str__(self) -> str:
-        """Строковое представление для записи."""
+        """Строковое представление роли."""
         return f"{self.name} - {self.description}"
 
     @property
     def users_count(self) -> int:
-        """Свойство отображает количество пользователй Роли."""
+        """Количество пользователей роли."""
         return len(self.users) if self.users else 0

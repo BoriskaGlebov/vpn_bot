@@ -93,16 +93,7 @@ class AdminAuth(AuthenticationBackend):
     """
 
     async def login(self, request: Request) -> bool:
-        """Проверяет логин и пароль пользователя.
-
-        Args:
-            request: Входящий HTTP-запрос Starlette.
-
-        Returns
-            True, если авторизация успешна.
-            False, если учетные данные некорректны.
-
-        """
+        """Проверяет логин и пароль пользователя."""
         form: Mapping[str, Any] = await request.form()
 
         username = form.get("username")
@@ -125,15 +116,7 @@ class AdminAuth(AuthenticationBackend):
         return False
 
     async def logout(self, request: Request) -> bool:
-        """Выполняет выход пользователя из системы.
-
-        Args:
-            request: Входящий HTTP-запрос Starlette.
-
-        Returns
-            True после очистки сессии.
-
-        """
+        """Выполняет выход пользователя из системы."""
         request.session.clear()
         return True
 

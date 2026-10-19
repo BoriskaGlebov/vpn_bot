@@ -15,15 +15,7 @@ from shared.enums.admin_enum import RoleEnum
 
 
 class UserDAO(BaseDAO[User]):
-    """Класс для работы с данными пользователей в базе данных.
-
-    Наследует методы от BaseDAO и предоставляет дополнительные
-    операции для работы с пользователями.
-
-    Attributes
-        model (User): Модель, с которой работает этот DAO.
-
-    """
+    """DAO для работы с пользователями."""
 
     model = User
     base_options = [
@@ -106,23 +98,7 @@ class UserDAO(BaseDAO[User]):
     async def get_users_by_roles(
         cls, session: AsyncSession, filter_type: str
     ) -> list[User]:
-        """Получает список пользователей, отфильтрованных по роли.
-
-        Функция выполняет запрос к базе данных с опциональной фильтрацией
-        по роли. Если `filter_type` равен `RoleEnum.ALL`, возвращаются все
-        пользователи. В противном случае — только пользователи с указанной ролью.
-
-        Args:
-            session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
-            filter_type (str): Имя роли для фильтрации или `RoleEnum.ALL`.
-
-        Returns
-            list[User]: Список найденных пользователей.
-
-        Raises
-            SQLAlchemyError: Ошибка выполнения запроса или работы транзакции.
-
-        """
+        """Получает список пользователей, отфильтрованных по роли."""
         try:
             stmt = select(User).join(User.role).options(selectinload(User.role))
             if filter_type != RoleEnum.ALL:
@@ -173,20 +149,7 @@ class UserDAO(BaseDAO[User]):
         user: User,
         role: Role,
     ) -> User:
-        """Изменяет роль пользователя.
-
-        Args:
-            session (AsyncSession): Активная асинхронная сессия SQLAlchemy.
-            user (User): Объект пользователя, чья роль изменяется.
-            role (Role): Новая роль, которая будет назначена пользователю.
-
-        Returns
-            User: Обновлённый объект пользователя.
-
-        Raises
-            SQLAlchemyError: Ошибка при сохранении изменений в базе данных.
-
-        """
+        """Изменяет роль пользователя."""
         try:
             user.role = role
             return user
@@ -236,14 +199,6 @@ class UserDAO(BaseDAO[User]):
 
 
 class RoleDAO(BaseDAO[Role]):
-    """Класс DAO для работы с ролями пользователей.
-
-    Наследует общие методы из `BaseDAO` и обеспечивает доступ к данным
-    таблицы `roles`.
-
-    Attributes
-        model (type[Role]): Модель ORM, с которой работает данный DAO.
-
-    """
+    """DAO для работы с ролями пользователей."""
 
     model = Role
