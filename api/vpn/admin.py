@@ -8,52 +8,21 @@ from api.vpn.models import VPNConfig
 
 
 def format_user(obj: VPNConfig, name: str) -> str:
-    """Форматирует отображение пользователя в списке.
-
-    Args
-        obj: Экземпляр VPNConfig.
-        name: Имя поля (требуется sqladmin, не используется).
-
-    Returns
-        str: Строка формата
-            "<username> (<telegram_id>)"
-            или "-" если пользователь отсутствует.
-
-    """
+    """Форматирует отображение пользователя в списке."""
     if obj.user is None:
         return "-"
     return f"{obj.user.username or '-'} ({obj.user.telegram_id})"
 
 
 def format_pub_key(obj: VPNConfig, name: str) -> str:
-    """Форматирует публичный ключ для отображения.
-
-    Обрезает ключ до 25 символов для компактного вывода.
-
-    Args
-        obj: Экземпляр VPNConfig.
-        name: Имя поля (требуется sqladmin, не используется).
-
-    Returns
-        str: Укороченный публичный ключ или "-".
-
-    """
+    """Форматирует публичный ключ для отображения."""
     if not obj.pub_key:
         return "-"
     return f"{obj.pub_key[:25]}..."
 
 
 def format_status(obj: VPNConfig, name: str) -> Markup:
-    """Форматирует статус конфига цветным бейджем.
-
-    Args
-        obj: Экземпляр VPNConfig.
-        name: Имя поля (требуется sqladmin, не используется).
-
-    Returns
-        Markup с цветным бейджем статуса.
-
-    """
+    """Форматирует статус конфига цветным бейджем."""
     status = obj.status.value
     label = VPN_CONFIG_STATUS_LABELS.get(status, status)
     color = VPN_CONFIG_BADGE_COLORS.get(status, "dark")
@@ -61,31 +30,7 @@ def format_status(obj: VPNConfig, name: str) -> Markup:
 
 
 class VPNConfigAdmin(ModelView, model=VPNConfig):
-    """Административное представление модели VPNConfig.
-
-    Конфигурирует:
-        - список отображаемых колонок,
-        - сортировку и поиск,
-        - фильтрацию,
-        - форматирование отображаемых значений,
-        - права доступа к операциям.
-
-    Attributes
-        name (str): Отображаемое имя модели в админке.
-        name_plural (str): Отображаемое имя во множественном числе.
-        column_list (list[str]): Колонки, отображаемые в таблице.
-        column_sortable_list (list[str]): Колонки, доступные для сортировки.
-        column_searchable_list (list[str]): Колонки, участвующие в поиске.
-        column_filters (list[Any]): Фильтры в правой панели.
-        column_labels (dict[str, str]): Отображаемые подписи колонок.
-        column_formatters (dict[str, Any]): Кастомные форматтеры колонок.
-        can_create (bool): Разрешено ли создание записи.
-        can_edit (bool): Разрешено ли редактирование записи.
-        can_delete (bool): Разрешено ли удаление записи.
-        can_view_details (bool): Разрешён ли просмотр деталей.
-        details_template (str): Шаблон страницы деталей.
-
-    """
+    """Административное представление модели VPNConfig."""
 
     name = "VPN конфиг"
     name_plural = "VPN конфиги"

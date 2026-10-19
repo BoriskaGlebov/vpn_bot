@@ -13,14 +13,7 @@ if TYPE_CHECKING:
 
 
 class VPNConfigStatus(str, Enum):
-    """Статус жизненного цикла конфигурации VPN.
-
-    Attributes
-        ACTIVE: Конфигурация активна и используется.
-        PENDING_DELETE: Конфигурация помечена для удаления.
-        DELETED: Конфигурация удалена.
-
-    """
+    """Статус жизненного цикла конфигурации VPN."""
 
     ACTIVE = "active"
     PENDING_DELETE = "pending_delete"

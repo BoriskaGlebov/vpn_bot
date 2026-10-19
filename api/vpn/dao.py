@@ -17,14 +17,7 @@ from api.vpn.schemas import SVPNUserConfigsFilter
 
 @dataclass(frozen=True)
 class VPNLimitStatus:
-    """Результат проверки лимита VPN-конфигов пользователя.
-
-    Attributes
-        can_add (bool): Может ли пользователь добавить ещё один конфиг.
-        limit (int): Лимит устройств, который был применён.
-        current (int): Текущее количество активных конфигов.
-
-    """
+    """Результат проверки лимита VPN-конфигов пользователя."""
 
     can_add: bool
     limit: int
