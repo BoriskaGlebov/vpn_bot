@@ -15,20 +15,7 @@ class ReferralDAO(BaseDAO[Referral]):
     async def add_referral(
         cls, session: AsyncSession, inviter_id: int, invited_id: int
     ) -> Referral:
-        """Добавляет запись о новом приглашении в базу данных.
-
-        Args:
-            session (AsyncSession): Асинхронная сессия SQLAlchemy.
-            inviter_id (int): ID пользователя, который пригласил.
-            invited_id (int): ID приглашенного пользователя.
-
-        Returns
-            Referral: Созданный объект Referral.
-
-        Raises
-            SQLAlchemyError: Если произошла ошибка при добавлении записи.
-
-        """
+        """Добавляет запись о новом приглашении в базу данных."""
         try:
             referral = Referral(
                 inviter_id=inviter_id,
