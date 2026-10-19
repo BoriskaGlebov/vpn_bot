@@ -295,7 +295,7 @@ class PaymentFailedError(PaymentError):
 class PaymentInvalidSourceError(PaymentError):
     """Невалидное сочетание source/admin_id при подтверждении платежа.
 
-    Поднимается `confirm_payment_flow` (см. #256), когда `payment_source`
+    Поднимается `confirm_payment_flow`, когда `payment_source`
     не входит в поддерживаемый набор, либо `payment_source=MANUAL`, но
     `admin_id` не передан. Это нарушение контракта вызова, а не сбой
     инфраструктуры — раньше здесь поднимался `ValueError`, который не
