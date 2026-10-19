@@ -12,8 +12,6 @@ from pydantic import ValidationError
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
-
-# from bot.ai.router import AIRouter
 from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
 from bot.core.schemas import SHealthResponse
@@ -137,16 +135,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # которое иначе никуда не всплывёт.
     resume_broadcast_task = asyncio.create_task(news_router.resume_pending_broadcast())
     resume_broadcast_task.add_done_callback(_log_resume_broadcast_result)
-
-    # if container.chat_service is None:
-    #     raise RuntimeError("ChatService ещё не инициализирован!")
-    # ai_router = AIRouter(
-    #     bot=bot,
-    #     logger=logger,  # type: ignore[arg-type]
-    #     redis_manager=container.redis_manager,
-    #     chat_service=container.chat_service,
-    # )
-    # dp.include_router(ai_router.router)
 
     await start_bot(bot=bot)
 

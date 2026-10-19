@@ -108,7 +108,6 @@ class PaymentAPIAdapter:
         )
 
         payload = SAttachProviderPaymentIn(
-            # transaction_id=transaction_id,
             gateway_transaction_id=gateway_transaction_id,
             gateway_payload=gateway_payload,
         )
