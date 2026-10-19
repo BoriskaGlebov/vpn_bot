@@ -138,7 +138,7 @@ class PaymentTransactionAdmin(ModelView, model=PaymentTransaction):
     # Платёжная запись — финансовый документ. create/edit через SQLAdmin
     # писали бы amount/status/paid_at/user мимо confirm_payment_flow —
     # единственного места, где подтверждение сопровождается активацией
-    # подписки и продлением XRay-конфигов (см. #260). Результат правки был
+    # подписки и продлением XRay-конфигов. Результат правки был
     # бы рассогласован по построению: либо PAID без подписки, либо подписка
     # без транзакции, и без единого следа, кто и что изменил (есть только
     # updated_at). Ручная корректировка статуса — через
@@ -148,7 +148,6 @@ class PaymentTransactionAdmin(ModelView, model=PaymentTransaction):
     can_edit = False
     # Удаление платёжной записи — потеря финансовой истории без возможности
     # восстановления (ни on_model_delete, ни архивирования нет).
-    # (см. #246).
     can_delete = False
     can_view_details = True
     name = "Платеж"

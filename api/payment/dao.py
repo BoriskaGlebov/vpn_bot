@@ -50,8 +50,8 @@ class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):
             f"[DAO] Расчет годового дохода для {cls.model.__name__}. Год: {year}"
         )
         # Границы года в таймзоне проекта, а не наивные — paid_at хранится
-        # как timestamptz (см. #255), и наивная граница сравнивалась бы по
-        # TimeZone сессии Postgres, а не по явной зоне проекта.
+        # как timestamptz, и наивная граница сравнивалась бы по TimeZone
+        # сессии Postgres, а не по явной зоне проекта.
         start = datetime(year, 1, 1, tzinfo=tz)
         end = datetime(year + 1, 1, 1, tzinfo=tz)
 

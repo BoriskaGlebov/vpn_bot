@@ -39,8 +39,8 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
         перечитывает его из БД и поэтому не может столкнуться с
         "пользователь не найден"; эта проверка — забота вызывающего. Это
         единственное место, которое считает `current`/`limit`/`can_add`,
-        поэтому `check_limit` и `add_config` не могут разойтись в счёте
-        (см. #269). Считаются только конфиги со статусом `ACTIVE` —
+        поэтому `check_limit` и `add_config` не могут разойтись в счёте.
+        Считаются только конфиги со статусом `ACTIVE` —
         `PENDING_DELETE`/`DELETED` не занимают слот.
 
         Args:
@@ -114,7 +114,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
             if not status.can_add:
                 # Ожидаемое бизнес-ограничение (превышен лимит устройств),
                 # а не системная ошибка. limit — именно тот, что применялся
-                # в сравнении выше, а не настройка по умолчанию (см. #269).
+                # в сравнении выше, а не настройка по умолчанию.
                 logger.warning(
                     f"[DAO] Создание конфига отклонено — пользователь {user.id} "
                     f"достиг лимита {status.limit}",
@@ -136,8 +136,7 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
                 config_ids=config_ids,
             )
             session.add(config)
-            # flush до лога успеха — иначе config.id ещё None (см. #274,
-            # тот же класс, что #233 у add_many).
+            # flush до лога успеха — иначе config.id ещё None.
             await session.flush()
             logger.success(
                 f"[DAO] Создан новый VPNConfig id={config.id} для пользователя {user.id} (файл='{file_name}')",

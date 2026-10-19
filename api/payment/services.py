@@ -324,7 +324,7 @@ class PaymentService:
     ) -> SPaymentTransactionResponse:
         """Помечает начало обработки платежа.
 
-        Обновляет дату начала обработки платежа (paid_at или аналогичное поле),
+        Обновляет поле `paid_at` транзакции (`PaymentTransaction.paid_at`),
         фиксируя момент старта платежного процесса.
 
         Args:

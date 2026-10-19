@@ -70,8 +70,7 @@ async def get_user_referrals(
 ) -> SUserWithReferralStats:
     """Возвращает пользователя с реферальной статистикой.
 
-    Выполняет получение пользователя по Telegram ID и рассчитывает
-    агрегированную статистику по рефералам.
+    Включает referrals_count, paid_referrals_count, referral_conversion.
 
     Args:
         telegram_id (int): Telegram ID пользователя.
@@ -80,10 +79,7 @@ async def get_user_referrals(
         user_auth (User): Проверка,что пользователь зарегистрирован.
 
     Returns
-        SUserWithReferralStats: DTO пользователя, включающий:
-            - referrals_count (int): Общее количество рефералов.
-            - paid_referrals_count (int): Количество рефералов с оплатой.
-            - referral_conversion (float): Конверсия (paid / total).
+        SUserWithReferralStats: DTO пользователя с реферальной статистикой.
 
     Raises
         UserNotFoundError: Если пользователь с указанным Telegram ID не найден.

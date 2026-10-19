@@ -17,7 +17,7 @@ class User(Base):
     id: Mapped[int_pk]
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
     # Telegram-username не обязателен, изменяем и переиспользуем — уникальность
-    # должна быть на telegram_id (выше), а не здесь (см. #242).
+    # должна быть на telegram_id (выше), а не здесь.
     username: Mapped[str_null_true]
     first_name: Mapped[str_null_true]
     last_name: Mapped[str_null_true]
@@ -36,7 +36,7 @@ class User(Base):
         lazy="selectin",
         # Приоритет строится из SUBSCRIPTION_PRIORITY (api/subscription/models.py) —
         # единого источника для всех пяти значений SubscriptionType, а не
-        # перечислением вручную (см. #277: FOUNDER/ULTIMATE выпадали в else_=0).
+        # перечислением вручную.
         order_by=lambda: (
             Subscription.is_active.desc(),
             case(
@@ -115,30 +115,12 @@ class User(Base):
 
     @hybrid_property
     def vpn_files_count(self) -> int:
-        """Возвращает количество VPN конфигов, связанных с пользователем.
-
-        Это обычный Python property, которое считает элементы в списке `vpn_configs`.
-
-        Returns
-            int: Количество VPN конфигов пользователя.
-
-        """
+        """Количество VPN-конфигов пользователя."""
         return len(self.vpn_configs)
 
     @vpn_files_count.expression  # type: ignore[no-redef]
     def vpn_files_count(cls) -> ScalarSelect[Any]:
-        """SQL-выражение для подсчёта VPN-конфигов.
-
-        Используется в ORM-запросах для сортировки и фильтрации без загрузки
-        связанных объектов.
-
-        Args:
-            cls: Класс модели User (SQLAlchemy ORM context).
-
-        Returns
-            ScalarSelect[int]: Подзапрос с COUNT(VPNConfig.id).
-
-        """
+        """SQL-выражение COUNT(VPNConfig.id) для сортировки и фильтрации без загрузки связей."""
         return (
             select(func.count(VPNConfig.id))
             .where(VPNConfig.user_id == cls.id)
@@ -148,28 +130,12 @@ class User(Base):
 
     @hybrid_property
     def payments_count(self) -> int:
-        """Возвращает количество платёжных транзакций пользователя.
-
-        Returns
-            int: Количество платежей пользователя.
-
-        """
+        """Количество платёжных транзакций пользователя."""
         return len(self.payments)
 
     @payments_count.expression  # type: ignore[no-redef]
     def payments_count(cls) -> ScalarSelect[Any]:
-        """SQL-выражение для подсчёта платежей.
-
-        Используется в ORM-запросах для сортировки и фильтрации без загрузки
-        связанных объектов.
-
-        Args:
-            cls: Класс модели User (SQLAlchemy ORM context).
-
-        Returns
-            ScalarSelect[int]: Подзапрос с COUNT(PaymentTransaction.id).
-
-        """
+        """SQL-выражение COUNT(PaymentTransaction.id) для сортировки и фильтрации без загрузки связей."""
         return (
             select(func.count(PaymentTransaction.id))
             .where(PaymentTransaction.user_id == cls.id)

@@ -72,7 +72,6 @@ async def start_trial(
         STrialActivateResponse: статус активации trial
 
     Raises
-        ActiveSubscriptionExistsError
         TrialAlreadyUsedError
 
     """

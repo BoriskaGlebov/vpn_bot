@@ -141,7 +141,7 @@ class PaymentTransaction(Base):
     )
 
     # GATEWAY FUTURE
-    # index=True (#288): индекс ix_paymenttransactions_gateway_transaction_id
+    # index=True: индекс ix_paymenttransactions_gateway_transaction_id
     # уже есть в базе (создан миграцией f5bf5fd690ef), но модель его не
     # объявляла — для alembic модель это источник истины, поэтому
     # autogenerate каждый раз предлагал его удалить (уже один раз просочилось
@@ -156,9 +156,9 @@ class PaymentTransaction(Base):
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # timezone=True — см. #255: сверить с временем провайдера (Platega
-    # присылает своё время в вебхуке) нельзя, пока неизвестно, в какой зоне
-    # записан paid_at; наивная метка в час перехода на летнее время вообще
+    # timezone=True: сверить с временем провайдера (Platega присылает своё
+    # время в вебхуке) нельзя, пока неизвестно, в какой зоне записан
+    # paid_at; наивная метка в час перехода на летнее время вообще
     # неразрешимо двусмысленна.
     confirmed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
