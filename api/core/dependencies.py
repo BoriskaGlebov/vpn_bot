@@ -1,4 +1,3 @@
-# bot/core/dependencies.py
 import secrets
 from collections.abc import AsyncGenerator
 

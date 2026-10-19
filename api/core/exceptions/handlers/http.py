@@ -17,23 +17,7 @@ from api.core.exceptions.schema import ErrorDetail, ErrorEnvelope
 
 
 async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Обрабатывает пользовательские API-исключения приложения.
-
-    Хендлер предназначен для обработки всех исключений,
-    наследующихся от `APIError`, и преобразования их
-    в унифицированный JSON-ответ API.
-
-    Если исключение не относится к типу `APIError`,
-    управление передаётся в обработчик непредвиденных ошибок.
-
-    Args:
-        request: Текущий HTTP-запрос.
-        exc: Обрабатываемое исключение.
-
-    Returns
-        JSONResponse: HTTP-ответ с сериализованной ошибкой API.
-
-    """
+    """Обрабатывает исключения `APIError`."""
     await log_cause(exc=exc)
     if not isinstance(exc, APIError):
         return await unexpected_exception_logger(exc=exc)
@@ -168,20 +152,7 @@ async def database_exception_handler(
     request: Request,
     exc: Exception,
 ) -> JSONResponse:
-    """Обрабатывает ошибки работы с базой данных.
-
-    Перехватывает исключения SQLAlchemy, логирует информацию
-    об ошибке и возвращает безопасный HTTP-ответ без раскрытия
-    внутренних деталей реализации базы данных.
-
-    Args:
-        request: Текущий HTTP-запрос.
-        exc: Исключение, связанное с базой данных.
-
-    Returns
-        JSONResponse: HTTP-ответ со статусом 500.
-
-    """
+    """Обрабатывает ошибки работы с базой данных."""
     exc = cast(SQLAlchemyError, exc)
     logger.exception(
         "DatabaseException path={} exc_type={}",

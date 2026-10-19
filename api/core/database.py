@@ -160,12 +160,7 @@ class Base(AsyncAttrs, DeclarativeBase):
 
     @declared_attr.directive
     def __tablename__(self) -> str:
-        """Автоматически формирует имя таблицы в нижнем регистре с окончанием 's'.
-
-        Returns
-            str: Имя таблицы для модели.
-
-        """
+        """Формирует имя таблицы."""
         return f"{self.__name__.lower()}s"
 
     created_at: Mapped[created_at]
@@ -212,5 +207,5 @@ class Base(AsyncAttrs, DeclarativeBase):
         return f"<{self.__class__.__name__} id={getattr(self, 'id', None)!r}>"
 
     def __str__(self) -> str:
-        """Возвращает то же краткое представление, что и `__repr__`."""
+        """Краткое представление модели."""
         return self.__repr__()
