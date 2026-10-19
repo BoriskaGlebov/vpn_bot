@@ -39,6 +39,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          poetry env use "$(which python)"
           poetry install --only dev --no-root --no-interaction --no-ansi
       - name: Run Black
         run: poetry run black --check .
@@ -76,6 +77,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          poetry env use "$(which python)"
           poetry install --no-root --with dev
       - name: Run tests
         env:
@@ -115,6 +117,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          poetry env use "$(which python)"
           poetry install --no-root --with dev
       - name: Run integration tests
         env:
