@@ -1,10 +1,7 @@
-# bot/core/container.py
 from aiogram import Bot
 
 from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
-
-# from bot.ai.services.service import ChatService, build_chat_service
 from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
@@ -18,6 +15,7 @@ from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.redis_service import (
     RedisAdminMessageStorage,
     RedisEmbeddingCache,
+    RedisNewsBroadcastStorage,
     RedisPaymentMessageStorage,
 )
 from bot.referrals.adapter import ReferralAPIAdapter
@@ -86,10 +84,9 @@ class Container:
         redis_admin_mess_storage (RedisAdminMessageStorage)
         redis_payment_mess_storage (RedisPaymentMessageStorage)
         redis_embedding_cache (RedisEmbeddingCache)
+        redis_news_broadcast_storage (RedisNewsBroadcastStorage)
 
         bot (Bot): экземпляр aiogram Bot (используется в scheduler).
-
-        chat_service (ChatService | None): отключён (в разработке).
 
     Notes
         - Конфигурация берётся из settings_bot (api, redis, vpn).
@@ -132,12 +129,10 @@ class Container:
     redis_admin_mess_storage: RedisAdminMessageStorage
     redis_payment_mess_storage: RedisPaymentMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
-
-    # chat_service: ChatService | None
+    redis_news_broadcast_storage: RedisNewsBroadcastStorage
 
     def __init__(self, bot: Bot) -> None:
         """Инициализирует сервисы без асинхронных операций."""
-        # 1. БАЗОВЫЕ КЛИЕНТЫ
         self.redis_manager = RedisClient(
             str(settings_bot.redis.url),
             default_expire=settings_bot.redis.default_expire,
@@ -145,12 +140,14 @@ class Container:
         self.redis_admin_mess_storage = RedisAdminMessageStorage(self.redis_manager)
         self.redis_payment_mess_storage = RedisPaymentMessageStorage(self.redis_manager)
         self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
+        self.redis_news_broadcast_storage = RedisNewsBroadcastStorage(
+            self.redis_manager
+        )
         self.api_client = APIClient(
             base_url=settings_bot.api.url,
             port=settings_bot.api.port,
             internal_secret=settings_bot.api.secret.get_secret_value(),
         )
-        # 2. ADAPTERS API (обычные)
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAPIAdapter(client=self.api_client)
@@ -165,7 +162,7 @@ class Container:
         self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
         self.scheduler_adapter = SchedulerAPIAdapter(client=self.api_client)
-        # 3. 🔥 ВОТ ЗДЕСЬ ВСТАВЛЯЕШЬ XRayRegistry
+        # 3. XRAY REGISTRY
         xray_adapters: dict[str, ThreeXUIAdapter] = {}
         xray_clients: list[APIClient] = []
         for name, node in settings_bot.vpn.nodes.items():
@@ -196,7 +193,6 @@ class Container:
         self._xray_clients = xray_clients
         self.xray_adapters = XRayRegistry(xray_adapters)
 
-        # 4. SERVICES
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
@@ -231,12 +227,9 @@ class Container:
             xray_registry=self.xray_adapters,
         )
 
-        # self.chat_service: ChatService | None = None
-
     async def init(self) -> None:
         """Асинхронно инициализирует сервисы, требующие await."""
         await self.redis_manager.connect()
-        # self.chat_service = await build_chat_service()
 
     async def shutdown(self) -> None:
         """Асинхронно завершает работу сервисов."""

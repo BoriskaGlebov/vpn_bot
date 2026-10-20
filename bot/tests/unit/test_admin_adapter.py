@@ -97,7 +97,7 @@ async def test_extend_subscription(api_client, user_response):
 async def test_year_income_calls_client_with_current_year(mocker):
     """Проверяет корректный вызов client.get."""
     client = mocker.Mock()
-    client.get = AsyncMock(return_value={"year_income": 1000})
+    client.get = AsyncMock(return_value=({"year_income": 1000}, 200))
 
     adapter = AdminAPIAdapter(client)
 
@@ -119,7 +119,7 @@ async def test_year_income_returns_validated_schema(mocker):
     }
 
     client = mocker.Mock()
-    client.get = AsyncMock(return_value=response_data)
+    client.get = AsyncMock(return_value=(response_data, 200))
 
     adapter = AdminAPIAdapter(client)
 
@@ -135,7 +135,7 @@ async def test_year_income_passes_response_to_model_validate(mocker):
     response_data = {"year_income": 1000}
 
     client = mocker.Mock()
-    client.get = AsyncMock(return_value=response_data)
+    client.get = AsyncMock(return_value=(response_data, 200))
 
     validate_mock = mocker.patch.object(
         SYearIncome,

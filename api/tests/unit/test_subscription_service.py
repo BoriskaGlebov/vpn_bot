@@ -10,6 +10,7 @@ from api.subscription.models import Subscription, SubscriptionType
 from api.subscription.services import SubscriptionService
 from api.users.models import User
 from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import TrialStatus
 
 
 @pytest.fixture
@@ -57,8 +58,8 @@ async def test_check_premium_true(user, session, monkeypatch):
 
     result = await SubscriptionService.check_premium(session, tg_id=123)
 
-    assert result[0] is False  # STANDARD в фикстуре
-    assert result[1] is not None
+    assert result.premium is False  # STANDARD в фикстуре
+    assert result.role is not None
 
 
 @pytest.mark.asyncio
@@ -81,10 +82,14 @@ async def test_start_trial_extend(user, session, monkeypatch):
         AsyncMock(return_value=user),
     )
 
-    await SubscriptionService.start_trial_subscription(session, tg_id=123, days=10)
+    result = await SubscriptionService.start_trial_subscription(
+        session, tg_id=123, days=10
+    )
 
     user.current_subscription.extend.assert_called_once_with(days=10)
     assert user.has_used_trial is True
+    # #283: продление отвечает EXTENDED, а не тем же значением, что создание.
+    assert result == TrialStatus.EXTENDED
 
 
 @pytest.mark.asyncio
@@ -122,13 +127,17 @@ async def test_start_trial_create_new(session, monkeypatch):
         activate_mock,
     )
 
-    await SubscriptionService.start_trial_subscription(
+    result = await SubscriptionService.start_trial_subscription(
         session,
         tg_id=123,
         days=10,
     )
 
     activate_mock.assert_awaited_once()
+    assert user.has_used_trial is True
+    # #283: Subscription.activate() больше не выставляет has_used_trial сам —
+    # это делает сервис; создание (в отличие от продления) отвечает STARTED.
+    assert result == TrialStatus.STARTED
 
     session.refresh.assert_awaited_once_with(
         user,
@@ -147,7 +156,7 @@ async def test_activate_paid_extend(user, session, monkeypatch):
     user.subscriptions = [user.current_subscription]
 
     result = await SubscriptionService.activate_paid_subscription(
-        session, user_id=123, months=3, premium=False
+        session, tg_id=123, months=3, premium=False
     )
 
     user.current_subscription.extend.assert_called_once_with(months=3)
@@ -165,7 +174,7 @@ async def test_activate_paid_founder(user, session, monkeypatch):
     )
 
     result = await SubscriptionService.activate_paid_subscription(
-        session, user_id=123, months=3, premium=True
+        session, tg_id=123, months=3, premium=True
     )
 
     assert result is not None
@@ -192,15 +201,55 @@ async def test_activate_paid_create(session, monkeypatch):
 
     monkeypatch.setattr(
         "api.subscription.services.UserMapper.to_schema",
-        AsyncMock(return_value={"ok": True}),
+        MagicMock(return_value={"ok": True}),
     )
 
     result = await SubscriptionService.activate_paid_subscription(
-        session, user_id=123, months=3, premium=False
+        session, tg_id=123, months=3, premium=False
     )
 
     mock_dao.assert_awaited_once()
     assert result == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_activate_paid_create_deactivates_other_active_type(session, monkeypatch):
+    """Активная подписка ДРУГОГО типа (например, TRIAL) не попадает в поиск по
+    sub_type и раньше оставалась брошенной is_active=True (#275) — теперь
+    деактивируется явно перед созданием новой платной подписки.
+    """
+    user = MagicMock()
+    user.role.name = RoleEnum.USER
+
+    abandoned_trial = MagicMock(spec=Subscription)
+    abandoned_trial.is_active = True
+    abandoned_trial.type = SubscriptionType.TRIAL
+    abandoned_trial.deactivate = MagicMock()
+
+    user.subscriptions = [abandoned_trial]
+    user.current_subscription = abandoned_trial
+
+    monkeypatch.setattr(
+        "api.subscription.services.UserDAO.find_one_or_none",
+        AsyncMock(return_value=user),
+    )
+
+    mock_dao = AsyncMock()
+    monkeypatch.setattr(
+        "api.subscription.services.SubscriptionDAO.activate_subscription",
+        mock_dao,
+    )
+    monkeypatch.setattr(
+        "api.subscription.services.UserMapper.to_schema",
+        MagicMock(return_value={"ok": True}),
+    )
+
+    await SubscriptionService.activate_paid_subscription(
+        session, tg_id=123, months=3, premium=False
+    )
+
+    abandoned_trial.deactivate.assert_called_once()
+    mock_dao.assert_awaited_once()
 
 
 @pytest.mark.asyncio

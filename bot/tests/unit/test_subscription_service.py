@@ -32,7 +32,9 @@ async def test_check_premium(service, adapter_mock):
 
     result = await service.check_premium(tg_id=123)
 
-    assert result == (True, RoleEnum.USER, True, True)
+    assert result == SSubscriptionCheck(
+        premium=True, role=RoleEnum.USER, is_active=True, used_trial=True
+    )
 
     adapter_mock.check_premium.assert_awaited_once_with(tg_id=123)
 
@@ -141,7 +143,7 @@ async def test_get_subscription_info_no_subscription(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="no_subscription",
         subscription_type=None,
-        remaining="0",
+        remaining=0,
         configs=[],
         end_date=None,
     )
@@ -165,10 +167,20 @@ async def test_get_subscription_info_active(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="active",
         subscription_type="premium",
-        remaining="10 дней",
+        remaining=10,
         configs=[
-            SVPNConfig(file_name="conf1"),
-            SVPNConfig(file_name="conf2"),
+            SVPNConfig(
+                id=1,
+                file_name="conf1",
+                node_name="main",
+                created_at=datetime(2026, 1, 1),
+            ),
+            SVPNConfig(
+                id=2,
+                file_name="conf2",
+                node_name="sof",
+                created_at=datetime(2026, 1, 2),
+            ),
         ],
         end_date=datetime(2026, 1, 1),
     )
@@ -182,8 +194,10 @@ async def test_get_subscription_info_active(mocker):
     assert "✅ Активна" in result
     assert "<b>PREMIUM</b>" in result
     assert "10 дней до (2026-01-01)" in result
-    assert "📌 conf1" in result
-    assert "📌 conf2" in result
+    assert "📌 <b>conf1</b> <code>#1</code>" in result
+    assert "📌 <b>conf2</b> <code>#2</code>" in result
+    assert "Создан: 2026-01-01" in result
+    assert "Создан: 2026-01-02" in result
 
 
 @pytest.mark.asyncio
@@ -196,7 +210,7 @@ async def test_get_subscription_info_inactive_no_end_date(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="inactive",
         subscription_type=None,
-        remaining="0",
+        remaining=0,
         configs=[],
         end_date=None,
     )
@@ -221,7 +235,7 @@ async def test_is_subscription_active_true(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="active",
         subscription_type="premium",
-        remaining="10 дней",
+        remaining=10,
         configs=[],
         end_date=datetime(2026, 1, 1),
     )
@@ -243,7 +257,7 @@ async def test_is_subscription_active_false(mocker):
     api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
         status="inactive",
         subscription_type=None,
-        remaining="0",
+        remaining=0,
         configs=[],
         end_date=None,
     )

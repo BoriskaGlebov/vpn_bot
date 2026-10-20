@@ -1,15 +1,18 @@
 from enum import StrEnum
-from typing import Final
-
-# Значение `months` в `SubscriptionCB`, обозначающее выбор пробного периода (7 дней), а не платной подписки.
-TRIAL_PERIOD_SENTINEL: Final = 7
 
 
 class SubscriptionAction(StrEnum):
     """Действия, связанные с выбором подписки.
 
     Attributes
-        SELECT: Пользователь выбирает тип подписки.
+        SELECT: Пользователь выбирает платный период подписки.
+        TRIAL: Пользователь выбирает пробный период. Отдельное действие, а
+            не особое значение `months` — ранее признаком пробного периода
+            было совпадение `months` с числом его длительности в днях
+            (`TRIAL_PERIOD_SENTINEL`), из-за чего платный тариф на столько
+            же месяцев было невозможно завести, а смена длительности триала
+            меняла и признак его выбора. Длительность теперь
+            берётся из `settings.core.trial_period_days`.
         PAY_CARD: Пользователь выбрал оплату картой (автоматически, через платёжный шлюз).
         PAY_TRANSFER: Пользователь выбрал оплату переводом (вручную, с проверкой администратором).
         PAID: Пользователь подтвердил перевод ("Я оплатил") — ждём проверки администратором.
@@ -18,27 +21,11 @@ class SubscriptionAction(StrEnum):
     """
 
     SELECT = "select"
+    TRIAL = "trial"
     PAY_CARD = "pay_card"
     PAY_TRANSFER = "pay_transfer"
     PAID = "paid"
     CANCEL = "cancel"
-
-
-class ToggleSubscriptionMode(StrEnum):
-    """Режим переключения между типами подписки.
-
-    Attributes
-        STANDARD: Стандартный режим подписки.
-        PREMIUM: Премиум-режим подписки.
-        FOUNDER: Подписки основателей.
-        ULTIMATE: Премиум-режим подписки без ограничений.
-
-    """
-
-    STANDARD = "standard"
-    PREMIUM = "premium"
-    FOUNDER = "founder"
-    ULTIMATE = "ultimate"
 
 
 class AdminPaymentAction(StrEnum):

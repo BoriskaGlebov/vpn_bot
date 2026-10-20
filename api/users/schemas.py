@@ -4,12 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SUserTelegramID(BaseModel):
-    """Схема для идентификации пользователя по Telegram ID.
-
-    Attributes
-        telegram_id (int): Уникальный идентификатор пользователя в Telegram.
-
-    """
+    """Схема для идентификации пользователя по Telegram ID."""
 
     telegram_id: int = Field(
         ..., description="Уникальный идентификатор пользователя в Telegram"
@@ -19,15 +14,7 @@ class SUserTelegramID(BaseModel):
 
 
 class SUser(SUserTelegramID):
-    """Схема пользователя Telegram с расширенной информацией.
-
-    Attributes
-        telegram_id (int): Уникальный идентификатор пользователя в Telegram.
-        username (Optional[str]): Имя пользователя в Telegram.
-        first_name (Optional[str]): Имя пользователя.
-        last_name (Optional[str]): Фамилия пользователя.
-
-    """
+    """Схема пользователя Telegram с расширенной информацией."""
 
     username: str | None = Field(None, description="Имя пользователя в Telegram")
     first_name: str | None = Field(None, description="Имя пользователя")
@@ -39,14 +26,26 @@ class SUser(SUserTelegramID):
     )
 
 
-class SRole(BaseModel):
-    """Схема роли пользователя.
+class SUsernameUpdate(BaseModel):
+    """Схема обновления username при повторном входе пользователя.
+
+    Telegram-username изменяем и необязателен — хранимое значение иначе
+    тихо устаревает по сравнению с актуальным.
 
     Attributes
-        name (str): Уникальное имя роли.
-        description (Optional[str]): Описание роли.
+        username (str | None): Текущее значение username из Telegram.
 
     """
+
+    username: str | None = Field(
+        None, description="Текущее имя пользователя в Telegram"
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SRole(BaseModel):
+    """Схема роли пользователя."""
 
     name: str = Field(..., description="Уникальное имя роли")
     description: str | None = Field(default=None, description="Описание роли")
@@ -58,12 +57,7 @@ class SRole(BaseModel):
 
 
 class SSubscription(BaseModel):
-    """Схема для создания подписки.
-
-    Attributes
-        user_id (int): Идентификатор подписки, используется в момент создания.
-
-    """
+    """Схема для создания подписки."""
 
     user_id: int = Field(..., description="Идентификатор пользователя")
     model_config = ConfigDict(
@@ -85,7 +79,7 @@ class SRoleOut(BaseModel):
     )
 
     def __str__(self) -> str:
-        """Строковое представление как в модели SRole."""
+        """Строковое представление роли."""
         return f"{self.name} - {self.description}"
 
 
@@ -105,7 +99,7 @@ class SSubscriptionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     def __str__(self) -> str:
-        """Строковое представление как в модели Subscription."""
+        """Строковое представление подписки."""
         status = "Активна" if self.is_active else "Неактивна"
         stat_type = self.type.upper() if self.type else "NO_STATUS"
         until = (
@@ -126,6 +120,7 @@ class SVPNConfigOut(BaseModel):
     config_ids: list[str] | None = Field(
         None, description="Для XRay — uuid клиентов на панели"
     )
+    created_at: datetime = Field(..., description="Дата и время создания конфига")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -135,7 +130,9 @@ class SUserOut(BaseModel):
 
     id: int = Field(..., description="ID пользователя в БД")
     telegram_id: int = Field(..., description="Telegram ID пользователя")
-    username: str = Field(..., description="Username в Telegram")
+    # Telegram-username необязателен, изменяем и переиспользуем — не может
+    # быть обязательным непустым полем.
+    username: str | None = Field(None, description="Username в Telegram")
     first_name: str | None = Field(None, description="Имя пользователя")
     last_name: str | None = Field(None, description="Фамилия пользователя")
     has_used_trial: bool = Field(..., description="Использовал ли пользователь триал")

@@ -39,28 +39,7 @@ async def get_user(
     service: AdminService = Depends(get_admin_service),
     admin_auth: User = Depends(check_admin_role),
 ) -> SUserOut:
-    """Получает пользователя по Telegram ID.
-
-    Выполняет поиск пользователя в системе по его уникальному
-    Telegram ID.
-
-    В случае отсутствия пользователя выбрасывается исключение
-    `UserNotFoundError`, которое обрабатывается глобальным
-    обработчиком и преобразуется в HTTP 404.
-
-    Args:
-        admin_auth: Проверка, что пользователь админ.
-        telegram_id (int): Уникальный идентификатор пользователя в Telegram.
-        session (AsyncSession): Асинхронная сессия базы данных.
-        service (AdminService): Сервис для работы с пользователями.
-
-    Returns
-        SUserOut: Данные пользователя.
-
-    Raises
-        UserNotFoundError: Если пользователь с указанным Telegram ID не найден.
-
-    """
+    """Получает пользователя по Telegram ID."""
     logger.info("Запрос пользователя по telegram_id={}", telegram_id)
 
     user = await service.get_user_by_telegram_id(
@@ -96,25 +75,7 @@ async def get_users(
     service: AdminService = Depends(get_admin_service),
     admin_auth: User = Depends(check_admin_role),
 ) -> list[SUserOut]:
-    """Получает список пользователей по фильтру ролей.
-
-    Выполняет выборку пользователей в зависимости от указанного
-    типа фильтра. Если фильтр не задан, возвращаются все пользователи.
-
-    Args:
-        filter_type (RoleEnum): Тип фильтра пользователей:
-            - ALL — все пользователи
-            - USER — обычные пользователи
-            - ADMIN — администраторы
-            - FOUNDER — владельцы системы
-        session (AsyncSession): Асинхронная сессия базы данных.
-        service (AdminService): Сервис для работы с пользователями.
-        admin_auth: Проверка, что пользователь админ.
-
-    Returns
-        list[SUserOut]: Список пользователей, соответствующих фильтру.
-
-    """
+    """Получает список пользователей по фильтру ролей."""
     logger.info("Запрос списка пользователей filter_type={}", filter_type.value)
 
     users = await service.get_users_by_filter(
@@ -161,32 +122,7 @@ async def change_user_role(
     service: AdminService = Depends(get_admin_service),
     admin_auth: User = Depends(check_admin_role),
 ) -> SUserOut:
-    """Изменяет роль пользователя.
-
-    Выполняет изменение роли пользователя по его Telegram ID.
-    Входные данные валидируются через Enum, что гарантирует
-    корректность передаваемой роли.
-
-    В случае отсутствия пользователя или роли выбрасывается
-    исключение `UserNotFoundError`, которое преобразуется
-    в HTTP 404 через глобальный обработчик.
-
-    Args:
-        data (SChangeRole): Данные для изменения роли:
-            - telegram_id — ID пользователя
-            - role_name — новая роль (user, admin, founder)
-        session (AsyncSession): Асинхронная сессия базы данных.
-        service (AdminService): Сервис управления пользователями.
-        admin_auth: Проверка, что пользователь админ.
-
-
-    Returns
-        SUserOut: Обновлённые данные пользователя.
-
-    Raises
-        UserNotFoundError: Если пользователь или роль не найдены.
-
-    """
+    """Изменяет роль пользователя."""
     logger.info(
         "Запрос на изменение роли telegram_id={} role={}",
         data.telegram_id,
@@ -234,34 +170,7 @@ async def extend_subscription(
     service: AdminService = Depends(get_admin_service),
     admin_auth: User = Depends(check_admin_role),
 ) -> SUserOut:
-    """Продлевает подписку пользователя.
-
-    Выполняет продление активной подписки пользователя на указанное
-    количество месяцев.
-
-    Алгоритм работы:
-    - ищет пользователя по Telegram ID
-    - проверяет наличие активной подписки
-    - продлевает подписку через сервисный слой
-    - возвращает обновлённые данные пользователя
-
-    Args:
-        data (SExtendSubscription): Данные запроса:
-            - telegram_id: ID пользователя в Telegram
-            - months: количество месяцев продления
-        session (AsyncSession): Асинхронная сессия базы данных
-        service (AdminService): сервис бизнес-логики
-        admin_auth: Проверка, что пользователь админ.
-
-
-    Returns
-        SUserOut: Обновлённая информация о пользователе
-
-    Raises
-        UserNotFoundError: Если пользователь не найден
-        SubscriptionNotFoundError: Подписка не активна
-
-    """
+    """Продлевает подписку пользователя."""
     logger.info(
         "Запрос продления подписки telegram_id={} months={}",
         data.telegram_id,
@@ -307,31 +216,7 @@ async def get_income(
     session: AsyncSession = Depends(get_session),
     admin_auth: User = Depends(check_admin_role),
 ) -> SYearIncome:
-    """Получает аналитику доходов за год.
-
-    Выполняет расчёт доходов системы за указанный год.
-
-    Алгоритм работы:
-    - принимает год для анализа
-    - если год не указан — используется текущий год
-    - получает данные о платежах через сервисный слой
-    - агрегирует доходы по месяцам
-    - возвращает итоговую аналитику
-
-    Args:
-        admin_auth: Доступ только админам.
-        year (int | None): Год для получения аналитики.
-            Если значение не передано, используется текущий год.
-        service (PaymentService): Сервис бизнес-логики платежей.
-        session (AsyncSession): Асинхронная сессия базы данных.
-
-    Returns
-        SYearIncome: Данные аналитики доходов за год.
-
-    Raises
-        ValueError: Если передан некорректный год.
-
-    """
+    """Получает аналитику доходов за год."""
     logger.info("Запрос аналитики дохода year={} admin_id={}", year, admin_auth.id)
 
     income = await service.get_year_income(session=session, year=year)

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -11,8 +12,6 @@ from pydantic import ValidationError
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
-
-# from bot.ai.router import AIRouter
 from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
 from bot.core.schemas import SHealthResponse
@@ -29,7 +28,6 @@ from bot.users.router import UserRouter
 from bot.utils.start_stop_bot import start_bot, stop_bot
 from bot.vpn.router import VPNRouter
 
-# API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
     {
         "name": "webhook",
@@ -38,6 +36,19 @@ tags_metadata: list[dict[str, Any]] = [
 ]
 
 container = Container(bot=bot)
+
+
+def _log_resume_broadcast_result(task: asyncio.Task[None]) -> None:
+    """Логирует исключение из фоновой задачи возобновления рассылки.
+
+    Без этого колбэка падение `resume_pending_broadcast` в фоне было бы не видно
+    нигде — задача ни с чем не связана и её результат никто не ждёт.
+    """
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.exception("Возобновление рассылки упало в фоне: {}", exc)
 
 
 @asynccontextmanager
@@ -52,8 +63,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await container.init()
     dp.message.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
     dp.callback_query.middleware(ErrorHandlerMiddleware(logger=logger, bot=bot))  # type: ignore[arg-type]
-    log_data = True if settings_bot.core.debug_fast_api else False
-    log_time = True if settings_bot.core.debug_fast_api else False
+    # log_data управляется отдельным флагом, а не debug_fast_api:
+    # debug_fast_api — это отладка FastAPI, а log_data пишет в лог полный
+    # repr Telegram-события, то есть текст переписки пользователя.
+    log_data = settings_bot.core.log_user_events_data
+    log_time = settings_bot.core.debug_fast_api
     dp.message.middleware(
         UserActionLoggingMiddleware(log_data=log_data, log_time=log_time, logger=logger)  # type: ignore[arg-type]
     )
@@ -78,7 +92,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger=logger,  # type: ignore[arg-type]
         admin_service=container.admin_service,
     )
-    #
     subscription_router = SubscriptionRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
@@ -101,6 +114,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
         news_service=container.news_service,
+        broadcast_storage=container.redis_news_broadcast_storage,
     )
 
     dp.include_router(user_router.router)
@@ -111,15 +125,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     dp.include_router(referral_router.router)
     dp.include_router(news_router.router)
 
-    # if container.chat_service is None:
-    #     raise RuntimeError("ChatService ещё не инициализирован!")
-    # ai_router = AIRouter(
-    #     bot=bot,
-    #     logger=logger,  # type: ignore[arg-type]
-    #     redis_manager=container.redis_manager,
-    #     chat_service=container.chat_service,
-    # )
-    # dp.include_router(ai_router.router)
+    # Возобновляем рассылку, прерванную прошлым падением/деплоем, не
+    # дожидаясь старта polling/webhook — фоновой задачей, чтобы не блокировать
+    # запуск остальной части приложения. Ссылка на задачу сохраняется, иначе
+    # event loop держит её только через слабую ссылку и может собрать сборщиком
+    # мусора до завершения; колбэк логирует необработанное исключение,
+    # которое иначе никуда не всплывёт.
+    resume_broadcast_task = asyncio.create_task(news_router.resume_pending_broadcast())
+    resume_broadcast_task.add_done_callback(_log_resume_broadcast_result)
 
     await start_bot(bot=bot)
 
@@ -145,10 +158,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         trigger=trigger,
         kwargs={"service": container.scheduler_bot_service},
         id="scheduled_check",
-        max_instances=1,  # Запрещаем параллельное выполнение
-        coalesce=True,  # Если накопилось несколько вызовов - выполнить один раз
-        misfire_grace_time=30,  # Пропустить, если опоздали на 30+ секунд
-        replace_existing=True,  # Заменить, если задача с таким id уже есть
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=30,
+        replace_existing=True,
     )
     scheduler.start()
     logger.info("🕒 Планировщик запущен — проверка {}", schedule_description)
@@ -169,6 +182,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     logger.info("Завершение работы бота...")
+    if not resume_broadcast_task.done():
+        resume_broadcast_task.cancel()
     try:
         await bot.delete_webhook()
         logger.info("Вебхук удалён")
@@ -190,7 +205,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.exception(f"Ошибка при отключении Scheduler: {e}")
 
 
-# Метаданные для OpenAPI
 app: FastAPI = FastAPI(
     debug=settings_bot.core.debug_fast_api,
     title="VPN Boriska Bot",
@@ -238,15 +252,17 @@ async def webhook(request: Request) -> Response:
     Эндпоинт принимает POST-запросы от Telegram, валидирует полученные
     обновления и передаёт их в диспетчер aiogram.
 
-    Обработчик устойчив к пустым и некорректным запросам и всегда
-    возвращает HTTP 200 OK, чтобы Telegram не выполнял повторные попытки
-    доставки обновлений.
+    Пустое тело запроса считается штатным и подтверждается HTTP 200 без
+    дальнейшей обработки. Если тело непустое, но не проходит валидацию как
+    Telegram Update (ValidationError/ValueError), обработчик возвращает
+    HTTP 500 — Telegram в этом случае повторит доставку обновления.
 
     Args:
         request: Входящий запрос FastAPI с payload обновления Telegram.
 
     Returns
-        Ответ FastAPI со статусом HTTP 200.
+        Ответ FastAPI со статусом HTTP 200 в штатном случае или HTTP 500,
+        если payload не прошёл валидацию.
 
     """
     body: bytes = await request.body()
@@ -302,11 +318,6 @@ async def health() -> JSONResponse:
 
 
 if __name__ == "__main__":
-    """
-    Точка входа для запуска FastAPI-приложения.
-
-    Запускает сервер Uvicorn с приложением FastAPI.
-    """
     uvicorn.run(
         app="bot.main:app",
         host="0.0.0.0",
@@ -315,4 +326,3 @@ if __name__ == "__main__":
         proxy_headers=True,
         forwarded_allow_ips="*",
     )
-# TODO отдельного пользвателя на Xray

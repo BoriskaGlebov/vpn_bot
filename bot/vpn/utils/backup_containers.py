@@ -60,6 +60,8 @@ class ContainerBackupService:
 
         Raises
             AmneziaBackupError: Если хотя бы одна нода не забэкапилась.
+                Ключи успешно загруженных архивов не теряются — они
+                доступны в `details["succeeded"]` исключения.
 
         """
         results = await asyncio.gather(
@@ -76,7 +78,8 @@ class ContainerBackupService:
                 succeeded.append(result)
         if failed:
             raise AmneziaBackupError(
-                f"Бэкап контейнеров не удался для нод: {', '.join(failed)}"
+                f"Бэкап контейнеров не удался для нод: {', '.join(failed)}",
+                details={"succeeded": succeeded, "failed": failed},
             )
         return succeeded
 
@@ -88,7 +91,19 @@ def _build_service() -> ContainerBackupService:
     return ContainerBackupService(storage, cipher)
 
 
-if __name__ == "__main__":
-    uploaded_keys = asyncio.run(_build_service().backup_all(settings_bot.vpn.nodes))
+def _run() -> None:
+    try:
+        uploaded_keys = asyncio.run(_build_service().backup_all(settings_bot.vpn.nodes))
+    except AmneziaBackupError as exc:
+        # Частичный сбой: часть нод всё же забэкапилась — печатаем их ключи,
+        # чтобы backup.sh (парсит "BACKUP_KEY::") не терял реально
+        # загруженные архивы, и сообщаем об ошибке через код возврата.
+        for uploaded_key in exc.details.get("succeeded", []):
+            print(f"BACKUP_KEY::{uploaded_key}")
+        raise SystemExit(f"{exc.message}") from exc
     for uploaded_key in uploaded_keys:
         print(f"BACKUP_KEY::{uploaded_key}")
+
+
+if __name__ == "__main__":
+    _run()

@@ -1,13 +1,19 @@
+from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
+from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import ReplyKeyboardRemove
 
-from bot.app_error.base_error import VPNConfigNotFoundError
+from bot.app_error.base_error import (
+    InvalidSubscriptionPeriodError,
+    VPNConfigNotFoundError,
+)
 from bot.subscription.router import SubscriptionRouter, SubscriptionStates
+from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.schemas import SVPNConfigOut
-from shared.enums.admin_enum import FilterTypeEnum
+from shared.enums.admin_enum import RoleEnum
 
 
 @pytest.mark.asyncio
@@ -21,7 +27,9 @@ async def test_show_subscription_options_premium_user(
     user = mocker.Mock(id=123, username="testuser")
 
     service_mock = mocker.AsyncMock()
-    service_mock.check_premium.return_value = (True, FilterTypeEnum.USER, True, True)
+    service_mock.check_premium.return_value = SSubscriptionCheck(
+        premium=True, role=RoleEnum.USER, is_active=True, used_trial=True
+    )
 
     router = SubscriptionRouter(
         bot=bot_mock,
@@ -56,8 +64,20 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
     service_mock = mocker.AsyncMock()
     service_mock.get_subscription_and_referral_info.return_value = "info text"
     service_mock.get_user_vpn_configs.return_value = [
-        SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1"),
-        SVPNConfigOut(id=2, file_name="conf2.conf", pub_key="PUBKEY2"),
+        SVPNConfigOut(
+            id=1,
+            file_name="conf1.conf",
+            pub_key="PUBKEY1",
+            node_name="main",
+            created_at=datetime(2026, 1, 1),
+        ),
+        SVPNConfigOut(
+            id=2,
+            file_name="conf2.conf",
+            pub_key="PUBKEY2",
+            node_name="sof",
+            created_at=datetime(2026, 1, 2),
+        ),
     ]
 
     router = SubscriptionRouter(
@@ -81,8 +101,8 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
     assert kwargs["text"] == "info text"
     buttons = [b for row in kwargs["reply_markup"].inline_keyboard for b in row]
     assert any(b.text == "🔄 Оформить / продлить подписку" for b in buttons)
-    assert any(b.text == "🗑 conf1.conf" for b in buttons)
-    assert any(b.text == "🗑 conf2.conf" for b in buttons)
+    assert any("2026-01-01" in b.text and "#1" in b.text for b in buttons)
+    assert any("2026-01-02" in b.text and "#2" in b.text for b in buttons)
 
 
 @pytest.mark.asyncio
@@ -94,7 +114,12 @@ async def test_config_delete_confirm_shows_confirmation(mocker):
 
     service_mock = mocker.AsyncMock()
     service_mock.get_user_vpn_configs.return_value = [
-        SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1"),
+        SVPNConfigOut(
+            id=1,
+            file_name="conf1.conf",
+            pub_key="PUBKEY1",
+            created_at=datetime(2026, 1, 1),
+        ),
     ]
 
     router = SubscriptionRouter(
@@ -152,7 +177,9 @@ async def test_config_delete_execute_deletes_and_refreshes(mocker):
     query_mock.message = msg_mock
     query_mock.from_user = Mock(id=123, username="user")
 
-    config = SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1")
+    config = SVPNConfigOut(
+        id=1, file_name="conf1.conf", pub_key="PUBKEY1", created_at=datetime(2026, 1, 1)
+    )
     service_mock = mocker.AsyncMock()
     service_mock.get_user_vpn_configs.return_value = [config]
     service_mock.get_subscription_and_referral_info.return_value = "info text"
@@ -217,7 +244,9 @@ async def test_renew_subscription_selected_deletes_menu_and_shows_options(mocker
     query_mock.message = msg_mock
 
     service_mock = mocker.AsyncMock()
-    service_mock.check_premium.return_value = (False, FilterTypeEnum.USER, False, False)
+    service_mock.check_premium.return_value = SSubscriptionCheck(
+        premium=False, role=RoleEnum.USER, is_active=False, used_trial=False
+    )
 
     router = SubscriptionRouter(
         bot=mocker.AsyncMock(),
@@ -276,6 +305,75 @@ async def test_subscription_selected_paid(mocker):
 
 
 @pytest.mark.asyncio
+async def test_subscription_selected_ignores_forged_founder_flag(mocker):
+    """#279: founder в данных кнопки подделан (True), но сервер в состоянии
+    положил False — сумма и тип подписки считаются по состоянию, а не по
+    callback-данным: founder-тариф дороже обычного, подмена не должна его
+    давать по сниженной (обычной) цене или наоборот.
+    """
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    state_mock = AsyncMock()
+    state_mock.get_data.return_value = {"premium": False, "founder": False}
+    callback_data = Mock(months=1, founder=True)  # подделанный признак
+
+    transaction_id = UUID("12345678-1234-5678-1234-567812345678")
+    subscription_service_mock = mocker.AsyncMock()
+    subscription_service_mock.create_transaction.return_value = Mock(
+        id=transaction_id, payment_url=None
+    )
+
+    router = SubscriptionRouter(
+        bot=mocker.AsyncMock(),
+        logger=mocker.Mock(),
+        subscription_service=subscription_service_mock,
+        referral_service=mocker.AsyncMock(),
+        redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
+    )
+
+    await router.subscription_selected(
+        query=query_mock, state=state_mock, callback_data=callback_data
+    )
+
+    # Стандартный тариф на 1 мес из app_config.local.toml (см. conftest) —
+    # ключевая проверка в том, что is_founder=False ушёл в транзакцию,
+    # а не True из подделанного callback_data.
+    _, kwargs = subscription_service_mock.create_transaction.call_args
+    assert kwargs["is_founder"] is False
+
+
+@pytest.mark.asyncio
+async def test_subscription_selected_unknown_months_raises_domain_error(mocker):
+    """#278: months из callback-данных (от клиента) не найден в карте тарифов —
+    доменная ошибка, а не необработанный KeyError.
+    """
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    state_mock = AsyncMock()
+    state_mock.get_data.return_value = {"premium": False}
+    callback_data = Mock(months=999, founder=False)
+
+    router = SubscriptionRouter(
+        bot=mocker.AsyncMock(),
+        logger=mocker.Mock(),
+        subscription_service=mocker.AsyncMock(),
+        referral_service=mocker.AsyncMock(),
+        redis_service=mocker.Mock(),
+        vpn_service=mocker.AsyncMock(),
+        payment_mess_storage=mocker.AsyncMock(),
+    )
+
+    with pytest.raises(InvalidSubscriptionPeriodError):
+        await router.subscription_selected(
+            query=query_mock, state=state_mock, callback_data=callback_data
+        )
+
+
+@pytest.mark.asyncio
 async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
     """Повторная попытка активировать триал показывает alert и уведомляет админов."""
     from bot.app_error.api_error import APIClientConflictError
@@ -287,7 +385,7 @@ async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
     query_mock.from_user = Mock(id=123, username="testuser")
     state_mock = AsyncMock()
     state_mock.get_data.return_value = {"premium": False}
-    callback_data = Mock(months=7, founder=False)
+    callback_data = Mock(founder=False)
 
     subscription_service_mock = mocker.AsyncMock()
     subscription_service_mock.start_trial_subscription.side_effect = (
@@ -310,7 +408,7 @@ async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
     )
     send_to_admins_mock = mocker.patch("bot.subscription.router.send_to_admins")
 
-    await router.subscription_selected(
+    await router.trial_selected(
         query=query_mock, state=state_mock, callback_data=callback_data
     )
 
@@ -543,3 +641,150 @@ async def test_admin_confirm_payment(mocker):
     referral_service_mock.grant_referral_bonus.assert_not_called()
 
     # state.clear внутри edit_admin_messages / try block
+
+
+@pytest.mark.asyncio
+async def test_admin_confirm_payment_user_blocked_bot_still_completes(mocker):
+    """#276: пользователь заблокировал бота (TelegramForbiddenError) на
+    отправке уведомления об оплате — это не должно прервать остальные шаги:
+    бонус пригласившему, правку админских сообщений, state.clear().
+    """
+    bot_mock = AsyncMock()
+    bot_mock.send_message.side_effect = TelegramForbiddenError(
+        method=Mock(), message="Forbidden: bot was blocked by the user"
+    )
+
+    msg_mock = AsyncMock()
+    msg_mock.chat.id = 999
+    msg_mock.message_id = 10
+
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    query_mock.from_user = Mock(id=999, username="admin")
+    query_mock.answer = AsyncMock()
+
+    callback_data = Mock(
+        user_id=1,
+        months=3,
+        premium=True,
+        transaction_id=UUID("12345678-1234-5678-1234-567812345678"),
+    )
+
+    user_schema = Mock(
+        username="user",
+        first_name="John",
+        last_name="Doe",
+        telegram_id=1,
+        current_subscription=Mock(type="premium"),
+    )
+
+    confirm_transaction_mock = Mock(
+        subscription_res=user_schema,
+        transaction_res=Mock(amount=1000),
+        referral_res=Mock(
+            success=True,
+            inviter_telegram_id=777,
+            message="Реферал получил бонус",
+        ),
+    )
+
+    subscription_service_mock = AsyncMock()
+    subscription_service_mock.confirm_transaction.return_value = (
+        confirm_transaction_mock
+    )
+
+    edit_admin_messages_mock = mocker.patch(
+        "bot.subscription.router.edit_admin_messages", new=AsyncMock()
+    )
+    send_to_admins_mock = mocker.patch(
+        "bot.subscription.router.send_to_admins", new=AsyncMock()
+    )
+
+    state_mock = AsyncMock()
+
+    router = SubscriptionRouter(
+        bot=bot_mock,
+        logger=Mock(),
+        subscription_service=subscription_service_mock,
+        referral_service=AsyncMock(),
+        redis_service=AsyncMock(),
+        vpn_service=AsyncMock(),
+        payment_mess_storage=AsyncMock(),
+    )
+
+    await router.admin_confirm_payment(
+        query=query_mock,
+        state=state_mock,
+        callback_data=callback_data,
+    )
+
+    # Уведомление пользователю упало, но админа предупредили об этом,
+    # а не всё посыпалось UnboundLocalError-ом на referral_result.
+    send_to_admins_mock.assert_awaited()
+    # Остальные шаги подтверждения выполнены, несмотря на блокировку.
+    edit_admin_messages_mock.assert_awaited_once()
+    state_mock.clear.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_toggle_subscription_mode_preserves_used_trial(mocker):
+    """#280: used_trial терялся при переключении режима — trial=False
+    жёстко возвращал кнопку триала тому, кто его уже использовал.
+    """
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    state_mock = AsyncMock()
+    state_mock.get_data.return_value = {"founder": False, "used_trial": True}
+    callback_data = Mock(mode="premium")
+
+    kb_mock = mocker.patch("bot.subscription.router.subscription_options_kb")
+
+    router = SubscriptionRouter(
+        bot=AsyncMock(),
+        logger=Mock(),
+        subscription_service=AsyncMock(),
+        referral_service=AsyncMock(),
+        redis_service=AsyncMock(),
+        vpn_service=AsyncMock(),
+        payment_mess_storage=AsyncMock(),
+    )
+
+    await router.toggle_subscription_mode(
+        query=query_mock, state=state_mock, callback_data=callback_data
+    )
+
+    kb_mock.assert_called_once_with(premium=True, trial=True, founder=False)
+
+
+@pytest.mark.asyncio
+async def test_toggle_subscription_mode_preserves_founder(mocker):
+    """#280: founder терялся при переключении режима — основатель видел
+    обычные тарифы вместо своих после переключения standard/premium.
+    """
+    msg_mock = AsyncMock()
+    query_mock = AsyncMock()
+    query_mock.message = msg_mock
+    state_mock = AsyncMock()
+    state_mock.get_data.return_value = {"founder": True, "used_trial": False}
+    callback_data = Mock(mode="standard")
+
+    kb_mock = mocker.patch("bot.subscription.router.subscription_options_kb")
+
+    router = SubscriptionRouter(
+        bot=AsyncMock(),
+        logger=Mock(),
+        subscription_service=AsyncMock(),
+        referral_service=AsyncMock(),
+        redis_service=AsyncMock(),
+        vpn_service=AsyncMock(),
+        payment_mess_storage=AsyncMock(),
+    )
+
+    await router.toggle_subscription_mode(
+        query=query_mock, state=state_mock, callback_data=callback_data
+    )
+
+    # founder=True -> trial=True независимо от used_trial (та же логика,
+    # что в cancel_subscription).
+    kb_mock.assert_called_once_with(premium=False, trial=True, founder=True)

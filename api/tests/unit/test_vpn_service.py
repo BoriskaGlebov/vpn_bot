@@ -2,7 +2,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from api.app_error.base_error import UserNotFoundError
+from api.app_error.base_error import SubscriptionNotFoundError, UserNotFoundError
+from api.vpn.dao import VPNLimitStatus
 from api.vpn.services import VPNService
 
 
@@ -30,20 +31,21 @@ def user():
 
 @pytest.mark.asyncio
 async def test_check_limit_ok(service, session, monkeypatch, user):
-    """Возвращает can_add/limit/current, посчитанные по лимиту типа подписки."""
+    """Возвращает can_add/limit/current — ровно то, что посчитал VPNConfigDAO.
+
+    Регрессия на #269: раньше `current` считался отдельно, через
+    `len(user.vpn_configs)` — другим способом, чем `can_add`/`limit`
+    (через `VPNConfigDAO.can_add_config`). Теперь оба поля приходят из
+    одного вызова `get_limit_status`, поэтому разойтись не могут.
+    """
     monkeypatch.setattr(
         "api.vpn.services.UserDAO.find_one_or_none",
         AsyncMock(return_value=user),
     )
 
     monkeypatch.setattr(
-        "api.vpn.services.VPNConfigDAO.can_add_config",
-        AsyncMock(return_value=True),
-    )
-
-    monkeypatch.setattr(
-        "api.vpn.services.DEVICE_LIMITS",
-        {"pro": 5},
+        "api.vpn.services.VPNConfigDAO.get_limit_status",
+        AsyncMock(return_value=VPNLimitStatus(can_add=True, limit=5, current=2)),
     )
 
     result = await service.check_limit(session=session, tg_id=123)
@@ -62,6 +64,31 @@ async def test_check_limit_user_not_found(service, session, monkeypatch):
     )
 
     with pytest.raises(UserNotFoundError):
+        await service.check_limit(session=session, tg_id=123)
+
+
+@pytest.mark.asyncio
+async def test_check_limit_no_subscription_raises_subscription_error(
+    service, session, monkeypatch, user
+):
+    """Пользователь без активной подписки -> SubscriptionNotFoundError.
+
+    Регрессия на #269: раньше `check_limit` комбинировал "пользователь не
+    найден" и "подписки нет" в один и тот же `UserNotFoundError`, а
+    `add_config` (через `can_add_config`) для того же состояния бросал
+    `SubscriptionNotFoundError` — одно и то же состояние давало разные
+    исключения в зависимости от точки входа.
+    """
+    monkeypatch.setattr(
+        "api.vpn.services.UserDAO.find_one_or_none",
+        AsyncMock(return_value=user),
+    )
+    monkeypatch.setattr(
+        "api.vpn.services.VPNConfigDAO.get_limit_status",
+        AsyncMock(side_effect=SubscriptionNotFoundError(user_id=1, username="u")),
+    )
+
+    with pytest.raises(SubscriptionNotFoundError):
         await service.check_limit(session=session, tg_id=123)
 
 

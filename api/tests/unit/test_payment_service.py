@@ -16,10 +16,11 @@ import pytest
 
 from api.app_error.base_error import (
     PaymentAlreadyProcessedError,
+    PaymentInvalidSourceError,
     PaymentTransactionNotFoundError,
 )
 from api.payment.dao import PaymentTransactionDAO
-from api.payment.model import PaymentSource, PaymentStatus, PaymentTransaction
+from api.payment.model import PaymentSource, PaymentTransaction
 from api.payment.schemas import (
     SCreateTransaction,
     SGatewayTransactionFilter,
@@ -32,6 +33,18 @@ from api.payment.schemas import (
     SYearIncome,
 )
 from api.payment.services import PaymentService
+from shared.enums.payment_enum import PaymentStatus
+
+
+def test_paid_at_and_confirmed_at_are_timezone_aware():
+    """paid_at/confirmed_at объявлены как DateTime(timezone=True) (#255) —
+    их ставит процесс (datetime.now(UTC)), а created_at/updated_at ставит
+    Postgres (func.now()); без единой таймзоны на этих колонках
+    "paid_at - created_at" было бы бессмысленно при расхождении TZ
+    контейнеров.
+    """
+    assert PaymentTransaction.__table__.c.paid_at.type.timezone is True
+    assert PaymentTransaction.__table__.c.confirmed_at.type.timezone is True
 
 
 def make_transaction(**overrides) -> SimpleNamespace:
@@ -1362,13 +1375,33 @@ async def test_confirm_payment_flow_manual_missing_admin(
     payment_service,
     mock_session,
 ):
-    """MANUAL-источник без admin_id — недопустимая комбинация, бросает ValueError."""
+    """MANUAL-источник без admin_id — недопустимая комбинация.
+
+    Поднимает PaymentInvalidSourceError (#256), а не голый ValueError —
+    тот не обрабатывается ни app_error_handler, ни api_error_handler и
+    доходил бы до unhandled_exception_handler как 500 internal_error,
+    хотя это нарушение контракта вызова, а не сбой инфраструктуры.
+    """
     data = STransactionIDFilter(id=uuid4())
 
-    with pytest.raises(ValueError):
+    with pytest.raises(PaymentInvalidSourceError):
         await payment_service.confirm_payment_flow(
             session=mock_session,
             data=data,
             payment_source=PaymentSource.MANUAL,
             admin_id=None,
         )
+
+
+def test_pending_filters_require_status_explicitly():
+    """#293: регрессионный тест на #263, который реально его ловит.
+
+    Существовавшие тесты проверяли только `isinstance(filters,
+    STransactionPendingFilter)` — это истинно независимо от того,
+    доходит ли `status` до `WHERE`. Если `status` снова получит значение
+    по умолчанию, `BaseDAO._to_dict` (`model_dump(exclude_unset=True)`)
+    снова будет терять его из фильтра конструктора без явной передачи —
+    этот тест ловит именно отсутствие дефолта, а не поведение ORM.
+    """
+    assert STransactionPendingFilter.model_fields["status"].is_required()
+    assert SUserPendingTransactionsFilter.model_fields["status"].is_required()

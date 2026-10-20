@@ -4,16 +4,7 @@ from shared.enums.admin_enum import RoleEnum
 
 
 class SChangeRole(BaseModel):
-    """Схема запроса на изменение роли пользователя.
-
-    Используется для административного изменения роли пользователя
-    в системе (например: user → admin, user → founder).
-
-    Attributes
-        telegram_id (int): Уникальный Telegram ID пользователя.
-        role_name (RoleEnum): Новая роль пользователя.
-
-    """
+    """Схема запроса на изменение роли пользователя."""
 
     telegram_id: int = Field(
         ...,
@@ -26,16 +17,7 @@ class SChangeRole(BaseModel):
 
 
 class SExtendSubscription(BaseModel):
-    """Схема запроса на продление подписки пользователя.
-
-    Используется для увеличения срока активной подписки пользователя
-    на указанное количество месяцев.
-
-    Attributes
-        telegram_id (int): Уникальный Telegram ID пользователя.
-        months (int): Количество месяцев для продления подписки.
-
-    """
+    """Схема запроса на продление подписки пользователя."""
 
     telegram_id: int = Field(
         ...,

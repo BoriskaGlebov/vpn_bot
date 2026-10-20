@@ -133,7 +133,6 @@ exclude = [
     "^\\.venv/",
     "^bot/migrations/",
     "^api/migrations/",
-    "^bot/vpn/utils/",
     "^api/tests/",
 ]
 plugins = [
@@ -153,7 +152,6 @@ branch = true
 omit = [
     "*/tests/*",
     "*/migrations/*",
-    "bot/vpn/utils/*",
     "ai_service/*",
     "bot/ai/*",
 ]

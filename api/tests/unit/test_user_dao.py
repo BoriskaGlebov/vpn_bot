@@ -2,19 +2,20 @@ import asyncio
 
 import pytest
 from sqlalchemy import StaticPool, event, select
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
 
-from api.app_error.base_error import SubscriptionNotFoundError
+from api.app_error.base_error import RoleNotFoundError, SubscriptionNotFoundError
 from api.core.database import Base  # Declarative Base
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.dao import RoleDAO, UserDAO
 from api.users.models import Role, User
-from api.users.schemas import SRole, SUser
-from shared.enums.admin_enum import FilterTypeEnum
+from api.users.schemas import SRole, SUser, SUserTelegramID
+from shared.enums.admin_enum import RoleEnum
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -80,10 +81,10 @@ async def session(engine) -> AsyncSession:
 
 @pytest.fixture
 async def role_user(session: AsyncSession) -> Role:
-    result = await session.execute(select(Role).where(Role.name == FilterTypeEnum.USER))
+    result = await session.execute(select(Role).where(Role.name == RoleEnum.USER))
     role = result.scalar_one_or_none()
     if role is None:
-        role = Role(name=FilterTypeEnum.USER)
+        role = Role(name=RoleEnum.USER)
         session.add(role)
         await session.flush()
     return role
@@ -91,12 +92,10 @@ async def role_user(session: AsyncSession) -> Role:
 
 @pytest.fixture
 async def role_admin(session: AsyncSession) -> Role:
-    result = await session.execute(
-        select(Role).where(Role.name == FilterTypeEnum.ADMIN)
-    )
+    result = await session.execute(select(Role).where(Role.name == RoleEnum.ADMIN))
     role = result.scalar_one_or_none()
     if role is None:
-        role = Role(name=FilterTypeEnum.ADMIN)
+        role = Role(name=RoleEnum.ADMIN)
         session.add(role)
         await session.flush()
     return role
@@ -136,7 +135,7 @@ async def test_add_role_subscription_user(session, role_user):
         first_name="New",
         last_name="User",
     )
-    values_role = SRole(name=FilterTypeEnum.USER)
+    values_role = SRole(name=RoleEnum.USER)
 
     user = await UserDAO.add_role_subscription(
         session=session,
@@ -146,20 +145,25 @@ async def test_add_role_subscription_user(session, role_user):
     await session.commit()
 
     assert user.id is not None
-    assert user.role.name == FilterTypeEnum.USER
+    assert user.role.name == RoleEnum.USER
     assert len(user.subscriptions) == 1
     assert not user.subscriptions[0].is_active
 
 
-async def test_add_role_subscription_admin(session, role_admin):
-    """Проверка создания администратора с активной премиум подпиской."""
+async def test_add_role_subscription_admin_role_alone_does_not_activate(
+    session, role_admin
+):
+    """DAO больше не решает «admin -> premium» сам по себе (#244):
+    без явных subscription_* параметров роль admin не даёт никакой
+    активации — это решение теперь принимает вызывающий код (сервис).
+    """
     values_user = SUser(
         telegram_id=222,
         username="admin_user",
         first_name="Admin",
         last_name="User",
     )
-    values_role = SRole(name=FilterTypeEnum.ADMIN)
+    values_role = SRole(name=RoleEnum.ADMIN)
 
     user = await UserDAO.add_role_subscription(
         session=session,
@@ -169,10 +173,100 @@ async def test_add_role_subscription_admin(session, role_admin):
     await session.commit()
 
     subscription = user.subscriptions[0]
-    assert user.role.name == FilterTypeEnum.ADMIN
+    assert user.role.name == RoleEnum.ADMIN
+    assert subscription.is_active is False
+    assert subscription.type is None
+
+
+async def test_add_role_subscription_with_explicit_premium_subscription(
+    session, role_admin
+):
+    """Вызывающий код может явно запросить активную премиум-подписку —
+    то, что раньше DAO решал сам по имени роли (#244).
+    """
+    values_user = SUser(
+        telegram_id=223,
+        username="admin_user_2",
+        first_name="Admin",
+        last_name="User",
+    )
+    values_role = SRole(name=RoleEnum.ADMIN)
+
+    user = await UserDAO.add_role_subscription(
+        session=session,
+        values_user=values_user,
+        values_role=values_role,
+        subscription_is_active=True,
+        subscription_type=SubscriptionType.PREMIUM,
+    )
+    await session.commit()
+
+    subscription = user.subscriptions[0]
     assert subscription.is_active is True
     assert subscription.type == SubscriptionType.PREMIUM
     assert subscription.end_date is None
+
+
+async def test_add_role_subscription_missing_role_raises_role_not_found_error(session):
+    """Регистрация при отсутствующей роли в таблице даёт RoleNotFoundError
+    (404 role_not_found), а не ValueError -> 500 (#244).
+
+    Воспроизводит реальный сценарий: на новом окружении, где
+    init_default_roles.py не запускался, таблица roles пуста.
+    """
+    values_user = SUser(telegram_id=404, username="no_role_user")
+    values_role = SRole(name="nonexistent_role")
+
+    with pytest.raises(RoleNotFoundError) as exc_info:
+        await UserDAO.add_role_subscription(
+            session=session,
+            values_user=values_user,
+            values_role=values_role,
+        )
+
+    assert exc_info.value.code == "role_not_found"
+    assert exc_info.value.status_code == 404
+
+
+async def test_duplicate_username_registers_successfully(session, role_user):
+    """Два пользователя с одинаковым username регистрируются успешно (#242).
+
+    username переиспользуем в Telegram — уникальность принадлежит
+    telegram_id, не username, поэтому повтор не должен давать IntegrityError.
+    """
+    values_role = SRole(name=RoleEnum.USER)
+
+    first_user = await UserDAO.add_role_subscription(
+        session=session,
+        values_user=SUser(telegram_id=301, username="same_name"),
+        values_role=values_role,
+    )
+    await session.commit()
+
+    second_user = await UserDAO.add_role_subscription(
+        session=session,
+        values_user=SUser(telegram_id=302, username="same_name"),
+        values_role=values_role,
+    )
+    await session.commit()
+
+    assert first_user.id != second_user.id
+    assert first_user.username == second_user.username == "same_name"
+
+
+async def test_username_can_be_none(session, role_user):
+    """Пользователь без Telegram-username регистрируется успешно (#242)."""
+    values_role = SRole(name=RoleEnum.USER)
+
+    user = await UserDAO.add_role_subscription(
+        session=session,
+        values_user=SUser(telegram_id=303, username=None),
+        values_role=values_role,
+    )
+    await session.commit()
+
+    assert user.id is not None
+    assert user.username is None
 
 
 async def test_get_users_by_roles_all(session, user):
@@ -181,18 +275,26 @@ async def test_get_users_by_roles_all(session, user):
     assert len(users) >= 1
 
 
+async def test_get_users_by_roles_all_via_enum_member(session, user):
+    """RoleEnum.ALL работает как и строка "all" — единый источник значения
+    вместо буквального литерала в сравнении (#245).
+    """
+    users = await UserDAO.get_users_by_roles(session, RoleEnum.ALL)
+    assert len(users) >= 1
+
+
 async def test_get_users_by_roles_filtered(session, user, role_user):
     """Получение пользователей по конкретной роли."""
     users = await UserDAO.get_users_by_roles(
         session,
-        FilterTypeEnum.USER,
+        RoleEnum.USER,
     )
-    assert all(u.role.name == FilterTypeEnum.USER for u in users)
+    assert all(u.role.name == RoleEnum.USER for u in users)
 
 
 async def test_change_role_to_founder(session, user):
     """Изменение роли на FOUNDER и активация подписки."""
-    founder_role = Role(name=FilterTypeEnum.FOUNDER)
+    founder_role = Role(name=RoleEnum.FOUNDER)
     session.add(founder_role)
     user.subscriptions[0].type = SubscriptionType.STANDARD.value
     await session.commit()
@@ -204,7 +306,7 @@ async def test_change_role_to_founder(session, user):
     )
     await session.commit()
 
-    assert updated_user.role.name == FilterTypeEnum.FOUNDER
+    assert updated_user.role.name == RoleEnum.FOUNDER
     assert updated_user.subscriptions[0].type == SubscriptionType.STANDARD.value
 
 
@@ -249,6 +351,31 @@ async def test_extend_subscription_not_active(session, role_user):
         )
 
 
+async def test_extend_subscription_no_subscriptions_raises_domain_error(
+    session, role_user
+):
+    """#286: продление подписки пользователю без подписок должно давать
+    SubscriptionNotFoundError, а не IndexError из user.subscriptions[0].
+    """
+    from api.users.models import User
+
+    user = User(
+        telegram_id=998,
+        username="no_subscription_user",
+        role=role_user,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await UserDAO.extend_subscription(
+            session=session,
+            user=user,
+            months=1,
+        )
+
+
 async def test_find_one_or_none(session, user):
     """Поиск пользователя по telegram_id."""
     from pydantic import BaseModel
@@ -263,6 +390,77 @@ async def test_find_one_or_none(session, user):
 
     assert found_user is not None
     assert found_user.telegram_id == user.telegram_id
+
+
+async def test_find_one_or_none_does_not_load_payments_or_referrals(session, user):
+    """UserDAO.find_one_or_none(options=base_options) не грузит payments/
+    invited_users/invited_by — именно это обращение выполняет AuthMiddleware
+    на каждом HTTP-запросе (#243). Раньше это было 6 SELECT, теперь — 4
+    (users, subscriptions, vpn_configs, role); payments/invited_users/
+    invited_by в их число не входят.
+    """
+    executed_statements: list[str] = []
+
+    def before_cursor_execute(
+        conn, cursor, statement, parameters, context, executemany
+    ):
+        executed_statements.append(statement)
+
+    event.listen(
+        session.sync_session.bind, "before_cursor_execute", before_cursor_execute
+    )
+    try:
+        found = await UserDAO.find_one_or_none(
+            session=session,
+            filters=SUserTelegramID(telegram_id=user.telegram_id),
+            options=UserDAO.base_options,
+        )
+    finally:
+        event.remove(
+            session.sync_session.bind, "before_cursor_execute", before_cursor_execute
+        )
+
+    assert found is not None
+    assert not any("paymenttransactions" in s.lower() for s in executed_statements)
+    assert not any("referrals" in s.lower() for s in executed_statements)
+
+
+async def test_payments_relation_raises_without_eager_load(session, user):
+    """payments не загружен неявно — обращение к нему без eager load падает
+    явной ошибкой (lazy="raise"), а не тихим N+1 запросом (#243).
+    """
+    found = await UserDAO.find_one_or_none(
+        session=session,
+        filters=SUserTelegramID(telegram_id=user.telegram_id),
+        options=UserDAO.base_options,
+    )
+
+    with pytest.raises(InvalidRequestError):
+        _ = found.payments
+
+
+async def test_invited_users_relation_raises_without_eager_load(session, user):
+    """invited_users — то же самое, что и payments (#243)."""
+    found = await UserDAO.find_one_or_none(
+        session=session,
+        filters=SUserTelegramID(telegram_id=user.telegram_id),
+        options=UserDAO.base_options,
+    )
+
+    with pytest.raises(InvalidRequestError):
+        _ = found.invited_users
+
+
+async def test_invited_by_relation_raises_without_eager_load(session, user):
+    """invited_by — то же самое, что и payments (#243)."""
+    found = await UserDAO.find_one_or_none(
+        session=session,
+        filters=SUserTelegramID(telegram_id=user.telegram_id),
+        options=UserDAO.base_options,
+    )
+
+    with pytest.raises(InvalidRequestError):
+        _ = found.invited_by
 
 
 async def test_role_dao_model():

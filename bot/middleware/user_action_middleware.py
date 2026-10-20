@@ -72,7 +72,7 @@ class UserActionLoggingMiddleware(BaseMiddleware):  # type: ignore[misc]
     ) -> None:
         """Логирует окончание обработки."""
         if self.log_time:
-            duration = time.time() - start_time
+            duration = time.monotonic() - start_time
             if self.log_data:
                 self.logger.bind(user=user).debug(
                     f"END {event_type} ({duration:.3f}s): {event!r}"
@@ -107,7 +107,7 @@ class UserActionLoggingMiddleware(BaseMiddleware):  # type: ignore[misc]
         event_type = self._get_event_type(event)
 
         self._log_start(user, event_type, event)
-        start_time = time.time()
+        start_time = time.monotonic()
 
         try:
             return await handler(event, data)

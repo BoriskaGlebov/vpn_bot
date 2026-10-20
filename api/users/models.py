@@ -7,32 +7,18 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from api.core.database import Base, int_pk, str_null_true, str_uniq
 from api.payment.model import PaymentTransaction
 from api.referrals.models import Referral
-from api.subscription.models import Subscription
+from api.subscription.models import SUBSCRIPTION_PRIORITY, Subscription
 from api.vpn.models import VPNConfig
 
 
 class User(Base):
-    """Модель пользователя.
-
-    Attributes
-        id (int): Уникальный идентификатор пользователя.
-        telegram_id (int): Идентификатор пользователя в Telegram.
-        username (str | None): Username пользователя.
-        first_name (str | None): Имя пользователя.
-        last_name (str | None): Фамилия пользователя.
-        role_id (int | None): FK на роль.
-        role (Role): Связанная роль.
-        subscriptions (list[Subscription]): Список подписок пользователя.
-        vpn_configs (list[VPNConfig]): VPN-конфиги пользователя.
-        invited_users (list[Referral]): Рефералы, приглашённые пользователем.
-        invited_by (Referral | None): Кто пригласил пользователя.
-        has_used_trial (bool): Использовал ли пользователь триал.
-
-    """
+    """Модель пользователя."""
 
     id: Mapped[int_pk]
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, nullable=False)
-    username: Mapped[str_uniq]
+    # Telegram-username не обязателен, изменяем и переиспользуем — уникальность
+    # должна быть на telegram_id (выше), а не здесь.
+    username: Mapped[str_null_true]
     first_name: Mapped[str_null_true]
     last_name: Mapped[str_null_true]
     has_used_trial: Mapped[bool] = mapped_column(default=False, server_default="false")
@@ -48,12 +34,16 @@ class User(Base):
         cascade="all, delete-orphan",
         uselist=True,
         lazy="selectin",
+        # Приоритет строится из SUBSCRIPTION_PRIORITY (api/subscription/models.py) —
+        # единого источника для всех пяти значений SubscriptionType, а не
+        # перечислением вручную.
         order_by=lambda: (
             Subscription.is_active.desc(),
             case(
-                (Subscription.type == "PREMIUM", 3),
-                (Subscription.type == "STANDARD", 2),
-                (Subscription.type == "TRIAL", 1),
+                *(
+                    (Subscription.type == sub_type, priority)
+                    for sub_type, priority in SUBSCRIPTION_PRIORITY.items()
+                ),
                 else_=0,
             ).desc(),
             Subscription.end_date.desc(),
@@ -66,11 +56,19 @@ class User(Base):
         lazy="selectin",
         order_by="VPNConfig.id",
     )
+    # lazy="raise" (не "selectin", как остальные связи выше) — invited_users/
+    # invited_by/payments нужны только в двух явных местах (UserAdmin, которая
+    # уже сама добавляет selectinload через _with_eager_options, и
+    # UserService.get_user_with_referrals), а не на каждой загрузке User,
+    # в том числе на каждом HTTP-запросе через AuthMiddleware (см. #243).
+    # "raise" выбран вместо "select" осознанно: пропущенное место, которому
+    # на самом деле нужна связь, сразу падает явной ошибкой в тестах, а не
+    # тихо открывает N+1 запрос в рантайме.
     invited_users: Mapped[list["Referral"]] = relationship(
         "Referral",
         foreign_keys=[Referral.inviter_id],
         back_populates="inviter",
-        lazy="selectin",
+        lazy="raise",
         passive_deletes=True,
     )
 
@@ -79,20 +77,20 @@ class User(Base):
         foreign_keys=[Referral.invited_id],
         back_populates="invited",
         uselist=False,
-        lazy="selectin",
+        lazy="raise",
         passive_deletes=True,
     )
     payments: Mapped[list["PaymentTransaction"]] = relationship(
         "PaymentTransaction",
         foreign_keys="PaymentTransaction.user_id",
         back_populates="user",
-        lazy="selectin",
+        lazy="raise",
         order_by="PaymentTransaction.created_at.desc()",
         passive_deletes=True,
     )
 
     def __str__(self) -> str:
-        """Строковое представление для записи."""
+        """Строковое представление пользователя."""
         parts = [
             self.first_name or "",
             self.last_name or "",
@@ -117,30 +115,12 @@ class User(Base):
 
     @hybrid_property
     def vpn_files_count(self) -> int:
-        """Возвращает количество VPN конфигов, связанных с пользователем.
-
-        Это обычный Python property, которое считает элементы в списке `vpn_configs`.
-
-        Returns
-            int: Количество VPN конфигов пользователя.
-
-        """
+        """Количество VPN-конфигов пользователя."""
         return len(self.vpn_configs)
 
     @vpn_files_count.expression  # type: ignore[no-redef]
     def vpn_files_count(cls) -> ScalarSelect[Any]:
-        """SQL-выражение для подсчёта VPN-конфигов.
-
-        Используется в ORM-запросах для сортировки и фильтрации без загрузки
-        связанных объектов.
-
-        Args:
-            cls: Класс модели User (SQLAlchemy ORM context).
-
-        Returns
-            ScalarSelect[int]: Подзапрос с COUNT(VPNConfig.id).
-
-        """
+        """SQL-выражение COUNT(VPNConfig.id) для сортировки и фильтрации без загрузки связей."""
         return (
             select(func.count(VPNConfig.id))
             .where(VPNConfig.user_id == cls.id)
@@ -150,28 +130,12 @@ class User(Base):
 
     @hybrid_property
     def payments_count(self) -> int:
-        """Возвращает количество платёжных транзакций пользователя.
-
-        Returns
-            int: Количество платежей пользователя.
-
-        """
+        """Количество платёжных транзакций пользователя."""
         return len(self.payments)
 
     @payments_count.expression  # type: ignore[no-redef]
     def payments_count(cls) -> ScalarSelect[Any]:
-        """SQL-выражение для подсчёта платежей.
-
-        Используется в ORM-запросах для сортировки и фильтрации без загрузки
-        связанных объектов.
-
-        Args:
-            cls: Класс модели User (SQLAlchemy ORM context).
-
-        Returns
-            ScalarSelect[int]: Подзапрос с COUNT(PaymentTransaction.id).
-
-        """
+        """SQL-выражение COUNT(PaymentTransaction.id) для сортировки и фильтрации без загрузки связей."""
         return (
             select(func.count(PaymentTransaction.id))
             .where(PaymentTransaction.user_id == cls.id)
@@ -181,25 +145,12 @@ class User(Base):
 
     @hybrid_property
     def referrals_count(self) -> int:
-        """Возвращает количество приглашённых пользователей.
-
-        Returns
-            int: Число рефералов.
-
-        """
+        """Количество приглашённых пользователей."""
         return len(self.invited_users) if self.invited_users else 0
 
     @referrals_count.expression  # type: ignore[no-redef]
     def referrals_count(cls) -> ScalarSelect[Any]:
-        """SQL-выражение для подсчёта рефералов.
-
-        Args:
-            cls: Класс модели User.
-
-        Returns
-            ScalarSelect[int]: Подзапрос с количеством рефералов.
-
-        """
+        """SQL-выражение для подсчёта рефералов."""
         return (
             select(func.count(Referral.id))
             .where(Referral.inviter_id == cls.id)
@@ -209,12 +160,7 @@ class User(Base):
 
     @hybrid_property
     def paid_referrals_count(self) -> int:
-        """Возвращает количество рефералов, получивших бонус.
-
-        Returns
-            int: Количество рефералов с выданным бонусом.
-
-        """
+        """Количество рефералов, получивших бонус."""
         if not self.invited_users:
             return 0
 
@@ -222,15 +168,7 @@ class User(Base):
 
     @paid_referrals_count.expression  # type: ignore[no-redef]
     def paid_referrals_count(cls) -> ScalarSelect[int]:
-        """SQL-выражение для подсчёта рефералов с бонусом.
-
-        Args:
-            cls: Класс модели User.
-
-        Returns
-            ScalarSelect[int]: Подзапрос с фильтром bonus_given = True.
-
-        """
+        """SQL-выражение для подсчёта рефералов с бонусом."""
         return (
             select(func.count(Referral.id))
             .where(
@@ -258,16 +196,7 @@ class User(Base):
 
 
 class Role(Base):
-    """Модель роли пользователя.
-
-    Attributes
-        id (int): Уникальный идентификатор роли.
-        name (str): Уникальное имя роли.
-        description (str | None): Описание роли.
-        role_users (List[UserRole]): Промежуточные связи между ролями и пользователями.
-        users (List[User]): Пользователи, связанные с ролью (association proxy).
-
-    """
+    """Модель роли пользователя."""
 
     id: Mapped[int_pk]
     name: Mapped[str_uniq]
@@ -278,10 +207,10 @@ class Role(Base):
     )
 
     def __str__(self) -> str:
-        """Строковое представление для записи."""
+        """Строковое представление роли."""
         return f"{self.name} - {self.description}"
 
     @property
     def users_count(self) -> int:
-        """Свойство отображает количество пользователй Роли."""
+        """Количество пользователей роли."""
         return len(self.users) if self.users else 0

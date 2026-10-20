@@ -5,9 +5,11 @@ from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from api.payment.model import PaymentSource, PaymentStatus
+from api.core.config import settings_api
+from api.payment.model import PaymentSource
 from api.referrals.schemas import GrantReferralBonusResponse
 from api.users.schemas import SUserOut
+from shared.enums.payment_enum import PaymentStatus
 
 
 class Currency(str, Enum):
@@ -128,9 +130,14 @@ class STransactionPendingFilter(STransactionIDFilter):
     (``WHERE id = ... AND status = 'PENDING'``), а не отдельным
     check-then-act в Python — иначе два параллельных вебхука могут оба
     пройти проверку статуса до того, как первый из них закоммитится.
+
+    `status` обязателен (без значения по умолчанию): `BaseDAO._to_dict`
+    строит условие через `model_dump(exclude_unset=True)`, и поле со
+    смысловым дефолтом, не переданное явно в конструктор, выпадало бы из
+    `WHERE` — тем самым атомарность пропадала бы незаметно.
     """
 
-    status: PaymentStatus = PaymentStatus.PENDING
+    status: PaymentStatus
 
 
 class SGatewayTransactionFilter(BaseModel):
@@ -142,14 +149,17 @@ class SGatewayTransactionFilter(BaseModel):
 class SUserPendingTransactionsFilter(BaseModel):
     """Фильтр незавершённых транзакций конкретного пользователя.
 
+    `status` обязателен по той же причине, что и в
+    `STransactionPendingFilter`.
+
     Attributes
         user_id: Идентификатор пользователя.
-        status: Статус транзакции (по умолчанию PENDING).
+        status: Статус транзакции.
 
     """
 
     user_id: int
-    status: PaymentStatus = PaymentStatus.PENDING
+    status: PaymentStatus
 
 
 class SAdminConfirmPayment(STransactionIDFilter):
@@ -166,7 +176,9 @@ class SAdminConfirmPayment(STransactionIDFilter):
 class SPaidAt(BaseModel):
     """Схема установки даты оплаты."""
 
-    paid_at: datetime = Field(default_factory=datetime.now)
+    paid_at: datetime = Field(
+        default_factory=lambda: datetime.now(settings_api.core.tzinfo)
+    )
 
 
 class SPaymentStatusCancel(BaseModel):

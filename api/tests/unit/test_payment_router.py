@@ -17,9 +17,10 @@ from api.app_error.api_error import APIError
 from api.core.dependencies import get_current_user, get_session, verify_internal_secret
 from api.core.exceptions.handlers.http import api_error_handler
 from api.payment.dependencies import get_payment_service
-from api.payment.model import PaymentSource, PaymentStatus
+from api.payment.model import PaymentSource
 from api.payment.router import router
 from shared.enums.admin_enum import RoleEnum
+from shared.enums.payment_enum import PaymentStatus
 
 
 def make_transaction_payload(**overrides) -> dict:
@@ -30,7 +31,7 @@ def make_transaction_payload(**overrides) -> dict:
         "tg_id": 123456789,
         "amount": 1000,
         "currency": "RUB",
-        "status": "PENDING",
+        "status": "pending",
         "source": "MANUAL",
         "subscription_months": 1,
         "is_premium": False,
@@ -337,7 +338,7 @@ async def test_admin_confirm_transaction(
     tx_id = uuid4()
 
     payment_service_mock.confirm_payment_flow.return_value = {
-        "transaction_res": make_transaction_payload(id=str(tx_id), status="PAID"),
+        "transaction_res": make_transaction_payload(id=str(tx_id), status="paid"),
         "subscription_res": make_subscription_payload(role={"id": 1, "name": "ADMIN"}),
         "referral_res": {
             "success": False,
@@ -383,7 +384,7 @@ async def test_webhook_confirm_transaction(
     payment_service_mock.confirm_payment_flow.return_value = {
         "transaction_res": make_transaction_payload(
             id=str(tx_id),
-            status="PAID",
+            status="paid",
             source="GATEWAY",
             gateway_transaction_id="gw_123",
         ),
@@ -427,7 +428,7 @@ async def test_cancel_transaction(
 
     payment_service_mock.cancel_transaction.return_value = make_transaction_payload(
         id=str(tx_id),
-        status="CANCELED",
+        status="canceled",
     )
 
     payload = {"id": str(tx_id)}
@@ -462,7 +463,7 @@ async def test_webhook_cancel_transaction(
 
     payment_service_mock.cancel_transaction.return_value = make_transaction_payload(
         id=str(tx_id),
-        status="CANCELED",
+        status="canceled",
         source="GATEWAY",
     )
 

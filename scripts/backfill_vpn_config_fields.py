@@ -31,6 +31,7 @@ from api.core.database import async_session
 from api.users.models import User  # noqa: F401
 from api.vpn.models import VPNConfig
 from bot.core.config import settings_bot
+from shared.enums.vpn_enum import VPNBackend, VPNProtocol
 
 # У XRay subId префикс однозначно отделён от остального суффиксом "user_" —
 # для него обычный regex безопасен.
@@ -110,7 +111,7 @@ def infer_fields(
             return None
         return {
             "node_name": node_name,
-            "backend": "xray",
+            "backend": VPNBackend.XRAY.value,
             # Какие именно inbound (xhttp/tcp reality) входили в эту
             # подписку, из старых данных не восстановить — только config_ids.
             "protocol": None,
@@ -123,8 +124,8 @@ def infer_fields(
     node = settings_bot.vpn.nodes[node_name]
     return {
         "node_name": node_name,
-        "backend": "amnezia",
-        "protocol": f"wg_{node.protocol_version}",
+        "backend": VPNBackend.AMNEZIA.value,
+        "protocol": VPNProtocol.for_wg(node.protocol_version).value,
         "config_ids": None,
     }
 

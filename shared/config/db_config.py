@@ -1,5 +1,8 @@
-from pydantic import SecretStr, computed_field
+from urllib.parse import quote
+
+from pydantic import SecretStr
 from pydantic_settings import SettingsConfigDict
+from sqlalchemy import URL
 
 from shared.config.app_config import SettingsCommon
 
@@ -14,11 +17,21 @@ class PostgresSettings(SettingsCommon):
         password (SecretStr): Пароль пользователя для подключения к базе данных.
         database (str): Имя базы данных.
         embedding_dim (int): Размерность Эмбеддингов, которые можно записать в БД. В яндекс по умолчанию 256.
+        pool_size (int): Число постоянных соединений в пуле `create_async_engine`.
+        max_overflow (int): Доп. соединения сверх `pool_size` при пиковой нагрузке.
+        pool_pre_ping (bool): Проверять соединение перед выдачей из пула — без
+            этого первые запросы после перезапуска/разрыва по таймауту на стороне
+            Postgres падают с `OperationalError` на «мёртвом» соединении.
+        pool_recycle (int): Секунд до принудительного пересоздания соединения
+            (защита от разрыва по таймауту сетевого оборудования/firewall).
 
     Properties
-        url (str): Строка подключения к PostgreSQL в формате
-            `postgresql+asyncpg://user:password@host:port/database`.
-            Формируется автоматически из указанных выше атрибутов.
+        url (URL): Строка подключения к PostgreSQL в формате
+            `postgresql+asyncpg://user:password@host:port/database`,
+            собранная через `sqlalchemy.URL.create`. Формируется автоматически
+            из указанных выше атрибутов. Обычный `@property`, а не
+            `computed_field` — иначе пароль попадал бы в `model_dump()`
+            открытым текстом в обход маскировки `SecretStr`.
 
     """
 
@@ -28,18 +41,30 @@ class PostgresSettings(SettingsCommon):
     password: SecretStr
     database: str
     embedding_dim: int = 256
+    pool_size: int = 10
+    max_overflow: int = 20
+    pool_pre_ping: bool = True
+    pool_recycle: int = 1800
 
-    @computed_field
-    def url(self) -> str:
+    @property
+    def url(self) -> URL:
         """Строка подключения к PostgreSQL через asyncpg.
 
         Returns
-           str: URL подключения к базе данных.
+           URL: Объект `sqlalchemy.URL` (принимается `create_async_engine`
+               напрямую). Экранирование `user`/`password` (спецсимволы вроде
+               `@`, `:`, `/`) выполняет сам `URL.create`, вручную `quote_plus`
+               звать не нужно — в отличие от Redis ниже, где драйвер ждёт
+               готовую строку.
 
         """
-        return (
-            f"postgresql+asyncpg://{self.user}:{self.password.get_secret_value()}@"
-            f"{self.host}:{self.port}/{self.database}"
+        return URL.create(
+            drivername="postgresql+asyncpg",
+            username=self.user,
+            password=self.password.get_secret_value(),
+            host=self.host,
+            port=self.port,
+            database=self.database,
         )
 
     model_config = SettingsConfigDict(env_prefix="DB_")
@@ -49,16 +74,18 @@ class RedisSettings(SettingsCommon):
     """Конфигурация базы данных REDIS.
 
     Attributes
-        redis_password (SecretStr): Пароль для подключения к Redis.
-        redis_host (str): Хост Redis-сервера. По умолчанию "redis".
-        redis_port (int): Порт Redis-сервера. По умолчанию 6379.
-        num_db (int): Номер базы данных Redis. По умолчанию 0.
-        redis_user (str) : Имя пользователя Redis для приложения.
-        default_expire (int) : Время жизни ключей в Redis по умолчанию (в секундах). По умолчанию 3600 секунд (1 час).
+        password (SecretStr): Пароль для подключения к Redis.
+        host (str): Хост Redis-сервера. По умолчанию "redis".
+        port (int): Порт Redis-сервера. По умолчанию 6379.
+        db (int): Номер базы данных Redis. По умолчанию 0.
+        user (str) : Имя пользователя Redis для приложения.
+        default_expire (int) : Время жизни ключей в Redis по умолчанию (в секундах). По умолчанию 43200 секунд (12 часов).
 
     Properties
         url (str): Строка подключения к Redis в формате
-        `redis://:password@host:port/db_number`.
+        `redis://:password@host:port/db_number`. Обычный `@property`, а не
+        `computed_field` — иначе пароль попадал бы в `model_dump()` открытым
+        текстом в обход маскировки `SecretStr`.
 
     """
 
@@ -69,17 +96,20 @@ class RedisSettings(SettingsCommon):
     db: int = 0
     default_expire: int = 43200
 
-    @computed_field
+    @property
     def url(self) -> str:
         """Строка подключения к Redis.
 
         Returns
-           str: URL подключения к базе данных.
+           str: URL подключения к базе данных. `user`/`password` экранированы
+               через `quote(..., safe="")`, так что спецсимволы (`@`, `:`,
+               `/` и т.п.) не разрывают URL. `safe=""` обязателен — у `quote`
+               по умолчанию `safe="/"`, то есть слэш в пароле остался бы
+               неэкранированным и всё равно ломал бы разбор URL.
 
         """
-        return (
-            f"redis://{self.user}:{self.password.get_secret_value()}@"
-            f"{self.host}:{self.port}/{self.db}"
-        )
+        user = quote(self.user, safe="")
+        password = quote(self.password.get_secret_value(), safe="")
+        return f"redis://{user}:{password}@{self.host}:{self.port}/{self.db}"
 
     model_config = SettingsConfigDict(env_prefix="REDIS_")

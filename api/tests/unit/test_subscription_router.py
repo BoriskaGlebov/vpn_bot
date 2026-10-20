@@ -5,10 +5,12 @@ import pytest
 from api.admin.dependencies import check_admin_role
 from api.core.dependencies import get_current_user, get_session
 from api.subscription.dependencies import get_subscription_service
+from api.subscription.schemas import SSubscriptionCheck
 from api.subscription.services import SubscriptionService
 from api.tests.conftest import fake_admin, fake_user
 from api.users.schemas import SRoleOut
 from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import TrialStatus
 
 
 @pytest.fixture
@@ -33,7 +35,9 @@ def client(make_client, mock_service):
 def test_check_premium(client, mock_service):
     """Возвращает статус премиума/активности подписки пользователя."""
     mock_service.check_premium = AsyncMock(
-        return_value=(True, RoleEnum.USER, True, False)
+        return_value=SSubscriptionCheck(
+            premium=True, role=RoleEnum.USER, is_active=True, used_trial=False
+        )
     )
 
     response = client.get("/api/subscriptions/check/premium?tg_id=123")
@@ -50,8 +54,8 @@ def test_check_premium(client, mock_service):
 
 
 def test_start_trial(client, mock_service):
-    """Активация триала возвращает 201 и статус trial_started."""
-    mock_service.start_trial_subscription = AsyncMock(return_value=None)
+    """Активация триала возвращает 201 и статус, отданный сервисом."""
+    mock_service.start_trial_subscription = AsyncMock(return_value=TrialStatus.STARTED)
 
     payload = {"tg_id": 123, "days": 10}
 
@@ -61,6 +65,20 @@ def test_start_trial(client, mock_service):
     assert response.json()["status"] == "trial_started"
 
     mock_service.start_trial_subscription.assert_awaited_once()
+
+
+def test_start_trial_extended(client, mock_service):
+    """#283: продление существующей активной подписки отвечает trial_extended,
+    а не тем же значением, что и создание новой.
+    """
+    mock_service.start_trial_subscription = AsyncMock(return_value=TrialStatus.EXTENDED)
+
+    payload = {"tg_id": 123, "days": 10}
+
+    response = client.post("/api/subscriptions/trial/activate", json=payload)
+
+    assert response.status_code == 201
+    assert response.json()["status"] == "trial_extended"
 
 
 def test_activate_paid(client, mock_service):
@@ -90,7 +108,7 @@ def test_subscription_info(client, mock_service):
         return_value={
             "status": "active",
             "subscription_type": "premium",
-            "remaining": "10 days",
+            "remaining": 10,
             "configs": [],
             "end_date": None,
         }

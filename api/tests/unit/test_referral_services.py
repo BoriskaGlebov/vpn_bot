@@ -156,7 +156,14 @@ async def test_register_referral_inviter_not_found(mock_session):
 
 @pytest.mark.asyncio
 async def test_grant_referral_bonus_no_referral(mock_session):
-    """Для приглашённого нет записи Referral -> бонус не начисляется."""
+    """Для приглашённого нет записи Referral -> бонус не начисляется.
+
+    #286: второй элемент кортежа документирован как "Telegram ID
+    пригласителя, если бонус был начислен, иначе None" — раньше здесь
+    возвращался telegram_id самого приглашённого (нет пригласителя вовсе,
+    не только бонус не начислен), что было бы видно при добавлении нового
+    вызывающего, использующего это значение в тексте для пользователя.
+    """
     service = ReferralService()
     invited_user = make_invited_user()
 
@@ -164,14 +171,16 @@ async def test_grant_referral_bonus_no_referral(mock_session):
         "api.referrals.services.ReferralDAO.find_one_or_none",
         new=AsyncMock(return_value=None),
     ):
-        result, telegram_id, message = await service.grant_referral_bonus(
+        result, inviter_telegram_id, message = await service.grant_referral_bonus(
             session=mock_session,
             invited_user=invited_user,
         )
 
         assert result is False
-        assert telegram_id == invited_user.telegram_id
-        assert message == f"У пользователя не было приглашения {telegram_id}"
+        assert inviter_telegram_id is None
+        assert (
+            message == f"У пользователя не было приглашения {invited_user.telegram_id}"
+        )
 
 
 @pytest.mark.asyncio

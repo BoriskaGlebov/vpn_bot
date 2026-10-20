@@ -27,7 +27,7 @@ async def test_get_year_income(mock_session):
 
 @pytest.mark.asyncio
 async def test_get_year_income_current_year(mocker, mock_session):
-    """Год не передан -> DAO подставляет текущий год (UTC now)."""
+    """Год не передан -> DAO подставляет текущий год (now в таймзоне проекта)."""
     mocked_now = datetime(2026, 5, 10, tzinfo=UTC)
 
     datetime_mock = Mock()
@@ -72,3 +72,23 @@ async def test_get_year_income_builds_query(mock_session):
     assert "sum(" in compiled.lower()
     assert "amount" in compiled.lower()
     assert "paid_at" in compiled.lower()
+
+
+@pytest.mark.asyncio
+async def test_get_year_income_uses_timezone_aware_bounds(mock_session):
+    """Границы года (start/end) должны быть timezone-aware (#255) — paid_at
+    хранится как timestamptz, и наивная граница сравнивалась бы по TimeZone
+    сессии Postgres, а не по явной зоне проекта.
+    """
+    result_mock = Mock()
+    result_mock.scalar_one.return_value = 0
+    mock_session.execute.return_value = result_mock
+
+    await PaymentTransactionDAO.get_year_income(session=mock_session, year=2025)
+
+    stmt = mock_session.execute.await_args.args[0]
+    bind_params = stmt.compile().params
+
+    bound_datetimes = [v for v in bind_params.values() if isinstance(v, datetime)]
+    assert bound_datetimes, "в запросе должны быть datetime-параметры границ года"
+    assert all(dt.tzinfo is not None for dt in bound_datetimes)

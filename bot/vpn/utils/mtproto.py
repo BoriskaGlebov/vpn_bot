@@ -1,22 +1,21 @@
 import asyncio
 import shlex
-from typing import Union
 
-import asyncssh
 from loguru import logger
 
 from bot.vpn.utils.amnezia_exceptions import AmneziaSSHError
-from bot.vpn.utils.amnezia_proxy import AsyncDockerSSHClient
-from bot.vpn.utils.amnezia_wg import CONNECT_TIMEOUT
+from bot.vpn.utils.docker_ssh_client import AsyncDockerSSHClient
 
 
-# TODO Когда долго контейнер поднят он не логирует ключ доступа и невозможно подключиться
-# к контейнеру, надо перезагружать иногда или где-то отдельно хранить ключ доступа или ссылку на подключение
 class HostDockerSSHClient(AsyncDockerSSHClient):
-    """Асинхронный SSH-клиент для выполнения команд на Docker-хосте.
+    """SSH-клиент для выполнения команд на Docker-хосте, а не внутри контейнера.
 
-    Этот клиент наследуется от AsyncDockerSSHClient, но **не заходит внутрь контейнера** через `docker exec`.
-    Используется для выполнения команд на хосте, например `docker logs <container>`.
+    Используется для команд уровня хоста — например `docker logs <container>`
+    или `docker restart <container>` для контейнера, который сам не является
+    целью выполнения (в отличие от `AsyncDockerSSHClient` при `in_container=True`,
+    который заходит внутрь контейнера через `docker exec`). Вся разница с базовым
+    `AsyncContainerShellClient` — в одном флаге `in_container=False`, остальной
+    транспорт (подключение, одноразовый запуск команды) общий.
 
     Attributes
         host (str): Хост или IP сервера для SSH.
@@ -42,91 +41,8 @@ class HostDockerSSHClient(AsyncDockerSSHClient):
             port=port,
             known_hosts=known_hosts,
             use_local=use_local,
+            in_container=False,
         )
-
-    async def connect(self) -> None:
-        """Устанавливает SSH-соединение с хостом.
-
-        Не открывает shell в контейнере, только соединение с сервером.
-
-        Raises
-            AmneziaSSHError: Ошибка при подключении или таймаут SSH.
-
-        """
-        if self.use_local:
-            return
-        if self._conn is not None:
-            logger.bind(user=self.username).debug("AsyncSSH: уже подключён")
-            return
-        try:
-            self._conn = await asyncio.wait_for(
-                asyncssh.connect(
-                    host=self.host,
-                    port=self.port,
-                    username=self.username,
-                    known_hosts=self.known_hosts,
-                    agent_forwarding=True,
-                ),
-                timeout=CONNECT_TIMEOUT,
-            )
-            logger.bind(user=self.username).debug(
-                f"AsyncSSH: подключение к {self.host} установлено"
-            )
-        except TimeoutError as e:
-            logger.bind(user=self.username).error(
-                f"AsyncSSH: таймаут подключения к {self.host}"
-            )
-            raise AmneziaSSHError(
-                f"SSH timeout при подключении к {self.host}:{self.port}"
-            ) from e
-        except (OSError, asyncssh.Error) as exc:
-            logger.bind(user=self.username).error(
-                f"AsyncSSH: ошибка подключения: {exc}"
-            )
-            raise
-
-    async def write_single_cmd(self, cmd: str) -> tuple[str, str, int | None, str]:
-        """Выполняет команду на хосте напрямую, без захода внутрь контейнера.
-
-        Args:
-            cmd (str): Команда для выполнения.
-
-        Returns
-            Tuple[str, str, int, str]: Кортеж:
-                - stdout (str): Стандартный вывод команды.
-                - stderr (str): Стандартный поток ошибок.
-                - exit_code (int): Код возврата команды.
-                - cmd (str): Выполненная команда.
-
-        Raises
-            AmneziaSSHError: Если SSH-соединение не установлено.
-
-        """
-        if self.use_local:
-            process = await asyncio.create_subprocess_shell(
-                cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await process.communicate()
-            return (
-                stdout.decode().strip(),
-                stderr.decode().strip(),
-                process.returncode,
-                cmd,
-            )
-
-        if self._conn is None:
-            raise AmneziaSSHError("SSH-соединение не установлено. Вызови connect()")
-
-        result = await self._conn.run(cmd)
-        stdout = (
-            result.stdout if isinstance(result.stdout, str) else result.stdout.decode()
-        )
-        stderr = (
-            result.stderr if isinstance(result.stderr, str) else result.stderr.decode()
-        )
-        return stdout.strip(), stderr.strip(), result.exit_status, cmd
 
 
 class MTProtoProxy:
@@ -148,7 +64,7 @@ class MTProtoProxy:
 
     def __init__(
         self,
-        client: Union[AsyncDockerSSHClient, "HostDockerSSHClient"],
+        client: AsyncDockerSSHClient,
         container: str = "telemt",
         port: int = 443,
     ) -> None:

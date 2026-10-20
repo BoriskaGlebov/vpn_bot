@@ -1,5 +1,5 @@
 from bot.core.config import settings_bot
-from bot.subscription.enums import ToggleSubscriptionMode
+from shared.enums.subscription_enum import ToggleSubscriptionMode
 
 
 def get_correct_price_map(premium: bool, founder: bool) -> dict[int, int]:

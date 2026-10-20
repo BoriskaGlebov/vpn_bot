@@ -75,7 +75,16 @@ class UserAdmin(ModelView, model=User):
 
     can_create = True
     can_edit = True
-    can_delete = True
+    # Удаление пользователя сносит все его vpn_configs каскадом
+    # (cascade="all, delete-orphan"), а вместе с ними pub_key и config_ids —
+    # то есть пропадает информация, по которой доступ на нодах можно было бы
+    # найти и отозвать. Доступ продолжает работать, восстановить связь
+    # «доступ -> удалённая запись» после этого нечем. В проекте нет и
+    # собственного безопасного пути удаления пользователя (отзыв доступа на
+    # всех VPN-конфигах + удаление записи) — до тех пор, пока такой сервис
+    # не появится, удаление запрещено целиком, а не молча ломает доступ
+    # (см. #246).
+    can_delete = False
     can_view_details = True
     column_labels = {
         "id": "ID",
@@ -93,7 +102,7 @@ class UserAdmin(ModelView, model=User):
         "current_subscription": format_current_subscription,  # type: ignore[misc, dict-item]
         "vpn_files_count": format_files_count,  # type: ignore[misc, dict-item]
         "payments_count": format_payments_count,  # type: ignore[misc, dict-item]
-        User.username: lambda m, a: m.username[:10],  # type: ignore[misc, attr-defined]
+        User.username: lambda m, a: (m.username or "-")[:10],  # type: ignore[misc, attr-defined]
     }  # type: ignore[misc, assignment]
     name = "Пользователь"
     name_plural = "Пользователи"
@@ -151,41 +160,12 @@ class UserAdmin(ModelView, model=User):
 
 
 def format_users_count(obj: Role, name: str) -> int:
-    """Возвращает количество пользователей, связанных с ролью.
-
-    Args:
-        obj (Role): Экземпляр роли.
-        name (str): Имя колонки (не используется, требуется API sqladmin).
-
-    Returns
-        int: Количество пользователей.
-
-    """
+    """Возвращает количество пользователей, связанных с ролью."""
     return len(obj.users) if obj.users else 0
 
 
 class RoleAdmin(ModelView, model=Role):
-    """Админка для управления ролями пользователей.
-
-    Отображает список ролей, количество пользователей в каждой роли,
-    детальную информацию и позволяет фильтровать и сортировать роли.
-
-    Attributes
-        column_list (list[str | Any]): Колонки, отображаемые в списке ролей.
-        column_details_list (list[str | Any]): Колонки, отображаемые на детальной странице.
-        details_template (str): Путь к кастомному шаблону детальной страницы.
-        column_sortable_list (list[str | Any]): Колонки, доступные для сортировки.
-        column_searchable_list (list[str | Any]): Колонки, по которым возможен поиск.
-        column_formatters (dict[str, callable]): Функции форматирования колонок.
-        can_create (bool): Разрешено ли создавать новые записи.
-        can_edit (bool): Разрешено ли редактировать записи.
-        can_delete (bool): Разрешено ли удалять записи.
-        column_labels (dict[str, str]): Человеко-понятные метки колонок.
-        name (str): Название модели в единственном числе.
-        name_plural (str): Название модели во множественном числе.
-        form_columns (list[str]): Поля, доступные для редактирования.
-
-    """
+    """Админка для управления ролями пользователей."""
 
     column_list = [Role.id, Role.name, Role.description, "users_count"]
     column_details_list = [

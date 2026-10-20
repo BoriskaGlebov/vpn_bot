@@ -163,7 +163,7 @@ python api/main.py      # http://localhost:8089/api/docs
 Настройки собираются `pydantic-settings` из **двух источников**, и это важно не путать:
 
 1. **`.env` / `.env.dev` / `.env.local`** — только секреты и то, что меняется от инстанса к инстансу (токены, пароли, ключи API). Более специфичный файл переопределяет более общий. Актуальный список — в `.env.example ` (да, с пробелом в конце имени файла).
-2. **`app_config.toml` (база) + `app_config.develop.toml` / `app_config.local.toml`** (stage-специфичный, глубоко мёрджится поверх базы) — все остальные настройки: хосты VPN-нод, тарифы, лимиты, cron-расписание, уровни логирования и т.д. Какой overlay-файл подключается, определяется переменной `STAGE` (`develop` по умолчанию, либо `local`/`prod`).
+2. **`app_config.toml` / `app_config.develop.toml`** — все остальные настройки: хосты VPN-нод, тарифы, лимиты, cron-расписание, уровни логирования и т.д. Переменная `STAGE` выбирает **ровно один** из этих файлов как полный конфиг окружения — `app_config.toml` при `STAGE=prod` (по умолчанию), иначе `app_config.develop.toml`. Это разные физические окружения (разные сервера, учётные данные, VPN-ноды), поэтому файлы не объединяются между собой: настройка, добавленная только в `app_config.toml`, на develop не появляется сама по себе. Поверх выбранного файла, независимо от `STAGE`, всегда дополнительно мёрджится `app_config.local.toml`, если он существует, — это личные оверрайды разработчика.
 
 Незнакомые ключи в `.env`-файлах молча игнорируются (`extra="ignore"`).
 
@@ -171,7 +171,7 @@ python api/main.py      # http://localhost:8089/api/docs
 
 | Группа | Переменные | Назначение |
 |---|---|---|
-| Stage | `STAGE` | `develop` \| `local` \| `prod` — выбирает `app_config.<stage>.toml` |
+| Stage | `STAGE` | `prod` → `app_config.toml`; любое другое значение (`develop`, `local` и т.д.) → `app_config.develop.toml`. `app_config.local.toml` мёрджится поверх выбранного файла независимо от `STAGE` |
 | Core / Bot | `BOT_TOKEN` | Токен Telegram-бота |
 | Telemt | `TELEMT_SECRET_HELLO` | Секрет MTProto-прокси |
 | XRay | `SOF_X_RAY_USERNAME`, `SOF_X_RAY_PASSWORD` | Учётные данные панели 3x-ui (нода `sof`) |
@@ -180,10 +180,11 @@ python api/main.py      # http://localhost:8089/api/docs
 | Object Storage | `ACCESS_KEY`, `SECRET_KEY` | Доступ к S3-совместимому бакету для медиа справки |
 | Backup | `BACKUP_ENCRYPTION_KEY` | Fernet-ключ шифрования бэкапов конфигов VPN-контейнеров (`backup.sh` → `bot/vpn/utils/backup_containers.py`) перед загрузкой в S3; генерируется один раз `Fernet.generate_key()` |
 | AI (опционально) | `SECRET_KEY_AI`, `YANDEX_FOLDER_ID` | Yandex AI Studio; актуально только при локальной разработке AI-части |
-| API service | `SESSION_SECRET` | Ключ сессий админ-панели (SQLAdmin) |
+| API service | `SESSION_SECRET` | Ключ сессий админ-панели (SQLAdmin). Обязателен — без значения по умолчанию, `api/` не поднимется без него |
+| API service | `ADMIN_PANEL_USER`, `ADMIN_PANEL_PASSWORD_HASH` | Логин и хеш пароля входа в SQLAdmin — отдельные от учётных данных PostgreSQL. Хеш генерируется один раз: `python -c "from api.users.auth_admin import hash_password; print(hash_password('...'))"`. Пустой `ADMIN_PANEL_PASSWORD_HASH` отключает вход в панель (fail-closed) |
 | API service | `SKIP_INIT` (в `.env.example `) / `SKIP_AI_INIT` (в CI, `.github/workflows/ci.yml`) | Флаг пропуска тяжёлой инициализации AI-зависимостей при старте; имя в этих двух местах расходится — при добавлении в свой `.env` стоит свериться с тем, что реально читает код на момент использования |
 | Платежи | `MERCHANT_ID`, `API_KEY` | Учётные данные платёжного шлюза (Platega) |
-| Internal | `INTERNAL_API_SECRET` | Общий секрет для запросов `bot/` → `api/` (заголовок `X-Internal-Secret`); обязателен на каждом из трёх payment-вебхук-эндпоинтов `api/` |
+| Internal | `INTERNAL_API_SECRET` | Общий секрет для запросов `bot/` → `api/` (заголовок `X-Internal-Secret`). Обязателен — без значения по умолчанию, `api/` не поднимется без него; значение должно совпадать с тем, что использует `bot/` |
 
 ### Настройки приложения (`app_config*.toml`)
 
@@ -194,6 +195,7 @@ python api/main.py      # http://localhost:8089/api/docs
 max_configs_per_user = 10
 admin_ids = [123456789]           # Telegram ID администраторов
 logger_level_stdout = "INFO"
+timezone = "Europe/Moscow"        # IANA-имя; settings.core.tzinfo вместо datetime.UTC везде в bot/ и api/
 
 [bot]
 base_site = "https://example.com/bot"
@@ -217,8 +219,9 @@ host = "vpn.example.com"
 username = "vpn_user"
 container = "amnezia-awg2"
 use_local = true                  # true — бот и VPN на одном сервере
-location_prefix = "XX"
+location_prefix = "XX"            # показывается пользователю на кнопке (не <name>)
 flag = "🏳️"
+premium = false                   # true — нода только для премиум-подписчиков
 
 [vpn.nodes.<name>.proxy]          # опционально — MTProto-прокси на этой ноде
 prefix = "proxy-example"
@@ -360,7 +363,7 @@ openssl rand -hex 16
 
 ## Персистентный SSH-agent на деплой-хосте
 
-Бот подключается к удалённым VPN-нодам (`use_local = false` в `[vpn.nodes.<name>]`, см. [«Настройки приложения»](#настройки-приложения-app_configtoml)) по SSH через `asyncssh` с `agent_forwarding=True` (`bot/vpn/utils/amnezia_wg.py`, `amnezia_proxy.py`, `mtproto.py`). Сокет ssh-agent пробрасывается в контейнер бота с хоста (`docker-compose.develop.yml`/`docker-compose.prod.yml`: `$SSH_AUTH_SOCK:/ssh-agent`).
+Бот подключается к удалённым VPN-нодам (`use_local = false` в `[vpn.nodes.<name>]`, см. [«Настройки приложения»](#настройки-приложения-app_configtoml)) по SSH через `asyncssh` с `agent_forwarding=True` (`bot/vpn/utils/amnezia_wg.py`, `docker_ssh_client.py`, `mtproto.py`). Сокет ssh-agent пробрасывается в контейнер бота с хоста (`docker-compose.develop.yml`/`docker-compose.prod.yml`: `$SSH_AUTH_SOCK:/ssh-agent`).
 
 **Зачем нужна отдельная настройка хоста.** Раньше ssh-agent поднимался ad-hoc прямо внутри SSH-скрипта деплоя в CI (`eval $(ssh-agent)`) — такой процесс живёт на случайном временном пути и не переживает рестарт контейнера бота или ребут сервера, поэтому ключи «терялись» и приходилось заново гонять деплой через CI, чтобы их добавить. Решение — постоянный ssh-agent на хосте с **фиксированным** путём сокета, поднимаемый через systemd и не зависящий от того, когда в последний раз запускался деплой.
 

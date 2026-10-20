@@ -1,9 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field
 
 from shared.enums.admin_enum import RoleEnum
-from shared.enums.subscription_enum import TrialStatus
+from shared.enums.subscription_enum import SubscriptionInfoStatus, TrialStatus
 
 
 class SSubscriptionCheck(BaseModel):
@@ -13,6 +13,7 @@ class SSubscriptionCheck(BaseModel):
         premium: True, если у пользователя активна премиум-подписка.
         role: Роль пользователя в системе.
         is_active: True, если текущая подписка активна.
+        used_trial: True, если пользователь уже использовал пробный период.
 
     """
 
@@ -62,12 +63,7 @@ class ActivateSubscriptionRequest(BaseModel):
 
 
 class SSubscription(BaseModel):
-    """Схема подписки пользователя.
-
-    Attributes
-        user_id (int): Идентификатор пользователя, которому принадлежит подписка.
-
-    """
+    """Схема подписки пользователя."""
 
     user_id: int = Field(..., description="User ID")
     model_config = ConfigDict(from_attributes=True)
@@ -77,42 +73,38 @@ class SVPNConfig(BaseModel):
     """Схема информации о VPN-конфиге.
 
     Attributes
+        id (int): Идентификатор записи в БД
         file_name (str): Имя файла конфигурации.
+        node_name (str | None): Имя ноды/локации (ключ в settings_bot.vpn.nodes).
+        created_at (datetime): Дата и время создания конфига.
 
     """
 
+    id: int
     file_name: str
+    node_name: str | None = None
+    created_at: datetime
 
 
 class SSubscriptionInfo(BaseModel):
     """Схема информации о подписке и VPN-конфигурациях пользователя.
 
+    `api/` отдаёт данные — число, перечисление, дату, а не готовый текст для
+    показа пользователю: текст на русском (склонения, "дней"/"UNLIMITED")
+    собирает бот, у которого для этого есть `settings_bot.messages`.
+
     Attributes
-        status (str): Статус подписки ('active', 'inactive', 'no_subscription').
+        status (SubscriptionInfoStatus): Статус подписки.
         subscription_type (Optional[str]): Тип подписки (например, 'PREMIUM').
-        remaining (str): Количество оставшихся дней подписки или 'UNLIMITED'.
+        remaining (int | None): Количество оставшихся дней или None для
+            бессрочной подписки.
         configs (List[SVPNConfig]): Список VPN-конфигов пользователя.
         end_date (Optional[datetime]): Дата окончания подписки.
 
     """
 
-    status: str
+    status: SubscriptionInfoStatus
     subscription_type: str | None
-    remaining: str
+    remaining: int | None
     configs: list[SVPNConfig]
     end_date: datetime | None
-
-    @field_serializer("end_date")
-    def serialize_end_date(self, value: datetime | None) -> str | None:
-        """Сериализация даты окончания подписки в строку формата YYYY-MM-DD.
-
-        Args:
-           value (Optional[datetime]): Дата окончания подписки.
-
-        Returns
-           Optional[str]: Строка с датой в формате YYYY-MM-DD или None.
-
-        """
-        if value is None:
-            return None
-        return value.strftime("%Y-%m-%d")

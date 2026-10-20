@@ -11,7 +11,6 @@ from typing import Any
 
 from api.core.exceptions.schema import APIErrorResponse
 
-#: Ошибки, которые может вернуть любой эндпоинт с Depends(get_current_user).
 AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {
         "model": APIErrorResponse,
@@ -27,7 +26,6 @@ AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     },
 }
 
-#: То же самое + доступ только для admin/founder (Depends(check_admin_role)).
 ADMIN_RESPONSES: dict[int | str, dict[str, Any]] = {
     **AUTH_RESPONSES,
     403: {

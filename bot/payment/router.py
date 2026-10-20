@@ -23,9 +23,11 @@ from bot.payment.dependencies import (
     get_payment_webhook_service,
     get_subscription_messages,
 )
-from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
+from bot.payment.dto import PaymentWebhookDTO
+from bot.payment.exceptions import PaymentAmountMismatchError, PaymentUnknownStatusError
 from bot.payment.services import PaymentService, PaymentWebhookService
 from bot.utils.start_stop_bot import send_to_admins
+from shared.enums.payment_enum import PaymentStatus
 
 router = APIRouter(prefix="/platega", tags=["webhook"])
 
@@ -71,7 +73,7 @@ async def _notify_transaction_conflict(
     )
 
     webhook_confirms_payment = event.status == PaymentStatus.PAID
-    transaction_is_paid = transaction_status == "PAID"
+    transaction_is_paid = transaction_status == PaymentStatus.PAID
 
     if webhook_confirms_payment and transaction_is_paid:
         logger.info(
@@ -153,11 +155,14 @@ async def payment_webhook(
             (тексты алертов администраторам).
 
     Returns
-        Response: 200 при успешной обработке, включая конфликтные и
-        идемпотентные случаи (см. `_notify_transaction_conflict`); 403,
-        если подлинность вебхука не подтверждена; 400, если тело вебхука
-        не удалось разобрать; 500 при неожиданной ошибке обработки
-        (провайдер повторит доставку).
+        Response: 200 при успешной обработке, включая конфликтные,
+        идемпотентные случаи (см. `_notify_transaction_conflict`),
+        несовпадение суммы (`PaymentAmountMismatchError`) и незнакомый
+        статус провайдера (`PaymentUnknownStatusError`) — в обоих случаях
+        повторная доставка не изменит содержимое вебхука, поэтому
+        провайдеру не нужно его повторять; 403, если подлинность вебхука не
+        подтверждена; 400, если тело вебхука не удалось разобрать; 500 при
+        неожиданной ошибке обработки (провайдер повторит доставку).
 
     """
     body: bytes = await request.body()
@@ -190,6 +195,32 @@ async def payment_webhook(
         await payment_webhook_service.handle_event(event)
     except APIClientConflictError as exc:
         await _notify_transaction_conflict(exc, event, bot, logger, m_subscription)
+        return Response(status_code=200)
+    except PaymentAmountMismatchError as exc:
+        # Сумма не изменится при повторной доставке того же вебхука — 200,
+        # чтобы провайдер не повторял запрос; подтверждение остаётся
+        # заблокировано (транзакция в PENDING) до ручной проверки.
+        await send_to_admins(
+            bot=bot,
+            message_text=m_subscription.gateway_alert.amount_mismatch.format(
+                transaction_id=exc.details["transaction_id"],
+                expected_amount=exc.details["expected_amount"],
+                received_amount=exc.details["received_amount"],
+            ),
+        )
+        return Response(status_code=200)
+    except PaymentUnknownStatusError as exc:
+        # Повторная доставка того же вебхука не изменит статус — 200, чтобы
+        # провайдер не повторял запрос; транзакция остаётся в PENDING до
+        # ручной проверки (иначе новый терминальный статус
+        # провайдера оставил бы транзакцию зависшей без единого уведомления).
+        await send_to_admins(
+            bot=bot,
+            message_text=m_subscription.gateway_alert.unknown_status.format(
+                transaction_id=exc.details["transaction_id"],
+                provider_status=exc.details["provider_status"],
+            ),
+        )
         return Response(status_code=200)
     except Exception:
         logger.exception(

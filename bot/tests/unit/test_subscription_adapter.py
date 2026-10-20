@@ -110,8 +110,18 @@ async def test_get_subscription_info(api_client):
                 "subscription_type": "PREMIUM",
                 "remaining": "10",
                 "configs": [
-                    {"file_name": "config1.conf"},
-                    {"file_name": "config2.conf"},
+                    {
+                        "id": 1,
+                        "file_name": "config1.conf",
+                        "node_name": "main",
+                        "created_at": "2026-01-01T00:00:00",
+                    },
+                    {
+                        "id": 2,
+                        "file_name": "config2.conf",
+                        "node_name": "sof",
+                        "created_at": "2026-01-02T00:00:00",
+                    },
                 ],
                 "end_date": "2026-01-01",
             },
@@ -125,7 +135,7 @@ async def test_get_subscription_info(api_client):
     assert isinstance(result, SSubscriptionInfo)
     assert result.status == "active"
     assert result.subscription_type == "PREMIUM"
-    assert result.remaining == "10"
+    assert result.remaining == 10
     assert len(result.configs) == 2
     assert result.configs[0].file_name == "config1.conf"
     assert result.end_date == datetime(2026, 1, 1)

@@ -1,8 +1,9 @@
 import asyncio
 import json
-from collections.abc import Callable, Iterable
-from datetime import UTC, datetime
+from collections.abc import Awaitable, Callable, Iterable
+from datetime import datetime
 from pathlib import Path
+from typing import cast
 
 from aiogram.types import User as TGUser
 from loguru import logger
@@ -19,26 +20,22 @@ from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
-from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN, AsyncSSHClientVPN2
 from bot.vpn.utils.amnezia_wg import (
     AsyncSSHClientWG,
     AsyncSSHClientWG2,
     AsyncSSHClientWG3,
 )
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
-from bot.vpn.utils.x_ray_config import XRayRegistry
+from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError, ThreeXUIError
+from shared.enums.vpn_enum import VPNBackend, VPNProtocol
 
 ssh_lock = asyncio.Lock()
 xray_lock = asyncio.Lock()
 
 SSHClientFactory = Callable[
     ...,
-    AsyncSSHClientVPN2
-    | AsyncSSHClientWG2
-    | AsyncSSHClientWG3
-    | AsyncSSHClientVPN
-    | AsyncSSHClientWG,
+    AsyncSSHClientWG2 | AsyncSSHClientWG3 | AsyncSSHClientWG,
 ]
 
 _WG_CLIENT_BY_PROTOCOL_VERSION: dict[str, type[AsyncSSHClientWG]] = {
@@ -124,6 +121,7 @@ class VPNService:
             raise VPNLimitError(
                 tg_id=user.telegram_id,
                 limit=limit.limit,
+                current=limit.current,
                 username=user.username or "",
             )
 
@@ -188,7 +186,9 @@ class VPNService:
                     file_path2,
                     file_path3,
                     pub_key,
-                ) = await ssh.add_new_user_gen_config(file_name=user.username)
+                ) = await ssh.add_new_user_gen_config(
+                    file_name=user.username or str(user.telegram_id)
+                )
                 for file_path in (file_path1, file_path2, file_path3):
                     logger.info(
                         "Создал VPN конфиг file_name={} через {}",
@@ -196,25 +196,45 @@ class VPNService:
                         ssh.__class__.__name__,
                     )
 
-        try:
-            await self.api_adapter.add_config(
-                tg_id=user.telegram_id,
-                file_name=f"{file_path1.name} / {file_path2.name} / {file_path3.name}",
-                pub_key=pub_key,
-                node_name=node_name,
-                backend="amnezia",
-                protocol=f"wg_{server_info.protocol_version}",
-            )
-            logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
+                # Сохранение в БД и откат идут здесь, внутри `async with` —
+                # `ssh.full_delete_user` в except-ветке должен обращаться к
+                # ещё живому соединению. Снаружи этого блока `__aexit__` уже
+                # вызвал `close()`, после чего любая команда по SSH падает,
+                # а исходная `APIClientError` подменяется ошибкой SSH.
+                try:
+                    await self.api_adapter.add_config(
+                        tg_id=user.telegram_id,
+                        file_name=(
+                            f"{file_path1.name} / {file_path2.name} / {file_path3.name}"
+                        ),
+                        pub_key=pub_key,
+                        node_name=node_name,
+                        backend=VPNBackend.AMNEZIA,
+                        protocol=VPNProtocol.for_wg(server_info.protocol_version),
+                    )
+                    logger.info("Конфиг сохранён в БД tg_id={}", tg_user.id)
 
-        except APIClientError as exc:
-            logger.error(
-                "Ошибка сохранения в БД, откат SSH tg_id={} error={}",
-                tg_user.id,
-                exc,
-            )
-            await ssh.full_delete_user(public_key=pub_key)
-            raise
+                except APIClientError as exc:
+                    logger.error(
+                        "Ошибка сохранения в БД, откат SSH tg_id={} error={}",
+                        tg_user.id,
+                        exc,
+                    )
+                    try:
+                        await ssh.full_delete_user(public_key=pub_key)
+                    except AmneziaError as rollback_exc:
+                        # Откат не заменяет собой исходную ошибку — иначе
+                        # наверх уходит сообщение не о той проблеме, которая
+                        # произошла. Пир остаётся на ноде, нужна
+                        # ручная очистка — это фиксируется только логом.
+                        logger.critical(
+                            "Откат SSH-пира не удался tg_id={} pub_key={} — "
+                            "требуется ручная очистка на ноде: {}",
+                            tg_user.id,
+                            pub_key,
+                            rollback_exc,
+                        )
+                    raise
 
         return file_path1, file_path2, file_path3, pub_key
 
@@ -285,19 +305,23 @@ class VPNService:
             # пользователь без активной подписки получил такой конфиг.
             raise SubscriptionNotFoundError(tg_id=tg_user.id)
 
-        now = datetime.now(UTC)
+        now = datetime.now(settings_bot.core.tzinfo)
         end = sub.end_date
         if end and end.tzinfo is None:
-            end = end.replace(tzinfo=UTC)
+            end = end.replace(tzinfo=settings_bot.core.tzinfo)
 
-        days_left = max((end - now).days, 0) if end else 0
+        if end is not None and end <= now:
+            # is_active мог устареть (обновляется только планировщиком) —
+            # если по факту срок уже прошёл, выдавать бессрочный
+            # доступ нельзя, даже если флаг ещё не снят.
+            raise SubscriptionNotFoundError(tg_id=tg_user.id)
 
-        logger.debug("Осталось дней tg_id={} days={}", tg_user.id, days_left)
+        logger.debug("Подписка tg_id={} действует до {}", tg_user.id, end)
         adapter = self.xray_registry.get(name=location)
         async with xray_lock:
             sub_info, sub_url = await adapter.add_new_config(
                 tg_id=tg_user.id,
-                days=days_left,
+                expires_at=end,
             )
 
         sub_ids = sub_info.get("sub_ids", [])
@@ -316,7 +340,7 @@ class VPNService:
                 file_name=file_name,
                 pub_key=pub_key,
                 node_name=location,
-                backend="xray",
+                backend=VPNBackend.XRAY,
                 protocol=",".join(protocols),
                 config_ids=config_ids,
             )
@@ -345,12 +369,13 @@ class VPNService:
         по-прежнему приходится перебирать все ноды (см. `xray_registry.all()`
         в вызывающем коде).
 
-        `config_ids` берётся из одноимённого поля, если оно заполнено; иначе
-        (старые записи) — из `pub_key`, который для XRay-конфигов является
-        JSON-списком `config_id` (см. `ThreeXUIAdapter.add_new_config`). У
-        WireGuard-конфигов `pub_key` — сырой публичный ключ, который как JSON
-        не парсится, поэтому такие конфиги просто пропускаются (WireGuard не
-        хранит срок действия на сервере — продлевать там нечего).
+        Берутся только конфиги с `backend=XRAY` и заполненным `config_ids`.
+        Раньше для записей без `config_ids` (старые, до появления этого поля)
+        он парсился из `pub_key` — перегрузка одного поля под два бэкенда;
+        миграция `1a242e081dff` заполнила `config_ids` для всех
+        таких записей, поэтому парсинг не нужен — WireGuard-конфиги просто
+        пропускаются по `backend` (они не хранят срок действия на сервере —
+        продлевать там нечего).
 
         Args:
             configs: Список VPN-конфигов пользователя.
@@ -363,21 +388,12 @@ class VPNService:
         by_node: dict[str, set[str]] = {}
         legacy: set[str] = set()
         for config in configs:
-            if config.backend and config.backend != "xray":
+            if config.backend != VPNBackend.XRAY or config.config_ids is None:
                 continue
-            ids = config.config_ids
-            if ids is None:
-                try:
-                    parsed = json.loads(config.pub_key)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(parsed, list):
-                    continue
-                ids = parsed
             if config.node_name:
-                by_node.setdefault(config.node_name, set()).update(ids)
+                by_node.setdefault(config.node_name, set()).update(config.config_ids)
             else:
-                legacy.update(ids)
+                legacy.update(config.config_ids)
         return by_node, legacy
 
     async def extend_user_xray_subscription(self, user: SUserOut) -> list[str]:
@@ -416,15 +432,21 @@ class VPNService:
             )
             return []
 
-        now = datetime.now(UTC)
+        now = datetime.now(settings_bot.core.tzinfo)
         end = sub.end_date
         if end and end.tzinfo is None:
-            end = end.replace(tzinfo=UTC)
-        days_left = max((end - now).days, 0) if end else 0
+            end = end.replace(tzinfo=settings_bot.core.tzinfo)
 
-        if days_left <= 0:
+        # `end=None` (бессрочная подписка) и «end уже в прошлом» (срок истёк/
+        # истекает сегодня) — разные ситуации, раньше схлопнутые в одну
+        # ветку «пропустить». Бессрочной подписке продление НУЖНО:
+        # выданный ранее конфиг хранит свой собственный expiryTime и не
+        # станет бессрочным сам. Истинно истёкшей — действительно no-op.
+        is_unlimited = end is None
+
+        if end is not None and end <= now:
             logger.debug(
-                "Подписка истекает сегодня/бессрочная — пропуск продления XRay tg_id={}",
+                "Подписка истекла — пропуск продления XRay tg_id={}",
                 user.telegram_id,
             )
             return []
@@ -438,11 +460,30 @@ class VPNService:
             return []
 
         logger.info(
-            "Продление XRay-конфигов tg_id={} by_node={} legacy={} days={}",
+            "Продление XRay-конфигов tg_id={} by_node={} legacy={} unlimited={} end={}",
             user.telegram_id,
             by_node,
             legacy,
-            days_left,
+            is_unlimited,
+            end,
+        )
+
+        # Бессрочной подписке конфиги не продлеваются до момента — им снимают
+        # срок действия целиком. См. предупреждение о непроверенном
+        # поведении панели в докстринге set_unlimited_config. Иначе —
+        # абсолютный момент `end`, тот же, что получает `add_new_config` при
+        # выдаче (раньше здесь считались days через timedelta.days,
+        # что теряло до суток оплаченного срока на каждом продлении). `cast`
+        # здесь безопасен: ветка `extend_config` берётся только когда
+        # `is_unlimited` ложно, то есть `end is not None`.
+        extend_fn: Callable[[ThreeXUIAdapter, Iterable[str]], Awaitable[list[str]]] = (
+            (lambda adapter, ids: adapter.set_unlimited_config(config_ids=list(ids)))
+            if is_unlimited
+            else (
+                lambda adapter, ids: adapter.extend_config(
+                    config_ids=list(ids), expires_at=cast(datetime, end)
+                )
+            )
         )
 
         extended: list[str] = []
@@ -450,8 +491,6 @@ class VPNService:
         last_error: ThreeXUIError | None = None
 
         async with xray_lock:
-            # Конфиги с известной нодой — обращаемся сразу к нужному адаптеру,
-            # без перебора всех зарегистрированных нод.
             for node_name, ids in by_node.items():
                 adapter = self.xray_registry.get_optional(node_name)
                 if adapter is None:
@@ -460,9 +499,7 @@ class VPNService:
                     legacy.update(ids)
                     continue
                 try:
-                    done = await adapter.extend_config(
-                        config_ids=list(ids), days=days_left
-                    )
+                    done = await extend_fn(adapter, ids)
                 except ThreeXUIConfigNotFoundError:
                     pending.update(ids)
                     continue
@@ -479,15 +516,11 @@ class VPNService:
                 extended.extend(done)
                 pending.update(set(ids) - set(done))
 
-            # Конфиги без известной ноды (созданы до появления node_name) —
-            # старое поведение: перебор всех нод до первого совпадения.
             for adapter in self.xray_registry.all() if legacy else []:
                 if not legacy:
                     break
                 try:
-                    done = await adapter.extend_config(
-                        config_ids=list(legacy), days=days_left
-                    )
+                    done = await extend_fn(adapter, legacy)
                 except ThreeXUIConfigNotFoundError:
                     continue
                 except ThreeXUIError as exc:
@@ -596,7 +629,6 @@ class VPNService:
 
     async def _delete_from_xray(
         self,
-        pub_key: str,
         file_name: str,
         node_name: str | None = None,
         config_ids: list[str] | None = None,
@@ -608,27 +640,21 @@ class VPNService:
         нода с тех пор пропала из реестра) — перебирает все зарегистрированные
         ноды, как раньше.
 
-        `config_ids`, если передан, используется напрямую; иначе (старые
-        записи) парсится из `pub_key` — для XRay-конфигов это JSON-список
-        `config_id` (по одному на каждый inbound). Если он не парсится как
-        JSON, значит это не XRay-конфиг вовсе (WireGuard хранит там сырой
-        публичный ключ).
+        `config_ids=None` означает, что конфига в 3x-ui нет (вызывающий код
+        передаёт `config.config_ids` из БД — для XRay-конфигов он всегда
+        заполнен после миграции `1a242e081dff`).
 
         Args:
-            pub_key: Публичный ключ (для XRay — JSON-список config_id).
             file_name: Имя файла — только для логирования.
             node_name: Имя ноды, на которой создан конфиг, если известно.
-            config_ids: Список config_id, если известен заранее.
+            config_ids: Список config_id.
 
         Returns
             tuple[bool, bool]: (найден_и_удалён, была_ошибка_запроса).
 
         """
         if config_ids is None:
-            try:
-                config_ids = json.loads(pub_key)
-            except json.JSONDecodeError:
-                return False, False
+            return False, False
 
         adapters = self.xray_registry.all()
         known_adapter = self.xray_registry.get_optional(node_name)
@@ -642,7 +668,7 @@ class VPNService:
                 try:
                     if await adapter.delete_config(config_id=config_id):
                         deleted_any = True
-                except APIClientError as e:
+                except (APIClientError, ThreeXUIError) as e:
                     logger.warning(
                         "Ошибка удаления config_id={} в {}: {}",
                         config_id,
@@ -687,16 +713,15 @@ class VPNService:
         deleted = False
         had_error = False
 
-        if config.backend != "xray":
+        if config.backend != VPNBackend.XRAY:
             async with ssh_lock:
                 deleted, had_error = await self._delete_from_ssh_nodes(
                     config.pub_key, config.file_name, node_name=config.node_name
                 )
 
-        if not deleted and config.backend != "amnezia":
+        if not deleted and config.backend != VPNBackend.AMNEZIA:
             async with xray_lock:
                 deleted, xray_error = await self._delete_from_xray(
-                    config.pub_key,
                     config.file_name,
                     node_name=config.node_name,
                     config_ids=config.config_ids,

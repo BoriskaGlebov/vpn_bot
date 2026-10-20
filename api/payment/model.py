@@ -3,24 +3,16 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON
+from sqlalchemy import JSON, DateTime
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base
+from shared.enums.payment_enum import PaymentStatus
 
 if TYPE_CHECKING:
     from api.users.models import User
-
-
-class PaymentStatus(str, Enum):
-    """Статус платежной транзакции."""
-
-    PENDING = "PENDING"
-    PAID = "PAID"
-    FAILED = "FAILED"
-    CANCELED = "CANCELED"
 
 
 class PaymentSource(str, Enum):
@@ -98,7 +90,6 @@ class PaymentTransaction(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
-    # USER
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         index=True,
@@ -129,7 +120,6 @@ class PaymentTransaction(Base):
     is_premium: Mapped[bool] = mapped_column(default=False)
     is_founder: Mapped[bool] = mapped_column(default=False)
 
-    # ADMIN AUDIT
     created_by_admin_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -151,13 +141,31 @@ class PaymentTransaction(Base):
     )
 
     # GATEWAY FUTURE
-    gateway_transaction_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # index=True: индекс ix_paymenttransactions_gateway_transaction_id
+    # уже есть в базе (создан миграцией f5bf5fd690ef), но модель его не
+    # объявляла — для alembic модель это источник истины, поэтому
+    # autogenerate каждый раз предлагал его удалить (уже один раз просочилось
+    # в миграцию 21a061efdaf6 и было убрано руками). По этой колонке идёт
+    # поиск транзакции на каждом вебхуке платёжного шлюза
+    # (PaymentService.get_by_gateway_id) — без индекса деградирует до
+    # полного сканирования таблицы по мере роста.
+    gateway_transaction_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, index=True
+    )
     gateway_payload: Mapped[dict[Any, Any] | None] = mapped_column(JSON, nullable=True)
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    confirmed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    paid_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # timezone=True: сверить с временем провайдера (Platega присылает своё
+    # время в вебхуке) нельзя, пока неизвестно, в какой зоне записан
+    # paid_at; наивная метка в час перехода на летнее время вообще
+    # неразрешимо двусмысленна.
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    paid_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     def __str__(self) -> str:
         """Возвращает краткое строковое представление транзакции.

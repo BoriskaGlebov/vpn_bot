@@ -1,7 +1,9 @@
 import os
 import tomllib
 from pathlib import Path
+from pprint import pprint
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -43,31 +45,34 @@ def deep_merge(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_toml_config() -> dict[str, Any]:
-    """Загружает и объединяет конфигурацию из TOML-файлов.
+    """Загружает конфигурацию из TOML-файла текущей стадии (`STAGE`).
 
-    Читает два файла:
-        - app_config.toml — базовая конфигурация
-        - app_config.local.toml — локальные переопределения
+    `prod` и `develop` — разные физические окружения (разные сервера, разные
+    учётные данные, разные VPN-ноды), поэтому их конфиги не объединяются
+    между собой: `STAGE` выбирает РОВНО ОДИН файл как полный,
+    самодостаточный конфиг этого окружения:
+        - `STAGE=prod` (по умолчанию) — `app_config.toml`;
+        - любой другой `STAGE` (`develop`, `local` и т.д.) — `app_config.develop.toml`.
+    Настройка, добавленная только в `app_config.toml`, на develop не
+    появляется сама по себе — её нужно продублировать в
+    `app_config.develop.toml`, если она там тоже нужна.
 
-    Если оба файла существуют, выполняется глубокое объединение через `deep_merge`,
-    где значения из локального файла имеют приоритет.
+    Поверх выбранного файла, независимо от стадии, накладывается
+    (глубоким объединением через `deep_merge`) `app_config.local.toml`, если
+    он существует — это личные оверрайды разработчика для любого окружения.
 
     Returns
         dict[str, Any]: Итоговый конфиг в виде словаря.
 
     Notes
-        - Оба файла опциональны.
-        - Если существует только один файл — возвращается его содержимое.
-        - Если ни один файл не найден — возвращается пустой словарь.
         - Файлы читаются в бинарном режиме (`rb`) для совместимости с `tomllib`.
 
     Raises
+        FileNotFoundError: Если файл, выбранный текущей стадией, отсутствует.
         tomllib.TOMLDecodeError: Если один из файлов содержит невалидный TOML.
 
     """
     logger.info("Загружаю настройки для бота из временного окружения.")
-    base = {}
-    local = {}
     load_dotenv(BASE_DIR / ".env")
     load_dotenv(BASE_DIR / ".env.dev", override=True)
     load_dotenv(BASE_DIR / ".env.local", override=True)
@@ -75,15 +80,21 @@ def load_toml_config() -> dict[str, Any]:
     base_path = BASE_DIR / "app_config.toml"
     dev_path = BASE_DIR / "app_config.develop.toml"
     local_path = BASE_DIR / "app_config.local.toml"
-    dev_stage = os.getenv("STAGE", "prod")
-    if dev_stage == "prod":
-        base = tomllib.load(open(base_path, "rb"))
-    else:
-        base = tomllib.load(open(dev_path, "rb"))
+
+    stage = os.getenv("STAGE", "prod")
+    stage_path = base_path if stage == "prod" else dev_path
+
+    if not stage_path.exists():
+        raise FileNotFoundError(f"Конфиг для STAGE={stage!r} не найден: {stage_path}")
+
+    with stage_path.open("rb") as f:
+        config = tomllib.load(f)
+
     if local_path.exists():
-        local = tomllib.load(open(local_path, "rb"))
-    res_merge = deep_merge(base, local)
-    return res_merge
+        with local_path.open("rb") as f:
+            config = deep_merge(config, tomllib.load(f))
+
+    return config
 
 
 class SettingsCommon(BaseSettings):
@@ -113,17 +124,39 @@ class SettingsApp(SettingsCommon):
      logger_level_stdout (str): Уровень логирования для стандартного вывода.
      logger_level_file (str): Уровень логирования для файла логов.
      logger_error_file (str): Уровень логирования для ошибок в отдельном файле.
+     logger_diagnose_files (bool): Отладочный флаг логгера, пишет подробнее логи включая секреты
+     log_user_events_data (bool):
+            Писать ли в лог полный repr Telegram-события (`UserActionLoggingMiddleware`),
+            то есть текст любого сообщения пользователя. Раньше управлялось
+            флагом `debug_fast_api`, который по смыслу относится к отладке
+            FastAPI, а не к логированию переписки пользователей — связь не
+            видна по имени, и включение отладки FastAPI неожиданно включало
+            бы запись переписки.
      max_configs_per_user (int): Максимальное количество файлов конфига для одного пользователя
+     trial_period_days (int):
+            Длительность пробного периода в днях. Раньше число дней совпадало
+            со значением `TRIAL_PERIOD_SENTINEL`, которым пробный период
+            одновременно обозначался в callback-данных — смена одного меняла
+            другое. Выбор пробного периода выражен отдельным
+            действием `SubscriptionAction.TRIAL`, длительность задаётся
+            только здесь.
      common_timeout (int): Настройка таймаута при подключении к API, серверам, контейнерам.
-     admin_ids (set[int] | str):
+     admin_ids (list[int]):
             Список Telegram ID администраторов с расширенными правами.
-            Может задаваться строкой вида "1,2,3" или коллекцией чисел.
+            Через переменную окружения задаётся JSON-массивом, например
+            `ADMIN_IDS=[123456789, 987654321]` — pydantic-settings разбирает
+            `list[int]` как JSON, а не как строку с разделителем-запятой.
+     timezone (str):
+            IANA-имя таймзоны проекта (например, `Europe/Moscow`). Единая
+            точка настройки для всех `datetime.now(...)` в `bot/` и `api/` —
+            раньше таймзона была захардкожена как `UTC` в коде, а контейнеры
+            при этом работают в `Europe/Moscow` (`TZ` в
+            `docker-compose.common.yml`); naive-вызовы `datetime.now()`
+            читали OS-таймзону (Moscow), а explicit-вызовы `datetime.now(UTC)`
+            — настоящий UTC, и эти значения расходились при сравнении/записи
+            в одну и ту же колонку. Единый источник настройки
+            убирает расхождение и позволяет сменить зону без правки кода.
      model_config (SettingsConfigDict): Настройки Pydantic для загрузки конфигурации из .env.
-
-    Methods
-        parse_admin_ids(v):
-            Валидирует и преобразует входное значение admin_ids в set[int].
-            Поддерживает строку и iterable.
 
     """
 
@@ -134,6 +167,27 @@ class SettingsApp(SettingsCommon):
     logger_level_stdout: str = "INFO"
     logger_level_file: str = "INFO"
     logger_error_file: str = "WARNING"
+    logger_diagnose_files: bool = False
+    log_user_events_data: bool = False
     max_configs_per_user: int = 10
+    trial_period_days: int = 7
     common_timeout: int = 10
     admin_ids: list[int] = []
+    timezone: str = "Europe/Moscow"
+
+    @property
+    def tzinfo(self) -> ZoneInfo:
+        """`ZoneInfo`, построенная из `timezone` — использовать вместо `datetime.UTC`.
+
+        Returns
+            ZoneInfo: таймзона проекта, применяется ко всем
+                `datetime.now(...)` в `bot/` и `api/`.
+
+        """
+        return ZoneInfo(self.timezone)
+
+
+if __name__ == "__main__":
+    toml = load_toml_config()
+    settings = SettingsApp(**toml)
+    pprint(settings.model_dump())

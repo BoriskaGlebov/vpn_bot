@@ -1,4 +1,5 @@
 import json
+import tempfile
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal
@@ -9,7 +10,14 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from box import Box
 from loguru import logger
-from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    SecretStr,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import SettingsConfigDict
 
 from bot.app_error.base_error import (
@@ -20,6 +28,7 @@ from bot.app_error.base_error import (
 from shared.config.app_config import SettingsApp, SettingsCommon, load_toml_config
 from shared.config.db_config import RedisSettings
 from shared.config.logger_config import LoggerConfig
+from shared.enums.vpn_enum import VPNProtocol
 
 __all__ = ["logger", "settings_bot", "bot", "dp"]
 
@@ -32,11 +41,16 @@ class SInbound(BaseModel):
     Attributes
         port (int): Порт, на котором слушает inbound.
         name (str): Человекочитаемое имя inbound (например, с флагом страны).
+        protocol (VPNProtocol): Протокол/вариант подключения этого inbound
+            (`vless_reality_tcp`/`vless_reality_xhttp`). Явное поле конфигурации,
+            а не вывод из `name` по подстроке — переименование inbound в панели
+            не должно влиять на то, какой `flow` выдаётся клиенту.
 
     """
 
     port: int
     name: str
+    protocol: VPNProtocol
 
 
 class BotSettings(SettingsCommon):
@@ -217,8 +231,13 @@ class VPNNode(SettingsCommon):
             из имени контейнера — на одном и том же `amnezia-awg2` может быть
             развёрнут как v2, так и v3 (см. `bot/vpn/utils/amnezia_wg.py`).
         use_local (bool): Использовать локальную ноду.
-        location_prefix (str): Префикс для определения локации файла, базово Франция
+        location_prefix (str): Префикс локации для отображения пользователю
+            на кнопках (например, "FR", "SOF") — не ключ ноды в `nodes`.
         flag (str): Флаг страны для кнопок.
+        premium (bool): Нода доступна только премиум-пользователям. Делит
+            сконфигурированные ноды на стандартный и премиум наборы —
+            добавление новой ноды в конфиг автоматически делает её доступной
+            без правок кода (см. `VPNRegistry.standard_nodes`/`.premium_nodes`).
         proxy (ProxySettings | None): Настройки прокси.
         xray (XRaySettingsSOF | None): Настройки XRay.
 
@@ -232,6 +251,7 @@ class VPNNode(SettingsCommon):
     use_local: bool = False
     location_prefix: str = "FR"
     flag: str = "🏴‍☠️"
+    premium: bool = False
     proxy: ProxySettings | None = None
     xray: XRaySettings | None = None
 
@@ -269,10 +289,16 @@ class VPNRegistry(SettingsCommon):
 
     Attributes
         nodes (dict[str, VPNNode]): Словарь нод по имени.
+        user_cfg_dir (Path): Каталог для временных пользовательских файлов
+            конфигов (.conf/.vpn/QR-код), генерируемых в `amnezia_wg.py`.
+            По умолчанию — системный временный каталог; роутер удаляет эти
+            файлы сразу после отправки пользователю, поэтому постоянное
+            хранилище не требуется.
 
     """
 
     nodes: dict[str, VPNNode]
+    user_cfg_dir: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()))
 
     def get(self, name: str) -> VPNNode:
         """Возвращает ноду по имени.
@@ -312,29 +338,50 @@ class VPNRegistry(SettingsCommon):
     def __contains__(self, name: str) -> bool:
         return name in self.nodes
 
-    @property
-    def main(self) -> VPNNode:
-        """Основная нода."""
-        return self.get("main")
+    def standard_nodes(self) -> dict[str, VPNNode]:
+        """Ноды, доступные всем пользователям (`premium=False`).
 
-    @property
-    def sof(self) -> VPNNode:
-        """Нода SOF."""
-        return self.get("sof")
+        Набор определяется конфигом, а не списком имён в коде — новая нода
+        в `app_config*.toml` попадает сюда автоматически, без правок кода
+        (раньше `Location` был статическим enum с ключами нод, прописанными
+        руками).
 
-    @property
-    def fi(self) -> VPNNode | None:
-        """Нода FI.
+        Returns
+            dict[str, VPNNode]: Ноды по ключу, без премиум-нод.
 
-        В отличие от `main`/`sof` может быть не сконфигурирована —
-        вызывающий код обязан проверять на None перед использованием.
         """
-        return self.get_optional("fi")
+        return {key: node for key, node in self.nodes.items() if not node.premium}
 
-    @property
-    def waw(self) -> VPNNode | None:
-        """Нода WAW."""
-        return self.get_optional("waw")
+    def premium_nodes(self) -> dict[str, VPNNode]:
+        """Ноды, доступные только премиум-пользователям (`premium=True`).
+
+        Returns
+            dict[str, VPNNode]: Премиум-ноды по ключу.
+
+        """
+        return {key: node for key, node in self.nodes.items() if node.premium}
+
+    @model_validator(mode="after")
+    def _ensure_standard_node_configured(self) -> "VPNRegistry":
+        """Хотя бы одна нода без `premium` обязана быть сконфигурирована.
+
+        Иначе у обычных (не премиум) пользователей не будет ни одной
+        VPN-локации. Раньше эту гарантию давало наличие ноды с конкретным
+        ключом "main" (`Location.MAIN`); теперь — любая нода с
+        `premium=False`, независимо от её ключа.
+
+        Raises
+            ValueError: Если все сконфигурированные ноды премиум (или нод
+                нет вовсе).
+
+        """
+        if not self.standard_nodes():
+            raise ValueError(
+                "Должна быть сконфигурирована хотя бы одна VPN-нода без "
+                "premium=true — иначе у обычных пользователей не будет ни "
+                "одной доступной локации."
+            )
+        return self
 
 
 class VPNSettingsMain(SettingsCommon):
@@ -487,15 +534,13 @@ class Settings(SettingsCommon):
 toml_loader = load_toml_config()
 settings_bot = Settings(**toml_loader)  # type: ignore
 
-# settings_ai = SettingsAI()
-
 LoggerConfig(
     log_dir=BASE_DIR / "bot" / "logs",
     logger_level_stdout=settings_bot.core.logger_level_stdout,
     logger_level_file=settings_bot.core.logger_level_file,
     logger_error_file=settings_bot.core.logger_error_file,
+    diagnose_files=settings_bot.core.logger_diagnose_files,
 )
-# Инициализируем бота и диспетчер
 bot: Bot = Bot(
     token=settings_bot.bot.token.get_secret_value(),
     default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -503,10 +548,7 @@ bot: Bot = Bot(
 # # Хранилище FSM
 storage = RedisStorage.from_url(
     str(settings_bot.redis.url),
-    state_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни состояния (в секундах)
-    data_ttl=settings_bot.redis.default_expire,  # ⏰ время жизни данных FSM
+    state_ttl=settings_bot.redis.default_expire,
+    data_ttl=settings_bot.redis.default_expire,
 )
-# Это если работать без Redis
-# dp = Dispatcher(storage=MemoryStorage())
-# Это если работать через Redis
 dp = Dispatcher(storage=storage)

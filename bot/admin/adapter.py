@@ -3,6 +3,7 @@ import datetime
 from loguru import logger
 
 from bot.admin.schemas import SChangeRole, SExtendSubscription, SYearIncome
+from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.users.schemas import SUserOut
 from shared.enums.admin_enum import RoleEnum
@@ -48,7 +49,7 @@ class AdminAPIAdapter:
             telegram_id,
         )
 
-        data: dict[str, object] = await self._client.get(f"/admin/users/{telegram_id}")
+        data, _ = await self._client.get(f"/admin/users/{telegram_id}")
 
         user = SUserOut.model_validate(data)
 
@@ -81,7 +82,7 @@ class AdminAPIAdapter:
             filter_type.value,
         )
 
-        data = await self._client.get(
+        data, _ = await self._client.get(
             "/admin/users",
             params={"filter_type": filter_type.value},
         )
@@ -187,8 +188,8 @@ class AdminAPIAdapter:
 
         """
         logger.info("Запрос аналитика доходов за год.")
-        year = datetime.datetime.now().year
-        res = await self._client.get(
+        year = datetime.datetime.now(settings_bot.core.tzinfo).year
+        res, _ = await self._client.get(
             url="/admin/analytics/income",
             params={"year": year} if year else None,
         )

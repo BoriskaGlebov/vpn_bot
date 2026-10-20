@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -67,8 +68,18 @@ async def test_format_user_text_full_info(user_out):
     user = user_out.model_copy(
         update={
             "vpn_configs": [
-                SVPNConfigOut(id=1, file_name="conf1.conf", pub_key="PUBKEY1"),
-                SVPNConfigOut(id=2, file_name="conf2.conf", pub_key="PUBKEY2"),
+                SVPNConfigOut(
+                    id=1,
+                    file_name="conf1.conf",
+                    pub_key="PUBKEY1",
+                    created_at=datetime(2026, 1, 1),
+                ),
+                SVPNConfigOut(
+                    id=2,
+                    file_name="conf2.conf",
+                    pub_key="PUBKEY2",
+                    created_at=datetime(2026, 1, 2),
+                ),
             ]
         }
     )

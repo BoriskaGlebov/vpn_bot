@@ -1,8 +1,11 @@
 """Тесты BaseDAO (api/core/dao/base.py) на временной модели, не завязанные на реальную схему."""
 
+from unittest.mock import MagicMock
+
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import String
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +28,19 @@ class TmpSchema(BaseModel):
 class FilterSchema(BaseModel):
     name: str | None = None
     value: int | None = None
+
+
+class TmpValuesSchema(BaseModel):
+    """Схема значений для update() — без `id`, как во всех реальных вызовах в api/."""
+
+    name: str | None = None
+    value: int | None = None
+
+
+class TmpValueDefaultSchema(BaseModel):
+    """Схема значений с полем по умолчанию, которое не планируется передавать явно."""
+
+    value: int = 0
 
 
 class TmpDAO(BaseDAO[TmpModel]):
@@ -95,11 +111,102 @@ async def test_update_records(session):
     await dao.update(
         session,
         filters=FilterSchema(name="to_update"),
-        values=TmpSchema(name="to_update", value=99),
+        values=TmpValuesSchema(name="to_update", value=99),
     )
 
     found = await dao.find_one_or_none(session, FilterSchema(name="to_update"))
     assert found.value == 99
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_crud_does_not_log_values_at_info_level(session, monkeypatch):
+    """add/update/delete не пишут значения записей на INFO (#235).
+
+    `logger_level_file` по умолчанию `INFO` — всё, что уходит на этот уровень,
+    попадает в постоянный `file.log` с `retention=30 days`. Значения (которые
+    могут быть telegram_id, username и т.п.) должны логироваться не выше DEBUG.
+    """
+    log_mock = MagicMock()
+    monkeypatch.setattr("api.core.dao.base.logger", log_mock)
+    marker = "should-not-reach-info-level"
+
+    await TmpDAO.add(session, TmpSchema(name=marker, value=1))
+    await TmpDAO.update(
+        session,
+        filters=FilterSchema(name=marker),
+        values=TmpValuesSchema(name=marker, value=2),
+    )
+    await TmpDAO.delete(session, FilterSchema(name=marker))
+
+    info_messages = [str(call.args[0]) for call in log_mock.info.call_args_list]
+    debug_messages = [str(call.args[0]) for call in log_mock.debug.call_args_list]
+
+    assert not any(marker in msg for msg in info_messages)
+    assert any(marker in msg for msg in debug_messages)
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_add_many_assigns_ids(session):
+    """add_many() делает flush — у возвращённых записей уже есть id."""
+    dao = TmpDAO()
+    records = await dao.add_many(
+        session,
+        [TmpSchema(name="m1"), TmpSchema(name="m2")],
+    )
+
+    assert all(r.id is not None for r in records)
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_add_many_integrity_error_raises_from_method(session):
+    """Нарушение целостности (дублирующийся id) всплывает из add_many, а не при коммите."""
+    dao = TmpDAO()
+    existing = await dao.add(session, TmpSchema(name="first"))
+    await session.flush()
+
+    with pytest.raises(IntegrityError):
+        await dao.add_many(session, [TmpSchema(id=existing.id, name="duplicate")])
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_update_values_includes_unset_default_fields(session):
+    """update(values=...): поле со значением по умолчанию, не переданное явно,
+    всё равно попадает в SET — в отличие от фильтров, значения не должны
+    молча выпадать из UPDATE (#234).
+    """
+    dao = TmpDAO()
+    await dao.add(session, TmpSchema(name="defaults", value=5))
+
+    await dao.update(
+        session,
+        filters=FilterSchema(name="defaults"),
+        values=TmpValueDefaultSchema(),  # value не передан явно, используется дефолт 0
+    )
+
+    found = await dao.find_one_or_none(session, FilterSchema(name="defaults"))
+    assert found.value == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.dao
+async def test_update_without_filter_raises(session):
+    """update() с пустым фильтром отказывает, а не обновляет всю таблицу."""
+    dao = TmpDAO()
+    await dao.add(session, TmpSchema(name="untouched", value=1))
+
+    with pytest.raises(ValueError, match="фильтр"):
+        await dao.update(
+            session,
+            filters=FilterSchema(),
+            values=TmpSchema(name="untouched", value=99),
+        )
+
+    found = await dao.find_one_or_none(session, FilterSchema(name="untouched"))
+    assert found.value == 1
 
 
 @pytest.mark.asyncio

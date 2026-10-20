@@ -80,8 +80,8 @@ async def get_by_gateway_id(
     """Получение платежной транзакции по идентификатору платежного шлюза.
 
     Выполняет поиск транзакции в базе данных по `gateway_transaction_id`,
-    который был получен от внешнего платежного провайдера (например, Stripe,
-    YooKassa и др.).
+    который был получен от внешнего платежного провайдера (например,
+    Platega, см. `bot/payment/providers/platega.py`).
 
     Args:
         gateway_transaction_id:

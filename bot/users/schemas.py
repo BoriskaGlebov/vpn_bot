@@ -104,6 +104,7 @@ class SVPNConfigOut(BaseModel):
     config_ids: list[str] | None = Field(
         None, description="Для XRay — uuid клиентов на панели"
     )
+    created_at: datetime = Field(..., description="Дата и время создания конфига")
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -113,7 +114,9 @@ class SUserOut(BaseModel):
 
     id: int = Field(..., description="ID пользователя в БД")
     telegram_id: int = Field(..., description="Telegram ID пользователя")
-    username: str = Field(..., description="Username в Telegram")
+    # Telegram-username необязателен, изменяем и переиспользуем — не может
+    # быть обязательным непустым полем.
+    username: str | None = Field(None, description="Username в Telegram")
     first_name: str | None = Field(None, description="Имя пользователя")
     last_name: str | None = Field(None, description="Фамилия пользователя")
     has_used_trial: bool = Field(..., description="Использовал ли пользователь триал")

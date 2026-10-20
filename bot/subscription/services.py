@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from uuid import UUID
 
 from loguru import logger
@@ -17,50 +16,12 @@ from bot.subscription.adapter import (
 from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
+from bot.utils.formatting import format_vpn_config_date, format_vpn_location
 from bot.vpn.services import VPNService
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
-from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import SubscriptionInfoStatus
 
 m_subscription_local = settings_bot.messages.modes.subscription
-
-
-@dataclass
-class SubscriptionStats:
-    """Агрегатор статистики проверки подписок.
-
-    Класс используется для накопления и агрегации статистики как на уровне
-    одного пользователя, так и для итоговой статистики по всем пользователям.
-
-    Attributes
-        checked: Количество обработанных пользователей.
-        expired: Количество подписок, переведённых в истёкшие.
-        notified: Количество отправленных уведомлений (пользователям и администраторам).
-        configs_deleted: Количество удалённых VPN-конфигов.
-
-    """
-
-    checked: int = 0
-    expired: int = 0
-    notified: int = 0
-    configs_deleted: int = 0
-
-    def add(self, other: "SubscriptionStats") -> None:
-        """Добавляет значения счётчиков из другого объекта статистики.
-
-        Метод выполняет покомпонентное суммирование счётчиков и используется
-        для агрегации статистики от отдельных обработчиков или пользователей.
-
-        Args:
-            other: Экземпляр `SubscriptionStats`, значения которого будут
-                добавлены к текущему объекту.
-
-        Returns
-            None
-
-        """
-        self.expired += other.expired
-        self.notified += other.notified
-        self.configs_deleted += other.configs_deleted
 
 
 class SubscriptionService:
@@ -78,26 +39,24 @@ class SubscriptionService:
         self.payment_service = payment_service
         self.vpn_service = vpn_service
 
-    async def check_premium(self, tg_id: int) -> tuple[bool, RoleEnum, bool, bool]:
+    async def check_premium(self, tg_id: int) -> SSubscriptionCheck:
         """Проверяет, имеет ли пользователь активную премиум-подписку.
 
         Args:
             tg_id (int): Telegram ID пользователя.
 
         Returns
-            tuple[bool, str, bool]: Кортеж из трёх значений:
-                - bool: True, если у пользователя премиум-подписка, иначе False.
-                - RoleEnum: Роль пользователя (например, "founder", "user" и т.д.).
-                - bool: True, если подписка активна, иначе False.
-                - bool: Использовал ли триал.
+            SSubscriptionCheck: активна ли премиум-подписка, роль
+                пользователя, активность текущей подписки, использован ли
+                триал.
 
         Raises
             UserNotFoundError: Если пользователь с указанным Telegram ID не найден.
 
         """
-        data = await self.api_adapter.check_premium(tg_id=tg_id)
-        check = SSubscriptionCheck.model_validate(data)
-        return check.premium, check.role, check.is_active, check.used_trial
+        # api_adapter уже возвращает SSubscriptionCheck (валидация произошла
+        # там) — повторный model_validate() здесь был избыточен.
+        return await self.api_adapter.check_premium(tg_id=tg_id)
 
     async def start_trial_subscription(self, tg_id: int, days: int) -> None:
         """Активирует пробный период подписки для пользователя.
@@ -257,10 +216,14 @@ class SubscriptionService:
         """
         data = await self.api_adapter.get_subscription_info(tg_id=tg_id)
 
-        if data.status == "no_subscription":
+        if data.status == SubscriptionInfoStatus.NO_SUBSCRIPTION:
             return "У вас нет подписки."
 
-        status = "✅ Активна" if data.status == "active" else "🔒 Неактивна"
+        status = (
+            "✅ Активна"
+            if data.status == SubscriptionInfoStatus.ACTIVE
+            else "🔒 Неактивна"
+        )
         sbs_type = (
             f"<b>{data.subscription_type.upper()}</b>" if data.subscription_type else ""
         )
@@ -269,10 +232,21 @@ class SubscriptionService:
             if data.end_date
             else "Бесконечность не предел"
         )
+        # Текст собирается здесь, а не в api/: remaining — число дней
+        # или None для бессрочной подписки, формулировка "N дней"/"UNLIMITED"
+        # — язык интерфейса, не данные.
+        remaining_text_value = (
+            "UNLIMITED" if data.remaining is None else f"{data.remaining} дней"
+        )
 
-        remaining_text = f"{data.remaining} до ({end_date})"
+        remaining_text = f"{remaining_text_value} до ({end_date})"
 
-        conf_list = "\n\n".join([f"📌 {conf.file_name}" for conf in data.configs])
+        conf_list = "\n\n".join(
+            f"📌 <b>{conf.file_name}</b> <code>#{conf.id}</code>\n"
+            f"   Локация: {format_vpn_location(conf.node_name)}\n"
+            f"   Создан: {format_vpn_config_date(conf.created_at)}"
+            for conf in data.configs
+        )
 
         return f"{status} {sbs_type} — {remaining_text}\n\n{conf_list}"
 

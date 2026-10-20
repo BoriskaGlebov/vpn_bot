@@ -2,9 +2,9 @@ from aiogram.filters import BaseFilter
 from aiogram.types import CallbackQuery, Message
 
 from bot.core.config import settings_bot
-from bot.subscription.enums import ToggleSubscriptionMode
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser
+from shared.enums.subscription_enum import ToggleSubscriptionMode
 
 
 class IsAdmin(BaseFilter):

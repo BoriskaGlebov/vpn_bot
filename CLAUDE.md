@@ -48,7 +48,7 @@ poetry run ruff format --check .
 poetry run mypy .
 ```
 
-`ruff.toml` and `pyproject.toml`'s `[tool.mypy]` both exclude `*/migrations/*`, `bot/tests/`, `api/tests/`, and `bot/vpn/utils/` (mypy only) from checks — don't expect those directories to be clean under mypy.
+`ruff.toml` and `pyproject.toml`'s `[tool.mypy]` both exclude `*/migrations/*`, `bot/tests/`, and `api/tests/` from checks — don't expect those directories to be clean under mypy.
 
 ### Database migrations
 
@@ -75,11 +75,16 @@ docker compose -f docker-compose.develop.yml up -d --build
 ## Configuration
 
 Settings are loaded via `pydantic-settings` (`shared/config/app_config.py`) from a layered
-source: `app_config.toml` (base) + `app_config.{develop,local}.toml` (stage-specific override,
-deep-merged) plus `.env` / `.env.dev` / `.env.local` (later files override earlier ones; stage
-is chosen by the `STAGE` env var). Unknown `.env` keys are silently ignored. See `README.md` for
-the full environment variable reference (proxy/XRay/DB/Redis/S3/AI groups) — it's kept current
-and shouldn't be duplicated here.
+source. `STAGE` (env var) picks exactly one TOML file as the complete config for that
+environment — `app_config.toml` for `STAGE=prod` (the default), otherwise
+`app_config.develop.toml`; these describe different physical environments (different hosts,
+credentials, VPN nodes), so they are **not** merged with each other — a setting added only to
+`app_config.toml` does not automatically show up on develop. `app_config.local.toml`, if
+present, is deep-merged on top of whichever stage file was selected, for any stage (personal
+local overrides). Plus `.env` / `.env.dev` / `.env.local` (later files override earlier ones).
+Unknown `.env` keys are silently ignored. See `README.md` for the full environment variable
+reference (proxy/XRay/DB/Redis/S3/AI groups) — it's kept current and shouldn't be duplicated
+here.
 
 ## Architecture
 

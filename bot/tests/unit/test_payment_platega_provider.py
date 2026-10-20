@@ -5,9 +5,10 @@ import httpx
 import pytest
 from starlette.datastructures import Headers
 
-from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentStatus
+from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO
 from bot.payment.exceptions import PaymentProviderError
 from bot.payment.providers.platega import PlategaProvider
+from shared.enums.payment_enum import PaymentStatus
 
 
 def make_asgi_headers(pairs: dict[str, str]) -> Headers:
@@ -20,6 +21,21 @@ def make_asgi_headers(pairs: dict[str, str]) -> Headers:
 
 def make_provider() -> PlategaProvider:
     return PlategaProvider(merchant_id="merchant-1", secret_key="secret-1")
+
+
+@pytest.mark.parametrize("amount", [0, -1, -100])
+def test_create_payment_dto_rejects_non_positive_amount(amount):
+    """CreatePaymentDTO проверяет положительность суммы сама (#261) — раньше
+    проверка `gt=0` была только на границе api, а в DTO бота и в вызове
+    провайдера ограничений не было вовсе.
+    """
+    with pytest.raises(ValueError, match="положительным"):
+        CreatePaymentDTO(
+            amount=amount,
+            currency="RUB",
+            order_id="order-1",
+            description="test",
+        )
 
 
 @pytest.mark.asyncio
@@ -83,7 +99,7 @@ async def test_create_payment_success_maps_response():
 
     result = await provider.create_payment(
         data=CreatePaymentDTO(
-            amount=Decimal(100),
+            amount=100,
             currency="RUB",
             order_id="order-1",
             description="test payment",
@@ -116,7 +132,7 @@ async def test_create_payment_http_error_wrapped_in_domain_error():
     with pytest.raises(PaymentProviderError) as exc_info:
         await provider.create_payment(
             data=CreatePaymentDTO(
-                amount=Decimal(100),
+                amount=100,
                 currency="RUB",
                 order_id="order-1",
                 description="test payment",
@@ -149,8 +165,10 @@ async def test_parse_webhook_maps_canceled_and_chargebacked_to_failed():
 
     assert canceled.status == PaymentStatus.FAILED
     assert canceled.raw_data["status"] == "CANCELED"
+    assert canceled.is_chargeback is False
     assert chargebacked.status == PaymentStatus.FAILED
     assert chargebacked.raw_data["status"] == "CHARGEBACKED"
+    assert chargebacked.is_chargeback is True
 
 
 @pytest.mark.asyncio
@@ -167,3 +185,38 @@ async def test_parse_webhook_maps_unknown_status_to_pending():
 
     assert event.status == PaymentStatus.PENDING
     assert event.raw_data["status"] == "SOME_NEW_STATUS"
+    assert event.is_unknown_status is True
+
+
+@pytest.mark.asyncio
+async def test_parse_webhook_non_numeric_amount_does_not_raise():
+    """#293: int(data["amount"]) падал ValueError на нецелой строке, что
+    роняло обработчик вебхука в 500 — провайдер повторял бы доставку.
+    Нечисловая строка теперь трактуется как "сумма неизвестна"
+    (amount=None), а не как фатальная ошибка разбора.
+    """
+    provider = make_provider()
+
+    event = await provider.parse_webhook(
+        b'{"id": "tx-5", "status": "CONFIRMED", "amount": "not-a-number"}'
+    )
+
+    assert event.status == PaymentStatus.PAID
+    assert event.amount is None
+
+
+@pytest.mark.asyncio
+async def test_parse_webhook_fractional_amount_not_truncated():
+    """#293: int(data["amount"]) обрезал дробную часть молча — 149.50 от
+    провайдера совпадало бы с транзакцией на 149 после round-trip через
+    int(). Decimal сохраняет точное значение, расхождение меньше рубля
+    теперь можно поймать сверкой на стороне сервиса.
+    """
+    provider = make_provider()
+
+    event = await provider.parse_webhook(
+        b'{"id": "tx-6", "status": "CONFIRMED", "amount": "149.50"}'
+    )
+
+    assert event.amount == Decimal("149.50")
+    assert event.amount != 149

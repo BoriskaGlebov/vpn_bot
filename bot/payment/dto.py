@@ -1,14 +1,25 @@
 from dataclasses import dataclass
 from decimal import Decimal
-from enum import Enum
 from typing import Any
+
+from shared.enums.payment_enum import PaymentStatus
 
 
 @dataclass(slots=True)
 class CreatePaymentDTO:
-    """Данные для создания платежа у провайдера."""
+    """Данные для создания платежа у провайдера.
 
-    amount: Decimal
+    Attributes
+        amount: Сумма платежа в рублях — целое число, не копейки.
+            Тот же домен значений, что у `api/payment/model.py`
+            (`Mapped[int]`) и `api/payment/schemas.py` (`Field(gt=0)`) —
+            решение продуктовое: копейки сейчас не нужны, поэтому тип
+            един по всем слоям, а не `Decimal`, который обнулялся бы
+            приведением к `float` перед отправкой провайдеру.
+
+    """
+
+    amount: int
     currency: str
     order_id: str
     description: str
@@ -16,13 +27,12 @@ class CreatePaymentDTO:
     failed_url: str | None = None
     payload: str | None = None
 
-
-class PaymentStatus(str, Enum):
-    """Статус платежа у провайдера."""
-
-    PENDING = "pending"
-    PAID = "paid"
-    FAILED = "failed"
+    def __post_init__(self) -> None:
+        """Проверяет положительность суммы — не только на границе api."""
+        if self.amount <= 0:
+            raise ValueError(
+                f"amount должен быть положительным, получено {self.amount}"
+            )
 
 
 @dataclass(slots=True)
@@ -38,10 +48,39 @@ class CreatedPaymentDTO:
 
 @dataclass(slots=True)
 class PaymentWebhookDTO:
-    """Событие вебхука от платёжного провайдера."""
+    """Событие вебхука от платёжного провайдера.
+
+    Attributes
+        amount: Сумма платежа, присланная провайдером в вебхуке —
+            `None`, если провайдер её не прислал (например, статусы
+            CANCELED/CHARGEBACKED у Platega приходят без неё). Сверяется с
+            суммой транзакции в БД перед подтверждением оплаты — иначе
+            решение "платёж прошёл" принимается по одной строке статуса.
+            Тип `Decimal`, а не `int`: формат этого поля
+            провайдером не документирован, и округление до целого рубля на
+            границе разбора пропустило бы расхождение меньше рубля
+            (`149.50` от провайдера против `149` в транзакции совпали бы
+            после `int()`). Домен "целые рубли" относится к суммам,
+            которые создаёт сама система — на этой границе формат нам не
+            принадлежит.
+        is_chargeback: Возврат уже полученных средств плательщику.
+            Выражено явным полем DTO, а не разбором
+            `raw_data["status"] == "CHARGEBACKED"` в сервисном слое —
+            сервис не должен знать конкретные строки провайдера.
+        is_unknown_status: Провайдер прислал статус, не входящий в
+            известный набор (CONFIRMED/CANCELED/CHARGEBACKED).
+            Событие трактуется как PENDING, но в отличие от обычного
+            "платёж пока не завершён" требует внимания администратора:
+            если это новый терминальный статус Platega, транзакция иначе
+            навсегда останется в PENDING без единого уведомления.
+
+    """
 
     provider_payment_id: str
     status: PaymentStatus
     raw_data: dict[str, Any]
 
+    amount: Decimal | None = None
     payload: str | None = None
+    is_chargeback: bool = False
+    is_unknown_status: bool = False

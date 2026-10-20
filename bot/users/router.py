@@ -27,8 +27,7 @@ from bot.core.filters import IsAdmin
 from bot.integrations.redis_client import RedisClient
 from bot.referrals.keyboards.inline_kb import referral_kb
 from bot.referrals.services import ReferralService
-from bot.subscription.enums import ToggleSubscriptionMode
-from bot.users.enums import ChatType, Location, MainMenuText, VPNProtocol
+from bot.users.enums import ChatType, MainMenuText
 from bot.users.keyboards.inline_kb import id_link_kb
 from bot.users.keyboards.markup_kb import main_kb
 from bot.users.schemas import SUserOut
@@ -38,6 +37,8 @@ from bot.utils.base_router import BaseRouter
 from bot.utils.formatting import format_username
 from bot.utils.start_stop_bot import send_to_admins
 from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import ToggleSubscriptionMode
+from shared.enums.vpn_enum import VPNBackend
 
 if TYPE_CHECKING:
     from bot.admin.services import AdminService
@@ -47,15 +48,13 @@ m_id = settings_bot.messages.modes.id
 m_error = settings_bot.messages.errors
 m_echo = settings_bot.messages.general.echo
 location_buttons_text = [
-    vpn_button_text(protocol, location)
-    for location in Location
-    for protocol in VPNProtocol
+    vpn_button_text(backend, location)
+    for location in settings_bot.vpn.nodes
+    for backend in VPNBackend
 ]
 INVALID_FOR_USER = [
     MainMenuText.MY_SUBSCRIPTION.value,
     MainMenuText.GET_SUBSCRIPTION.value,
-    MainMenuText.AMNEZIA_PROXY.value,
-    MainMenuText.FREE_AMNEZIA_PROXY.value,
     MainMenuText.HELP.value,
     MainMenuText.PREMIUM.value,
     MainMenuText.BACK.value,
@@ -354,8 +353,8 @@ class UserRouter(BaseRouter):
                 text=m_admin.on[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
-            # FIXME вот этот момент выглядит как костыль, годовые расходы жестко зашиты в код.
             income = await self.admin_service.year_income()
+            # Годовые расходы захардкожены — переносятся в источник данных.
             expense = 28358
             profit = income.year_income - expense
             await self.bot.send_message(

@@ -5,14 +5,20 @@ max_configs_per_user = 10
 #Настроки сервера на которм контейнер с VPN для подключения к нему.
 #Дефолтное время для Timeout ошибки при подключени к стороннему сревису
 common_timeout = 10
+# IANA-имя таймзоны проекта — единая точка настройки для всех datetime.now()
+# в bot/ и api/ (см. #255).
+timezone = "Europe/Moscow"
 
 admin_ids = [439653349,]
-
+trial_period_days = 7
 # === LOGGER ===
 # *Уровни логирования по умолчанию INFO, INFO WARNING
 logger_level_stdout = "INFO"
 logger_level_file = "INFO"
 logger_error_file = "WARNING"
+logger_diagnose_files = false
+# Пишет ли UserActionLoggingMiddleware полный repr событий (переписку) в лог (см. #286).
+log_user_events_data = false
 
 
 # === FASTAPI ===
@@ -37,9 +43,10 @@ cron_minute = 0
 # === PRICING ===
 [pricing]
 # Цена за тарифы 1, 3, 6, 12 месяцев и триал период на 7 дней
-price_map = {1 = 149, 3 = 399, 6 = 749, 12 = 1390, 7 = 0}
-price_map_premium = {1 = 249, 3 = 699, 6 = 1290, 12 = 2490, 7 = 0}
-price_map_founder = {1 = 199, 3 = 549, 6 = 1049, 12 = 1990, 7 = 0}
+price_map = {1 = 149, 3 = 399, 6 = 749, 12 = 1390}
+price_map_premium = {1 = 249, 3 = 699, 6 = 1290, 12 = 2490}
+price_map_founder = {1 = 199, 3 = 549, 6 = 1049, 12 = 1990}
+
 
 
 # === API ===
@@ -49,7 +56,7 @@ url = "api"
 port = 8089
 
 # === VPN SERVERS ===
-[vpn.nodes.main]
+[vpn.nodes.fr]
 #Сервер на котором крутится бот потому для него он локально может подключиться
 host = "help-blocks.ru"
 username = "vpn_user"
@@ -78,6 +85,7 @@ protocol_version = "v2"
 use_local = false
 location_prefix= "SOF"
 flag= "🇧🇬"
+premium = true
 
 [vpn.nodes.waw]
 host = "boris-guard.space"
@@ -112,7 +120,7 @@ flag= "🇵🇱"
 
 # === X-RAY ===
 
-[vpn.nodes.main.xray]
+[vpn.nodes.fr.xray]
 host = "help-blocks.ru"
 panel_prefix = "panel-45gh65"
 subscription_prefix = "sub-45gh45"
@@ -120,13 +128,15 @@ panel_port = 5443
 subscription_port = 2096
 username = "admin"
 
-[[vpn.nodes.main.xray.inbounds]]
+[[vpn.nodes.fr.xray.inbounds]]
 port = 8443
 name = "🇫🇷 | XHTTP"
+protocol = "vless_reality_xhttp"
 
-[[vpn.nodes.main.xray.inbounds]]
+[[vpn.nodes.fr.xray.inbounds]]
 port = 9443
 name = "🇫🇷 | TCP Reality"
+protocol = "vless_reality_tcp"
 #
 #[vpn.nodes.fi.xray]
 #host = "vpn-boriska.ru"
@@ -139,10 +149,12 @@ name = "🇫🇷 | TCP Reality"
 #[[vpn.nodes.fi.xray.inbounds]]
 #port = 8443
 #name = "🇫🇮 | XHTTP"
+#protocol = "vless_reality_xhttp"
 #
 #[[vpn.nodes.fi.xray.inbounds]]
 #port = 9443
 #name = "🇫🇮 | TCP Reality"
+#protocol = "vless_reality_tcp"
 
 [vpn.nodes.sof.xray]
 host = "x-ray-boriska.pro"
@@ -155,10 +167,12 @@ username = "admin"
 [[vpn.nodes.sof.xray.inbounds]]
 port = 443
 name = "🇧🇬 | XHTTP"
+protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.sof.xray.inbounds]]
 port = 8443
 name = "🇧🇬 | TCP Reality"
+protocol = "vless_reality_tcp"
 
 
 [vpn.nodes.waw.xray]
@@ -172,10 +186,12 @@ username = "admin"
 [[vpn.nodes.waw.xray.inbounds]]
 port = 443
 name = "🇵🇱 | XHTTP"
+protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.waw.xray.inbounds]]
 port = 8443
 name = "🇵🇱 | TCP Reality"
+protocol = "vless_reality_tcp"
 
 # === DB ===
 [db]

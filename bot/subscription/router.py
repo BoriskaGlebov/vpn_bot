@@ -1,5 +1,5 @@
 from aiogram import Bot, F
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command, StateFilter, and_f, or_f
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -16,6 +16,7 @@ from loguru._logger import Logger
 
 from bot.app_error.api_error import APIClientError
 from bot.app_error.base_error import (
+    InvalidSubscriptionPeriodError,
     MessageNotFoundError,
     PaymentLinkMissingError,
     SubscriptionActivationFailedError,
@@ -28,11 +29,9 @@ from bot.redis_service import RedisAdminMessageStorage, RedisPaymentMessageStora
 from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.referrals.services import ReferralService
 from bot.subscription.enums import (
-    TRIAL_PERIOD_SENTINEL,
     AdminPaymentAction,
     MySubscriptionAction,
     SubscriptionAction,
-    ToggleSubscriptionMode,
 )
 from bot.subscription.keyboards.inline_kb import (
     AdminPaymentCB,
@@ -51,7 +50,12 @@ from bot.subscription.utils.sub_utils import get_correct_price_map, get_correct_
 from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
-from bot.utils.formatting import format_subscription_end_date, format_username
+from bot.utils.formatting import (
+    format_subscription_end_date,
+    format_username,
+    format_vpn_config_date,
+    format_vpn_location,
+)
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
 from bot.vpn.keyboards.inline_kb import (
     ConfigDeleteAction,
@@ -60,7 +64,8 @@ from bot.vpn.keyboards.inline_kb import (
     my_configs_kb,
 )
 from bot.vpn.services import VPNService
-from shared.enums.admin_enum import FilterTypeEnum
+from shared.enums.admin_enum import RoleEnum
+from shared.enums.subscription_enum import ToggleSubscriptionMode
 
 m_subscription = settings_bot.messages.modes.subscription
 
@@ -143,6 +148,13 @@ class SubscriptionRouter(BaseRouter):
             and_f(
                 StateFilter(SubscriptionStates.subscription_start),
                 SubscriptionCB.filter(F.action == SubscriptionAction.SELECT),
+            ),
+        )
+        self.router.callback_query.register(
+            self.trial_selected,
+            and_f(
+                StateFilter(SubscriptionStates.subscription_start),
+                SubscriptionCB.filter(F.action == SubscriptionAction.TRIAL),
             ),
         )
         self.router.callback_query.register(
@@ -292,7 +304,10 @@ class SubscriptionRouter(BaseRouter):
 
         await msg.edit_text(
             text=m_subscription.config_delete.confirm.format(
-                file_name=config.file_name
+                id=config.id,
+                file_name=config.file_name,
+                location=format_vpn_location(config.node_name),
+                created_at=format_vpn_config_date(config.created_at),
             ),
             reply_markup=confirm_delete_config_kb(config_id=config.id),
         )
@@ -327,7 +342,10 @@ class SubscriptionRouter(BaseRouter):
 
         info_text, keyboard = await self._build_my_subscription_view(tg_id)
         success_text = m_subscription.config_delete.success.format(
-            file_name=config.file_name
+            id=config.id,
+            file_name=config.file_name,
+            location=format_vpn_location(config.node_name),
+            created_at=format_vpn_config_date(config.created_at),
         )
         await msg.edit_text(
             text=f"{success_text}\n\n{info_text}",
@@ -385,18 +403,16 @@ class SubscriptionRouter(BaseRouter):
         user_logger = self.logger.bind(user=format_username(user))
         user_logger.info("Начало оформления подписки")
         async with ChatActionSender.typing(bot=self.bot, chat_id=chat_id):
-            (
-                is_premium,
-                role,
-                is_active_sbscr,
-                used_trial,
-            ) = await self.subscription_service.check_premium(tg_id=user.id)
+            check = await self.subscription_service.check_premium(tg_id=user.id)
+            is_premium = check.premium
+            role = check.role
+            used_trial = check.used_trial
             await self.bot.send_message(
                 chat_id=chat_id,
                 text="Начнем оформление подписки",
                 reply_markup=ReplyKeyboardRemove(),
             )
-            founder = role == FilterTypeEnum.FOUNDER
+            founder = role == RoleEnum.FOUNDER
             if founder:
                 text = m_subscription.founder_start.format(
                     device_limit=settings_bot.core.max_configs_per_user * 2,
@@ -410,6 +426,7 @@ class SubscriptionRouter(BaseRouter):
                 kb = subscription_options_kb(premium=False, trial=True, founder=True)
             elif not is_premium:
                 text = m_subscription.start.format(
+                    days=settings_bot.core.trial_period_days,
                     device_limit=settings_bot.core.max_configs_per_user,
                     month=self.price_map.price_map.get(1, 0),
                     quarter=self.price_map.price_map.get(3, 0),
@@ -457,66 +474,98 @@ class SubscriptionRouter(BaseRouter):
         user_logger = self.logger.bind(user=format_username(user))
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             months = callback_data.months
-            founder = callback_data.founder
             user_logger.info(f"Выбор периода подписки: {months} мес")
             data = await state.get_data()
             is_premium = data.get("premium", False)
-            if months != TRIAL_PERIOD_SENTINEL:
-                price_map = get_correct_price_map(premium=is_premium, founder=founder)
-                sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
-                price = price_map[months]
-                transaction_info = await self.subscription_service.create_transaction(
-                    amount=price,
-                    subscription_months=months,
-                    is_premium=is_premium,
-                    is_founder=founder,
+            # founder — признак, который сервер уже проверил и положил
+            # в состояние в _show_subscription_options; данные кнопки
+            # (callback_data.founder) для расчёта суммы не используются —
+            # иначе её можно было бы подменить до проверки сервером.
+            founder = data.get("founder", False)
+            price_map = get_correct_price_map(premium=is_premium, founder=founder)
+            sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
+            price = price_map.get(months)
+            if price is None:
+                raise InvalidSubscriptionPeriodError(months=months)
+            transaction_info = await self.subscription_service.create_transaction(
+                amount=price,
+                subscription_months=months,
+                is_premium=is_premium,
+                is_founder=founder,
+            )
+
+            await query.answer(f"Выбрал {months} месяцев", show_alert=False)
+
+            await state.update_data(payment_url=transaction_info.payment_url)
+
+            await msg.edit_text(
+                text=m_subscription.choose_payment_method.format(
+                    sub_type=sub_type,
+                    months=months,
+                    price=price,
+                ),
+                reply_markup=payment_method_kb(
+                    months=months,
+                    founder=founder,
+                    transaction_id=transaction_info.id,
+                    has_card_option=bool(transaction_info.payment_url),
+                ),
+            )
+            await state.set_state(SubscriptionStates.select_payment_method)
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def trial_selected(
+        self,
+        query: CallbackQuery,
+        msg: Message,
+        state: FSMContext,
+        callback_data: SubscriptionCB,
+    ) -> None:
+        """Обрабатывает выбор пробного периода пользователем.
+
+        Отдельный хендлер от `subscription_selected` (#278) — пробный
+        период выражен действием `SubscriptionCB.action == TRIAL`, а не
+        особым значением `months`.
+
+        Args:
+            query (CallbackQuery): Callback от кнопки "Пробный период".
+            msg (Message): Сообщение над которым надо вносить изменения.
+            state (FSMContext): Контекст FSM.
+            callback_data (SubscriptionCB): Данные для работы.
+
+        """
+        user_logger = self.logger.bind(user=format_username(query.from_user))
+        async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
+            try:
+                await self.subscription_service.start_trial_subscription(
+                    tg_id=query.from_user.id,
+                    days=settings_bot.core.trial_period_days,
                 )
-
-                await query.answer(f"Выбрал {months} месяцев", show_alert=False)
-
-                await state.update_data(payment_url=transaction_info.payment_url)
-
-                await msg.edit_text(
-                    text=m_subscription.choose_payment_method.format(
-                        sub_type=sub_type,
-                        months=months,
-                        price=price,
-                    ),
-                    reply_markup=payment_method_kb(
-                        months=months,
-                        founder=founder,
-                        transaction_id=transaction_info.id,
-                        has_card_option=bool(transaction_info.payment_url),
+            except APIClientError as e:
+                user_logger.warning(
+                    f"Не удалось активировать пробный период: {e.error.message}"
+                )
+                await query.answer(e.error.message, show_alert=True)
+                await send_to_admins(
+                    bot=self.bot,
+                    message_text=(
+                        f"⚠️ Пользователь {format_username(query.from_user)} "
+                        f"({query.from_user.id}) не смог активировать пробный "
+                        f"период: {e.error.message}"
                     ),
                 )
-                await state.set_state(SubscriptionStates.select_payment_method)
             else:
-                try:
-                    await self.subscription_service.start_trial_subscription(
-                        tg_id=query.from_user.id, days=TRIAL_PERIOD_SENTINEL
-                    )
-                except APIClientError as e:
-                    user_logger.warning(
-                        f"Не удалось активировать пробный период: {e.error.message}"
-                    )
-                    await query.answer(e.error.message, show_alert=True)
-                    await send_to_admins(
-                        bot=self.bot,
-                        message_text=(
-                            f"⚠️ Пользователь {format_username(query.from_user)} "
-                            f"({query.from_user.id}) не смог активировать пробный "
-                            f"период: {e.error.message}"
-                        ),
-                    )
-                else:
-                    await query.answer("Выбрал пробный период", show_alert=False)
-                    await msg.delete()
-                    await self.bot.send_message(
-                        chat_id=query.from_user.id,
-                        text=m_subscription.trial_period,
-                        reply_markup=main_kb(active_subscription=True),
-                    )
-                    await state.clear()
+                await query.answer("Выбрал пробный период", show_alert=False)
+                await msg.delete()
+                await self.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=m_subscription.trial_period.format(
+                        days=settings_bot.core.trial_period_days,
+                    ),
+                    reply_markup=main_kb(active_subscription=True),
+                )
+                await state.clear()
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -544,16 +593,19 @@ class SubscriptionRouter(BaseRouter):
 
         """
         months = callback_data.months
-        founder = callback_data.founder
         transaction_id = callback_data.transaction_id
         if transaction_id is None:
             raise TransactionIdMissingError()
 
         data = await state.get_data()
         is_premium = data.get("premium", False)
+        # founder — из состояния, не из данных кнопки, см. subscription_selected.
+        founder = data.get("founder", False)
         price_map = get_correct_price_map(premium=is_premium, founder=founder)
         sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
-        price = price_map[months]
+        price = price_map.get(months)
+        if price is None:
+            raise InvalidSubscriptionPeriodError(months=months)
 
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             if callback_data.action == SubscriptionAction.PAY_CARD:
@@ -621,6 +673,7 @@ class SubscriptionRouter(BaseRouter):
             )
             if premium
             else m_subscription.start.format(
+                days=settings_bot.core.trial_period_days,
                 device_limit=settings_bot.core.max_configs_per_user,
                 month=self.price_map.price_map.get(1, 0),
                 quarter=self.price_map.price_map.get(3, 0),
@@ -629,10 +682,21 @@ class SubscriptionRouter(BaseRouter):
             )
         )
 
+        # founder/used_trial терялись при переключении режима —
+        # жёсткий trial=False возвращал кнопку триала тому, кто его уже
+        # использовал, а founder видел обычные тарифы вместо своих.
+        # cancel_subscription рядом восстанавливает оба признака из
+        # состояния правильно — здесь делаем так же.
+        data = await state.get_data()
+        founder = data.get("founder", False)
+        used_trial = data.get("used_trial", False)
+
         await msg.edit_text(
             text=text,
             reply_markup=subscription_options_kb(
-                premium=True if premium else False, trial=False
+                premium=premium,
+                trial=True if founder else used_trial,
+                founder=founder,
             ),
         )
         await query.answer("")
@@ -660,13 +724,17 @@ class SubscriptionRouter(BaseRouter):
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             await state.set_state(SubscriptionStates.wait_for_paid)
             months = callback_data.months
-            founder = callback_data.founder
             transaction_id = callback_data.transaction_id
             if transaction_id is None:
                 raise TransactionIdMissingError()
-            premium = (await state.get_data()).get("premium", False)
+            data = await state.get_data()
+            premium = data.get("premium", False)
+            # founder — из состояния, не из данных кнопки, см. subscription_selected.
+            founder = data.get("founder", False)
             price_map = get_correct_price_map(premium=premium, founder=founder)
-            price = price_map[months]
+            price = price_map.get(months)
+            if price is None:
+                raise InvalidSubscriptionPeriodError(months=months)
             sub_type = get_correct_sub_type(premium=premium, founder=founder)
             await self.subscription_service.mark_payment_started(
                 transaction_id=transaction_id
@@ -697,7 +765,7 @@ class SubscriptionRouter(BaseRouter):
                 reply_markup=admin_payment_kb(
                     user_id=user.id,
                     months=months,
-                    premium=premium if premium else False,
+                    premium=premium,
                     transaction_id=transaction_id,
                 ),
                 admin_mess_storage=self.redis_service,
@@ -804,6 +872,15 @@ class SubscriptionRouter(BaseRouter):
                 f"Админ подтвердил оплату пользователя {user_id} ({months} мес), "
                 f"transaction_id={transaction_id}"
             )
+            # referral_result читается после edit_admin_messages, а
+            # присваивался он только внутри try вместе с отправкой уведомления
+            # пользователю — при TelegramForbiddenError/TelegramBadRequest на
+            # той отправке переменная оставалась неинициализированной.
+            # Присваиваем сразу: оплата в БД уже подтверждена независимо от
+            # того, доставится ли уведомление.
+            referral_result: GrantReferralBonusResponse = (
+                confirm_transaction.referral_res
+            )
             try:
                 await self.bot.send_message(
                     chat_id=user_id,
@@ -816,32 +893,44 @@ class SubscriptionRouter(BaseRouter):
                         ),
                     ),
                 )
-                referral_result: GrantReferralBonusResponse = (
-                    confirm_transaction.referral_res
+            except (TelegramForbiddenError, TelegramBadRequest) as e:
+                user_logger.warning(
+                    f"Не удалось уведомить пользователя {user_id} об оплате: {e}"
                 )
-                if referral_result.success and referral_result.inviter_telegram_id:
-                    await self.bot.send_message(
-                        chat_id=referral_result.inviter_telegram_id,
-                        text=m_subscription.accept_paid.bonus.format(
-                            user_info=f"@{user_schema.username}"
-                        ),
-                    )
-            except TelegramBadRequest:
                 await send_to_admins(
                     bot=self.bot,
                     message_text=m_subscription.accept_paid.error.format(
                         user_id=user_id
                     ),
                 )
+
+            if referral_result.success and referral_result.inviter_telegram_id:
+                try:
+                    await self.bot.send_message(
+                        chat_id=referral_result.inviter_telegram_id,
+                        text=m_subscription.accept_paid.bonus.format(
+                            user_info=(
+                                f"@{user_schema.username}"
+                                if user_schema.username
+                                else "-"
+                            )
+                        ),
+                    )
+                except (TelegramForbiddenError, TelegramBadRequest) as e:
+                    user_logger.warning(
+                        f"Не удалось уведомить пригласившего "
+                        f"{referral_result.inviter_telegram_id} о бонусе: {e}"
+                    )
+
+            ref_inf = referral_result.message
             try:
-                ref_inf = referral_result.message
                 await edit_admin_messages(
                     bot=self.bot,
                     user_id=user_id,
                     new_text=m_subscription.accept_paid.admin.format(
                         user_id=user_id,
                         sub_type=sub_type,
-                        username=user_schema.username,
+                        username=user_schema.username or "-",
                         amount=confirm_transaction.transaction_res.amount,
                         info=ref_inf,
                     ),
@@ -858,7 +947,7 @@ class SubscriptionRouter(BaseRouter):
                     message_text=m_subscription.accept_paid.admin.format(
                         user_id=user_id,
                         sub_type=sub_type,
-                        username=user_schema.username,
+                        username=user_schema.username or "-",
                         amount=confirm_transaction.transaction_res.amount,
                         info=ref_inf,
                     ),

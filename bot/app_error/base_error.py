@@ -100,18 +100,22 @@ class VPNLimitError(AppError):
     code = "vpn_limit_reached"
     status_code = 429
 
-    def __init__(self, tg_id: int, limit: int, username: str = "") -> None:
+    def __init__(
+        self, tg_id: int, limit: int, current: int, username: str = ""
+    ) -> None:
         super().__init__(
-            message=f"Пользователь достиг лимита VPN-конфигов ({limit})",
+            message=f"Пользователь достиг лимита VPN-конфигов ({current}/{limit})",
             details={
                 "tg_id": tg_id,
                 "limit": limit,
+                "current": current,
                 "username": username,
             },
         )
 
         self.tg_id = tg_id
         self.limit = limit
+        self.current = current
         self.username = username
 
 
@@ -253,6 +257,25 @@ class TransactionIdMissingError(AppError):
         super().__init__(message="Отсутствует идентификатор транзакции.")
 
 
+class InvalidSubscriptionPeriodError(AppError):
+    """`months` из callback-данных не найден в карте тарифов (#278).
+
+    Carte тарифов (`price_map`/`price_map_premium`/`price_map_founder`)
+    заполняется сервером, а `months` приходит из callback-данных кнопки —
+    то есть от клиента. Подделанное или устаревшее (после смены тарифов)
+    значение не должно давать необработанный `KeyError`.
+    """
+
+    code = "invalid_subscription_period"
+    status_code = 400
+
+    def __init__(self, months: int) -> None:
+        super().__init__(
+            message=f"Неизвестный период подписки: {months} мес.",
+            details={"months": months},
+        )
+
+
 class SubscriptionActivationFailedError(AppError):
     """После подтверждения оплаты не удалось получить активную подписку пользователя."""
 
@@ -281,19 +304,6 @@ class PaymentLinkMissingError(AppError):
         super().__init__(
             message=f"Отсутствует ссылка на оплату картой для транзакции {transaction_id}",
             details={"transaction_id": str(transaction_id)},
-        )
-
-
-class VPNLocationNotDeterminedError(AppError):
-    """Не удалось определить VPN-локацию по нажатой кнопке главного меню."""
-
-    code = "vpn_location_not_determined"
-    status_code = 400
-
-    def __init__(self, reason: str) -> None:
-        super().__init__(
-            message="Не удалось определить локацию сервера, попробуйте ещё раз.",
-            details={"reason": reason},
         )
 
 

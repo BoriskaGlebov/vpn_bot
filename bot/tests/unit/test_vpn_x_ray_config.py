@@ -1,12 +1,13 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from bot.app_error.api_error import APIClientError
 from bot.app_error.schema import ErrorDetail
-from bot.vpn.DTO import UserUUID
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter
+from shared.enums.vpn_enum import VPNProtocol
 
 
 @pytest.fixture
@@ -76,10 +77,13 @@ async def test_logout_error_ignored(adapter):
 @pytest.mark.asyncio
 async def test_get_all_inbounds(adapter):
     adapter.api.get = AsyncMock(
-        return_value={
-            "success": True,
-            "obj": [{"id": 1, "remark": "test", "enable": True, "port": 1000}],
-        }
+        return_value=(
+            {
+                "success": True,
+                "obj": [{"id": 1, "remark": "test", "enable": True, "port": 1000}],
+            },
+            200,
+        )
     )
 
     result = await adapter._get_all_inbounds()
@@ -89,19 +93,41 @@ async def test_get_all_inbounds(adapter):
 
 
 @pytest.mark.asyncio
+async def test_get_all_inbounds_missing_field_raises(adapter):
+    """Отсутствующее поле у inbound — понятная доменная ошибка, не TypeError позже."""
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
+
+    adapter.api.get = AsyncMock(
+        return_value=(
+            {
+                "success": True,
+                "obj": [{"id": 1, "enable": True, "port": 1000}],  # нет remark
+            },
+            200,
+        )
+    )
+
+    with pytest.raises(ThreeXUIError):
+        await adapter._get_all_inbounds()
+
+
+@pytest.mark.asyncio
 async def test_get_all_users(adapter):
     adapter.api.get = AsyncMock(
-        return_value={
-            "success": True,
-            "obj": [
-                {
-                    "clientStats": [
-                        {"uuid": "123"},
-                        {"uuid": "456"},
-                    ]
-                }
-            ],
-        }
+        return_value=(
+            {
+                "success": True,
+                "obj": [
+                    {
+                        "clientStats": [
+                            {"uuid": "123"},
+                            {"uuid": "456"},
+                        ]
+                    }
+                ],
+            },
+            200,
+        )
     )
 
     result = await adapter._get_all_users()
@@ -114,6 +140,7 @@ async def test_get_all_users(adapter):
 class FakeInboundCfg:
     port: int
     name: str
+    protocol: str = "vless_reality_xhttp"
 
 
 @pytest.mark.asyncio
@@ -126,13 +153,41 @@ async def test_get_inbound_success(adapter):
     )
 
     adapter.inbounds_name = [
-        FakeInboundCfg(port=1000, name="A"),
+        FakeInboundCfg(port=1000, name="A", protocol="vless_reality_tcp"),
     ]
 
     result = await adapter._get_inbound(adapter.inbounds_name)
 
     assert len(result) == 1
     assert result[0].id == 1
+    # protocol проставляется из совпавшей конфигурации, а не из remark.
+    assert result[0].protocol == "vless_reality_tcp"
+
+
+@pytest.mark.asyncio
+async def test_get_inbound_matches_by_port_despite_remark_mismatch(adapter):
+    """Переименование inbound на панели не должно ломать матчинг.
+
+    Порт уникален и однозначно определяет inbound; `remark`/`name` —
+    косметика для админки. Раньше матчинг шёл по паре (порт, имя), и
+    правка `remark` на панели без синхронной правки конфига бота давала
+    `ThreeXUIInboundNotFoundError`, хотя порт не менялся.
+    """
+    adapter._get_all_inbounds = AsyncMock(
+        return_value=[
+            MagicMock(port=1000, remark="🇫🇷 | XHTTP (переименован на панели)", id=1),
+        ]
+    )
+
+    adapter.inbounds_name = [
+        FakeInboundCfg(port=1000, name="🇫🇷 | XHTTP", protocol="vless_reality_tcp"),
+    ]
+
+    result = await adapter._get_inbound(adapter.inbounds_name)
+
+    assert len(result) == 1
+    assert result[0].id == 1
+    assert result[0].protocol == "vless_reality_tcp"
 
 
 @pytest.mark.asyncio
@@ -142,15 +197,16 @@ async def test_add_new_config(adapter):
     adapter._restart_x_ray = AsyncMock()
     adapter._add_user = AsyncMock()
 
-    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1, remark="test")])
+    adapter._get_inbound = AsyncMock(
+        return_value=[
+            MagicMock(id=1, remark="test", protocol=VPNProtocol.VLESS_REALITY_XHTTP)
+        ]
+    )
 
-    with (
-        patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"),
-        patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000),
-    ):
+    with patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"):
         result, url = await adapter.add_new_config(
             tg_id=123,
-            days=1,
+            expires_at=datetime(2030, 1, 1, tzinfo=UTC),
         )
 
     assert "config_ids" in result
@@ -159,15 +215,70 @@ async def test_add_new_config(adapter):
     assert "user_123" in url
 
     adapter._add_user.assert_called_once()
+    added_user = adapter._add_user.call_args.kwargs["user_add"]
+    assert added_user.expiryTime == int(
+        datetime(2030, 1, 1, tzinfo=UTC).timestamp() * 1000
+    )
     adapter._logout.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_extend_config_invalid_days(adapter):
+async def test_add_new_config_unlimited_when_no_expiry(adapter):
+    """`expires_at=None` — осознанно бессрочная конфигурация.
+
+    В отличие от случая, когда срок посчитан ошибочно (баг #266), здесь
+    `None` передаётся явно вызывающим кодом для бессрочной подписки.
+    """
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock()
+    adapter._add_user = AsyncMock()
+    adapter._get_inbound = AsyncMock(
+        return_value=[
+            MagicMock(id=1, remark="test", protocol=VPNProtocol.VLESS_REALITY_XHTTP)
+        ]
+    )
+
+    with patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"):
+        await adapter.add_new_config(tg_id=123, expires_at=None)
+
+    added_user = adapter._add_user.call_args.kwargs["user_add"]
+    assert added_user.expiryTime == 0
+
+
+@pytest.mark.asyncio
+async def test_add_new_config_warns_when_restart_failed(adapter):
+    """Неудачный _restart_x_ray (None) не должен ломать создание конфигурации."""
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock(return_value=None)
+    adapter._add_user = AsyncMock()
+    adapter._get_inbound = AsyncMock(
+        return_value=[
+            MagicMock(id=1, remark="test", protocol=VPNProtocol.VLESS_REALITY_XHTTP)
+        ]
+    )
+
+    with (
+        patch("bot.vpn.utils.x_ray_config.uuid.uuid4", return_value="uuid-1"),
+        patch("bot.vpn.utils.x_ray_config.logger") as mock_logger,
+    ):
+        result, url = await adapter.add_new_config(
+            tg_id=123, expires_at=datetime(2030, 1, 1, tzinfo=UTC)
+        )
+
+    assert "uuid-1" in result["config_ids"]
+    mock_logger.warning.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_extend_config_invalid_expiry(adapter):
+    """#317: expires_at не в будущем отклоняется."""
     from bot.vpn.utils.x_ray_exceptions import ThreeXUIInvalidExpiryError
 
+    past = datetime(2000, 1, 1, tzinfo=UTC)
     with pytest.raises(ThreeXUIInvalidExpiryError):
-        await adapter.extend_config(config_ids=["a"], days=0)
+        await adapter.extend_config(config_ids=["a"], expires_at=past)
 
 
 @pytest.mark.asyncio
@@ -185,13 +296,36 @@ async def test_extend_config_success(adapter):
         ]
     )
 
-    with patch("bot.vpn.utils.x_ray_config.time.time", return_value=1000):
-        result = await adapter.extend_config(config_ids=["abc", "def"], days=5)
+    expires_at = datetime(2030, 1, 1, 12, 30, tzinfo=UTC)
+    result = await adapter.extend_config(
+        config_ids=["abc", "def"], expires_at=expires_at
+    )
 
     assert set(result) == {"abc", "def"}
     assert adapter._update_client.await_count == 2
     adapter._restart_x_ray.assert_awaited_once()
     adapter._logout.assert_awaited_once()
+    sent_client = adapter._update_client.await_args.kwargs["client"]
+    assert sent_client["expiryTime"] == int(expires_at.timestamp() * 1000)
+
+
+@pytest.mark.asyncio
+async def test_extend_config_warns_when_restart_failed(adapter):
+    """Неудачный _restart_x_ray (None) не должен ломать продление конфигураций."""
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock(return_value=None)
+    adapter._update_client = AsyncMock()
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1)])
+    adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "abc"}])
+
+    with patch("bot.vpn.utils.x_ray_config.logger") as mock_logger:
+        result = await adapter.extend_config(
+            config_ids=["abc"], expires_at=datetime(2030, 1, 1, tzinfo=UTC)
+        )
+
+    assert result == ["abc"]
+    mock_logger.warning.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -206,19 +340,59 @@ async def test_extend_config_not_found_raises(adapter):
     adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "other"}])
 
     with pytest.raises(ThreeXUIConfigNotFoundError):
-        await adapter.extend_config(config_ids=["missing"], days=5)
+        await adapter.extend_config(
+            config_ids=["missing"], expires_at=datetime(2030, 1, 1, tzinfo=UTC)
+        )
+
+
+@pytest.mark.asyncio
+async def test_set_unlimited_config_success(adapter):
+    """#296: set_unlimited_config ставит expiryTime=0, в отличие от
+    extend_config, который на не-будущих expires_at отказывается работать.
+    """
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock()
+    adapter._update_client = AsyncMock()
+
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1)])
+    adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "abc"}])
+
+    result = await adapter.set_unlimited_config(config_ids=["abc"])
+
+    assert result == ["abc"]
+    sent_client = adapter._update_client.await_args.kwargs["client"]
+    assert sent_client["expiryTime"] == 0
+    adapter._restart_x_ray.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_set_unlimited_config_not_found_raises(adapter):
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError
+
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+    adapter._restart_x_ray = AsyncMock()
+
+    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1)])
+    adapter._get_inbound_clients = AsyncMock(return_value=[{"id": "other"}])
+
+    with pytest.raises(ThreeXUIConfigNotFoundError):
+        await adapter.set_unlimited_config(config_ids=["missing"])
 
 
 @pytest.mark.asyncio
 async def test_delete_config_not_found(adapter):
     adapter._login = AsyncMock()
     adapter._logout = AsyncMock()
-    adapter._get_all_users = AsyncMock(return_value=[])
+    adapter._get_inbounds_with_clients = AsyncMock(return_value=[])
+    adapter.inbounds_name = []
 
     result = await adapter.delete_config("missing-id")
 
     assert result is False
-    adapter._logout.assert_not_called()
+    # _session() гарантирует logout даже при раннем return (config не найден).
+    adapter._logout.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -226,14 +400,122 @@ async def test_delete_config_success(adapter):
     adapter._login = AsyncMock()
     adapter._logout = AsyncMock()
 
-    adapter._get_all_users = AsyncMock(return_value=[UserUUID(conf_uuid="abc")])
-
-    adapter._get_inbound = AsyncMock(return_value=[MagicMock(id=1), MagicMock(id=2)])
-
-    adapter.api.post = AsyncMock()
+    inb1 = MagicMock(port=1000, remark="A", id=1)
+    inb2 = MagicMock(port=2000, remark="B", id=2)
+    adapter._get_inbounds_with_clients = AsyncMock(
+        return_value=[(inb1, {"abc"}), (inb2, {"abc"})]
+    )
+    adapter.inbounds_name = [
+        FakeInboundCfg(port=1000, name="A"),
+        FakeInboundCfg(port=2000, name="B"),
+    ]
+    adapter.api.post = AsyncMock(return_value=({"success": True}, 200))
 
     result = await adapter.delete_config("abc")
 
     assert result is True
     assert adapter.api.post.call_count == 2
     adapter._logout.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_config_found_but_not_in_configured_inbounds(adapter):
+    """Клиент есть на панели, но не в ожидаемых inbound этой ноды — считаем отсутствующим."""
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+
+    inb1 = MagicMock(port=1000, remark="A", id=1)
+    adapter._get_inbounds_with_clients = AsyncMock(return_value=[(inb1, set())])
+    adapter.inbounds_name = [FakeInboundCfg(port=1000, name="A")]
+    adapter.api.post = AsyncMock()
+
+    result = await adapter.delete_config("abc")
+
+    assert result is False
+    adapter.api.post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_config_panel_failure_raises(adapter):
+    """success:false на inbound, где клиент реально найден — ошибка, не тихий True."""
+    from bot.vpn.utils.x_ray_exceptions import ThreeXUIRequestError
+
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+
+    inb1 = MagicMock(port=1000, remark="A", id=1)
+    adapter._get_inbounds_with_clients = AsyncMock(return_value=[(inb1, {"abc"})])
+    adapter.inbounds_name = [FakeInboundCfg(port=1000, name="A")]
+    adapter.api.post = AsyncMock(
+        return_value=({"success": False, "msg": "client busy"}, 200)
+    )
+
+    with pytest.raises(ThreeXUIRequestError):
+        await adapter.delete_config("abc")
+
+    adapter._logout.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_config_partial_success_across_inbounds(adapter):
+    """Успех хоть на одном inbound, где клиент реально есть — считается успехом."""
+    adapter._login = AsyncMock()
+    adapter._logout = AsyncMock()
+
+    inb1 = MagicMock(port=1000, remark="A", id=1)
+    inb2 = MagicMock(port=2000, remark="B", id=2)
+    adapter._get_inbounds_with_clients = AsyncMock(
+        return_value=[(inb1, {"abc"}), (inb2, {"abc"})]
+    )
+    adapter.inbounds_name = [
+        FakeInboundCfg(port=1000, name="A"),
+        FakeInboundCfg(port=2000, name="B"),
+    ]
+    adapter.api.post = AsyncMock(
+        side_effect=[
+            ({"success": False, "msg": "busy"}, 200),
+            ({"success": True}, 200),
+        ]
+    )
+
+    result = await adapter.delete_config("abc")
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_get_inbounds_with_clients(adapter):
+    adapter.api.get = AsyncMock(
+        return_value=(
+            {
+                "success": True,
+                "obj": [
+                    {
+                        "id": 1,
+                        "remark": "A",
+                        "enable": True,
+                        "port": 1000,
+                        "clientStats": [{"uuid": "abc"}],
+                    },
+                    {
+                        "id": 2,
+                        "remark": "B",
+                        "enable": True,
+                        "port": 2000,
+                        "clientStats": [],
+                    },
+                ],
+            },
+            200,
+        )
+    )
+
+    result = await adapter._get_inbounds_with_clients()
+
+    assert len(result) == 2
+    inb0, uuids0 = result[0]
+    assert inb0.id == 1
+    assert uuids0 == {"abc"}
+    inb1, uuids1 = result[1]
+    assert inb1.id == 2
+    assert uuids1 == set()

@@ -15,13 +15,12 @@ from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
 from bot.payment.adapter import PaymentAPIAdapter
-from bot.redis_service import RedisAdminMessageStorage
+from bot.redis_service import RedisAdminMessageStorage, RedisNewsBroadcastStorage
 from bot.referrals.adapter import ReferralAPIAdapter
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SRoleOut, SSubscriptionOut, SUser, SUserOut
 from bot.utils import commands
 from bot.vpn.services import VPNService
-from bot.vpn.utils.amnezia_vpn import AsyncSSHClientVPN
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG, AsyncSSHClientWG3
 
 
@@ -156,6 +155,31 @@ def fake_redis_service(
     redis_service.clear = AsyncMock()
 
     return redis_service
+
+
+@pytest.fixture
+def fake_news_broadcast_storage(
+    fake_redis: RedisClient,
+) -> RedisNewsBroadcastStorage:
+    """Мок хранения прогресса рассылки новостей (#285).
+
+    По умолчанию `get` возвращает None — незавершённой рассылки нет.
+
+    Args:
+        fake_redis (RedisClient): Мок Redis-клиента.
+
+    Returns
+        RedisNewsBroadcastStorage: Замоканный сервис.
+
+    """
+    storage = RedisNewsBroadcastStorage(redis=fake_redis)
+
+    storage.save = AsyncMock()
+    storage.get = AsyncMock(return_value=None)
+    storage.update_recipients = AsyncMock()
+    storage.clear = AsyncMock()
+
+    return storage
 
 
 @pytest.fixture
@@ -499,7 +523,7 @@ def make_query_photo(make_fake_photo):
 def mock_asyncssh_connect():
     """Мок для asyncssh.connect"""
     with patch(
-        "bot.vpn.utils.amnezia_wg.asyncssh.connect", new_callable=AsyncMock
+        "bot.vpn.utils.ssh_transport.asyncssh.connect", new_callable=AsyncMock
     ) as mock_connect:
         mock_conn = AsyncMock()
         mock_process = AsyncMock()
@@ -517,18 +541,6 @@ def ssh_client():
         known_hosts=None,
         container="test-container",
         use_local=False,
-    )
-
-
-@pytest.fixture
-def ssh_client_vpn():
-    """Создаёт экземпляр клиента"""
-    return AsyncSSHClientVPN(
-        host="127.0.0.1",
-        username="testuser",
-        known_hosts=None,
-        container="test-container",
-        use_local=True,
     )
 
 

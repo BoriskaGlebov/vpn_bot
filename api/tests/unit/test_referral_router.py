@@ -50,7 +50,7 @@ def test_register_referral_success(client, mock_referral_service):
         ),
         patch(
             "api.referrals.router.UserMapper.to_schema",
-            new=AsyncMock(
+            new=MagicMock(
                 return_value=MagicMock(
                     id=2,
                     telegram_id=222,
@@ -93,7 +93,7 @@ def test_grant_bonus_success(client, mock_referral_service):
         ),
         patch(
             "api.referrals.router.UserMapper.to_schema",
-            new=AsyncMock(
+            new=MagicMock(
                 return_value=MagicMock(
                     id=2,
                     telegram_id=222,

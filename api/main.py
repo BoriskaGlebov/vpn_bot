@@ -58,7 +58,6 @@ from api.users.utils.init_default_roles import init_default_roles_admins
 from api.vpn.admin import VPNConfigAdmin
 from api.vpn.router import router as vpn_router
 
-# API теги и их описание
 tags_metadata: list[dict[str, Any]] = [
     {
         "name": "bot",
@@ -332,11 +331,6 @@ async def health() -> JSONResponse:
 
 
 if __name__ == "__main__":
-    """
-    Точка входа для запуска FastAPI-приложения.
-
-    Запускает сервер Uvicorn с приложением FastAPI.
-    """
     uvicorn.run(
         app="api.main:app",
         host="0.0.0.0",

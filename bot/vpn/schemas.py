@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
+from shared.enums.vpn_enum import VPNBackend
+
 
 class SVPNCreateRequest(BaseModel):
     """Схема запроса на создание нового VPN-конфига.
@@ -9,8 +11,10 @@ class SVPNCreateRequest(BaseModel):
         file_name (str): Имя файла конфигурации VPN.
         pub_key (str): Публичный ключ пользователя.
         node_name (str | None): Имя ноды/локации (ключ в settings_bot.vpn.nodes).
-        backend (str | None): Бэкенд конфига ("amnezia" | "xray").
-        protocol (str | None): Конкретный протокол/версия внутри бэкенда.
+        backend (VPNBackend | None): Бэкенд конфига.
+        protocol (str | None): Протокол/версия внутри бэкенда — одно или
+            несколько значений `VPNProtocol` через запятую (у XRay-подписки
+            это несколько inbound сразу).
         config_ids (list[str] | None): Для XRay — uuid клиентов на панели.
 
     """
@@ -19,22 +23,31 @@ class SVPNCreateRequest(BaseModel):
     file_name: str
     pub_key: str
     node_name: str | None = None
-    backend: str | None = None
+    backend: VPNBackend | None = None
     protocol: str | None = None
     config_ids: list[str] | None = None
 
 
-class SVPNCreateResponse(BaseModel):
-    """Схема ответа после успешного создания VPN-конфига.
+class SVPNConfigIdentity(BaseModel):
+    """Пара полей, идентифицирующих конкретный VPN-конфиг.
+
+    Общий родитель для схем создания и удаления — раньше запрос на
+    удаление (`SVPNDeleteRequest`) наследовался от ответа на создание
+    (`SVPNCreateResponse`), и изменение формата ответа молча меняло
+    контракт удаления.
 
     Attributes
-        file_name (str): Имя созданного файла конфигурации.
+        file_name (str): Имя файла конфигурации.
         pub_key (str): Публичный ключ пользователя.
 
     """
 
     file_name: str
     pub_key: str
+
+
+class SVPNCreateResponse(SVPNConfigIdentity):
+    """Схема ответа после успешного создания VPN-конфига."""
 
 
 class SVPNCheckLimitResponse(BaseModel):
@@ -52,10 +65,8 @@ class SVPNCheckLimitResponse(BaseModel):
     current: int
 
 
-class SVPNDeleteRequest(SVPNCreateResponse):
+class SVPNDeleteRequest(SVPNConfigIdentity):
     """Запрос на удаление файла."""
-
-    ...
 
 
 class SVPNDeleteResponse(BaseModel):

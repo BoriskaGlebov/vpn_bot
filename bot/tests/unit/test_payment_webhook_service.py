@@ -1,10 +1,13 @@
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
-from bot.payment.dto import PaymentStatus, PaymentWebhookDTO
+from bot.payment.dto import PaymentWebhookDTO
+from bot.payment.exceptions import PaymentAmountMismatchError, PaymentUnknownStatusError
 from bot.payment.services import PaymentWebhookService
+from shared.enums.payment_enum import PaymentStatus
 
 
 @pytest.fixture
@@ -51,6 +54,7 @@ async def test_handle_event_paid_confirms_via_subscription_service(
         provider_payment_id="prov-1",
         status=PaymentStatus.PAID,
         raw_data={},
+        amount=1000,
     )
 
     await webhook_service.handle_event(event)
@@ -62,6 +66,77 @@ async def test_handle_event_paid_confirms_via_subscription_service(
     webhook_service.notification_service.notify_payment_confirmed.assert_awaited_once_with(
         confirm, provider_name=payment_service_mock.provider.provider_name
     )
+
+
+@pytest.mark.asyncio
+async def test_handle_event_paid_amount_mismatch_blocks_confirmation(
+    webhook_service, payment_service_mock, subscription_service_mock
+):
+    """Если сумма в вебхуке не совпадает с суммой транзакции (#257),
+    подтверждение должно быть заблокировано, а не принято по одному
+    статусу — иначе решение "платёж прошёл" ничем не проверяется.
+    """
+    tx = SimpleNamespace(id="tx-4", tg_id=123, amount=1000)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-4",
+        status=PaymentStatus.PAID,
+        raw_data={},
+        amount=1,
+    )
+
+    with pytest.raises(PaymentAmountMismatchError):
+        await webhook_service.handle_event(event)
+
+    subscription_service_mock.webhook_confirm_transaction.assert_not_called()
+    webhook_service.notification_service.notify_payment_confirmed.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_event_paid_fractional_mismatch_blocks_confirmation(
+    webhook_service, payment_service_mock, subscription_service_mock
+):
+    """#293: расхождение меньше рубля (1000.50 против 1000) раньше не
+    ловилось — int(data["amount"]) обрезал дробную часть на границе
+    разбора вебхука, и 1000.50 совпадало бы с транзакцией на 1000.
+    """
+    tx = SimpleNamespace(id="tx-7", tg_id=123, amount=1000)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-7",
+        status=PaymentStatus.PAID,
+        raw_data={},
+        amount=Decimal("1000.50"),
+    )
+
+    with pytest.raises(PaymentAmountMismatchError):
+        await webhook_service.handle_event(event)
+
+    subscription_service_mock.webhook_confirm_transaction.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_handle_event_paid_missing_amount_blocks_confirmation(
+    webhook_service, payment_service_mock, subscription_service_mock
+):
+    """Отсутствие суммы в вебхуке (провайдер её не прислал) — тоже
+    недостаточно для подтверждения, сверка не может быть пройдена молча.
+    """
+    tx = SimpleNamespace(id="tx-5", tg_id=123, amount=1000)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-5",
+        status=PaymentStatus.PAID,
+        raw_data={},
+    )
+
+    with pytest.raises(PaymentAmountMismatchError):
+        await webhook_service.handle_event(event)
+
+    subscription_service_mock.webhook_confirm_transaction.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -100,6 +175,7 @@ async def test_handle_event_chargebacked_flags_admin_alert(
         provider_payment_id="prov-3",
         status=PaymentStatus.FAILED,
         raw_data={"status": "CHARGEBACKED"},
+        is_chargeback=True,
     )
 
     await webhook_service.handle_event(event)
@@ -107,3 +183,28 @@ async def test_handle_event_chargebacked_flags_admin_alert(
     webhook_service.notification_service.notify_payment_failed.assert_awaited_once_with(
         transaction_id=tx.id, tg_id=tx.tg_id, is_chargeback=True
     )
+
+
+@pytest.mark.asyncio
+async def test_handle_event_unknown_status_raises_and_blocks(
+    webhook_service, payment_service_mock, subscription_service_mock
+):
+    """Незнакомый статус провайдера (#259) должен быть замечен, а не тихо
+    потерян — иначе новый терминальный статус оставит транзакцию навсегда
+    в PENDING без единого уведомления.
+    """
+    tx = SimpleNamespace(id="tx-6", tg_id=123, amount=1000)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-6",
+        status=PaymentStatus.PENDING,
+        raw_data={"status": "SOME_NEW_STATUS"},
+        is_unknown_status=True,
+    )
+
+    with pytest.raises(PaymentUnknownStatusError):
+        await webhook_service.handle_event(event)
+
+    payment_service_mock.webhook_cancel_transaction.assert_not_called()
+    subscription_service_mock.webhook_confirm_transaction.assert_not_called()
