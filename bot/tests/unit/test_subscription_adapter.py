@@ -111,11 +111,13 @@ async def test_get_subscription_info(api_client):
                 "remaining": "10",
                 "configs": [
                     {
+                        "id": 1,
                         "file_name": "config1.conf",
                         "node_name": "main",
                         "created_at": "2026-01-01T00:00:00",
                     },
                     {
+                        "id": 2,
                         "file_name": "config2.conf",
                         "node_name": "sof",
                         "created_at": "2026-01-02T00:00:00",
