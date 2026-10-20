@@ -439,6 +439,9 @@ jobs:
           # == PAYMENT ==
           MERCHANT_ID=${{ secrets.MERCHANT_ID }}
           API_KEY=${{ secrets.API_KEY }}
+          # == ADMIN PANEL ==
+          ADMIN_PANEL_USER=${{secrets.ADMIN_PANEL_USER}}
+          ADMIN_PANEL_PASSWORD_HASH=${{secrets.ADMIN_PANEL_PASSWORD_HASH}}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env"
