@@ -312,6 +312,7 @@ class SubscriptionService:
             end_date=subscription.end_date if subscription.end_date else None,
             configs=[
                 SVPNConfig(
+                    id=c.id,
                     file_name=c.file_name,
                     node_name=c.node_name,
                     created_at=c.created_at,

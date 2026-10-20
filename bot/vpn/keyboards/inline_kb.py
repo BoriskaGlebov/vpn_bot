@@ -54,7 +54,7 @@ def my_configs_kb(configs: list[SVPNConfigOut]) -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     for config in configs:
-        location = format_vpn_location(config.node_name)
+        location = format_vpn_location(config.node_name, short=True)
         created_at = format_vpn_config_date(config.created_at)
         builder.button(
             text=f"🗑 {location} · {created_at} · #{config.id}",

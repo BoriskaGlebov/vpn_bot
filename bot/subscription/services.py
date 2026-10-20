@@ -242,7 +242,7 @@ class SubscriptionService:
         remaining_text = f"{remaining_text_value} до ({end_date})"
 
         conf_list = "\n\n".join(
-            f"📌 <b>{conf.file_name}</b>\n"
+            f"📌 <b>{conf.file_name}</b> <code>#{conf.id}</code>\n"
             f"   Локация: {format_vpn_location(conf.node_name)}\n"
             f"   Создан: {format_vpn_config_date(conf.created_at)}"
             for conf in data.configs

@@ -304,6 +304,7 @@ class SubscriptionRouter(BaseRouter):
 
         await msg.edit_text(
             text=m_subscription.config_delete.confirm.format(
+                id=config.id,
                 file_name=config.file_name,
                 location=format_vpn_location(config.node_name),
                 created_at=format_vpn_config_date(config.created_at),
@@ -341,6 +342,7 @@ class SubscriptionRouter(BaseRouter):
 
         info_text, keyboard = await self._build_my_subscription_view(tg_id)
         success_text = m_subscription.config_delete.success.format(
+            id=config.id,
             file_name=config.file_name,
             location=format_vpn_location(config.node_name),
             created_at=format_vpn_config_date(config.created_at),
