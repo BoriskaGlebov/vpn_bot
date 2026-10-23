@@ -15,7 +15,11 @@
 # (добавить/убрать строки ExecStartPost под фактический набор ключей хоста):
 #   develop-хост (vps-01, amn-boris.ru): %h/.ssh/xray_boriska
 #     (main-нода на этом хосте use_local — свой ключ ей не нужен)
-#   prod-хост (vps-02, help-blocks.ru): %h/.ssh/vpn_boriska, %h/.ssh/xray_boriska и %h/.ssh/guard_boriska (waw-node)
+#   prod-хост (vps-05, boris-guard.pro): %h/.ssh/vpn_boriska, %h/.ssh/xray_boriska
+#     и %h/.ssh/guard_boriska — проверить, что один из них реально заведён на
+#     fr-ноду (help-blocks.ru, vpn_user): раньше бот жил на этом хосте локально
+#     (use_local=true) и отдельный ключ для него не требовался, после переезда
+#     нужен ключ с публичной частью в authorized_keys на help-blocks.ru
 # Ключи должны быть без passphrase — иначе автозагрузка тут молча не сработает.
 
 [Unit]

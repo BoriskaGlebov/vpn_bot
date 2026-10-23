@@ -30,7 +30,7 @@ reload_fast_api = false
 [bot]
 
 # ! Базовый URL сайта (например, для webhook)
-base_site = "https://vpn-bot.help-blocks.ru/bot"
+base_site = "https://vpn-bot.boris-guard.pro/bot"
 # *Использовать webhook или polling по умолчанию polling false
 use_polling = false
 
@@ -57,13 +57,14 @@ port = 8089
 
 # === VPN SERVERS ===
 [vpn.nodes.fr]
-#Сервер на котором крутится бот потому для него он локально может подключиться
+#Бот переехал на отдельный сервер (vps-05, boris-guard.pro), эта нода теперь
+#доступна только по ssh, как и остальные
 host = "help-blocks.ru"
 username = "vpn_user"
 container_old="amnezia-awg"
 container = "amnezia-awg2"
 protocol_version = "v2"
-use_local = true
+use_local = false
 location_prefix= "FR"
 flag="🇫🇷"
 

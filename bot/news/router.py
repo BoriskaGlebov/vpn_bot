@@ -37,6 +37,9 @@ from bot.utils.start_stop_bot import send_to_admins
 
 m_news = settings_bot.messages.modes.news
 
+TELEGRAM_CAPTION_LIMIT = 1024
+TELEGRAM_TEXT_LIMIT = 4096
+
 
 class NewStates(StatesGroup):  # type: ignore[misc]
     """FSM состояния для создания и отправки новости.
@@ -440,6 +443,33 @@ class NewsRouter(BaseRouter):
         await state.update_data(target="one", user_id=user_id)
         await self._show_preview(message, state)
 
+    @staticmethod
+    def _build_preview_caption(body: str, limit: int) -> str:
+        r"""Оборачивает текст новости в превью-обёртку, укладываясь в лимит Telegram.
+
+        Исходный текст/caption новости сам по себе проходит проверку Telegram
+        при вводе (limit соответствует типу: caption фото/видео — 1024, обычный
+        текст — 4096), но после добавления префикса/суффикса превью может
+        вылезти за лимит — поэтому здесь урезаем именно body.
+
+        Args:
+            body: Исходный текст/caption новости.
+            limit: Максимальная длина итоговой строки для данного типа
+                сообщения (TELEGRAM_CAPTION_LIMIT для photo/video,
+                TELEGRAM_TEXT_LIMIT для текста).
+
+        Returns
+            str: r`📰 Предпросмотр:\n\n{body}\n\nОтправляем?`, при необходимости
+            с обрезанным body.
+
+        """
+        prefix = "📰 Предпросмотр:\n\n"
+        suffix = "\n\nОтправляем?"
+        available = limit - len(prefix) - len(suffix)
+        if len(body) > available:
+            body = body[: available - 1] + "…"
+        return f"{prefix}{body}{suffix}"
+
     async def _show_preview(self, msg: Message, state: FSMContext) -> None:
         """Отображает предпросмотр новости перед отправкой.
 
@@ -453,19 +483,23 @@ class NewsRouter(BaseRouter):
 
         if news["content_type"] == "text":
             await msg.answer(
-                f"📰 Предпросмотр:\n\n{news['text']}\n\nОтправляем?",
+                self._build_preview_caption(news["text"], TELEGRAM_TEXT_LIMIT),
                 reply_markup=news_confirm_kb(),
             )
         elif news["content_type"] == "photo":
             await msg.answer_photo(
                 photo=news["photo_file_id"],
-                caption=f"📰 Предпросмотр:\n\n{news['caption']}\n\nОтправляем?",
+                caption=self._build_preview_caption(
+                    news["caption"], TELEGRAM_CAPTION_LIMIT
+                ),
                 reply_markup=news_confirm_kb(),
             )
         elif news["content_type"] == "video":
             await msg.answer_video(
                 video=news["video_file_id"],
-                caption=f"📰 Предпросмотр:\n\n{news['caption']}\n\nОтправляем?",
+                caption=self._build_preview_caption(
+                    news["caption"], TELEGRAM_CAPTION_LIMIT
+                ),
                 reply_markup=news_confirm_kb(),
             )
 

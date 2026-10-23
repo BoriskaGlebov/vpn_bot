@@ -238,7 +238,7 @@ app: FastAPI = FastAPI(
     openapi_tags=tags_metadata,
     contact={
         "name": "Boriska Glebov",
-        "url": "https://help-blocks.ru/api/docs",
+        "url": "https://boris-guard.pro/api/docs",
         "email": "BorisTheBlade.Glebov@yandex.ru",
     },
     lifespan=lifespan,

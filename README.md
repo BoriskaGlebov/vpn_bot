@@ -372,7 +372,7 @@ openssl rand -hex 16
 | Хост | Пользователь | Путь репозитория | SSH-ключи (без passphrase) |
 |---|---|---|---|
 | develop (vps-01, amn-boris.ru) | `prod_server` | `/opt/vpn_bot` | `~/.ssh/xray_boriska` (main-нода — `use_local`, отдельный ключ не нужен) |
-| prod (vps-02, help-blocks.ru) | `vpn_user` | `/opt/vpn_bot` | `~/.ssh/vpn_boriska`, `~/.ssh/xray_boriska`, `~/.ssh/guard_boriska` |
+| prod (vps-05, boris-guard.pro) | `vpn_user` | `/opt/vpn_bot` | `~/.ssh/vpn_boriska`, `~/.ssh/xray_boriska`, `~/.ssh/guard_boriska` |
 
 Ключи должны быть **без passphrase** — автозагрузка ключей при старте агента (`ExecStartPost` в unit-файле) выполняется неинтерактивно; ключ с паролем будет молча пропущен и не подхватится после ребута до ручного `ssh-add`.
 
@@ -420,7 +420,7 @@ ssh <user>@<host> 'systemctl --user status ssh-agent.service && SSH_AUTH_SOCK=/r
 
 ## Nginx
 
-`nginx.conf` (prod, vps-02/help-blocks.ru) и `nginx_test.conf` (develop, vps-01/amn-boris.ru) —
+`nginx.conf` (prod, vps-05/boris-guard.pro) и `nginx_test.conf` (develop, vps-01/amn-boris.ru) —
 это НЕ полноценные nginx.conf, а conf.d-фрагменты для общего edge-nginx
 (boriska_guard_infra, roles/nginx_edge), уже поднятого на обоих хостах через ansible.
 CI (`deploy_prod`/`deploy_develop`) кладёт нужный файл на сервер в
