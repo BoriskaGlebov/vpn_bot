@@ -1,5 +1,6 @@
 import json
 import tempfile
+from decimal import Decimal
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal
@@ -449,11 +450,21 @@ class PaymentSettings(SettingsCommon):
             предоставленный платёжной системой.
         api_key (SecretStr): Секретный API-ключ для
             аутентификации запросов к платёжному API.
+        gateway_commission_rates (list[Decimal]): Известные ставки комиссии
+            эквайринга, которые платёжный шлюз (Platega) перекладывает на
+            клиента сверх суммы транзакции — в вебхуке приходит сумма,
+            реально списанная с клиента (с комиссией), а не та, что мы
+            передали при создании платежа. Значение вынесено в конфиг
+            (а не захардкожено), т.к. провайдер может изменить/добавить
+            ставку в любой момент без изменений кода — обновляется здесь.
 
     """
 
     merchant_id: SecretStr
     api_key: SecretStr
+    gateway_commission_rates: list[Decimal] = Field(
+        default_factory=lambda: [Decimal("0.11"), Decimal("0.12")]
+    )
 
 
 class Settings(SettingsCommon):

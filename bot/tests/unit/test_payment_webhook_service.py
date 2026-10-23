@@ -93,6 +93,65 @@ async def test_handle_event_paid_amount_mismatch_blocks_confirmation(
     webhook_service.notification_service.notify_payment_confirmed.assert_not_called()
 
 
+@pytest.mark.parametrize("commission_rate", ["0.11", "0.12"])
+@pytest.mark.asyncio
+async def test_handle_event_paid_with_known_gateway_commission_confirms(
+    webhook_service,
+    payment_service_mock,
+    subscription_service_mock,
+    commission_rate,
+):
+    """Platega перекладывает на клиента комиссию эквайринга и присылает в
+    вебхуке сумму, реально списанную с клиента (больше суммы транзакции в
+    БД) — известные надбавки 11% и 12% должны проходить сверку, а не
+    блокировать подтверждение как "несовпадение суммы".
+    """
+    tx = SimpleNamespace(id="tx-commission", tg_id=123, amount=149)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+    confirm = SimpleNamespace(transaction_res=tx)
+    subscription_service_mock.webhook_confirm_transaction.return_value = confirm
+
+    gross_amount = (Decimal(149) * (1 + Decimal(commission_rate))).quantize(
+        Decimal("0.01")
+    )
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-commission",
+        status=PaymentStatus.PAID,
+        raw_data={},
+        amount=gross_amount,
+    )
+
+    await webhook_service.handle_event(event)
+
+    subscription_service_mock.webhook_confirm_transaction.assert_awaited_once_with(
+        tx.id
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_event_paid_unknown_commission_blocks_confirmation(
+    webhook_service, payment_service_mock, subscription_service_mock
+):
+    """Надбавка, не входящая в известный набор комиссий шлюза (например,
+    19%), всё ещё должна блокировать подтверждение — иначе сверка суммы
+    превращается в "принимаем всё, что не меньше ожидаемого".
+    """
+    tx = SimpleNamespace(id="tx-unknown-commission", tg_id=123, amount=149)
+    payment_service_mock.get_by_gateway_id.return_value = tx
+
+    event = PaymentWebhookDTO(
+        provider_payment_id="prov-unknown-commission",
+        status=PaymentStatus.PAID,
+        raw_data={},
+        amount=Decimal("177.31"),  # 149 * 1.19
+    )
+
+    with pytest.raises(PaymentAmountMismatchError):
+        await webhook_service.handle_event(event)
+
+    subscription_service_mock.webhook_confirm_transaction.assert_not_called()
+
+
 @pytest.mark.asyncio
 async def test_handle_event_paid_fractional_mismatch_blocks_confirmation(
     webhook_service, payment_service_mock, subscription_service_mock

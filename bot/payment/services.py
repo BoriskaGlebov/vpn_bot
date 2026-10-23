@@ -1,9 +1,11 @@
 from dataclasses import asdict
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from loguru import logger
 
+from bot.core.config import settings_bot
 from bot.notification.services import NotificationService
 from bot.payment.adapter import PaymentAPIAdapter
 from bot.payment.dto import CreatedPaymentDTO, CreatePaymentDTO, PaymentWebhookDTO
@@ -19,6 +21,42 @@ from shared.enums.subscription_enum import ToggleSubscriptionMode
 
 if TYPE_CHECKING:
     from subscription.services import SubscriptionService
+
+# Допуск на округление копеек при вычислении суммы с комиссией.
+AMOUNT_ROUNDING_TOLERANCE = Decimal("0.01")
+
+
+def _amount_matches_expected(received: Decimal, expected: int) -> bool:
+    """Проверяет, что сумма вебхука — это транзакция без/с известной комиссией шлюза.
+
+    Platega перекладывает на клиента свою комиссию эквайринга и в вебхуке
+    присылает сумму, реально списанную с клиента — она больше суммы
+    транзакции в БД на процент комиссии, который зависит от способа оплаты/
+    банка клиента на стороне Platega (наблюдались надбавки 11% и 12%:
+    149 -> 165.39 / 166.88). Известные ставки заданы в конфиге
+    (`settings_bot.payment.gateway_commission_rates`), а не захардкожены —
+    при появлении новой ставки у провайдера её достаточно дописать туда,
+    без изменений кода.
+
+    Args:
+        received: Сумма, присланная провайдером в вебхуке.
+        expected: Сумма транзакции, ожидаемая по данным БД (без комиссии).
+
+    Returns
+        bool: True, если `received` совпадает с `expected` либо с `expected`,
+        увеличенным на одну из `settings_bot.payment.gateway_commission_rates`
+        (с округлением до копеек и допуском `AMOUNT_ROUNDING_TOLERANCE`).
+
+    """
+    expected_decimal = Decimal(expected)
+    candidates = [expected_decimal] + [
+        (expected_decimal * (1 + rate)).quantize(AMOUNT_ROUNDING_TOLERANCE)
+        for rate in settings_bot.payment.gateway_commission_rates
+    ]
+    return any(
+        abs(received - candidate) <= AMOUNT_ROUNDING_TOLERANCE
+        for candidate in candidates
+    )
 
 
 class PaymentService:
@@ -238,7 +276,9 @@ class PaymentWebhookService:
             # принимается по одной строке статуса из вебхука, без проверки
             # содержимого (подпись Platega привязана к нашим же заголовкам,
             # а не к телу, см. docstring `verify_webhook`).
-            if event.amount is None or event.amount != tx.amount:
+            if event.amount is None or not _amount_matches_expected(
+                event.amount, tx.amount
+            ):
                 logger.error(
                     "Сумма вебхука не совпадает с суммой транзакции: "
                     "transaction_id={} tx_amount={} webhook_amount={}",
