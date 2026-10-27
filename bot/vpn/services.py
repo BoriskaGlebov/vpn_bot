@@ -680,8 +680,8 @@ class VPNService:
             logger.info("Конфиг {} удалён через 3x-ui", file_name)
         return deleted_any, had_error
 
-    async def delete_user_config(self, tg_id: int, config: SVPNConfigOut) -> bool:
-        """Удаляет конфиг пользователя из внешнего сервиса и из БД.
+    async def revoke_config_access(self, config: SVPNConfigOut) -> bool:
+        """Отзывает доступ конфига на нодах/панелях, не трогая запись в БД.
 
         Если `config.backend` известен (заполняется при создании, см.
         `generate_user_config`/`generate_xray_subscription`) — пробует
@@ -691,23 +691,21 @@ class VPNService:
         случаях `config.node_name` (если известен) используется для прямого
         обращения к нужной ноде вместо перебора всех зарегистрированных.
 
-        Если конфиг не найден нигде, но и ошибок соединения не было —
-        считаем его уже отсутствующим и всё равно удаляем запись из БД. Если
-        были реальные ошибки — запись в БД не трогаем, чтобы не потерять её
-        без фактического удаления.
+        Отдельный от `delete_user_config` метод нужен каналу api → bot
+        (`bot/internal`): там запись в БД удаляет сам `api/` и только после
+        положительного ответа, поэтому бот не должен удалять её сам.
 
         Args:
-            tg_id: Telegram ID владельца конфига (для атрибуции в API).
-            config: Конфиг для удаления.
+            config: Конфиг, доступ которого нужно отозвать.
 
         Returns
             bool: True, если конфиг был реально найден и удалён на внешнем
-            сервисе; False, если он нигде не был найден (но запись в БД
-            всё равно удалена).
+            сервисе; False, если он нигде не найден (и ошибок связи не было).
 
         Raises
             VPNConfigDeletionFailedError: Если при удалении произошла ошибка
-                соединения и небезопасно удалять запись из БД.
+                соединения — отзыв не подтверждён, запись в БД трогать
+                небезопасно.
 
         """
         deleted = False
@@ -730,6 +728,38 @@ class VPNService:
 
         if not deleted and had_error:
             raise VPNConfigDeletionFailedError(file_name=config.file_name)
+
+        logger.info(
+            "Итог отзыва доступа конфига {}: {}",
+            config.file_name,
+            "найден и удалён на ноде" if deleted else "не найден ни на одной ноде",
+        )
+        return deleted
+
+    async def delete_user_config(self, tg_id: int, config: SVPNConfigOut) -> bool:
+        """Удаляет конфиг пользователя из внешнего сервиса и из БД.
+
+        Отзыв доступа на нодах — `revoke_config_access`. Если конфиг не
+        найден нигде, но и ошибок соединения не было — считаем его уже
+        отсутствующим и всё равно удаляем запись из БД. Если были реальные
+        ошибки — запись в БД не трогаем, чтобы не потерять её без
+        фактического удаления.
+
+        Args:
+            tg_id: Telegram ID владельца конфига (для атрибуции в API).
+            config: Конфиг для удаления.
+
+        Returns
+            bool: True, если конфиг был реально найден и удалён на внешнем
+            сервисе; False, если он нигде не был найден (но запись в БД
+            всё равно удалена).
+
+        Raises
+            VPNConfigDeletionFailedError: Если при удалении произошла ошибка
+                соединения и небезопасно удалять запись из БД.
+
+        """
+        deleted = await self.revoke_config_access(config)
 
         if not deleted:
             logger.warning(

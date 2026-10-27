@@ -62,6 +62,10 @@ url = "api"
 #API по умолчанию api c портом 8089
 port = 8089
 
+# === BOT CHANNEL ===
+[bot_channel]
+url = "vpn_bot"
+
 # === VPN SERVERS ===
 [vpn.nodes.fr]
 #Бот переехал на отдельный сервер (vps-05, boris-guard.pro), эта нода теперь

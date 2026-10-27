@@ -16,6 +16,7 @@ from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
 from bot.core.schemas import SHealthResponse
 from bot.help.router import HelpRouter
+from bot.internal.router import router as internal_router
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.middleware.user_context import UserContextMiddleware
@@ -32,6 +33,10 @@ tags_metadata: list[dict[str, Any]] = [
     {
         "name": "webhook",
         "description": "Получение обновлений телеграмм.",
+    },
+    {
+        "name": "internal",
+        "description": "Внутренний канал api → bot (авторизация X-API-Key).",
     },
 ]
 
@@ -238,6 +243,7 @@ ___
 app.state.container = container
 
 app.include_router(payment_router)
+app.include_router(internal_router)
 
 
 @app.post(
