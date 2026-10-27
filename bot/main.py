@@ -8,14 +8,24 @@ from aiogram.types import Update
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from fastapi import FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse
 
 from bot.admin.router import AdminRouter
+from bot.app_error.base_error import AppError
 from bot.core.config import bot, dp, logger, settings_bot
 from bot.core.container import Container
+from bot.core.exceptions.handlers import (
+    app_error_handler,
+    http_exception_handler,
+    request_validation_handler,
+    unhandled_exception_handler,
+)
 from bot.core.schemas import SHealthResponse
 from bot.help.router import HelpRouter
+from bot.internal.router import router as internal_router
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
 from bot.middleware.user_action_middleware import UserActionLoggingMiddleware
 from bot.middleware.user_context import UserContextMiddleware
@@ -32,6 +42,10 @@ tags_metadata: list[dict[str, Any]] = [
     {
         "name": "webhook",
         "description": "Получение обновлений телеграмм.",
+    },
+    {
+        "name": "internal",
+        "description": "Внутренний канал api → bot (авторизация X-API-Key).",
     },
 ]
 
@@ -238,6 +252,12 @@ ___
 app.state.container = container
 
 app.include_router(payment_router)
+app.include_router(internal_router)
+
+app.add_exception_handler(RequestValidationError, request_validation_handler)  # type: ignore[arg-type]
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(Exception, unhandled_exception_handler)
 
 
 @app.post(

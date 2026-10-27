@@ -318,3 +318,43 @@ class PaymentInvalidSourceError(PaymentError):
                 "admin_id": admin_id,
             },
         )
+
+
+class BotChannelUnavailableError(AppError):
+    """Бот недоступен по внутреннему каналу api → bot.
+
+    Поднимается при таймауте/обрыве соединения, ответе не-2xx (в т.ч.
+    401/403 при неверном или не заданном `BOT_INTERNAL_API_KEY`) и
+    нераспознаваемом теле ответа. Состояние нод при этом неизвестно, поэтому
+    вызывающий код не должен удалять записи в БД.
+    """
+
+    code = "bot_channel_unavailable"
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+    def __init__(self, reason: str, *, cause: Exception | None = None) -> None:
+        super().__init__(
+            message=f"Бот недоступен по внутреннему каналу: {reason}",
+            details={"reason": reason},
+            cause=cause,
+        )
+
+
+class VPNRevokeFailedError(AppError):
+    """Бот сообщил, что нода/панель не смогла отозвать доступ конфига.
+
+    Запись в БД намеренно не удаляется: конфиг может реально существовать
+    на сервере, и удаление записи лишило бы нас информации о нём.
+    """
+
+    code = "vpn_revoke_failed"
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+    def __init__(self, file_name: str, detail: str | None = None) -> None:
+        super().__init__(
+            message=(
+                f"Не удалось отозвать доступ конфига «{file_name}» на ноде, "
+                "запись в БД не удалена."
+            ),
+            details={"file_name": file_name, "detail": detail},
+        )

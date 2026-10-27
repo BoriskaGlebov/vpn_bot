@@ -65,6 +65,11 @@ class BotSettings(SettingsCommon):
             - коллекция: list[int] | set[int] | tuple[int, ...]
         base_site (str): Базовый URL сайта (используется для webhook).
         use_polling (bool): Использовать polling вместо webhook.
+        internal_api_key (SecretStr): Ключ внутреннего канала api → bot
+            (заголовок X-API-Key, env `BOT_INTERNAL_API_KEY`). Пустое значение
+            (по умолчанию) отключает канал: все запросы к `/internal/*`
+            отклоняются — закрыто по умолчанию, пока ключ не задан явно.
+            Должен совпадать с `BOT_INTERNAL_API_KEY` на стороне api/.
 
     Properties
         webhook_url (str): Полный URL webhook.
@@ -74,6 +79,7 @@ class BotSettings(SettingsCommon):
     token: SecretStr
     base_site: str
     use_polling: bool = False
+    internal_api_key: SecretStr = SecretStr("")
 
     @computed_field
     def webhook_url(self) -> str:

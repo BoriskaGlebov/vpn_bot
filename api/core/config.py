@@ -15,6 +15,34 @@ from shared.config.logger_config import LoggerConfig
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
+class BotChannelSettings(SettingsCommon):
+    """Настройки внутреннего канала api → bot.
+
+    api/ не ходит к VPN-панелям/нодам сам — команды для них он отправляет
+    боту (см. `api/bot_channel/client.py`).
+
+    Attributes
+        url (str): Хост бота во внутренней сети.
+        port (int): Порт FastAPI-приложения бота.
+        api_key (SecretStr): Ключ в заголовке X-API-Key (env
+            `BOT_INTERNAL_API_KEY`, должен совпадать со значением бота).
+            Пустое значение — канал не настроен, клиент не отправляет запросы.
+        timeout (float): Таймаут ответа бота, сек. Отзыв доступа ходит на
+            ноды по SSH/HTTPS, поэтому заметно больше обычного.
+        connect_timeout (float): Таймаут установки соединения, сек.
+
+    """
+
+    url: str = "vpn_bot"
+    port: int = 8088
+    api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias="BOT_INTERNAL_API_KEY",
+    )
+    timeout: float = 60.0
+    connect_timeout: float = 3.0
+
+
 class SettingsAPI(SettingsCommon):
     """Конфигурация API-сервиса.
 
@@ -45,6 +73,9 @@ class SettingsAPI(SettingsCommon):
             без значения по умолчанию по той же причине, что и выше: это
             единственная проверка доступа к api/.
 
+        bot_channel (BotChannelSettings):
+            Внутренний канал api → bot (адрес бота и ключ X-API-Key).
+
         admin_panel_user (str):
             Логин админ-панели SQLAdmin — отдельный от учётных данных БД.
 
@@ -64,6 +95,7 @@ class SettingsAPI(SettingsCommon):
 
     session_secret: SecretStr
     internal_api_secret: SecretStr
+    bot_channel: BotChannelSettings = Field(default_factory=BotChannelSettings)
 
     admin_panel_user: str = "admin"
     admin_panel_password_hash: SecretStr = SecretStr("")
