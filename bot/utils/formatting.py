@@ -50,8 +50,8 @@ def format_vpn_config_date(created_at: datetime) -> str:
 
 
 NODE_COUNTRY_NAMES: dict[str, str] = {
-    "de": "Германия",
-    "fr": "Франция",
+    "de": "Германия (Франкфурт)",
+    "fr": "Франция (Париж)",
     "fi": "Финляндия",
     "sof": "Болгария (София)",
     "waw": "Польша (Варшава)",
