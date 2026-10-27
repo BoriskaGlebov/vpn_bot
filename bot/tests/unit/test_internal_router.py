@@ -14,8 +14,9 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 
-from bot.app_error.base_error import VPNConfigDeletionFailedError
+from bot.app_error.base_error import AppError, VPNConfigDeletionFailedError
 from bot.core.config import settings_bot
+from bot.core.exceptions.handlers import app_error_handler
 from bot.internal.dependencies import get_vpn_service
 from bot.internal.router import router
 from bot.vpn.services import VPNService
@@ -40,6 +41,7 @@ def vpn_service_mock():
 def app(vpn_service_mock):
     fastapi_app = FastAPI()
     fastapi_app.include_router(router)
+    fastapi_app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
     fastapi_app.dependency_overrides[get_vpn_service] = lambda: vpn_service_mock
     return fastapi_app
 
@@ -74,6 +76,7 @@ async def test_revoke_without_key_returns_401(client, vpn_service_mock, payload)
     response = await client.post(URL, json=payload)
 
     assert response.status_code == 401
+    assert response.json()["error"]["code"] == "bot_channel_unauthorized"
     vpn_service_mock.revoke_config_access.assert_not_awaited()
 
 
@@ -83,6 +86,7 @@ async def test_revoke_with_wrong_key_returns_401(client, vpn_service_mock, paylo
     response = await client.post(URL, json=payload, headers={"X-API-Key": "wrong"})
 
     assert response.status_code == 401
+    assert response.json()["error"]["code"] == "bot_channel_unauthorized"
     vpn_service_mock.revoke_config_access.assert_not_awaited()
 
 
@@ -97,6 +101,7 @@ async def test_revoke_when_channel_disabled_returns_403(
     response = await client.post(URL, json=payload, headers={"X-API-Key": ""})
 
     assert response.status_code == 403
+    assert response.json()["error"]["code"] == "bot_channel_disabled"
     vpn_service_mock.revoke_config_access.assert_not_awaited()
 
 

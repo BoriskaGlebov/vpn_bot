@@ -352,3 +352,27 @@ class VPNConfigNotFoundError(AppError):
             message="Этот конфиг уже удалён или не найден.",
             details={"config_id": config_id},
         )
+
+
+class BotChannelDisabledError(AppError):
+    """Внутренний канал api → bot выключен (`BOT_INTERNAL_API_KEY` не задан).
+
+    Зеркало `api.app_error.api_error.InvalidInternalSecretError` для
+    обратного направления канала (api → bot вместо bot → api).
+    """
+
+    code = "bot_channel_disabled"
+    status_code = 403
+
+    def __init__(self) -> None:
+        super().__init__(message="Внутренний канал api → bot отключён")
+
+
+class BotChannelUnauthorizedError(AppError):
+    """Неверный или отсутствующий `X-API-Key` у запроса api → bot."""
+
+    code = "bot_channel_unauthorized"
+    status_code = 401
+
+    def __init__(self) -> None:
+        super().__init__(message="Неверный или отсутствующий X-API-Key")

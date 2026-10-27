@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from api.app_error.base_error import BotChannelUnavailableError, VPNRevokeFailedError
 from api.bot_channel.schemas import SRevokeConfigRequest, SRevokeConfigResponse
 from api.core.config import BotChannelSettings
+from api.core.exceptions.schema import ErrorEnvelope
 from api.users.schemas import SVPNConfigOut
 from shared.enums.vpn_enum import VPNRevokeStatus
 
@@ -99,12 +100,19 @@ class BotChannelClient:
             raise BotChannelUnavailableError("нет соединения", cause=exc) from exc
 
         if response.status_code != httpx.codes.OK:
+            reason = f"HTTP {response.status_code}"
+            try:
+                reason = f"{reason}: {ErrorEnvelope.model_validate_json(response.content).error.message}"
+            except (ValueError, ValidationError):
+                pass  # тело не в формате ErrorEnvelope — оставляем голый статус-код
+
             logger.error(
-                "Бот ответил {} на отзыв конфига {}",
+                "Бот ответил {} на отзыв конфига {}: {}",
                 response.status_code,
                 config.file_name,
+                reason,
             )
-            raise BotChannelUnavailableError(f"HTTP {response.status_code}")
+            raise BotChannelUnavailableError(reason)
 
         try:
             result = SRevokeConfigResponse.model_validate(response.json())
