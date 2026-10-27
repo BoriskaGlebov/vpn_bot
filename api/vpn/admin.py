@@ -1,9 +1,13 @@
+from loguru import logger
 from markupsafe import Markup
 from sqladmin import ModelView
 from sqladmin.filters import ForeignKeyFilter, OperationColumnFilter
+from starlette.requests import Request
 
 from api.admin.badges import VPN_CONFIG_BADGE_COLORS, VPN_CONFIG_STATUS_LABELS, badge
+from api.bot_channel.dependencies import get_bot_channel_client
 from api.users.models import User
+from api.users.schemas import SVPNConfigOut
 from api.vpn.models import VPNConfig
 
 
@@ -80,27 +84,51 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "status": format_status,  # type: ignore[misc, dict-item]
     }
 
-    # Создание и удаление запрещены по одной и той же причине: SQLAdmin
-    # пишет/удаляет модель напрямую в БД, минуя VPNService — тот самый слой,
-    # который отзывает/выдаёт доступ на ноде или панели 3x-ui и проверяет
-    # лимит устройств. Этот слой живёт в bot/ (только bot/ обращается к
-    # панелям VPN), поэтому админка не может вызвать его напрямую — пока не
-    # появится путь между сервисами, обе операции запрещены целиком.
+    # can_create/can_edit остаются запрещены: SQLAdmin писал бы модель
+    # напрямую в БД, минуя VPNService/VPNConfigDAO.add_config — тот самый
+    # слой, который отзывает/выдаёт доступ на ноде или панели 3x-ui и
+    # проверяет лимит устройств. Этот слой живёт в bot/ (только bot/
+    # обращается к панелям VPN) — так появилась бы запись без node_name/
+    # backend/protocol/config_ids, которая уже считается устройством
+    # пользователя и занимает место в лимите, но не имеет доступа.
     #
-    # can_delete: запись исчезает, а клиент на панели/пир в
-    # awg0.conf остаётся включённым — доступ без записи, по которой его
-    # можно найти. Правильный путь — VPNService.delete_user_config
-    # (bot/vpn/services.py, уже используется в bot/subscription/router.py):
-    # отзывает доступ на ноде и только потом удаляет запись, различая
-    # "не найден" и "ошибка связи".
-    #
-    # can_create: наоборот — запись появляется без доступа.
-    # node_name/backend/protocol/config_ids остаются пустыми, при этом
-    # запись уже считается устройством пользователя и приближает его к
-    # лимиту, а проверка лимита при создании не выполняется (она встроена
-    # в VPNConfigDAO.add_config, SQLAdmin его не вызывает).
+    # can_delete включено (#290/#382): on_model_delete ниже отзывает доступ
+    # конфига на ноде через BotChannelClient (канал api -> bot) ДО того, как
+    # SQLAdmin удалит строку — см. docstring on_model_delete.
     can_create = False
     can_edit = False
-    can_delete = False
+    can_delete = True
     can_view_details = True
     details_template = "admin/vpn_config_details.html"
+
+    async def on_model_delete(self, model: VPNConfig, request: Request) -> None:
+        """Отзывает доступ конфига на ноде/панели перед удалением записи.
+
+        Вызывается SQLAdmin до `session.delete`/`commit` (см. `sqladmin._queries.
+        Query._delete_async`) — если отзыв не подтверждён, нужно поднять
+        исключение: тогда SQLAdmin не выполнит сам DELETE, и запись останется
+        в БД согласованной с нодой (на которой доступ ещё жив).
+
+        `model.user` подгружен автоматически (`VPNConfig.user` объявлена с
+        `lazy="selectin"` на уровне маппера), дополнительный eager loading не
+        нужен.
+
+        Args:
+            model: Удаляемый конфиг.
+            request: Текущий HTTP-запрос SQLAdmin (не используется).
+
+        Raises
+            BotChannelUnavailableError: Бот недоступен — проброс из
+                `BotChannelClient.revoke_config`, запись не удаляется.
+            VPNRevokeFailedError: Нода/панель не смогла отозвать доступ —
+                проброс из `BotChannelClient.revoke_config`, запись не
+                удаляется.
+
+        """
+        config_out = SVPNConfigOut.model_validate(model)
+        logger.info(
+            "Админка: удаление VPN-конфига {} (user_id={}) — отзываю доступ на ноде",
+            model.file_name,
+            model.user_id,
+        )
+        await get_bot_channel_client().revoke_config(model.user.telegram_id, config_out)
