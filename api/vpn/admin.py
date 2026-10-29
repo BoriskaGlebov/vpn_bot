@@ -4,7 +4,14 @@ from sqladmin import ModelView
 from sqladmin.filters import ForeignKeyFilter, OperationColumnFilter
 from starlette.requests import Request
 
-from api.admin.badges import VPN_CONFIG_BADGE_COLORS, VPN_CONFIG_STATUS_LABELS, badge
+from api.admin.badges import (
+    VPN_BACKEND_BADGE_COLORS,
+    VPN_BACKEND_LABELS,
+    VPN_CONFIG_BADGE_COLORS,
+    VPN_CONFIG_STATUS_LABELS,
+    VPN_PROTOCOL_LABELS,
+    badge,
+)
 from api.bot_channel.dependencies import get_bot_channel_client
 from api.users.models import User
 from api.users.schemas import SVPNConfigOut
@@ -33,6 +40,34 @@ def format_status(obj: VPNConfig, name: str) -> Markup:
     return badge(label, color)
 
 
+def format_node_name(obj: VPNConfig, name: str) -> str:
+    """Отображает имя ноды с безопасным дефолтом для отсутствующего значения."""
+    return obj.node_name or "—"
+
+
+def format_backend(obj: VPNConfig, name: str) -> Markup:
+    """Форматирует бэкенд (AmneziaWG/XRay) цветным бейджем."""
+    if not obj.backend:
+        return badge("—", "dark")
+    label = VPN_BACKEND_LABELS.get(obj.backend, obj.backend)
+    color = VPN_BACKEND_BADGE_COLORS.get(obj.backend, "dark")
+    return badge(label, color)
+
+
+def format_protocol(obj: VPNConfig, name: str) -> str:
+    """Отображает протокол(ы) конфига человекочитаемо.
+
+    Для XRay-подписки `protocol` хранит несколько значений через запятую
+    (по одному на inbound) — каждое значение подписывается отдельно.
+    """
+    if not obj.protocol:
+        return "—"
+    labels = (
+        VPN_PROTOCOL_LABELS.get(p.strip(), p.strip()) for p in obj.protocol.split(",")
+    )
+    return ", ".join(labels)
+
+
 class VPNConfigAdmin(ModelView, model=VPNConfig):
     """Административное представление модели VPNConfig."""
 
@@ -40,12 +75,30 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
     name_plural = "VPN конфиги"
     icon = "fa-solid fa-network-wired"
 
+    # Короткий список: таблица конфигов и так широкая, поэтому file_name и
+    # pub_key (малоинформативны в общем списке) остаются только на карточке
+    # конфига (column_details_list + admin/vpn_config_details.html).
     column_list = [
+        "id",
+        "user",
+        "status",
+        "node_name",
+        "backend",
+        "protocol",
+        "country",
+        "created_at",
+    ]
+
+    column_details_list = [
         "id",
         "user",
         "file_name",
         "pub_key",
         "status",
+        "node_name",
+        "backend",
+        "protocol",
+        "country",
         "created_at",
     ]
 
@@ -54,6 +107,8 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "file_name",
         "user_id",
         "status",
+        "node_name",
+        "backend",
         "created_at",
     ]
 
@@ -67,6 +122,12 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         ForeignKeyFilter(VPNConfig.user_id, User.username, title="Пользователь"),
         OperationColumnFilter(VPNConfig.file_name),
         OperationColumnFilter(VPNConfig.status),
+        OperationColumnFilter(VPNConfig.node_name, title="Нода"),
+        OperationColumnFilter(VPNConfig.backend, title="Бэкенд"),
+        # Contains, а не Equals: XRay-подписка хранит несколько значений в
+        # protocol через запятую (см. VPNConfig.protocol) — Equals для неё
+        # не найдёт ничего.
+        OperationColumnFilter(VPNConfig.protocol, title="Протокол"),
     ]
 
     column_labels = {
@@ -75,6 +136,10 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "file_name": "Имя файла",
         "pub_key": "Public key",
         "status": "Статус",
+        "node_name": "Нода",
+        "backend": "Бэкенд",
+        "protocol": "Протокол",
+        "country": "Страна",
         "created_at": "Дата создания",
     }
 
@@ -82,6 +147,9 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "user": format_user,  # type: ignore[misc, dict-item]
         "pub_key": format_pub_key,  # type: ignore[misc, dict-item]
         "status": format_status,  # type: ignore[misc, dict-item]
+        "node_name": format_node_name,  # type: ignore[misc, dict-item]
+        "backend": format_backend,  # type: ignore[misc, dict-item]
+        "protocol": format_protocol,  # type: ignore[misc, dict-item]
     }
 
     # create/edit запрещены: SQLAdmin писал бы модель напрямую в БД, минуя
