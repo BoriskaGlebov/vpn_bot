@@ -1,12 +1,15 @@
-"""Справочник «нода → страна» для отображения VPN-конфига в админке."""
+"""Резолв страны VPN-ноды для отображения в админке (#383).
 
-NODE_COUNTRIES: dict[str, str] = {
-    "de": "Германия 🇩🇪",
-    "fr": "Франция 🇫🇷",
-    "sof": "Болгария 🇧🇬",
-    "waw": "Польша 🇵🇱",
-    "fi": "Финляндия 🇫🇮",
-}
+Название страны берётся из общего справочника `shared/vpn/locations.py` —
+той же карты node_name → страна, которой пользуется `bot/utils/formatting.py`.
+Флаг сюда не добавляется: он у `bot/` берётся динамически из
+`settings_bot.vpn.nodes`, а `api/` к этой секции настроек бота доступа не
+имеет (см. `api/core/config.py`) — подставлять здесь свой захардкоженный
+флаг означало бы одну и ту же ноду показывать с разными флагами в боте и
+в админке, если флаг в конфиге поменяют.
+"""
+
+from shared.vpn.locations import resolve_country_name
 
 UNKNOWN_NODE_COUNTRY = "—"
 
@@ -14,22 +17,13 @@ UNKNOWN_NODE_COUNTRY = "—"
 def resolve_country(node_name: str | None) -> str:
     """Определяет страну ноды по её имени для отображения в админке.
 
-    `api/` не имеет доступа к секции `vpn.nodes` настроек бота — она
-    объявлена только в `bot/core/config.py` (`Settings.vpn`), а
-    `SettingsAPI` её не включает (разные физические окружения с разными
-    нодами описаны в `app_config*.toml`). Поэтому карта нода → страна
-    задаётся явной константой здесь и обновляется вручную при добавлении
-    новой ноды в конфиг бота.
-
     Args:
         node_name (str | None): Имя ноды (ключ `settings_bot.vpn.nodes`,
             например "de", "fr", "sof", "waw") либо None.
 
     Returns
-        str: Человекочитаемое название страны с флагом, либо
-            `UNKNOWN_NODE_COUNTRY` для неизвестной или отсутствующей ноды.
+        str: Человекочитаемое название страны, либо `UNKNOWN_NODE_COUNTRY`
+            для неизвестной или отсутствующей ноды.
 
     """
-    if node_name is None:
-        return UNKNOWN_NODE_COUNTRY
-    return NODE_COUNTRIES.get(node_name, UNKNOWN_NODE_COUNTRY)
+    return resolve_country_name(node_name, default=UNKNOWN_NODE_COUNTRY)

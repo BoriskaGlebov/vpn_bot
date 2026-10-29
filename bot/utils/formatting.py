@@ -3,6 +3,7 @@ from datetime import datetime
 from aiogram.types import User
 
 from bot.core.config import settings_bot
+from shared.vpn.locations import resolve_country_name
 
 
 def format_username(user: User | None) -> str:
@@ -49,15 +50,6 @@ def format_vpn_config_date(created_at: datetime) -> str:
     return created_at.strftime("%Y-%m-%d")
 
 
-NODE_COUNTRY_NAMES: dict[str, str] = {
-    "de": "Германия (Франкфурт)",
-    "fr": "Франция (Париж)",
-    "fi": "Финляндия",
-    "sof": "Болгария (София)",
-    "waw": "Польша (Варшава)",
-}
-
-
 def format_vpn_location(node_name: str | None, short: bool = False) -> str:
     """Возвращает человекочитаемую локацию конфига по имени ноды.
 
@@ -79,5 +71,5 @@ def format_vpn_location(node_name: str | None, short: bool = False) -> str:
         return "❔ неизвестно"
     if short:
         return f"{node.flag} {node.location_prefix}"
-    country = NODE_COUNTRY_NAMES.get(node_name or "", node.location_prefix)
+    country = resolve_country_name(node_name, default=node.location_prefix)
     return f"{node.flag} {country} ({node.location_prefix})"

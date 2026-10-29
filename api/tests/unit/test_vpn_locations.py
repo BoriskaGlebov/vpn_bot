@@ -2,12 +2,13 @@
 
 import pytest
 
-from api.vpn.locations import NODE_COUNTRIES, UNKNOWN_NODE_COUNTRY, resolve_country
+from api.vpn.locations import UNKNOWN_NODE_COUNTRY, resolve_country
+from shared.vpn.locations import NODE_COUNTRY_NAMES
 
 
-@pytest.mark.parametrize("node_name", list(NODE_COUNTRIES))
+@pytest.mark.parametrize("node_name", list(NODE_COUNTRY_NAMES))
 def test_resolve_country_known_node(node_name):
-    assert resolve_country(node_name) == NODE_COUNTRIES[node_name]
+    assert resolve_country(node_name) == NODE_COUNTRY_NAMES[node_name]
 
 
 def test_resolve_country_unknown_node_returns_safe_default():
