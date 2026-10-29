@@ -14,7 +14,7 @@ from api.app_error.base_error import (
 )
 from api.bot_channel.dependencies import get_bot_channel_client
 from api.referrals.models import Referral
-from api.users.filters import ActiveSubscriptionFilter
+from api.users.filters import SubscriptionSegmentFilter
 from api.users.models import Role, User
 from api.users.schemas import SVPNConfigOut
 
@@ -78,7 +78,7 @@ class UserAdmin(ModelView, model=User):
     column_filters = [
         BooleanFilter(User.has_used_trial, title="Использовал триал"),
         ForeignKeyFilter(User.role_id, Role.name, title="Роль"),
-        ActiveSubscriptionFilter(),
+        SubscriptionSegmentFilter(),
     ]
 
     can_create = True
