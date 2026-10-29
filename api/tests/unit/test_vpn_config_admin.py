@@ -79,7 +79,7 @@ async def test_on_model_delete_propagates_unconfirmed_revoke(admin, monkeypatch,
 
 def test_country_property_resolves_from_node_name():
     """#383: страна — вычисляемое свойство, а не колонка в БД."""
-    assert make_config(node_name="fr").country == "Франция (Париж)"
+    assert make_config(node_name="fr").country == "🇫🇷 Франция (Париж)"
 
 
 def test_country_property_unknown_node_is_safe_default():
