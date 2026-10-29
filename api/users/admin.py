@@ -83,9 +83,6 @@ class UserAdmin(ModelView, model=User):
 
     can_create = True
     can_edit = True
-    # Удаление включено (#290/#246/#382): on_model_delete ниже отзывает
-    # доступ ВСЕХ vpn_configs пользователя на нодах через BotChannelClient,
-    # прежде чем SQLAdmin удалит саму запись (и каскадом — vpn_configs).
     can_delete = True
     can_view_details = True
     column_labels = {
@@ -197,8 +194,6 @@ class UserAdmin(ModelView, model=User):
             try:
                 await client.revoke_config(model.telegram_id, config_out)
             except (BotChannelUnavailableError, VPNRevokeFailedError):
-                # Нода в сообщении — чтобы админ видел, с каким сервером
-                # проблема, не открывая логи.
                 failed_configs.append(f"{config.file_name} (нода: {config.node_name})")
 
         if failed_configs:

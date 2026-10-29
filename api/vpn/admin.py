@@ -84,17 +84,9 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "status": format_status,  # type: ignore[misc, dict-item]
     }
 
-    # can_create/can_edit остаются запрещены: SQLAdmin писал бы модель
-    # напрямую в БД, минуя VPNService/VPNConfigDAO.add_config — тот самый
-    # слой, который отзывает/выдаёт доступ на ноде или панели 3x-ui и
-    # проверяет лимит устройств. Этот слой живёт в bot/ (только bot/
-    # обращается к панелям VPN) — так появилась бы запись без node_name/
-    # backend/protocol/config_ids, которая уже считается устройством
-    # пользователя и занимает место в лимите, но не имеет доступа.
-    #
-    # can_delete включено (#290/#382): on_model_delete ниже отзывает доступ
-    # конфига на ноде через BotChannelClient (канал api -> bot) ДО того, как
-    # SQLAdmin удалит строку — см. docstring on_model_delete.
+    # create/edit запрещены: SQLAdmin писал бы модель напрямую в БД, минуя
+    # слой выдачи доступа в bot/ — появилась бы запись без доступа на ноде,
+    # но уже занимающая место в лимите устройств пользователя.
     can_create = False
     can_edit = False
     can_delete = True
