@@ -147,6 +147,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # которое иначе никуда не всплывёт.
     resume_broadcast_task = asyncio.create_task(news_router.resume_pending_broadcast())
     resume_broadcast_task.add_done_callback(_log_resume_broadcast_result)
+    resume_admin_broadcast_task = asyncio.create_task(
+        container.admin_broadcast_service.resume_pending_broadcast()
+    )
+    resume_admin_broadcast_task.add_done_callback(_log_resume_broadcast_result)
 
     await start_bot(bot=bot)
 
@@ -198,6 +202,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Завершение работы бота...")
     if not resume_broadcast_task.done():
         resume_broadcast_task.cancel()
+    if not resume_admin_broadcast_task.done():
+        resume_admin_broadcast_task.cancel()
     try:
         await bot.delete_webhook()
         logger.info("Вебхук удалён")

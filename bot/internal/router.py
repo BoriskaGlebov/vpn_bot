@@ -10,8 +10,19 @@ from fastapi import APIRouter, Depends
 from loguru import logger
 
 from bot.app_error.base_error import VPNConfigDeletionFailedError
-from bot.internal.dependencies import get_vpn_service, verify_internal_api_key
-from bot.internal.schemas import SRevokeConfigRequest, SRevokeConfigResponse
+from bot.internal.dependencies import (
+    get_admin_broadcast_service,
+    get_vpn_service,
+    verify_internal_api_key,
+)
+from bot.internal.schemas import (
+    SBroadcastRequest,
+    SBroadcastResponse,
+    SRevokeConfigRequest,
+    SRevokeConfigResponse,
+)
+from bot.news.services import BroadcastService
+from bot.utils.background import run_in_background
 from bot.vpn.services import VPNService
 from shared.enums.vpn_enum import VPNRevokeStatus
 
@@ -75,3 +86,45 @@ async def revoke_vpn_config(
 
     logger.info("Доступ конфига {} (tg_id={}) отозван", config.file_name, payload.tg_id)
     return SRevokeConfigResponse(status=VPNRevokeStatus.OK)
+
+
+@router.post(
+    "/broadcast",
+    response_model=SBroadcastResponse,
+    summary="Разослать текст выбранным получателям",
+)
+async def broadcast(
+    payload: SBroadcastRequest,
+    broadcast_service: BroadcastService = Depends(get_admin_broadcast_service),
+) -> SBroadcastResponse:
+    """Запускает в фоне рассылку текста отмеченным в админке пользователям.
+
+    Не блокирует ответ api на тысячах получателей — рассылка идёт в фоне
+    (переиспользует инфраструктуру новостей, `BroadcastService`), а итог
+    (доставлено/не доставлено) бот присылает в админ-чат отдельным
+    сообщением (`send_to_admins`).
+
+    Args:
+        payload: Текст рассылки и telegram_id получателей.
+        broadcast_service: Сервис рассылки по выбранным пользователям.
+
+    Returns
+        SBroadcastResponse: Подтверждение приёма команды (не итог рассылки).
+
+    """
+    logger.info(
+        "Получен запрос api → bot: рассылка по {} выбранным пользователям",
+        len(payload.recipients),
+    )
+    run_in_background(
+        broadcast_service.broadcast_to_all(
+            content={"content_type": "text", "text": payload.text},
+            recipients=payload.recipients,
+            initiated_by="admin-panel",
+            preview=payload.text,
+            notify_always=True,
+        ),
+        logger=logger,  # type: ignore[arg-type]
+        error_message="Фоновая рассылка по выбранным пользователям упала",
+    )
+    return SBroadcastResponse(accepted=True, recipients=len(payload.recipients))

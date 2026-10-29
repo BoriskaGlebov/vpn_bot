@@ -2,11 +2,11 @@ from aiogram import Bot
 
 from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
-from bot.core.config import settings_bot
+from bot.core.config import logger, settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
-from bot.news.services import NewsService
+from bot.news.services import BroadcastService, NewsService
 from bot.notification.services import NotificationService
 from bot.payment.adapter import PaymentAPIAdapter
 from bot.payment.providers.payment_client import BasePaymentProvider
@@ -80,11 +80,15 @@ class Container:
         payment_service (PaymentService)
         notification_service (NotificationService)
         payment_webhook_service (PaymentWebhookService)
+        admin_broadcast_service (BroadcastService): рассылка по выбранным
+            пользователям из админки (#385) — отдельный от новостей прогресс
+            в Redis, свой заголовок итогового отчёта.
 
         redis_admin_mess_storage (RedisAdminMessageStorage)
         redis_payment_mess_storage (RedisPaymentMessageStorage)
         redis_embedding_cache (RedisEmbeddingCache)
         redis_news_broadcast_storage (RedisNewsBroadcastStorage)
+        redis_admin_broadcast_storage (RedisNewsBroadcastStorage)
 
         bot (Bot): экземпляр aiogram Bot (используется в scheduler).
 
@@ -125,11 +129,13 @@ class Container:
     payment_service: PaymentService
     notification_service: NotificationService
     payment_webhook_service: PaymentWebhookService
+    admin_broadcast_service: BroadcastService
 
     redis_admin_mess_storage: RedisAdminMessageStorage
     redis_payment_mess_storage: RedisPaymentMessageStorage
     redis_embedding_cache: RedisEmbeddingCache
     redis_news_broadcast_storage: RedisNewsBroadcastStorage
+    redis_admin_broadcast_storage: RedisNewsBroadcastStorage
 
     def __init__(self, bot: Bot) -> None:
         """Инициализирует сервисы без асинхронных операций."""
@@ -142,6 +148,9 @@ class Container:
         self.redis_embedding_cache = RedisEmbeddingCache(self.redis_manager)
         self.redis_news_broadcast_storage = RedisNewsBroadcastStorage(
             self.redis_manager
+        )
+        self.redis_admin_broadcast_storage = RedisNewsBroadcastStorage(
+            self.redis_manager, key="admin_broadcast:pending"
         )
         self.api_client = APIClient(
             base_url=settings_bot.api.url,
@@ -220,6 +229,12 @@ class Container:
             notification_service=self.notification_service,
         )
         self.news_service = NewsService(adapter=self.news_adapter)
+        self.admin_broadcast_service = BroadcastService(
+            bot=bot,
+            logger=logger,  # type: ignore[arg-type]
+            broadcast_storage=self.redis_admin_broadcast_storage,
+            summary_title="📢 Рассылка по выбранным пользователям",
+        )
         self.scheduler_bot_service = SchedulerBotService(
             bot=bot,
             adapter=self.scheduler_adapter,
