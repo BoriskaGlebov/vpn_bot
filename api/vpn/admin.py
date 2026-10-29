@@ -1,7 +1,12 @@
 from loguru import logger
 from markupsafe import Markup
 from sqladmin import ModelView
-from sqladmin.filters import ForeignKeyFilter, OperationColumnFilter
+from sqladmin.filters import (
+    AllUniqueStringValuesFilter,
+    ForeignKeyFilter,
+    OperationColumnFilter,
+    StaticValuesFilter,
+)
 from starlette.requests import Request
 
 from api.admin.badges import (
@@ -15,7 +20,8 @@ from api.admin.badges import (
 from api.bot_channel.dependencies import get_bot_channel_client
 from api.users.models import User
 from api.users.schemas import SVPNConfigOut
-from api.vpn.models import VPNConfig
+from api.vpn.models import VPNConfig, VPNConfigStatus
+from shared.enums.vpn_enum import VPNBackend
 
 
 def format_user(obj: VPNConfig, name: str) -> str:
@@ -121,12 +127,28 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
     column_filters = [
         ForeignKeyFilter(VPNConfig.user_id, User.username, title="Пользователь"),
         OperationColumnFilter(VPNConfig.file_name),
-        OperationColumnFilter(VPNConfig.status),
-        OperationColumnFilter(VPNConfig.node_name, title="Нода"),
-        OperationColumnFilter(VPNConfig.backend, title="Бэкенд"),
-        # Contains, а не Equals: XRay-подписка хранит несколько значений в
-        # protocol через запятую (см. VPNConfig.protocol) — Equals для неё
-        # не найдёт ничего.
+        # Статус/бэкенд — фиксированный набор значений (Python-enum), поэтому
+        # выпадающий список задаётся явно, а не через OperationColumnFilter.
+        StaticValuesFilter(
+            VPNConfig.status,
+            values=[
+                (s.value, VPN_CONFIG_STATUS_LABELS[s.value]) for s in VPNConfigStatus
+            ],
+            title="Статус",
+        ),
+        StaticValuesFilter(
+            VPNConfig.backend,
+            values=[(b.value, VPN_BACKEND_LABELS[b.value]) for b in VPNBackend],
+            title="Бэкенд",
+        ),
+        # node_name не Python-enum (валидируется по settings_bot.vpn.nodes,
+        # недоступному из api/, см. api/vpn/locations.py) — список строится
+        # запросом DISTINCT по реальным значениям в БД.
+        AllUniqueStringValuesFilter(VPNConfig.node_name, title="Нода"),
+        # Contains, а не выпадающий список: XRay-подписка хранит несколько
+        # значений в protocol через запятую (см. VPNConfig.protocol) —
+        # и Equals, и список уникальных сырых строк для такого поля не имеют
+        # смысла.
         OperationColumnFilter(VPNConfig.protocol, title="Протокол"),
     ]
 
