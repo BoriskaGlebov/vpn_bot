@@ -301,6 +301,20 @@ admin.add_view(VPNConfigAdmin)
 admin.add_view(ReferralAdmin)
 admin.add_view(PaymentTransactionAdmin)
 
+# SQLAdmin монтирует СОБСТВЕННОЕ Starlette-приложение (`admin.admin`) под
+# `/admin` со своим `exception_handlers` (по умолчанию — только
+# `HTTPException`, см. sqladmin/application.py). Обработчики, зарегистрированные
+# выше на внешнем `app`, на него не распространяются: AppError/APIError из
+# on_model_delete/on_model_change (VPNConfigAdmin, UserAdmin, SubscriptionAdmin)
+# ловит внутренний ServerErrorMiddleware как generic 500 и ПЕРЕБРАСЫВАЕТ
+# исключение дальше — оно всплывает через внешние BaseHTTPMiddleware и падает
+# с RuntimeError("Caught handled exception, but response already started")
+# вместо того, чтобы отдать админу внятный текст ошибки (#290).
+admin.admin.add_exception_handler(APIError, api_error_handler)
+admin.admin.add_exception_handler(SQLAlchemyError, database_exception_handler)
+admin.admin.add_exception_handler(AppError, app_error_handler)
+admin.admin.add_exception_handler(Exception, unhandled_exception_handler)
+
 
 @app.get(
     "/health",
