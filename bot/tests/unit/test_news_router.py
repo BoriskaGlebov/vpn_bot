@@ -351,7 +351,7 @@ async def test_confirm_news_handler_sends_one_admin_summary_not_per_failure(
 
     send_to_admins_mock = AsyncMock()
     monkeypatch.setattr(
-        "bot.news.router.send_to_admins",
+        "bot.news.services.send_to_admins",
         send_to_admins_mock,
     )
 
