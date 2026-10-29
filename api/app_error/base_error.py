@@ -358,3 +358,35 @@ class VPNRevokeFailedError(AppError):
             ),
             details={"file_name": file_name, "detail": detail},
         )
+
+
+class UserVPNRevokeIncompleteError(AppError):
+    """Не все VPN-конфиги пользователя удалось отозвать при удалении (#290).
+
+    Поднимается `UserAdmin.on_model_delete`, когда хотя бы один из конфигов
+    пользователя не подтвердил отзыв доступа (бот недоступен или нода
+    ответила ошибкой). Удаление пользователя прерывается целиком: частично
+    удалённый пользователь — ещё один источник расхождения между БД и
+    нодами, а не решение твоей проблемы. Конфиги, для которых отзыв уже прошёл
+    успешно, доступа на ноде больше не имеют — повторная попытка удаления
+    безопасна (бот вернёт `NOT_FOUND` для них снова).
+    """
+
+    code = "user_vpn_revoke_incomplete"
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+    def __init__(
+        self, user_id: int, username: str | None, failed_configs: list[str]
+    ) -> None:
+        super().__init__(
+            message=(
+                f"Не удалось отозвать доступ всех VPN-конфигов пользователя "
+                f"@{username or user_id} на нодах, удаление прервано. "
+                f"Остались неотозванными: {', '.join(failed_configs)}."
+            ),
+            details={
+                "user_id": user_id,
+                "username": username,
+                "failed_configs": failed_configs,
+            },
+        )

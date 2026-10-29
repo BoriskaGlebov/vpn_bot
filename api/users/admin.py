@@ -1,3 +1,4 @@
+from loguru import logger
 from markupsafe import Markup
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter
@@ -6,9 +7,16 @@ from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 
 from api.admin.badges import ROLE_BADGE_COLORS, SUBSCRIPTION_BADGE_COLORS, badge
+from api.app_error.base_error import (
+    BotChannelUnavailableError,
+    UserVPNRevokeIncompleteError,
+    VPNRevokeFailedError,
+)
+from api.bot_channel.dependencies import get_bot_channel_client
 from api.referrals.models import Referral
 from api.users.filters import ActiveSubscriptionFilter
 from api.users.models import Role, User
+from api.users.schemas import SVPNConfigOut
 
 
 def format_role(obj: User, name: str) -> Markup:
@@ -75,16 +83,7 @@ class UserAdmin(ModelView, model=User):
 
     can_create = True
     can_edit = True
-    # Удаление пользователя сносит все его vpn_configs каскадом
-    # (cascade="all, delete-orphan"), а вместе с ними pub_key и config_ids —
-    # то есть пропадает информация, по которой доступ на нодах можно было бы
-    # найти и отозвать. Доступ продолжает работать, восстановить связь
-    # «доступ -> удалённая запись» после этого нечем. В проекте нет и
-    # собственного безопасного пути удаления пользователя (отзыв доступа на
-    # всех VPN-конфигах + удаление записи) — до тех пор, пока такой сервис
-    # не появится, удаление запрещено целиком, а не молча ломает доступ
-    # (см. #246).
-    can_delete = False
+    can_delete = True
     can_view_details = True
     column_labels = {
         "id": "ID",
@@ -157,6 +156,62 @@ class UserAdmin(ModelView, model=User):
         """
         stmt = self._stmt_by_identifier(request.path_params["pk"])
         return self._with_eager_options(stmt)
+
+    async def on_model_delete(self, model: User, request: Request) -> None:
+        """Отзывает доступ всех VPN-конфигов пользователя перед удалением записи.
+
+        Вызывается SQLAdmin до `session.delete`/`commit` (см. `sqladmin._queries.
+        Query._delete_async`) — поднятое здесь исключение останавливает
+        удаление до того, как каскад (`cascade="all, delete-orphan"`) снесёт
+        vpn_configs вместе с pub_key/config_ids, по которым доступ можно
+        найти и отозвать (см. #246).
+
+        Политика при частичном сбое — безопасная: пробуем отозвать КАЖДЫЙ
+        конфиг (не останавливаемся на первой ошибке), а если хоть один не
+        подтверждён — удаление пользователя прерывается целиком, в ошибке
+        перечислены оставшиеся конфиги. Частично удалённый пользователь
+        (часть доступов отозвана, часть — нет, а запись исчезла) было бы
+        сложнее распутать, чем не удалить вовсе. Конфиги, что уже отозваны,
+        повторный проход (повторная попытка удаления) не ломает — бот
+        вернёт `NOT_FOUND`.
+
+        `model.vpn_configs` подгружен автоматически (`User.vpn_configs`
+        объявлена с `lazy="selectin"` на уровне маппера).
+
+        Args:
+            model: Удаляемый пользователь.
+            request: Текущий HTTP-запрос SQLAdmin (не используется).
+
+        Raises
+            UserVPNRevokeIncompleteError: Хотя бы один конфиг не подтвердил
+                отзыв доступа — удаление прервано.
+
+        """
+        client = get_bot_channel_client()
+        failed_configs: list[str] = []
+        for config in model.vpn_configs:
+            config_out = SVPNConfigOut.model_validate(config)
+            try:
+                await client.revoke_config(model.telegram_id, config_out)
+            except (BotChannelUnavailableError, VPNRevokeFailedError):
+                failed_configs.append(f"{config.file_name} (нода: {config.node_name})")
+
+        if failed_configs:
+            logger.error(
+                "Админка: удаление пользователя {} (id={}) прервано — не "
+                "отозваны конфиги: {}",
+                model.username,
+                model.id,
+                failed_configs,
+            )
+            raise UserVPNRevokeIncompleteError(model.id, model.username, failed_configs)
+
+        logger.info(
+            "Админка: удаление пользователя {} (id={}) — все {} VPN-конфигов отозваны",
+            model.username,
+            model.id,
+            len(model.vpn_configs),
+        )
 
 
 def format_users_count(obj: Role, name: str) -> int:

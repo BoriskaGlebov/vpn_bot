@@ -6,19 +6,20 @@ from api.users.admin import UserAdmin
 from api.vpn.admin import VPNConfigAdmin
 
 
-def test_user_admin_delete_disabled():
-    """Удаление User из админки запрещено — каскад снёс бы vpn_configs
-    вместе с pub_key/config_ids, по которым можно отозвать доступ.
+def test_user_admin_delete_enabled():
+    """Удаление User из админки разрешено (#290) — on_model_delete отзывает
+    доступ всех vpn_configs на нодах до того, как каскад их снесёт
+    (см. test_user_admin.py).
     """
-    assert UserAdmin.can_delete is False
+    assert UserAdmin.can_delete is True
 
 
-def test_vpn_config_admin_delete_disabled():
-    """Удаление VPNConfig из админки запрещено — SQLAdmin не вызывает
-    VPNService.delete_user_config и не отзывает доступ на ноде, только
-    удаляет запись из БД.
+def test_vpn_config_admin_delete_enabled():
+    """Удаление VPNConfig из админки разрешено (#290) — on_model_delete
+    отзывает доступ на ноде через BotChannelClient до удаления записи
+    (см. test_vpn_config_admin.py).
     """
-    assert VPNConfigAdmin.can_delete is False
+    assert VPNConfigAdmin.can_delete is True
 
 
 def test_vpn_config_admin_create_and_edit_disabled():
