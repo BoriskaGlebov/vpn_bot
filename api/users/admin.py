@@ -197,7 +197,9 @@ class UserAdmin(ModelView, model=User):
             try:
                 await client.revoke_config(model.telegram_id, config_out)
             except (BotChannelUnavailableError, VPNRevokeFailedError):
-                failed_configs.append(config.file_name)
+                # Нода в сообщении — чтобы админ видел, с каким сервером
+                # проблема, не открывая логи.
+                failed_configs.append(f"{config.file_name} (нода: {config.node_name})")
 
         if failed_configs:
             logger.error(

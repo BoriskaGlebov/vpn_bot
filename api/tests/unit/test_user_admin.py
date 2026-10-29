@@ -92,7 +92,7 @@ async def test_on_model_delete_partial_failure_aborts_and_lists_remaining(
     with pytest.raises(UserVPNRevokeIncompleteError) as exc_info:
         await admin.on_model_delete(user, request=None)
 
-    assert exc_info.value.details["failed_configs"] == ["b.conf"]
+    assert exc_info.value.details["failed_configs"] == ["b.conf (нода: fr)"]
     assert client.revoke_config.await_count == 2
 
 
@@ -109,4 +109,7 @@ async def test_on_model_delete_bot_unavailable_lists_all_configs(admin, monkeypa
     with pytest.raises(UserVPNRevokeIncompleteError) as exc_info:
         await admin.on_model_delete(user, request=None)
 
-    assert exc_info.value.details["failed_configs"] == ["a.conf", "b.conf"]
+    assert exc_info.value.details["failed_configs"] == [
+        "a.conf (нода: fr)",
+        "b.conf (нода: fr)",
+    ]
