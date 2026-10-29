@@ -16,3 +16,24 @@ class SRevokeConfigResponse(BaseModel):
 
     status: VPNRevokeStatus = Field(..., description="Исход отзыва доступа")
     detail: str | None = Field(None, description="Пояснение к исходу")
+
+
+class SBroadcastRequest(BaseModel):
+    """Команда боту: разослать текст выбранным получателям."""
+
+    text: str = Field(..., min_length=1, description="Текст рассылки")
+    recipients: list[int] = Field(
+        ..., min_length=1, description="Telegram ID получателей"
+    )
+
+
+class SBroadcastResponse(BaseModel):
+    """Ответ бота на команду рассылки (зеркало `bot.internal.schemas`).
+
+    Рассылка на стороне бота асинхронна — этот ответ лишь подтверждает приём
+    команды, итоговый отчёт (доставлено/не доставлено) бот присылает в
+    админ-чат отдельным сообщением.
+    """
+
+    accepted: bool = Field(..., description="Команда принята к исполнению")
+    recipients: int = Field(..., description="Число получателей, принятых к рассылке")

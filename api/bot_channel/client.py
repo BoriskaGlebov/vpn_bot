@@ -3,7 +3,12 @@ from loguru import logger
 from pydantic import ValidationError
 
 from api.app_error.base_error import BotChannelUnavailableError, VPNRevokeFailedError
-from api.bot_channel.schemas import SRevokeConfigRequest, SRevokeConfigResponse
+from api.bot_channel.schemas import (
+    SBroadcastRequest,
+    SBroadcastResponse,
+    SRevokeConfigRequest,
+    SRevokeConfigResponse,
+)
 from api.core.config import BotChannelSettings
 from api.core.exceptions.schema import ErrorEnvelope
 from api.users.schemas import SVPNConfigOut
@@ -142,3 +147,75 @@ class BotChannelClient:
             result.status,
         )
         return result.status
+
+    async def send_broadcast(self, text: str, recipients: list[int]) -> int:
+        """Просит бота разослать текст выбранным получателям.
+
+        Рассылка на стороне бота асинхронна: этот вызов только подтверждает
+        приём команды (HTTP 2xx) и не ждёт её завершения — итоговый отчёт
+        (сколько доставлено) бот присылает в админ-чат отдельным сообщением.
+
+        Args:
+            text: Текст рассылки.
+            recipients: Telegram ID получателей.
+
+        Returns
+            int: Число получателей, принятых ботом к рассылке.
+
+        Raises
+            BotChannelUnavailableError: Бот недоступен, канал не настроен,
+                ответ не-2xx (в т.ч. 401/403) или тело нераспознаваемо.
+
+        """
+        api_key = self._settings.api_key.get_secret_value()
+        if not api_key:
+            logger.error(
+                "Канал api → bot не настроен: BOT_INTERNAL_API_KEY пуст, "
+                "рассылка не отправлена"
+            )
+            raise BotChannelUnavailableError("не задан BOT_INTERNAL_API_KEY")
+
+        logger.info("Отправляю боту команду рассылки: {} получателей", len(recipients))
+        request = SBroadcastRequest(text=text, recipients=recipients)
+        try:
+            async with httpx.AsyncClient(
+                base_url=self._base_url,
+                timeout=self._timeout,
+                transport=self._transport,
+            ) as client:
+                response = await client.post(
+                    "/internal/broadcast",
+                    json=request.model_dump(mode="json"),
+                    headers={"X-API-Key": api_key},
+                )
+        except httpx.TimeoutException as exc:
+            logger.error("Таймаут ответа бота при запуске рассылки")
+            raise BotChannelUnavailableError("таймаут ответа", cause=exc) from exc
+        except httpx.RequestError as exc:
+            logger.error("Бот недоступен при запуске рассылки: {}", exc)
+            raise BotChannelUnavailableError("нет соединения", cause=exc) from exc
+
+        if response.status_code != httpx.codes.OK:
+            reason = f"HTTP {response.status_code}"
+            try:
+                reason = f"{reason}: {ErrorEnvelope.model_validate_json(response.content).error.message}"
+            except (ValueError, ValidationError):
+                pass  # тело не в формате ErrorEnvelope — оставляем голый статус-код
+
+            logger.error(
+                "Бот ответил {} на запуск рассылки: {}",
+                response.status_code,
+                reason,
+            )
+            raise BotChannelUnavailableError(reason)
+
+        try:
+            result = SBroadcastResponse.model_validate(response.json())
+        except (ValueError, ValidationError) as exc:
+            logger.error("Нераспознаваемый ответ бота на запуск рассылки")
+            raise BotChannelUnavailableError(
+                "нераспознаваемый ответ", cause=exc
+            ) from exc
+
+        logger.info("Бот принял рассылку: {} получателей", result.recipients)
+        return result.recipients

@@ -141,3 +141,55 @@ async def test_revoke_without_api_key_does_not_call_bot(config):
         await make_client(handler, api_key="").revoke_config(tg_id=1, config=config)
 
     assert called is False
+
+
+@pytest.mark.asyncio
+async def test_send_broadcast_returns_recipients_and_sends_key():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["key"] = request.headers.get("X-API-Key")
+        seen["path"] = request.url.path
+        seen["body"] = request.read()
+        return httpx.Response(200, json={"accepted": True, "recipients": 2})
+
+    result = await make_client(handler).send_broadcast("Привет!", [111, 222])
+
+    assert result == 2
+    assert seen["key"] == API_KEY
+    assert seen["path"] == "/internal/broadcast"
+    assert b"111" in seen["body"] and b"222" in seen["body"]
+    assert b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82" in seen["body"]
+
+
+@pytest.mark.asyncio
+async def test_send_broadcast_bot_unreachable_raises():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    with pytest.raises(BotChannelUnavailableError, match="нет соединения"):
+        await make_client(handler).send_broadcast("Привет!", [1])
+
+
+@pytest.mark.asyncio
+async def test_send_broadcast_non_200_raises():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"detail": "x"})
+
+    with pytest.raises(BotChannelUnavailableError, match="403"):
+        await make_client(handler).send_broadcast("Привет!", [1])
+
+
+@pytest.mark.asyncio
+async def test_send_broadcast_without_api_key_does_not_call_bot():
+    called = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(200, json={"accepted": True, "recipients": 1})
+
+    with pytest.raises(BotChannelUnavailableError, match="BOT_INTERNAL_API_KEY"):
+        await make_client(handler, api_key="").send_broadcast("Привет!", [1])
+
+    assert called is False
