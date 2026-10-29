@@ -16,8 +16,11 @@ from api.admin.badges import (
     PAYMENT_BADGE_COLORS,
     ROLE_BADGE_COLORS,
     SUBSCRIPTION_BADGE_COLORS,
+    VPN_BACKEND_BADGE_COLORS,
+    VPN_BACKEND_LABELS,
     VPN_CONFIG_BADGE_COLORS,
     VPN_CONFIG_STATUS_LABELS,
+    VPN_PROTOCOL_LABELS,
 )
 from api.admin.dashboard import DashboardView
 from api.admin.router import router as admin_router
@@ -293,6 +296,9 @@ admin.templates.env.globals["subscription_badge_colors"] = SUBSCRIPTION_BADGE_CO
 admin.templates.env.globals["payment_badge_colors"] = PAYMENT_BADGE_COLORS
 admin.templates.env.globals["vpn_config_badge_colors"] = VPN_CONFIG_BADGE_COLORS
 admin.templates.env.globals["vpn_config_status_labels"] = VPN_CONFIG_STATUS_LABELS
+admin.templates.env.globals["vpn_backend_badge_colors"] = VPN_BACKEND_BADGE_COLORS
+admin.templates.env.globals["vpn_backend_labels"] = VPN_BACKEND_LABELS
+admin.templates.env.globals["vpn_protocol_labels"] = VPN_PROTOCOL_LABELS
 admin.add_base_view(DashboardView)
 admin.add_view(UserAdmin)
 admin.add_view(RoleAdmin)

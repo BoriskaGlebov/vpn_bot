@@ -59,6 +59,38 @@
                     </td>
                 </tr>
                 <tr>
+                    <th>Нода</th>
+                    <td>{{ model.node_name or "-" }}</td>
+                </tr>
+                <tr>
+                    <th>Страна</th>
+                    <td>{{ model.country }}</td>
+                </tr>
+                <tr>
+                    <th>Бэкенд</th>
+                    <td>
+                        {% if model.backend %}
+                        <span class="badge bg-{{ vpn_backend_badge_colors.get(model.backend, 'dark') }}">
+                            {{ vpn_backend_labels.get(model.backend, model.backend) }}
+                        </span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Протокол</th>
+                    <td>
+                        {% if model.protocol %}
+                        {% for item in model.protocol.split(",") %}
+                        {{ vpn_protocol_labels.get(item.strip(), item.strip()) }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
                     <th>Создан</th>
                     <td>{{ model.created_at.strftime("%Y-%m-%d %H:%M") if model.created_at else "-" }}</td>
                 </tr>

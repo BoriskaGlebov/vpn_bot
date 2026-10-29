@@ -7,7 +7,12 @@ import pytest
 
 from api.app_error.base_error import BotChannelUnavailableError, VPNRevokeFailedError
 from api.users.models import User
-from api.vpn.admin import VPNConfigAdmin
+from api.vpn.admin import (
+    VPNConfigAdmin,
+    format_backend,
+    format_node_name,
+    format_protocol,
+)
 from api.vpn.models import VPNConfig, VPNConfigStatus
 from shared.enums.vpn_enum import VPNRevokeStatus
 
@@ -70,3 +75,42 @@ async def test_on_model_delete_propagates_unconfirmed_revoke(admin, monkeypatch,
     config = make_config()
     with pytest.raises(type(error)):
         await admin.on_model_delete(config, request=None)
+
+
+def test_country_property_resolves_from_node_name():
+    """#383: страна — вычисляемое свойство, а не колонка в БД."""
+    assert make_config(node_name="fr").country == "🇫🇷 Франция (Париж)"
+
+
+def test_country_property_unknown_node_is_safe_default():
+    assert make_config(node_name="unknown").country == "—"
+
+
+def test_format_node_name_missing_value():
+    assert format_node_name(make_config(node_name=None), "node_name") == "—"
+
+
+def test_format_backend_known_value_renders_badge():
+    markup = format_backend(make_config(backend="xray"), "backend")
+    assert "XRay/VLESS" in str(markup)
+
+
+def test_format_backend_missing_value():
+    markup = format_backend(make_config(backend=None), "backend")
+    assert "—" in str(markup)
+
+
+def test_format_protocol_single_value_uses_human_label():
+    assert format_protocol(make_config(protocol="wg_v2"), "protocol") == "WireGuard v2"
+
+
+def test_format_protocol_multiple_values_are_comma_separated():
+    """XRay-подписка хранит несколько inbound-протоколов через запятую."""
+    config = make_config(protocol="vless_reality_tcp,vless_reality_xhttp")
+    assert (
+        format_protocol(config, "protocol") == "VLESS Reality TCP, VLESS Reality XHTTP"
+    )
+
+
+def test_format_protocol_missing_value():
+    assert format_protocol(make_config(protocol=None), "protocol") == "—"

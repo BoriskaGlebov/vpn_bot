@@ -7,6 +7,7 @@ from sqlalchemy import ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base, int_pk
+from api.vpn.locations import resolve_country
 
 if TYPE_CHECKING:
     from api.users.models import User
@@ -49,6 +50,8 @@ class VPNConfig(Base):
             удаления/продления без перебора.
         created_at (datetime): Дата и время создания конфига.
         user (User): Пользователь, которому принадлежит конфиг.
+        country (str): Страна ноды, резолвится из `node_name` (см.
+            `api/vpn/locations.py`) — не хранится отдельным полем в БД.
 
     """
 
@@ -75,3 +78,8 @@ class VPNConfig(Base):
     def __str__(self) -> str:
         """Строковое представление для отладки и логов."""
         return f"VPNConfig({self.file_name}, user_id={self.user_id})"
+
+    @property
+    def country(self) -> str:
+        """Страна ноды, резолвится из `node_name` (см. `api/vpn/locations.py`)."""
+        return resolve_country(self.node_name)
