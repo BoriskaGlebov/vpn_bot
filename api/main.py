@@ -14,6 +14,8 @@ from starlette.templating import Jinja2Templates
 
 from api.admin.badges import (
     PAYMENT_BADGE_COLORS,
+    PROMO_DISCOUNT_TYPE_COLORS,
+    PROMO_DISCOUNT_TYPE_LABELS,
     ROLE_BADGE_COLORS,
     SUBSCRIPTION_BADGE_COLORS,
     VPN_BACKEND_BADGE_COLORS,
@@ -306,6 +308,8 @@ admin.templates.env.globals["vpn_config_status_labels"] = VPN_CONFIG_STATUS_LABE
 admin.templates.env.globals["vpn_backend_badge_colors"] = VPN_BACKEND_BADGE_COLORS
 admin.templates.env.globals["vpn_backend_labels"] = VPN_BACKEND_LABELS
 admin.templates.env.globals["vpn_protocol_labels"] = VPN_PROTOCOL_LABELS
+admin.templates.env.globals["promo_discount_type_colors"] = PROMO_DISCOUNT_TYPE_COLORS
+admin.templates.env.globals["promo_discount_type_labels"] = PROMO_DISCOUNT_TYPE_LABELS
 admin.add_base_view(DashboardView)
 admin.add_view(UserAdmin)
 admin.add_view(RoleAdmin)

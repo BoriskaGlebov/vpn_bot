@@ -105,7 +105,11 @@ class PromoCodeUsage(Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     user: Mapped["User | None"] = relationship(
-        "User", foreign_keys=[user_id], lazy="selectin", passive_deletes=True
+        "User",
+        foreign_keys=[user_id],
+        back_populates="promo_usages",
+        lazy="selectin",
+        passive_deletes=True,
     )
 
     transaction_id: Mapped[UUID] = mapped_column(

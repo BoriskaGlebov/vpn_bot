@@ -3,6 +3,8 @@ from typing import Any
 from markupsafe import Markup
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter, OperationColumnFilter
+from sqlalchemy import Select, select
+from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 
 from api.admin.badges import (
@@ -116,6 +118,7 @@ class PromoCodeAdmin(ModelView, model=PromoCode):
     can_edit = True
     can_delete = True
     can_view_details = True
+    details_template = "admin/promo_code_details.html"
 
     async def on_model_change(
         self,
@@ -132,6 +135,33 @@ class PromoCodeAdmin(ModelView, model=PromoCode):
         """
         if "code" in data and data["code"]:
             data["code"] = data["code"].strip().upper()
+
+    def _with_eager_options(
+        self, stmt: Select[tuple[PromoCode]]
+    ) -> Select[tuple[PromoCode]]:
+        """Добавляет предзагрузку применений промокода вместе с пользователями.
+
+        sqladmin открывает и закрывает свою сессию на каждый запрос
+        (``ModelView._run_query``); без явного eager loading здесь обращение
+        к ``PromoCode.usages`` (``lazy="raise"``) в шаблоне
+        ``promo_code_details.html`` падает с ошибкой.
+        """
+        return stmt.options(
+            selectinload(PromoCode.usages).selectinload(PromoCodeUsage.user)
+        )
+
+    def list_query(self, request: Request) -> Select[tuple[PromoCode]]:
+        """Запрос для списка промокодов (все строки, без фильтра по pk)."""
+        return self._with_eager_options(select(PromoCode))
+
+    def details_query(self, request: Request) -> Select[tuple[PromoCode]]:
+        """Запрос для страницы деталей — конкретный промокод по pk из URL.
+
+        Важно: без ``self._stmt_by_identifier(...)`` запрос вернёт все строки
+        таблицы, и sqladmin возьмёт первую попавшуюся.
+        """
+        stmt = self._stmt_by_identifier(request.path_params["pk"])
+        return self._with_eager_options(stmt)
 
 
 class PromoCodeUsageAdmin(ModelView, model=PromoCodeUsage):
