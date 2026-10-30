@@ -73,32 +73,43 @@ class PaymentService:
         self.provider = provider
 
     async def create_transaction(
-        self, amount: int, subscription_months: int, is_premium: bool, is_founder: bool
+        self,
+        amount: int,
+        subscription_months: int,
+        is_premium: bool,
+        is_founder: bool,
+        promo_code: str | None = None,
     ) -> SCreatePayment:
         """Создаёт транзакцию во внутреннем API и платёж у провайдера.
 
         Args:
-            amount: Сумма платежа в минимальных единицах.
+            amount: Сумма платежа в минимальных единицах. Если передан
+                `promo_code`, это базовая цена до скидки — api/ сам
+                пересчитывает итоговую сумму и возвращает её в ответе.
             subscription_months: Количество месяцев подписки.
             is_premium: Флаг премиум-подписки.
             is_founder: Флаг пользователя-основателя.
+            promo_code: Код промокода, если пользователь его применил.
 
         Returns
-            SCreatePayment: Ссылка на оплату и данные созданной транзакции.
+            SCreatePayment: Ссылка на оплату и данные созданной транзакции
+            (с итоговой, уже дисконтированной суммой в `amount`).
 
         """
         logger.info(
-            "Создание транзакции: amount={} months={} premium={} founder={}",
+            "Создание транзакции: amount={} months={} premium={} founder={} promo={}",
             amount,
             subscription_months,
             is_premium,
             is_founder,
+            promo_code,
         )
         api_res = await self.adapter.create_transaction(
             amount=amount,
             subscription_months=subscription_months,
             is_premium=is_premium,
             is_founder=is_founder,
+            promo_code=promo_code,
         )
         if is_premium:
             sub_type = ToggleSubscriptionMode.PREMIUM
@@ -106,8 +117,12 @@ class PaymentService:
             sub_type = ToggleSubscriptionMode.FOUNDER
         else:
             sub_type = ToggleSubscriptionMode.STANDARD
+        # api_res.amount — итоговая сумма из api/ (при промокоде это уже
+        # сумма со скидкой), а не исходный `amount`: провайдер должен
+        # запросить у клиента ровно то, что записано в транзакции, иначе
+        # сверка суммы вебхука (`_amount_matches_expected`) не совпадёт.
         payment_data = CreatePaymentDTO(
-            amount=amount,
+            amount=api_res.amount,
             currency="RUB",
             order_id=str(api_res.id),
             description=f"Оплата {sub_type.value} подписки на {subscription_months}мес.",

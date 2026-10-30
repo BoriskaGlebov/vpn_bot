@@ -69,6 +69,8 @@ def make_transaction(**overrides) -> SimpleNamespace:
         "created_by_admin_id": None,
         "confirmed_by_admin_id": None,
         "gateway_transaction_id": None,
+        "promo_code_id": None,
+        "discount_amount": 0,
         "confirmed_at": None,
         "paid_at": None,
     }
@@ -81,6 +83,7 @@ def payment_service() -> PaymentService:
     return PaymentService(
         sub_service=AsyncMock(),
         ref_service=AsyncMock(),
+        promo_service=AsyncMock(),
     )
 
 
@@ -171,6 +174,7 @@ async def test_create_transaction_success(
     user.id = 10
 
     transaction_data = Mock()
+    transaction_data.promo_code = None
     transaction_data.model_dump.return_value = {
         "amount": 1000,
         "currency": "RUB",
@@ -242,6 +246,7 @@ async def test_create_transaction_cancels_previous_pending(
     user.id = 10
 
     transaction_data = Mock()
+    transaction_data.promo_code = None
     transaction_data.model_dump.return_value = {
         "amount": 1000,
         "currency": "RUB",

@@ -49,6 +49,8 @@ from api.middleware.session_middleware import DBSessionMiddleware
 from api.news.router import router as news_router
 from api.payment.admin import PaymentTransactionAdmin
 from api.payment.router import router as payment_router
+from api.promo.admin import PromoCodeAdmin, PromoCodeUsageAdmin
+from api.promo.router import router as promo_router
 from api.referrals.admin import ReferralAdmin
 from api.referrals.router import router as referrals_router
 from api.scheduler.router import router as scheduler_router
@@ -89,6 +91,10 @@ tags_metadata: list[dict[str, Any]] = [
     {
         "name": "PAYMENT",
         "description": "Платежная система: создание платежей, подтверждение транзакций, история платежей",
+    },
+    {
+        "name": "PROMO",
+        "description": "Промокоды на скидку: проверка применимости и расчёт скидки",
     },
     {
         "name": "NEWS",
@@ -254,6 +260,7 @@ app.include_router(vpn_router)
 app.include_router(news_router)
 app.include_router(scheduler_router)
 app.include_router(payment_router)
+app.include_router(promo_router)
 
 
 app.add_exception_handler(APIError, api_error_handler)
@@ -306,6 +313,8 @@ admin.add_view(SubscriptionAdmin)
 admin.add_view(VPNConfigAdmin)
 admin.add_view(ReferralAdmin)
 admin.add_view(PaymentTransactionAdmin)
+admin.add_view(PromoCodeAdmin)
+admin.add_view(PromoCodeUsageAdmin)
 
 # SQLAdmin монтирует СОБСТВЕННОЕ Starlette-приложение (`admin.admin`) под
 # `/admin` со своим `exception_handlers` (по умолчанию — только

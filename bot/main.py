@@ -114,6 +114,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         redis_service=container.redis_admin_mess_storage,
         vpn_service=container.vpn_service,
         payment_mess_storage=container.redis_payment_mess_storage,
+        promo_service=container.promo_service,
     )
     vpn_router = VPNRouter(
         bot=bot,

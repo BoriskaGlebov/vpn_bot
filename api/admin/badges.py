@@ -54,6 +54,17 @@ VPN_PROTOCOL_LABELS = {
 }
 
 
+PROMO_DISCOUNT_TYPE_COLORS = {
+    "percent": "teal",
+    "fixed": "indigo",
+}
+
+PROMO_DISCOUNT_TYPE_LABELS = {
+    "percent": "Процент",
+    "fixed": "Фикс. сумма",
+}
+
+
 def badge(text: str, color: str) -> Markup:
     """Рендерит цветной Bootstrap/Tabler-бейдж.
 

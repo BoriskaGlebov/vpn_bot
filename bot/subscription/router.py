@@ -25,6 +25,7 @@ from bot.app_error.base_error import (
 )
 from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
+from bot.promo.services import PromoService
 from bot.redis_service import RedisAdminMessageStorage, RedisPaymentMessageStorage
 from bot.referrals.schemas import GrantReferralBonusResponse
 from bot.referrals.services import ReferralService
@@ -42,6 +43,7 @@ from bot.subscription.keyboards.inline_kb import (
     card_payment_kb,
     my_subscription_menu_kb,
     payment_method_kb,
+    promo_prompt_kb,
     subscription_options_kb,
     transfer_payment_kb,
 )
@@ -83,6 +85,8 @@ class SubscriptionStates(StatesGroup):  # type: ignore[misc]
             (только карта).
         wait_for_paid: Перевод отправлен, пользователь нажал "Я оплатил" —
             ждём проверки администратором.
+        enter_promo_code: Пользователь нажал "У меня промокод" — ждём
+            текстовое сообщение с кодом.
 
     """
 
@@ -90,6 +94,7 @@ class SubscriptionStates(StatesGroup):  # type: ignore[misc]
     select_payment_method: State = State()
     confirm_payment: State = State()
     wait_for_paid: State = State()
+    enter_promo_code: State = State()
 
 
 class SubscriptionRouter(BaseRouter):
@@ -106,6 +111,7 @@ class SubscriptionRouter(BaseRouter):
         redis_service: RedisAdminMessageStorage,
         vpn_service: VPNService,
         payment_mess_storage: RedisPaymentMessageStorage,
+        promo_service: PromoService,
     ) -> None:
         super().__init__(bot, logger)
         self.subscription_service = subscription_service
@@ -113,6 +119,7 @@ class SubscriptionRouter(BaseRouter):
         self.redis_service = redis_service
         self.vpn_service = vpn_service
         self.payment_mess_storage = payment_mess_storage
+        self.promo_service = promo_service
 
     def _register_handlers(self) -> None:
         is_admin = IsAdmin()
@@ -180,6 +187,20 @@ class SubscriptionRouter(BaseRouter):
             and_f(
                 StateFilter(SubscriptionStates.confirm_payment),
                 SubscriptionCB.filter(F.action == SubscriptionAction.PAID),
+            ),
+        )
+        self.router.callback_query.register(
+            self.enter_promo_code_prompt,
+            and_f(
+                StateFilter(SubscriptionStates.select_payment_method),
+                SubscriptionCB.filter(F.action == SubscriptionAction.ENTER_PROMO),
+            ),
+        )
+        self.router.message.register(
+            self.promo_code_entered,
+            and_f(
+                StateFilter(SubscriptionStates.enter_promo_code),
+                ~F.text.startswith("/"),
             ),
         )
         self.router.callback_query.register(
@@ -496,7 +517,12 @@ class SubscriptionRouter(BaseRouter):
 
             await query.answer(f"Выбрал {months} месяцев", show_alert=False)
 
-            await state.update_data(payment_url=transaction_info.payment_url)
+            await state.update_data(
+                payment_url=transaction_info.payment_url,
+                months=months,
+                current_price=price,
+                promo_code=None,
+            )
 
             await msg.edit_text(
                 text=m_subscription.choose_payment_method.format(
@@ -603,9 +629,13 @@ class SubscriptionRouter(BaseRouter):
         founder = data.get("founder", False)
         price_map = get_correct_price_map(premium=is_premium, founder=founder)
         sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
-        price = price_map.get(months)
-        if price is None:
+        base_price = price_map.get(months)
+        if base_price is None:
             raise InvalidSubscriptionPeriodError(months=months)
+        # current_price — сумма с учётом промокода, если он был применён
+        # (см. promo_code_entered); без него экран перевода показал бы
+        # пользователю базовую цену, хотя транзакция уже создана со скидкой.
+        price = data.get("current_price", base_price)
 
         async with ChatActionSender.typing(bot=self.bot, chat_id=msg.chat.id):
             if callback_data.action == SubscriptionAction.PAY_CARD:
@@ -641,6 +671,121 @@ class SubscriptionRouter(BaseRouter):
                     ),
                 )
             await state.set_state(SubscriptionStates.confirm_payment)
+
+    @BaseRouter.log_method
+    @BaseRouter.require_message
+    async def enter_promo_code_prompt(
+        self,
+        query: CallbackQuery,
+        msg: Message,
+        state: FSMContext,
+        callback_data: SubscriptionCB,
+    ) -> None:
+        """Показывает экран ввода промокода.
+
+        Args:
+            query (CallbackQuery): Callback от кнопки "У меня промокод".
+            msg (Message): Сообщение экрана выбора способа оплаты для редактирования.
+            state (FSMContext): Контекст FSM.
+            callback_data (SubscriptionCB): Данные кнопки (месяцы, founder, transaction_id).
+
+        """
+        await query.answer()
+        months = callback_data.months
+        founder = callback_data.founder
+        transaction_id = callback_data.transaction_id
+        if transaction_id is None:
+            raise TransactionIdMissingError()
+        await msg.edit_text(
+            text=m_subscription.promo_prompt,
+            reply_markup=promo_prompt_kb(
+                months=months, founder=founder, transaction_id=transaction_id
+            ),
+        )
+        await state.set_state(SubscriptionStates.enter_promo_code)
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def promo_code_entered(
+        self, message: Message, user: TgUser, state: FSMContext
+    ) -> None:
+        """Обрабатывает текстовое сообщение с промокодом.
+
+        Проверяет код в api/ без побочных эффектов (см. `PromoService.
+        validate_code`), и при успехе пересоздаёт платёжную транзакцию с
+        указанием кода. `PaymentService.create_transaction` в api/ сам
+        отменяет предыдущую PENDING-транзакцию пользователя перед созданием
+        новой (см. `_cancel_pending_transactions`), поэтому старая ссылка на
+        оплату без скидки не остаётся одновременно активной.
+
+        Args:
+            message (Message): Сообщение с текстом промокода.
+            user (TgUser): Пользователь Телеграм.
+            state (FSMContext): Контекст FSM.
+
+        """
+        code = (message.text or "").strip()
+        user_logger = self.logger.bind(user=format_username(user))
+
+        data = await state.get_data()
+        months: int | None = data.get("months")
+        is_premium = data.get("premium", False)
+        founder = data.get("founder", False)
+        if months is None:
+            raise InvalidSubscriptionPeriodError(months=0)
+        price_map = get_correct_price_map(premium=is_premium, founder=founder)
+        sub_type = get_correct_sub_type(premium=is_premium, founder=founder)
+        base_price = price_map.get(months)
+        if base_price is None:
+            raise InvalidSubscriptionPeriodError(months=months)
+
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            try:
+                result = await self.promo_service.validate_code(
+                    code=code, base_amount=base_price
+                )
+            except APIClientError as e:
+                user_logger.info(f"Промокод не применён: {e.error.message}")
+                await message.answer(
+                    f"❌ {e.error.message}\n\n"
+                    "Попробуйте ввести другой код или нажмите «Отмена»."
+                )
+                return
+
+            transaction_info = await self.subscription_service.create_transaction(
+                amount=base_price,
+                subscription_months=months,
+                is_premium=is_premium,
+                is_founder=founder,
+                promo_code=code,
+            )
+            user_logger.info(
+                f"Промокод {result.code} применён: скидка {result.discount_amount}₽, "
+                f"итог {result.final_amount}₽"
+            )
+            await state.update_data(
+                payment_url=transaction_info.payment_url,
+                current_price=result.final_amount,
+                promo_code=result.code,
+            )
+            await message.answer(
+                text=m_subscription.promo_applied.format(
+                    code=result.code,
+                    discount=result.discount_amount,
+                    sub_type=sub_type,
+                    months=months,
+                    base_price=result.base_amount,
+                    final_price=result.final_amount,
+                ),
+                reply_markup=payment_method_kb(
+                    months=months,
+                    founder=founder,
+                    transaction_id=transaction_info.id,
+                    has_card_option=bool(transaction_info.payment_url),
+                    promo_applied=True,
+                ),
+            )
+            await state.set_state(SubscriptionStates.select_payment_method)
 
     @BaseRouter.log_method
     async def toggle_subscription_mode(
@@ -732,9 +877,11 @@ class SubscriptionRouter(BaseRouter):
             # founder — из состояния, не из данных кнопки, см. subscription_selected.
             founder = data.get("founder", False)
             price_map = get_correct_price_map(premium=premium, founder=founder)
-            price = price_map.get(months)
-            if price is None:
+            base_price = price_map.get(months)
+            if base_price is None:
                 raise InvalidSubscriptionPeriodError(months=months)
+            # current_price — сумма с учётом промокода, см. payment_method_selected.
+            price = data.get("current_price", base_price)
             sub_type = get_correct_sub_type(premium=premium, founder=founder)
             await self.subscription_service.mark_payment_started(
                 transaction_id=transaction_id
@@ -799,6 +946,7 @@ class SubscriptionRouter(BaseRouter):
             back_to_period_states = {
                 SubscriptionStates.select_payment_method.state,
                 SubscriptionStates.confirm_payment.state,
+                SubscriptionStates.enter_promo_code.state,
             }
             if current_state in back_to_period_states:
                 transaction_id = callback_data.transaction_id

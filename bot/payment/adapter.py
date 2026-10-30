@@ -42,28 +42,33 @@ class PaymentAPIAdapter:
         subscription_months: int,
         is_premium: bool,
         is_founder: bool,
+        promo_code: str | None = None,
     ) -> SPaymentTransactionResponse:
         """Создаёт платёжную транзакцию.
 
         Args:
-            amount: Сумма платежа в рублях (целое число).
+            amount: Сумма платежа в рублях (целое число). Базовая цена до
+                скидки, если передан `promo_code`.
             subscription_months: Количество месяцев подписки.
             is_premium: Флаг премиум-подписки.
             is_founder: Флаг пользователя-основателя.
+            promo_code: Код промокода, если пользователь его применил.
 
         Returns
-            SPaymentTransactionResponse: Данные созданной транзакции.
+            SPaymentTransactionResponse: Данные созданной транзакции
+            (итоговая сумма — в `amount`).
 
         Raises
             Exception: Ошибка HTTP-клиента или валидации ответа API.
 
         """
         logger.info(
-            "Создаёт платёжную транзакцию: amount={} months={} premium={} founder={}",
+            "Создаёт платёжную транзакцию: amount={} months={} premium={} founder={} promo={}",
             amount,
             subscription_months,
             is_premium,
             is_founder,
+            promo_code,
         )
         payload = SCreateManualPaymentTransactionIn(
             amount=amount,
@@ -71,6 +76,7 @@ class PaymentAPIAdapter:
             subscription_months=subscription_months,
             is_premium=is_premium,
             is_founder=is_founder,
+            promo_code=promo_code,
         )
         data, status_code = await self._client.post(
             "/payment/transaction",

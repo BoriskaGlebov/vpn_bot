@@ -39,6 +39,7 @@ async def test_show_subscription_options_premium_user(
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     await router._show_subscription_options(chat_id=123, user=user, state=state_mock)
@@ -88,6 +89,7 @@ async def test_my_subscription_menu_shows_info_and_renew_button(
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     await router.my_subscription_menu(message=message_mock, state=fake_state)
@@ -130,6 +132,7 @@ async def test_config_delete_confirm_shows_confirmation(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     callback_data = Mock(config_id=1)
@@ -161,6 +164,7 @@ async def test_config_delete_confirm_not_found(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     callback_data = Mock(config_id=999)
@@ -194,6 +198,7 @@ async def test_config_delete_execute_deletes_and_refreshes(mocker):
         redis_service=mocker.Mock(),
         vpn_service=vpn_service_mock,
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     callback_data = Mock(config_id=1)
@@ -227,6 +232,7 @@ async def test_config_delete_cancel_returns_to_menu(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     await router.config_delete_cancel(query=query_mock)
@@ -256,6 +262,7 @@ async def test_renew_subscription_selected_deletes_menu_and_shows_options(mocker
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     await router.renew_subscription_selected(query=query_mock, state=mocker.AsyncMock())
@@ -289,6 +296,7 @@ async def test_subscription_selected_paid(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     await router.subscription_selected(
@@ -297,10 +305,14 @@ async def test_subscription_selected_paid(mocker):
 
     query_mock.answer.assert_awaited()
     msg_mock.edit_text.assert_awaited()
-    # ссылка на оплату сохраняется в state, а не в callback_data кнопок
-    state_mock.update_data.assert_any_call(
-        payment_url="https://pay.platega.io/checkout/abc"
-    )
+    # ссылка на оплату и выбранный период сохраняются в state, а не в
+    # callback_data кнопок — вместе с текущей (возможно дисконтированной
+    # промокодом) ценой, нужной следующим экранам.
+    _, update_kwargs = state_mock.update_data.call_args_list[-1]
+    assert update_kwargs["payment_url"] == "https://pay.platega.io/checkout/abc"
+    assert update_kwargs["months"] == 3
+    assert update_kwargs["promo_code"] is None
+    assert "current_price" in update_kwargs
     state_mock.set_state.assert_awaited_with(SubscriptionStates.select_payment_method)
 
 
@@ -332,6 +344,7 @@ async def test_subscription_selected_ignores_forged_founder_flag(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     await router.subscription_selected(
@@ -365,6 +378,7 @@ async def test_subscription_selected_unknown_months_raises_domain_error(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     with pytest.raises(InvalidSubscriptionPeriodError):
@@ -405,6 +419,7 @@ async def test_subscription_selected_trial_already_used_notifies_admins(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
     send_to_admins_mock = mocker.patch("bot.subscription.router.send_to_admins")
 
@@ -445,6 +460,7 @@ async def test_payment_method_selected_card(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     await router.payment_method_selected(
@@ -480,6 +496,7 @@ async def test_payment_method_selected_transfer(mocker):
         redis_service=mocker.Mock(),
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     await router.payment_method_selected(
@@ -531,6 +548,7 @@ async def test_user_paid_calls_admins(
         redis_service=fake_redis_service,
         vpn_service=mocker.AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     send_to_admins_mock = mocker.patch("bot.subscription.router.send_to_admins")
@@ -619,6 +637,7 @@ async def test_admin_confirm_payment(mocker):
         redis_service=redis_mock,
         vpn_service=AsyncMock(),
         payment_mess_storage=mocker.AsyncMock(),
+        promo_service=mocker.AsyncMock(),
     )
 
     # --- run ---
@@ -710,6 +729,7 @@ async def test_admin_confirm_payment_user_blocked_bot_still_completes(mocker):
         redis_service=AsyncMock(),
         vpn_service=AsyncMock(),
         payment_mess_storage=AsyncMock(),
+        promo_service=AsyncMock(),
     )
 
     await router.admin_confirm_payment(
@@ -748,6 +768,7 @@ async def test_toggle_subscription_mode_preserves_used_trial(mocker):
         redis_service=AsyncMock(),
         vpn_service=AsyncMock(),
         payment_mess_storage=AsyncMock(),
+        promo_service=AsyncMock(),
     )
 
     await router.toggle_subscription_mode(
@@ -779,6 +800,7 @@ async def test_toggle_subscription_mode_preserves_founder(mocker):
         redis_service=AsyncMock(),
         vpn_service=AsyncMock(),
         payment_mess_storage=AsyncMock(),
+        promo_service=AsyncMock(),
     )
 
     await router.toggle_subscription_mode(
