@@ -1,0 +1,178 @@
+/* Кастомная тема админки VPN Boriska — заменяет дефолтную тему SQLAdmin/Tabler
+   (цвета/фон), добавляет mobile-first правки и лёгкие анимации переходов.
+   Подключается глобально через sqladmin/layout.html, один файл на всю админку. */
+
+:root {
+  --tblr-primary: #4f46e5;
+  --tblr-primary-rgb: 79, 70, 229;
+  --tblr-primary-text: #4f46e5;
+  --admin-bg: #f4f5fb;
+  --admin-sidebar-from: #1e1b3a;
+  --admin-sidebar-to: #12102a;
+}
+
+body {
+  background: var(--admin-bg);
+}
+
+.navbar-vertical {
+  background: linear-gradient(180deg, var(--admin-sidebar-from) 0%, var(--admin-sidebar-to) 100%);
+}
+
+.navbar-vertical .nav-link {
+  border-radius: 0.5rem;
+}
+
+.navbar-vertical .nav-link.active,
+.navbar-vertical .nav-link:hover {
+  background: rgba(255, 255, 255, .08);
+}
+
+.card {
+  border: 1px solid rgba(0, 0, 0, .06);
+  box-shadow: 0 1px 3px rgba(20, 20, 43, .06);
+  border-radius: 0.9rem;
+}
+
+.card-header {
+  border-bottom: 1px solid rgba(0, 0, 0, .06);
+}
+
+.table-vcenter tbody tr:hover,
+.table-striped tbody tr:hover {
+  background-color: rgba(79, 70, 229, .05);
+}
+
+.badge {
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.page-title {
+  font-weight: 700;
+  color: #14112b;
+}
+
+.subheader {
+  text-transform: uppercase;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: #8a8fa3;
+}
+
+.btn-primary {
+  background: var(--tblr-primary);
+  border-color: var(--tblr-primary);
+}
+
+/* --- Анимации переходов между страницами/состояниями --- */
+
+@keyframes admin-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-body {
+  animation: admin-fade-in .25s ease-out;
+}
+
+.card,
+.btn,
+.nav-link,
+.dropdown-menu,
+.alert {
+  transition: background-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.btn:active {
+  transform: scale(.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-body,
+  .card,
+  .btn,
+  .nav-link,
+  .dropdown-menu,
+  .alert {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* --- Mobile-first правки --- */
+
+@media (max-width: 767.98px) {
+  .page-wrapper .container-fluid {
+    padding-left: .75rem;
+    padding-right: .75rem;
+  }
+
+  .page-header .page-title {
+    font-size: 1.25rem;
+  }
+
+  .card-header {
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  .card-header .card-title {
+    font-size: 1rem;
+  }
+
+  /* SQLAdmin оборачивает сайдбар фильтров в div с инлайн-стилем
+     "width: 300px; flex-shrink: 0" (sqladmin/list.html) — на узких экранах
+     он ломает раскладку горизонтальным скроллом страницы. У обёртки нет
+     собственного класса/id, поэтому она отбирается по значению инлайн-стиля,
+     здесь это перебивается !important. */
+  div[style*="width: 300px"] {
+    width: 100% !important;
+    flex-shrink: 1 !important;
+  }
+
+  .page-body .d-flex {
+    flex-direction: column;
+  }
+
+  .page-body .d-flex > .flex-grow-1 {
+    margin-right: 0 !important;
+  }
+
+  .table-responsive {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-vcenter td,
+  .table-vcenter th {
+    font-size: .85rem;
+    padding: .5rem .4rem;
+  }
+
+  /* Ряд с кнопками действий на карточке (Назад/Редактировать/Удалить) —
+     на телефоне кнопки шире и не прижаты друг к другу, чтобы по ним было
+     удобно попадать пальцем. */
+  .col-12.mb-3 .btn,
+  .card-footer .btn {
+    min-height: 44px;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .card-footer {
+    flex-wrap: wrap;
+  }
+
+  .avatar.avatar-lg {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1.1rem !important;
+  }
+}

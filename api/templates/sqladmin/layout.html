@@ -2,68 +2,7 @@
 {% from 'sqladmin/_macros.html' import display_menu %}
 
 {% block head %}
-<style>
-  :root {
-    --tblr-primary: #4f46e5;
-    --tblr-primary-rgb: 79, 70, 229;
-    --tblr-primary-text: #4f46e5;
-  }
-
-  body {
-    background: #f4f5fb;
-  }
-
-  .navbar-vertical {
-    background: linear-gradient(180deg, #1e1b3a 0%, #12102a 100%);
-  }
-
-  .navbar-vertical .nav-link {
-    border-radius: 0.5rem;
-  }
-
-  .navbar-vertical .nav-link.active,
-  .navbar-vertical .nav-link:hover {
-    background: rgba(255, 255, 255, .08);
-  }
-
-  .card {
-    border: 1px solid rgba(0, 0, 0, .06);
-    box-shadow: 0 1px 3px rgba(20, 20, 43, .06);
-    border-radius: 0.9rem;
-  }
-
-  .card-header {
-    border-bottom: 1px solid rgba(0, 0, 0, .06);
-  }
-
-  .table-vcenter tbody tr:hover,
-  .table-striped tbody tr:hover {
-    background-color: rgba(79, 70, 229, .05);
-  }
-
-  .badge {
-    font-weight: 600;
-    letter-spacing: .01em;
-  }
-
-  .page-title {
-    font-weight: 700;
-    color: #14112b;
-  }
-
-  .subheader {
-    text-transform: uppercase;
-    font-size: .72rem;
-    font-weight: 700;
-    letter-spacing: .04em;
-    color: #8a8fa3;
-  }
-
-  .btn-primary {
-    background: var(--tblr-primary);
-    border-color: var(--tblr-primary);
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('admin_custom_static', path='css/admin-theme.css') }}">
 {% endblock %}
 
 {% block body %}
