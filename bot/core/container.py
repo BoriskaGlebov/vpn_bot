@@ -80,6 +80,7 @@ class Container:
         payment_service (PaymentService)
         notification_service (NotificationService)
         payment_webhook_service (PaymentWebhookService)
+        news_broadcast_service (BroadcastService): рассылка новостей (`/news`).
         admin_broadcast_service (BroadcastService): рассылка по выбранным
             пользователям из админки (#385) — отдельный от новостей прогресс
             в Redis, свой заголовок итогового отчёта.
@@ -129,6 +130,7 @@ class Container:
     payment_service: PaymentService
     notification_service: NotificationService
     payment_webhook_service: PaymentWebhookService
+    news_broadcast_service: BroadcastService
     admin_broadcast_service: BroadcastService
 
     redis_admin_mess_storage: RedisAdminMessageStorage
@@ -229,6 +231,12 @@ class Container:
             notification_service=self.notification_service,
         )
         self.news_service = NewsService(adapter=self.news_adapter)
+        self.news_broadcast_service = BroadcastService(
+            bot=bot,
+            logger=logger,  # type: ignore[arg-type]
+            broadcast_storage=self.redis_news_broadcast_storage,
+            summary_title="📰 Рассылка новостей",
+        )
         self.admin_broadcast_service = BroadcastService(
             bot=bot,
             logger=logger,  # type: ignore[arg-type]

@@ -128,7 +128,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
         news_service=container.news_service,
-        broadcast_storage=container.redis_news_broadcast_storage,
+        broadcast_service=container.news_broadcast_service,
     )
 
     dp.include_router(user_router.router)

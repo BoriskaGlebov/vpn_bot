@@ -25,7 +25,6 @@ from bot.news.keyboards.inline_kb import (
     target_choice_kb,
 )
 from bot.news.services import BroadcastService, NewsService
-from bot.redis_service import RedisNewsBroadcastStorage
 from bot.utils.base_router import BaseRouter
 from bot.utils.formatting import format_username
 from bot.utils.start_stop_bot import send_to_admins
@@ -60,9 +59,10 @@ class NewsRouter(BaseRouter):
         bot (Bot): Экземпляр бота Aiogram.
         logger (Logger): Логгер Loguru.
         news_service (NewsService): Сервис для работы с новостями и получателями.
-        broadcast_storage (RedisNewsBroadcastStorage): хранение прогресса
-            рассылки всем пользователям — позволяет возобновить её после
-            рестарта процесса.
+        broadcast_service (BroadcastService): рассылка сообщений всем
+            получателям с сохранением прогресса — позволяет возобновить её
+            после рестарта процесса. Собирается в `Container`, как и все
+            остальные сервисы.
 
     """
 
@@ -71,17 +71,11 @@ class NewsRouter(BaseRouter):
         bot: Bot,
         logger: Logger,
         news_service: NewsService,
-        broadcast_storage: RedisNewsBroadcastStorage,
+        broadcast_service: BroadcastService,
     ) -> None:
         super().__init__(bot, logger)
         self.news_service = news_service
-        self.broadcast_storage = broadcast_storage
-        self.broadcast_service = BroadcastService(
-            bot=bot,
-            logger=logger,
-            broadcast_storage=broadcast_storage,
-            summary_title="📰 Рассылка новостей",
-        )
+        self.broadcast_service = broadcast_service
 
     def _register_handlers(self) -> None:
         is_admin = IsAdmin()
