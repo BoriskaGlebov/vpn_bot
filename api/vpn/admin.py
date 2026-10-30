@@ -1,12 +1,14 @@
 from loguru import logger
 from markupsafe import Markup
-from sqladmin import ModelView
+from sqladmin import ModelView, action, expose
 from sqladmin.filters import (
     AllUniqueStringValuesFilter,
     ForeignKeyFilter,
     OperationColumnFilter,
     StaticValuesFilter,
 )
+from sqladmin.templating import _TemplateResponse
+from sqlalchemy import select
 from starlette.requests import Request
 
 from api.admin.badges import (
@@ -18,10 +20,35 @@ from api.admin.badges import (
     badge,
 )
 from api.bot_channel.dependencies import get_bot_channel_client
+from api.core.database import async_session
 from api.users.models import User
 from api.users.schemas import SVPNConfigOut
+from api.vpn.dao import VPNConfigDAO
 from api.vpn.models import VPNConfig, VPNConfigStatus
 from shared.enums.vpn_enum import VPNBackend
+
+# Пресеты причины перевода в PENDING_DELETE, предлагаемые админу в форме
+# массового действия. "Другое" раскрывает свободный текст — список не
+# пытается перечислить все возможные причины (их по определению не
+# предугадать все), а закрывает самые частые, чтобы не печатать их руками
+# каждый раз.
+VPN_CONFIG_PENDING_DELETE_REASON_PRESETS = [
+    "Истекла подписка",
+    "Сменился протокол подключения",
+    "Нода/сервер выведен из эксплуатации",
+    "Другое",
+]
+
+
+def _parse_pks(raw: str) -> list[int]:
+    """Разбирает `pks` из query/form (строка `"1,2,3"`) в список ID конфигов.
+
+    SQLAdmin передаёт отмеченные в списке строки именно так (см.
+    `sqladmin.action` и `sqladmin/statics/js/main.js`) — незначимые/пустые
+    токены (пустая строка при отсутствии выбора) отбрасываются молча, а не
+    падают с `ValueError`.
+    """
+    return [int(pk) for pk in raw.split(",") if pk.strip().isdigit()]
 
 
 def format_user(obj: VPNConfig, name: str) -> str:
@@ -58,6 +85,11 @@ def format_backend(obj: VPNConfig, name: str) -> Markup:
     label = VPN_BACKEND_LABELS.get(obj.backend, obj.backend)
     color = VPN_BACKEND_BADGE_COLORS.get(obj.backend, "dark")
     return badge(label, color)
+
+
+def format_status_reason(obj: VPNConfig, name: str) -> str:
+    """Отображает причину перевода в PENDING_DELETE с безопасным дефолтом."""
+    return obj.status_reason or "-"
 
 
 def format_protocol(obj: VPNConfig, name: str) -> str:
@@ -101,6 +133,7 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "file_name",
         "pub_key",
         "status",
+        "status_reason",
         "node_name",
         "backend",
         "protocol",
@@ -158,6 +191,7 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "file_name": "Имя файла",
         "pub_key": "Public key",
         "status": "Статус",
+        "status_reason": "Причина",
         "node_name": "Нода",
         "backend": "Бэкенд",
         "protocol": "Протокол",
@@ -169,6 +203,7 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "user": format_user,  # type: ignore[misc, dict-item]
         "pub_key": format_pub_key,  # type: ignore[misc, dict-item]
         "status": format_status,  # type: ignore[misc, dict-item]
+        "status_reason": format_status_reason,  # type: ignore[misc, dict-item]
         "node_name": format_node_name,  # type: ignore[misc, dict-item]
         "backend": format_backend,  # type: ignore[misc, dict-item]
         "protocol": format_protocol,  # type: ignore[misc, dict-item]
@@ -214,3 +249,95 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
             model.user_id,
         )
         await get_bot_channel_client().revoke_config(model.user.telegram_id, config_out)
+
+    async def _pending_delete_form_context(
+        self, request: Request, pks: list[int], **extra: object
+    ) -> dict[str, object]:
+        """Собирает контекст формы: отмеченные конфиги и сколько из них реально переведётся.
+
+        "Реально переведётся" считается отдельно от `len(pks)` — среди
+        отмеченных строк могут попасться уже `PENDING_DELETE`/`DELETED`
+        записи (см. `VPNConfigDAO.mark_pending_delete`, которая трогает
+        только `ACTIVE`), и админ должен увидеть это ДО отправки, а не
+        только по итоговому числу обновлённых строк в отчёте.
+        """
+        async with async_session() as session:
+            configs = (
+                await session.scalars(select(VPNConfig).where(VPNConfig.id.in_(pks)))
+            ).all()
+
+        eligible = [c for c in configs if c.status == VPNConfigStatus.ACTIVE]
+        return {
+            "pks": ",".join(str(pk) for pk in pks),
+            "configs": configs,
+            "eligible_count": len(eligible),
+            "reason_presets": VPN_CONFIG_PENDING_DELETE_REASON_PRESETS,
+            "mark_url": str(
+                request.url_for(f"admin:view-{self.identity}-mark_pending_delete")
+            ),
+            "list_url": str(request.url_for("admin:list", identity=self.identity)),
+            **extra,
+        }
+
+    @action(
+        name="mark_pending_delete",
+        label="Пометить на удаление",
+        add_in_detail=False,
+        include_in_schema=False,
+    )
+    async def mark_pending_delete_form(self, request: Request) -> _TemplateResponse:
+        """Открывает форму причины удаления для отмеченных в списке конфигов.
+
+        SQLAdmin передаёт выбранные pk строкой через query-параметр `pks`
+        (см. `sqladmin.action`).
+        """
+        pks = _parse_pks(request.query_params.get("pks", ""))
+        context = await self._pending_delete_form_context(request, pks)
+        return await self.templates.TemplateResponse(
+            request, "admin/vpn_config_pending_delete_form.html", context
+        )
+
+    @expose("/pending-delete/mark", methods=["POST"], include_in_schema=False)
+    async def mark_pending_delete(self, request: Request) -> _TemplateResponse:
+        """Переводит отмеченные конфиги в `PENDING_DELETE` с указанной причиной.
+
+        Доступ на нодах здесь не трогается — запись только помечается;
+        реальный отзыв доступа и удаление строки выполнит планировщик при
+        следующем прогоне (`bot/scheduler/services.py:_trigger_config_deletion`),
+        так же, как для конфигов, помеченных автоматически по истечению
+        подписки или превышению лимита устройств.
+        """
+        form = await request.form()
+        pks = _parse_pks(str(form.get("pks", "")))
+        preset = str(form.get("reason_preset", "")).strip()
+        custom = str(form.get("reason_custom", "")).strip()
+        reason = custom if preset == "Другое" else preset
+
+        if not reason:
+            context = await self._pending_delete_form_context(
+                request, pks, error="Укажите причину удаления."
+            )
+            return await self.templates.TemplateResponse(
+                request, "admin/vpn_config_pending_delete_form.html", context
+            )
+
+        async with async_session() as session:
+            updated = await VPNConfigDAO.mark_pending_delete(
+                session=session, config_ids=pks, reason=reason
+            )
+            await session.commit()
+
+        logger.info(
+            "Админка: {} конфигов помечено на удаление (причина: {})",
+            updated,
+            reason,
+        )
+        return await self.templates.TemplateResponse(
+            request,
+            "admin/vpn_config_pending_delete_done.html",
+            {
+                "updated_count": updated,
+                "reason": reason,
+                "list_url": str(request.url_for("admin:list", identity=self.identity)),
+            },
+        )

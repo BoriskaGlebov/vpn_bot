@@ -184,6 +184,7 @@ async def test_handle_config_cleanup_deletes_when_no_valid_subscription(
 
     assert stats.configs_deleted == 1
     assert vpn_config.status == VPNConfigStatus.PENDING_DELETE
+    assert vpn_config.status_reason == "Истекла подписка"
     assert any(isinstance(e, DeleteVPNConfigsEvent) for e in events)
     assert any(isinstance(e, AdminNotifyEvent) for e in events)
 
@@ -268,6 +269,11 @@ async def test_handle_active_limit_exceeded(
 
     # Должно быть удалено 2 конфига (FIFO)
     assert stats.configs_deleted == 2
+    deleted_configs = [c for c in user.vpn_configs if c.status is not None]
+    assert len(deleted_configs) == 2
+    assert all(
+        c.status_reason == "Превышен лимит устройств по тарифу" for c in deleted_configs
+    )
 
     delete_events = [e for e in events if isinstance(e, DeleteVPNConfigsEvent)]
     admin_events = [e for e in events if isinstance(e, AdminNotifyEvent)]

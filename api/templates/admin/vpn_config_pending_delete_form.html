@@ -1,0 +1,83 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🗑 Пометить конфиги на удаление</h3>
+        </div>
+        <div class="card-body">
+            {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endif %}
+
+            <p>
+                Отмечено конфигов: <strong>{{ configs | length }}</strong>,
+                из них реально будет переведено в статус «Ожидает удаления»:
+                <strong>{{ eligible_count }}</strong> (остальные уже не
+                <code>active</code>).
+            </p>
+
+            {% if configs %}
+            <table class="table table-sm table-striped mb-3">
+                <thead>
+                <tr>
+                    <th>Файл</th>
+                    <th>Пользователь</th>
+                    <th>Нода</th>
+                    <th>Статус</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for cfg in configs %}
+                <tr>
+                    <td>{{ cfg.file_name or "config" }}</td>
+                    <td>{{ cfg.user.username or cfg.user.telegram_id if cfg.user else "-" }}</td>
+                    <td>{{ cfg.node_name or "-" }}</td>
+                    <td>
+                        <span class="badge bg-{{ vpn_config_badge_colors.get(cfg.status.value, 'dark') }}">
+                            {{ vpn_config_status_labels.get(cfg.status.value, cfg.status.value) }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+
+            {% if eligible_count == 0 %}
+            <p class="text-muted">
+                Среди отмеченных строк нет конфигов в статусе «Активен».
+                Отметьте активные конфиги в списке и повторите.
+            </p>
+            <a href="{{ list_url }}" class="btn btn-secondary">⬅ Назад к списку</a>
+            {% else %}
+            <form method="post" action="{{ mark_url }}">
+                <input type="hidden" name="pks" value="{{ pks }}">
+
+                <div class="mb-3">
+                    <label class="form-label">Причина удаления</label>
+                    <select name="reason_preset" class="form-select" id="reason-preset-select"
+                            onchange="document.getElementById('reason-custom-wrap').style.display = (this.value === 'Другое') ? 'block' : 'none';">
+                        {% for preset in reason_presets %}
+                        <option value="{{ preset }}">{{ preset }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3" id="reason-custom-wrap" style="display: none;">
+                    <label class="form-label">Свой текст причины</label>
+                    <input type="text" name="reason_custom" class="form-control"
+                           placeholder="Например: переезд на новую ноду fi-02">
+                </div>
+
+                <button type="submit" class="btn btn-danger">
+                    Пометить {{ eligible_count }} конфигов на удаление
+                </button>
+                <a href="{{ list_url }}" class="btn btn-secondary">Отмена</a>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

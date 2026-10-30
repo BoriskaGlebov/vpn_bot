@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base, int_pk
@@ -48,6 +48,12 @@ class VPNConfig(Base):
         config_ids (list | None): Для XRay — список uuid клиентов на панели
             (по одному на каждый inbound этой подписки), нужен для точечного
             удаления/продления без перебора.
+        status_reason (str | None): Причина перевода в `PENDING_DELETE` —
+            либо выбранная администратором при массовом действии в админке
+            (протокол сменился, нода выведена из эксплуатации и т.п.), либо
+            проставленная планировщиком автоматически (истекла подписка,
+            превышен лимит устройств). Показывается в админке и в
+            уведомлении администраторам — пользователю не отправляется.
         created_at (datetime): Дата и время создания конфига.
         user (User): Пользователь, которому принадлежит конфиг.
         country (str): Страна ноды, резолвится из `node_name` (см.
@@ -71,6 +77,7 @@ class VPNConfig(Base):
     backend: Mapped[str | None] = mapped_column(String(20), nullable=True)
     protocol: Mapped[str | None] = mapped_column(String(50), nullable=True)
     config_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     user: Mapped["User"] = relationship(
         "User", back_populates="vpn_configs", lazy="selectin"
     )

@@ -58,6 +58,12 @@
                         </span>
                     </td>
                 </tr>
+                {% if model.status_reason %}
+                <tr>
+                    <th>Причина</th>
+                    <td>{{ model.status_reason }}</td>
+                </tr>
+                {% endif %}
                 <tr>
                     <th>Нода</th>
                     <td>{{ model.node_name or "-" }}</td>

@@ -19,6 +19,9 @@ from api.users.dao import UserDAO
 from api.users.models import User
 from api.vpn.models import VPNConfig, VPNConfigStatus
 
+REASON_SUBSCRIPTION_EXPIRED = "Истекла подписка"
+REASON_DEVICE_LIMIT_EXCEEDED = "Превышен лимит устройств по тарифу"
+
 
 class SubscriptionScheduler:
     """Сервис проверки подписок пользователей.
@@ -224,7 +227,9 @@ class SubscriptionScheduler:
         if delta.days < 1:
             return stats, events
 
-        deleted_configs = await self._delete_configs(session, user, user.vpn_configs)
+        deleted_configs = await self._delete_configs(
+            session, user, user.vpn_configs, reason=REASON_SUBSCRIPTION_EXPIRED
+        )
         stats.configs_deleted += len(deleted_configs)
 
         if not deleted_configs:
@@ -265,7 +270,7 @@ class SubscriptionScheduler:
                         f"⚠️ Удаляется VPN-конфиг\n"
                         f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
                         f"📄 Файл: {file}\n"
-                        f"⏳ Причина: истекла подписка"
+                        f"⏳ Причина: {REASON_SUBSCRIPTION_EXPIRED.lower()}"
                     ),
                 )
             )
@@ -370,6 +375,7 @@ class SubscriptionScheduler:
             session=session,
             user=user,
             configs=configs_to_delete,
+            reason=REASON_DEVICE_LIMIT_EXCEEDED,
         )
 
         if not deleted_configs:
@@ -419,12 +425,17 @@ class SubscriptionScheduler:
         return stats, events
 
     async def _delete_configs(
-        self, session: AsyncSession, user: User, configs: list[VPNConfig]
+        self,
+        session: AsyncSession,
+        user: User,
+        configs: list[VPNConfig],
+        reason: str,
     ) -> list[DeletedVPNConfig]:
         deleted: list[DeletedVPNConfig] = []
 
         for cfg in configs:
             cfg.status = VPNConfigStatus.PENDING_DELETE
+            cfg.status_reason = reason
             deleted.append(
                 DeletedVPNConfig(
                     file_name=cfg.file_name,
