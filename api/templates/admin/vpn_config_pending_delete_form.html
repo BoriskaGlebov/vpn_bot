@@ -57,6 +57,11 @@
 
                 <div class="mb-3">
                     <label class="form-label">Причина удаления</label>
+                    <div class="form-hint">
+                        Эту причину увидит сам пользователь в уведомлении об
+                        удалении — пишите понятно для него, а не только для
+                        внутреннего учёта.
+                    </div>
                     <select name="reason_preset" class="form-select" id="reason-preset-select"
                             onchange="document.getElementById('reason-custom-wrap').style.display = (this.value === 'Другое') ? 'block' : 'none';">
                         {% for preset in reason_presets %}

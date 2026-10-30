@@ -26,6 +26,13 @@ from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 from shared.enums.vpn_enum import VPNBackend
 
 m_subscription_local = settings_bot.messages.modes.subscription
+
+# Запасной текст причины для конфигов, помеченных на удаление до того, как
+# появилось персистентное поле `VPNConfig.status_reason` (у них `reason`
+# в событии придёт `None`) — без него пользователь увидел бы "—" вместо
+# осмысленного объяснения.
+DEFAULT_DELETE_REASON = "истёк срок действия подписки"
+
 # Ключи всех реально сконфигурированных нод (стандартных и премиум) —
 # settings_bot.vpn.nodes содержит только то, что действительно поднято,
 # в отличие от прежнего статического enum Location/PremiumLocation,
@@ -531,7 +538,26 @@ class SchedulerBotService:
             )
             stats.configs_deleted += count_deleted
             if count_deleted > 0:
-                user_text = m_subscription_local.expire_subscription.delete_configs_user
+                # Причина — за каждым конфигом своя (`DeletedVPNConfigSchema.
+                # reason`, пробрасывается из `VPNConfig.status_reason`), а не
+                # один статичный текст про истечение подписки для всех
+                # случаев: конфиг мог уйти на удаление и за превышение
+                # лимита устройств, и по решению администратора (сменился
+                # протокол, нода выведена из эксплуатации и т.п.).
+                item_template = (
+                    m_subscription_local.expire_subscription.delete_configs_user_item
+                )
+                items = "\n".join(
+                    item_template.format(
+                        file_name=cfg.file_name,
+                        reason=cfg.reason or DEFAULT_DELETE_REASON,
+                    )
+                    for cfg in event.configs
+                )
+                user_text = (
+                    f"{m_subscription_local.expire_subscription.delete_configs_user}"
+                    f"\n\n{items}"
+                )
                 await self._send_user_message(
                     tg_id=event.user_id, message=user_text, event=event
                 )

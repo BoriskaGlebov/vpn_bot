@@ -451,6 +451,9 @@ async def test_handle_pending_delete_configs_picks_up_manually_marked_config(
     admin_events = [e for e in events if isinstance(e, AdminNotifyEvent)]
     assert len(delete_events) == 1
     assert delete_events[0].configs[0].file_name == "manual.conf"
+    # Причина доходит до самой схемы события, а не только до текста для
+    # админов — именно это поле боту нужно, чтобы показать её пользователю.
+    assert delete_events[0].configs[0].reason == "Нода/сервер выведен из эксплуатации"
     assert len(admin_events) == 1
     assert "Нода/сервер выведен из эксплуатации" in admin_events[0].message
 
@@ -477,7 +480,11 @@ async def test_handle_pending_delete_configs_groups_multiple_in_one_delete_event
 ):
     """Несколько PENDING_DELETE конфигов -> одно DeleteVPNConfigsEvent на
     пользователя (а не одно на конфиг) и по одному AdminNotifyEvent на конфиг.
+
+    Причины разные (одна истекла по подписке, другая вручную администратором)
+    — каждый конфиг в событии должен сохранить СВОЮ, а не получить общую.
     """
+    reasons = ["Истекла подписка", "Истекла подписка", "Сменился протокол подключения"]
     configs = [
         SimpleNamespace(
             file_name=f"cfg{i}.conf",
@@ -486,7 +493,7 @@ async def test_handle_pending_delete_configs_groups_multiple_in_one_delete_event
             backend=None,
             config_ids=None,
             status=VPNConfigStatus.PENDING_DELETE,
-            status_reason="Истекла подписка",
+            status_reason=reasons[i],
         )
         for i in range(3)
     ]
@@ -501,6 +508,7 @@ async def test_handle_pending_delete_configs_groups_multiple_in_one_delete_event
     admin_events = [e for e in events if isinstance(e, AdminNotifyEvent)]
     assert len(delete_events) == 1
     assert len(delete_events[0].configs) == 3
+    assert [c.reason for c in delete_events[0].configs] == reasons
     assert len(admin_events) == 3
 
 

@@ -415,6 +415,7 @@ class SubscriptionScheduler:
                 node_name=cfg.node_name,
                 backend=cfg.backend,
                 config_ids=cfg.config_ids,
+                reason=cfg.status_reason,
             )
             for cfg in pending
         ]
