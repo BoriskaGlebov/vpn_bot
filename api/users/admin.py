@@ -1,7 +1,8 @@
 from loguru import logger
 from markupsafe import Markup
-from sqladmin import ModelView
+from sqladmin import ModelView, action, expose
 from sqladmin.filters import BooleanFilter, ForeignKeyFilter
+from sqladmin.templating import _TemplateResponse
 from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
@@ -13,10 +14,22 @@ from api.app_error.base_error import (
     VPNRevokeFailedError,
 )
 from api.bot_channel.dependencies import get_bot_channel_client
+from api.core.database import async_session
 from api.referrals.models import Referral
-from api.users.filters import ActiveSubscriptionFilter
+from api.users.filters import SubscriptionSegmentFilter
 from api.users.models import Role, User
 from api.users.schemas import SVPNConfigOut
+
+
+def _parse_pks(raw: str) -> list[int]:
+    """Разбирает `pks` из query/form (строка `"1,2,3"`) в список ID пользователей.
+
+    SQLAdmin передаёт отмеченные в списке строки именно так (см.
+    `sqladmin.action` и `sqladmin/statics/js/main.js`) — незначимые/пустые
+    токены (пустая строка при отсутствии выбора) отбрасываются молча, а не
+    падают с `ValueError`.
+    """
+    return [int(pk) for pk in raw.split(",") if pk.strip().isdigit()]
 
 
 def format_role(obj: User, name: str) -> Markup:
@@ -78,7 +91,7 @@ class UserAdmin(ModelView, model=User):
     column_filters = [
         BooleanFilter(User.has_used_trial, title="Использовал триал"),
         ForeignKeyFilter(User.role_id, Role.name, title="Роль"),
-        ActiveSubscriptionFilter(),
+        SubscriptionSegmentFilter(),
     ]
 
     can_create = True
@@ -211,6 +224,92 @@ class UserAdmin(ModelView, model=User):
             model.username,
             model.id,
             len(model.vpn_configs),
+        )
+
+    async def _broadcast_form_context(
+        self, request: Request, pks: list[int], **extra: object
+    ) -> dict[str, object]:
+        """Собирает контекст формы рассылки: число получателей среди `pks`.
+
+        Число телеграм ID считается запросом к БД, а не `len(pks)` — среди
+        отмеченных строк могут попасться совпадения/устаревшие pk, и админ
+        должен увидеть реальное число получателей ДО отправки, а не только
+        постфактум в отчёте бота.
+        """
+        async with async_session() as session:
+            recipients = (
+                await session.scalars(select(User.telegram_id).where(User.id.in_(pks)))
+            ).all()
+
+        return {
+            "pks": ",".join(str(pk) for pk in pks),
+            "recipients_count": len(recipients),
+            "send_url": str(
+                request.url_for(f"admin:view-{self.identity}-send_broadcast")
+            ),
+            "list_url": str(request.url_for("admin:list", identity=self.identity)),
+            **extra,
+        }
+
+    @action(
+        name="send_broadcast",
+        label="Отправить рассылку",
+        add_in_detail=False,
+        include_in_schema=False,
+    )
+    async def send_broadcast_form(self, request: Request) -> _TemplateResponse:
+        """Открывает форму рассылки для отмеченных в списке пользователей.
+
+        SQLAdmin передаёт выбранные pk строкой через query-параметр `pks`
+        (см. `sqladmin.action`).
+        """
+        pks = _parse_pks(request.query_params.get("pks", ""))
+        context = await self._broadcast_form_context(request, pks)
+        return await self.templates.TemplateResponse(
+            request, "admin/broadcast_form.html", context
+        )
+
+    @expose("/broadcast/send", methods=["POST"], include_in_schema=False)
+    async def send_broadcast(self, request: Request) -> _TemplateResponse:
+        """Отправляет текст рассылки боту для отмеченных pk пользователей.
+
+        Доставка асинхронна — этот запрос только подтверждает приём команды
+        ботом (`BotChannelClient.send_broadcast`, канал api→bot); итог рассылки
+        (сколько доставлено) бот присылает в админ-чат отдельным сообщением.
+        """
+        form = await request.form()
+        pks = _parse_pks(str(form.get("pks", "")))
+        text = str(form.get("text", "")).strip()
+
+        async with async_session() as session:
+            recipients = (
+                await session.scalars(select(User.telegram_id).where(User.id.in_(pks)))
+            ).all()
+
+        if not recipients or not text:
+            error = (
+                "Текст рассылки не может быть пустым."
+                if not text
+                else "Среди отмеченных пользователей нет получателей."
+            )
+            context = await self._broadcast_form_context(
+                request, pks, error=error, text=text
+            )
+            return await self.templates.TemplateResponse(
+                request, "admin/broadcast_form.html", context
+            )
+
+        accepted = await get_bot_channel_client().send_broadcast(text, list(recipients))
+        logger.info(
+            "Админка: запущена рассылка по {} отмеченным пользователям", accepted
+        )
+        return await self.templates.TemplateResponse(
+            request,
+            "admin/broadcast_sent.html",
+            {
+                "recipients_count": accepted,
+                "list_url": str(request.url_for("admin:list", identity=self.identity)),
+            },
         )
 
 

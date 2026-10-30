@@ -14,6 +14,7 @@ from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
+from bot.news.services import BroadcastService
 from bot.payment.adapter import PaymentAPIAdapter
 from bot.redis_service import RedisAdminMessageStorage, RedisNewsBroadcastStorage
 from bot.referrals.adapter import ReferralAPIAdapter
@@ -180,6 +181,35 @@ def fake_news_broadcast_storage(
     storage.clear = AsyncMock()
 
     return storage
+
+
+@pytest.fixture
+def fake_broadcast_service(
+    fake_bot: AsyncMock,
+    fake_logger: MagicMock,
+    fake_news_broadcast_storage: RedisNewsBroadcastStorage,
+) -> BroadcastService:
+    """`BroadcastService` рассылки новостей на фейковых зависимостях.
+
+    В проде собирается в `Container` (как и все сервисы) — здесь та же сборка,
+    чтобы `NewsRouter` в тестах получал сервис, а не строил его сам.
+
+    Args:
+        fake_bot (AsyncMock): Мок бота.
+        fake_logger (MagicMock): Мок логгера.
+        fake_news_broadcast_storage (RedisNewsBroadcastStorage): Мок хранения
+            прогресса рассылки.
+
+    Returns
+        BroadcastService: Сервис рассылки новостей.
+
+    """
+    return BroadcastService(
+        bot=fake_bot,
+        logger=fake_logger,
+        broadcast_storage=fake_news_broadcast_storage,
+        summary_title="📰 Рассылка новостей",
+    )
 
 
 @pytest.fixture

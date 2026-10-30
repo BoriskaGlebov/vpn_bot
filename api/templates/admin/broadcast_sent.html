@@ -1,0 +1,19 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">✅ Рассылка принята</h3>
+        </div>
+        <div class="card-body">
+            <p>Бот начал рассылку {{ recipients_count }} получателям.</p>
+            <p class="text-muted">
+                Итоговый отчёт (доставлено / не доставлено) придёт в админ-чат
+                отдельным сообщением.
+            </p>
+            <a href="{{ list_url }}" class="btn btn-primary">⬅ К списку пользователей</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

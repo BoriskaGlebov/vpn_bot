@@ -9,6 +9,7 @@ from bot.app_error.base_error import (
 )
 from bot.core.config import settings_bot
 from bot.core.container import Container
+from bot.news.services import BroadcastService
 from bot.vpn.services import VPNService
 
 api_key_header = APIKeyHeader(
@@ -55,3 +56,21 @@ def get_vpn_service(request: Request) -> VPNService:
     """
     container: Container = request.app.state.container
     return container.vpn_service
+
+
+def get_admin_broadcast_service(request: Request) -> BroadcastService:
+    """Возвращает `BroadcastService` рассылки по выбранным пользователям.
+
+    Контейнер лежит в `app.state.container` (см. `bot/main.py`), как и для
+    payment-роутера — так нет циклического импорта `bot.main`.
+
+    Args:
+        request: Текущий HTTP-запрос.
+
+    Returns
+        BroadcastService: Сервис рассылки из контейнера, со своим (не
+            пересекающимся с рассылкой новостей) прогрессом в Redis.
+
+    """
+    container: Container = request.app.state.container
+    return container.admin_broadcast_service
