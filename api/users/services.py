@@ -53,9 +53,15 @@ class UserService:
         )
         if user:
             logger.info("Пользователь найден в базе")
-            if telegram_user.username != user.username:
+            if telegram_user.username and telegram_user.username != user.username:
                 # username изменяем и переиспользуем — обновляем при
-                # каждом входе, чтобы хранимое значение не старело.
+                # каждом входе, чтобы хранимое значение не старело. Пустой
+                # username во входящих данных НЕ считается сменой: часть
+                # вызовов этого эндпоинта (bot/vpn/services.py,
+                # bot/core/filters.py — получить/создать пользователя по
+                # одному telegram_id, не полный профиль) всегда шлют
+                # username=None, иначе каждый такой вызов затирал бы
+                # сохранённый username пустым значением.
                 logger.info(
                     "Username изменился telegram_id={}: {!r} -> {!r}",
                     telegram_user.telegram_id,

@@ -25,7 +25,9 @@ async def test_generate_user_config_success(mocker, user_out):
     user_adapter = mocker.AsyncMock()
     xray_registry = mocker.Mock()
 
-    tg_user = SimpleNamespace(id=123)
+    tg_user = SimpleNamespace(
+        id=123, username="tester", first_name="Test", last_name="User"
+    )
 
     api_adapter.check_limit.return_value = SVPNCheckLimitResponse(
         can_add=True,
@@ -103,7 +105,9 @@ async def test_generate_user_config_limit_reached(mocker, user_out):
 
     ssh_factory = mocker.Mock()
 
-    tg_user = SimpleNamespace(id=123)
+    tg_user = SimpleNamespace(
+        id=123, username="tester", first_name="Test", last_name="User"
+    )
 
     api_adapter.check_limit.return_value = SVPNCheckLimitResponse(
         can_add=False,
@@ -154,7 +158,9 @@ async def test_generate_user_config_db_error_rollback(mocker, user_out):
     user_adapter = mocker.AsyncMock()
     xray_registry = mocker.Mock()
 
-    tg_user = SimpleNamespace(id=123)
+    tg_user = SimpleNamespace(
+        id=123, username="tester", first_name="Test", last_name="User"
+    )
 
     api_adapter.check_limit.return_value = SVPNCheckLimitResponse(
         can_add=True,
@@ -263,7 +269,9 @@ async def test_generate_user_config_rollback_uses_live_ssh_connection(mocker, us
     user_adapter = mocker.AsyncMock()
     xray_registry = mocker.Mock()
 
-    tg_user = SimpleNamespace(id=123)
+    tg_user = SimpleNamespace(
+        id=123, username="tester", first_name="Test", last_name="User"
+    )
 
     api_adapter.check_limit.return_value = SVPNCheckLimitResponse(
         can_add=True,
@@ -391,7 +399,9 @@ async def test_generate_xray_subscription_empty_sub_ids(mocker):
     xray_registry = mocker.Mock()
     xray_registry.get.return_value = xray_adapter
 
-    tg_user = SimpleNamespace(id=123)
+    tg_user = SimpleNamespace(
+        id=123, username="tester", first_name="Test", last_name="User"
+    )
 
     service = VPNService(api_adapter, user_adapter, xray_registry)
 
@@ -428,7 +438,9 @@ async def test_generate_xray_subscription_db_error_rollback(mocker):
     xray_registry = mocker.Mock()
     xray_registry.get.return_value = xray_adapter
 
-    tg_user = SimpleNamespace(id=123)
+    tg_user = SimpleNamespace(
+        id=123, username="tester", first_name="Test", last_name="User"
+    )
 
     service = VPNService(api_adapter, user_adapter, xray_registry)
 
@@ -483,7 +495,9 @@ async def test_generate_xray_subscription_passes_exact_end_date(mocker):
     xray_registry = mocker.Mock()
     xray_registry.get.return_value = xray_adapter
 
-    tg_user = SimpleNamespace(id=123)
+    tg_user = SimpleNamespace(
+        id=123, username="tester", first_name="Test", last_name="User"
+    )
 
     service = VPNService(api_adapter, user_adapter, xray_registry)
 
@@ -532,7 +546,9 @@ async def test_generate_xray_subscription_rejects_already_expired(mocker):
     xray_registry = mocker.Mock()
     xray_registry.get.return_value = xray_adapter
 
-    tg_user = SimpleNamespace(id=123)
+    tg_user = SimpleNamespace(
+        id=123, username="tester", first_name="Test", last_name="User"
+    )
 
     service = VPNService(api_adapter, user_adapter, xray_registry)
 

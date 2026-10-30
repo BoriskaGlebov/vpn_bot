@@ -110,7 +110,14 @@ class VPNService:
         logger.debug("Проверка лимитов пользователя tg_id={}", tg_user.id)
 
         limit = await self.api_adapter.check_limit(tg_id=tg_user.id)
-        user, _ = await self.user_adapter.register(SUser(telegram_id=tg_user.id))
+        user, _ = await self.user_adapter.register(
+            SUser(
+                telegram_id=tg_user.id,
+                username=tg_user.username,
+                first_name=tg_user.first_name,
+                last_name=tg_user.last_name,
+            )
+        )
 
         if not limit.can_add:
             logger.warning(
