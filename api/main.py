@@ -14,6 +14,8 @@ from starlette.templating import Jinja2Templates
 
 from api.admin.badges import (
     PAYMENT_BADGE_COLORS,
+    PROMO_DISCOUNT_TYPE_COLORS,
+    PROMO_DISCOUNT_TYPE_LABELS,
     ROLE_BADGE_COLORS,
     SUBSCRIPTION_BADGE_COLORS,
     VPN_BACKEND_BADGE_COLORS,
@@ -49,6 +51,8 @@ from api.middleware.session_middleware import DBSessionMiddleware
 from api.news.router import router as news_router
 from api.payment.admin import PaymentTransactionAdmin
 from api.payment.router import router as payment_router
+from api.promo.admin import PromoCodeAdmin, PromoCodeUsageAdmin
+from api.promo.router import router as promo_router
 from api.referrals.admin import ReferralAdmin
 from api.referrals.router import router as referrals_router
 from api.scheduler.router import router as scheduler_router
@@ -89,6 +93,10 @@ tags_metadata: list[dict[str, Any]] = [
     {
         "name": "PAYMENT",
         "description": "Платежная система: создание платежей, подтверждение транзакций, история платежей",
+    },
+    {
+        "name": "PROMO",
+        "description": "Промокоды на скидку: проверка применимости и расчёт скидки",
     },
     {
         "name": "NEWS",
@@ -254,6 +262,7 @@ app.include_router(vpn_router)
 app.include_router(news_router)
 app.include_router(scheduler_router)
 app.include_router(payment_router)
+app.include_router(promo_router)
 
 
 app.add_exception_handler(APIError, api_error_handler)
@@ -299,6 +308,8 @@ admin.templates.env.globals["vpn_config_status_labels"] = VPN_CONFIG_STATUS_LABE
 admin.templates.env.globals["vpn_backend_badge_colors"] = VPN_BACKEND_BADGE_COLORS
 admin.templates.env.globals["vpn_backend_labels"] = VPN_BACKEND_LABELS
 admin.templates.env.globals["vpn_protocol_labels"] = VPN_PROTOCOL_LABELS
+admin.templates.env.globals["promo_discount_type_colors"] = PROMO_DISCOUNT_TYPE_COLORS
+admin.templates.env.globals["promo_discount_type_labels"] = PROMO_DISCOUNT_TYPE_LABELS
 admin.add_base_view(DashboardView)
 admin.add_view(UserAdmin)
 admin.add_view(RoleAdmin)
@@ -306,6 +317,8 @@ admin.add_view(SubscriptionAdmin)
 admin.add_view(VPNConfigAdmin)
 admin.add_view(ReferralAdmin)
 admin.add_view(PaymentTransactionAdmin)
+admin.add_view(PromoCodeAdmin)
+admin.add_view(PromoCodeUsageAdmin)
 
 # SQLAdmin монтирует СОБСТВЕННОЕ Starlette-приложение (`admin.admin`) под
 # `/admin` со своим `exception_handlers` (по умолчанию — только

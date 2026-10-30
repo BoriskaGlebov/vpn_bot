@@ -48,6 +48,10 @@ class DeletedVPNConfigSchema(BaseModel):
             напрямую на нужном сервере вместо перебора всех локаций.
         backend (str | None): Бэкенд конфига ("amnezia" | "xray").
         config_ids (list[str] | None): Для XRay — uuid клиентов на панели.
+        reason (str | None): Причина перевода в `PENDING_DELETE`
+            (`VPNConfig.status_reason`) — показывается пользователю в
+            уведомлении об удалении, поэтому должна быть написана понятно
+            для него, а не только для администратора.
 
     """
 
@@ -56,6 +60,7 @@ class DeletedVPNConfigSchema(BaseModel):
     node_name: str | None = None
     backend: str | None = None
     config_ids: list[str] | None = None
+    reason: str | None = None
 
 
 class DeleteVPNConfigsEventSchema(EventBase):

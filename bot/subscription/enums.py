@@ -16,6 +16,7 @@ class SubscriptionAction(StrEnum):
         PAY_CARD: Пользователь выбрал оплату картой (автоматически, через платёжный шлюз).
         PAY_TRANSFER: Пользователь выбрал оплату переводом (вручную, с проверкой администратором).
         PAID: Пользователь подтвердил перевод ("Я оплатил") — ждём проверки администратором.
+        ENTER_PROMO: Пользователь хочет ввести промокод на скидку.
         CANCEL: Отмена
 
     """
@@ -25,6 +26,7 @@ class SubscriptionAction(StrEnum):
     PAY_CARD = "pay_card"
     PAY_TRANSFER = "pay_transfer"
     PAID = "paid"
+    ENTER_PROMO = "enter_promo"
     CANCEL = "cancel"
 
 

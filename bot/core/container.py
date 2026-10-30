@@ -12,6 +12,8 @@ from bot.payment.adapter import PaymentAPIAdapter
 from bot.payment.providers.payment_client import BasePaymentProvider
 from bot.payment.providers.platega import PlategaProvider
 from bot.payment.services import PaymentService, PaymentWebhookService
+from bot.promo.adapter import PromoAPIAdapter
+from bot.promo.services import PromoService
 from bot.redis_service import (
     RedisAdminMessageStorage,
     RedisEmbeddingCache,
@@ -113,6 +115,7 @@ class Container:
     subscription_adapter: SubscriptionAPIAdapter
     payment_provider: BasePaymentProvider
     payment_adapter: PaymentAPIAdapter
+    promo_adapter: PromoAPIAdapter
     referral_adapter: ReferralAPIAdapter
     vpn_adapter: VPNAPIAdapter
     news_adapter: NewsAPIAdapter
@@ -127,6 +130,7 @@ class Container:
     vpn_service: VPNService
     news_service: NewsService
     scheduler_bot_service: SchedulerBotService
+    promo_service: PromoService
     payment_service: PaymentService
     notification_service: NotificationService
     payment_webhook_service: PaymentWebhookService
@@ -169,6 +173,7 @@ class Container:
         self.payment_adapter = PaymentAPIAdapter(
             client=self.api_client, provider=self.payment_provider
         )
+        self.promo_adapter = PromoAPIAdapter(client=self.api_client)
         self.referral_adapter = ReferralAPIAdapter(client=self.api_client)
         self.vpn_adapter = VPNAPIAdapter(client=self.api_client)
         self.news_adapter = NewsAPIAdapter(client=self.api_client)
@@ -207,6 +212,7 @@ class Container:
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
+        self.promo_service = PromoService(adapter=self.promo_adapter)
         self.payment_service = PaymentService(
             adapter=self.payment_adapter, provider=self.payment_provider
         )

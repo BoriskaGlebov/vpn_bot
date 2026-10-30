@@ -38,6 +38,13 @@ class SCreateManualPaymentTransaction(BaseModel):
     is_founder: bool = False
 
     description: str | None = None
+    promo_code: str | None = Field(
+        default=None,
+        description=(
+            "Код промокода. Если передан, `amount` считается базовой ценой "
+            "до скидки — сервис сам рассчитывает и сохраняет итоговую сумму."
+        ),
+    )
     model_config = ConfigDict(
         from_attributes=True,
         extra="forbid",
@@ -47,12 +54,22 @@ class SCreateManualPaymentTransaction(BaseModel):
 class SCreateTransaction(SCreateManualPaymentTransaction):
     """Схема создания платежной транзакции для конкретного пользователя.
 
+    В отличие от `SCreateManualPaymentTransaction`, не принимает `promo_code`
+    напрямую с границы API — `PaymentService.create_transaction` сам
+    разрешает код в `promo_code_id` и считает `discount_amount` перед
+    записью в БД, чтобы в таблице транзакций никогда не оказалось сырого
+    кода без привязки к конкретному промокоду.
+
     Attributes
         user_id: Идентификатор пользователя.
+        promo_code_id: ID применённого промокода, если он был передан.
+        discount_amount: Сумма скидки по промокоду в рублях.
 
     """
 
     user_id: int
+    promo_code_id: int | None = None
+    discount_amount: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -101,6 +118,9 @@ class SPaymentTransactionResponse(BaseModel):
     confirmed_by_admin_id: int | None
 
     gateway_transaction_id: str | None
+
+    promo_code_id: int | None = None
+    discount_amount: int = 0
 
     confirmed_at: datetime | None
     paid_at: datetime | None

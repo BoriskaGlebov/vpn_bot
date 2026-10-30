@@ -468,3 +468,119 @@ async def test_check_all_with_delete_event(service, monkeypatch):
 
     service._trigger_config_deletion.assert_awaited_once()
     assert stats.configs_deleted == 1
+
+
+@pytest.mark.asyncio
+async def test_check_all_with_delete_event_shows_reason_to_user(service, monkeypatch):
+    """Пользователь видит СВОЮ причину удаления (например, выбранную
+    администратором вручную в админке), а не всегда "подписка истекла".
+
+    Регрессия: раньше пользователь получал один статичный текст про
+    истечение подписки независимо от реальной причины — например, если
+    админ пометил конфиг на удаление из-за смены протокола, пользователь
+    получил бы ложную информацию про истёкшую подписку.
+    """
+    cfg = DeletedVPNConfigSchema(
+        file_name="vpn1.conf", pub_key="k", reason="Сменился протокол подключения"
+    )
+    event = DeleteVPNConfigsEventSchema(
+        type=SubscriptionEventType.DELETE_VPN_CONFIGS,
+        user_id=1,
+        configs=[cfg],
+    )
+    response = CheckAllSubscriptionsResponse(
+        stats=SubscriptionStatsSchema(checked=1, expired=0, configs_deleted=1),
+        events=[event],
+    )
+
+    service.api_adapter.check_all.return_value = response
+    service._trigger_config_deletion = AsyncMock(return_value=1)
+    monkeypatch.setattr("bot.scheduler.services.send_to_admins", AsyncMock())
+
+    await service.check_all_subscriptions()
+
+    sent_texts = [
+        call.kwargs.get("text", call.args[-1] if call.args else "")
+        for call in service.bot.send_message.await_args_list
+    ]
+    assert any(
+        "vpn1.conf" in text and "Сменился протокол подключения" in text
+        for text in sent_texts
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_all_with_delete_event_falls_back_to_default_reason(
+    service, monkeypatch
+):
+    """Без указанной причины (например, старые записи до появления этого
+    поля) пользователь видит осмысленный дефолт, а не пустоту/None.
+    """
+    cfg = DeletedVPNConfigSchema(file_name="vpn1.conf", pub_key="k", reason=None)
+    event = DeleteVPNConfigsEventSchema(
+        type=SubscriptionEventType.DELETE_VPN_CONFIGS,
+        user_id=1,
+        configs=[cfg],
+    )
+    response = CheckAllSubscriptionsResponse(
+        stats=SubscriptionStatsSchema(checked=1, expired=0, configs_deleted=1),
+        events=[event],
+    )
+
+    service.api_adapter.check_all.return_value = response
+    service._trigger_config_deletion = AsyncMock(return_value=1)
+    monkeypatch.setattr("bot.scheduler.services.send_to_admins", AsyncMock())
+
+    await service.check_all_subscriptions()
+
+    sent_texts = [
+        call.kwargs.get("text", call.args[-1] if call.args else "")
+        for call in service.bot.send_message.await_args_list
+    ]
+    assert any("истёк срок действия подписки" in text for text in sent_texts)
+
+
+@pytest.mark.asyncio
+async def test_check_all_with_delete_event_multiple_configs_keep_own_reason(
+    service, monkeypatch
+):
+    """Несколько удалённых конфигов с разными причинами -> каждая строка
+    сообщения называет СВОЮ причину, а не одну общую для всех файлов.
+    """
+    configs = [
+        DeletedVPNConfigSchema(
+            file_name="vpn1.conf", pub_key="k1", reason="Истекла подписка"
+        ),
+        DeletedVPNConfigSchema(
+            file_name="vpn2.conf",
+            pub_key="k2",
+            reason="Нода/сервер выведен из эксплуатации",
+        ),
+    ]
+    event = DeleteVPNConfigsEventSchema(
+        type=SubscriptionEventType.DELETE_VPN_CONFIGS,
+        user_id=1,
+        configs=configs,
+    )
+    response = CheckAllSubscriptionsResponse(
+        stats=SubscriptionStatsSchema(checked=1, expired=0, configs_deleted=2),
+        events=[event],
+    )
+
+    service.api_adapter.check_all.return_value = response
+    service._trigger_config_deletion = AsyncMock(return_value=2)
+    monkeypatch.setattr("bot.scheduler.services.send_to_admins", AsyncMock())
+
+    await service.check_all_subscriptions()
+
+    sent_texts = [
+        call.kwargs.get("text", call.args[-1] if call.args else "")
+        for call in service.bot.send_message.await_args_list
+    ]
+    assert any(
+        "vpn1.conf" in text
+        and "Истекла подписка" in text
+        and "vpn2.conf" in text
+        and "Нода/сервер выведен из эксплуатации" in text
+        for text in sent_texts
+    )

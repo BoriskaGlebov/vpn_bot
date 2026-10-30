@@ -265,18 +265,26 @@ class SubscriptionService:
         return f"{subscription_info}\n\n{referral_info}"
 
     async def create_transaction(
-        self, amount: int, subscription_months: int, is_premium: bool, is_founder: bool
+        self,
+        amount: int,
+        subscription_months: int,
+        is_premium: bool,
+        is_founder: bool,
+        promo_code: str | None = None,
     ) -> SCreatePayment:
         """Создаёт платёжную транзакцию для оформления/продления подписки.
 
         Args:
-            amount: Сумма платежа в минимальных единицах.
+            amount: Сумма платежа в минимальных единицах (базовая цена до
+                скидки, если передан `promo_code`).
             subscription_months: Количество месяцев подписки.
             is_premium: Флаг премиум-подписки.
             is_founder: Флаг пользователя-основателя.
+            promo_code: Код промокода, если пользователь его применил.
 
         Returns
-            SCreatePayment: Ссылка на оплату и данные созданной транзакции.
+            SCreatePayment: Ссылка на оплату и данные созданной транзакции
+            (итоговая сумма — в `amount`).
 
         """
         tx_res = await self.payment_service.create_transaction(
@@ -284,6 +292,7 @@ class SubscriptionService:
             subscription_months=subscription_months,
             is_premium=is_premium,
             is_founder=is_founder,
+            promo_code=promo_code,
         )
         return tx_res
 

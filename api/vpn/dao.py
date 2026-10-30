@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from loguru import logger
+from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -145,3 +146,57 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
         except SQLAlchemyError:
             logger.exception("[DAO] Ошибка при добавлении конфиг файла")
             raise
+
+    @classmethod
+    async def mark_pending_delete(
+        cls,
+        session: AsyncSession,
+        config_ids: list[int],
+        reason: str,
+    ) -> int:
+        """Массово переводит конфиги в `PENDING_DELETE` с указанной причиной.
+
+        Запрос по списку id — `BaseDAO._build_filters` строит только
+        `AND(col == value, ...)` и не выразит `id IN (...)`, поэтому здесь
+        отдельный `UPDATE` одним запросом, а не вызов `BaseDAO.update` в
+        цикле по одному id. Переводятся только конфиги, сейчас реально
+        `ACTIVE` — уже помеченные или удалённые остаются как есть, чтобы
+        повторный вызов на той же выборке не затирал причину, зафиксированную
+        первым переводом.
+
+        Планировщик (`api/scheduler/services.py`) подхватывает
+        `PENDING_DELETE`-записи на следующем прогоне и отзывает доступ на
+        нодах — эта функция только помечает запись в БД.
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            config_ids: ID конфигов, отмеченных администратором в списке.
+            reason: Причина перевода в `PENDING_DELETE` (выбор из пресетов
+                либо свой текст — см. `VPNConfigAdmin`).
+
+        Returns
+            int: Количество реально обновлённых строк (конфигов, которые
+            были `ACTIVE` среди переданных `config_ids`).
+
+        """
+        if not config_ids:
+            return 0
+
+        stmt = (
+            sqlalchemy_update(cls.model)
+            .where(
+                cls.model.id.in_(config_ids),
+                cls.model.status == VPNConfigStatus.ACTIVE,
+            )
+            .values(status=VPNConfigStatus.PENDING_DELETE, status_reason=reason)
+            .execution_options(synchronize_session="fetch")
+        )
+        result = await session.execute(stmt)
+        rowcount: int = getattr(result, "rowcount", 0) or 0
+        logger.info(
+            "[DAO] Помечено на удаление {} из {} отмеченных конфигов, причина: {}",
+            rowcount,
+            len(config_ids),
+            reason,
+        )
+        return rowcount

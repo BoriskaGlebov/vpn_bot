@@ -28,6 +28,7 @@ from api.payment.schemas import (
     SUserPendingTransactionsFilter,
     SYearIncome,
 )
+from api.promo.services import PromoService
 from api.referrals.schemas import GrantReferralBonusResponse
 from api.referrals.services import ReferralService
 from api.subscription.services import SubscriptionService
@@ -64,10 +65,16 @@ class PaymentService:
         ref_service:
             Сервис реферальной системы.
 
+        promo_service:
+            Сервис промокодов.
+
     """
 
     def __init__(
-        self, sub_service: SubscriptionService, ref_service: ReferralService
+        self,
+        sub_service: SubscriptionService,
+        ref_service: ReferralService,
+        promo_service: PromoService,
     ) -> None:
         """Инициализирует сервис платежей.
 
@@ -78,9 +85,13 @@ class PaymentService:
             ref_service:
                 Сервис работы с реферальной системой.
 
+            promo_service:
+                Сервис промокодов.
+
         """
         self.sub_service = sub_service
         self.ref_service = ref_service
+        self.promo_service = promo_service
 
     async def _get_transaction_or_raise(
         self,
@@ -187,11 +198,19 @@ class PaymentService:
 
         Args:
             session: Асинхронная SQLAlchemy-сессия.
-            transaction: Данные создаваемой транзакции.
+            transaction: Данные создаваемой транзакции. Если указан
+                `promo_code`, переданный `amount` считается базовой ценой
+                до скидки — итоговая сумма к оплате пересчитывается здесь.
             user_auth: Авторизованный пользователь.
 
         Returns
             SPaymentTransactionResponse: Созданная платежная транзакция.
+
+        Raises
+            PromoCodeNotFoundError: Промокод с таким значением не существует.
+            PromoCodeInactiveError: Промокод деактивирован либо вне срока действия.
+            PromoCodeLimitReachedError: Лимит применений промокода исчерпан.
+            PromoCodeAlreadyUsedError: Пользователь уже применял этот промокод.
 
         """
         logger.info(
@@ -199,9 +218,28 @@ class PaymentService:
             f"для пользователя ID={user_auth.id}"
         )
         await self._cancel_pending_transactions(session=session, user_id=user_auth.id)
+
+        transaction_dict = transaction.model_dump(
+            exclude_unset=True, exclude={"promo_code"}
+        )
+        promo_code_id: int | None = None
+        discount_amount = 0
+        if transaction.promo_code:
+            validation = await self.promo_service.validate_code(
+                session=session,
+                code=transaction.promo_code,
+                user_id=user_auth.id,
+                base_amount=transaction.amount,
+            )
+            promo_code_id = validation.promo_code_id
+            discount_amount = validation.discount_amount
+            transaction_dict["amount"] = validation.final_amount
+
         payment_schema = SCreateTransaction(
             user_id=user_auth.id,
-            **transaction.model_dump(exclude_unset=True),
+            promo_code_id=promo_code_id,
+            discount_amount=discount_amount,
+            **transaction_dict,
         )
         res = await PaymentTransactionDAO.add(
             session=session,
@@ -602,6 +640,16 @@ class PaymentService:
             raise PaymentInvalidSourceError(
                 payment_source=payment_source, admin_id=admin_id
             )
+
+        if tx.promo_code_id is not None and tx.user_id is not None:
+            await self.promo_service.redeem_usage(
+                session=session,
+                promo_code_id=tx.promo_code_id,
+                user_id=tx.user_id,
+                transaction_id=tx.id,
+                discount_amount=tx.discount_amount,
+            )
+
         sub_res = await self.sub_service.activate_paid_subscription(
             session=session,
             tg_id=tx.tg_id,

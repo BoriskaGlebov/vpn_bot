@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base, int_pk, str_null_true, str_uniq
 from api.payment.model import PaymentTransaction
+from api.promo.models import PromoCodeUsage
 from api.referrals.models import Referral
 from api.subscription.models import SUBSCRIPTION_PRIORITY, Subscription
 from api.vpn.models import VPNConfig
@@ -88,6 +89,14 @@ class User(Base):
         order_by="PaymentTransaction.created_at.desc()",
         passive_deletes=True,
     )
+    promo_usages: Mapped[list["PromoCodeUsage"]] = relationship(
+        "PromoCodeUsage",
+        foreign_keys="PromoCodeUsage.user_id",
+        back_populates="user",
+        lazy="raise",
+        order_by="PromoCodeUsage.used_at.desc()",
+        passive_deletes=True,
+    )
 
     def __str__(self) -> str:
         """Строковое представление пользователя."""
@@ -139,6 +148,21 @@ class User(Base):
         return (
             select(func.count(PaymentTransaction.id))
             .where(PaymentTransaction.user_id == cls.id)
+            .correlate(cls)
+            .scalar_subquery()
+        )
+
+    @hybrid_property
+    def promo_usages_count(self) -> int:
+        """Количество применённых пользователем промокодов."""
+        return len(self.promo_usages)
+
+    @promo_usages_count.expression  # type: ignore[no-redef]
+    def promo_usages_count(cls) -> ScalarSelect[Any]:
+        """SQL-выражение COUNT(PromoCodeUsage.id) для сортировки и фильтрации без загрузки связей."""
+        return (
+            select(func.count(PromoCodeUsage.id))
+            .where(PromoCodeUsage.user_id == cls.id)
             .correlate(cls)
             .scalar_subquery()
         )

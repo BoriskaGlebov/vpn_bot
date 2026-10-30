@@ -668,6 +668,17 @@ bot:
         Стоимость:  <b>{price}₽</b>
 
         Выберите способ оплаты 👇
+      promo_prompt: |
+        🎁 Введите промокод сообщением.
+
+        Чтобы вернуться к выбору способа оплаты, нажмите «Отмена» 👇
+      promo_applied: |
+        🎉 Промокод <b>{code}</b> применён! Скидка: {discount}₽
+
+        Подписка <b>{sub_type}</b> на {months} мес.
+        Было: <s>{base_price}₽</s>  Стало: <b>{final_price}₽</b>
+
+        Выберите способ оплаты 👇
       pay_by_card: |
         💳 <b>Оплата картой</b>
 
@@ -772,8 +783,8 @@ bot:
       expire_subscription:
         now: Ваша подписка {type_subscription} закончилась 🔒. Конфиги будут удалены через день если у вас нет других активных подписок.
         soon: ⚠️ Ваша подписка {type_subscription} истекает через {remaining} дней.
-        delete_configs_user: ⚠️ Ваши VPN-конфиги были удалены после окончания подписки.
-        delete_unlimit_configs_user: ⚠️  Ваши VPN-конфиг {file_name} превышающий лимит был удален после окончания подписки.
+        delete_configs_user: ⚠️ Ваши VPN-конфиги были удалены.
+        delete_configs_user_item: "📄 {file_name} — {reason}"
         admin_stats: |
             ⚠️ У пользователя были удалены VPN-конфиги
 

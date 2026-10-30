@@ -9,6 +9,7 @@ from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.core.database import Base
+from api.promo.models import PromoCode
 from shared.enums.payment_enum import PaymentStatus
 
 if TYPE_CHECKING:
@@ -79,6 +80,12 @@ class PaymentTransaction(Base):
 
         description:
             Дополнительное описание платежа.
+
+        promo_code_id:
+            Промокод, применённый к этой транзакции (если был).
+
+        discount_amount:
+            Сумма скидки в рублях, предоставленная по промокоду.
 
         confirmed_at:
             Дата и время подтверждения администратором.
@@ -155,6 +162,17 @@ class PaymentTransaction(Base):
     gateway_payload: Mapped[dict[Any, Any] | None] = mapped_column(JSON, nullable=True)
 
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    promo_code_id: Mapped[int | None] = mapped_column(
+        ForeignKey("promocodes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    promo_code: Mapped["PromoCode | None"] = relationship(
+        "PromoCode", foreign_keys=[promo_code_id], lazy="selectin"
+    )
+    discount_amount: Mapped[int] = mapped_column(
+        nullable=False, default=0, server_default="0"
+    )
 
     # timezone=True: сверить с временем провайдера (Platega присылает своё
     # время в вебхуке) нельзя, пока неизвестно, в какой зоне записан

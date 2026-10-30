@@ -15,6 +15,7 @@ from api.app_error.base_error import (
 )
 from api.bot_channel.dependencies import get_bot_channel_client
 from api.core.database import async_session
+from api.promo.models import PromoCodeUsage
 from api.referrals.models import Referral
 from api.users.filters import SubscriptionSegmentFilter
 from api.users.models import Role, User
@@ -141,7 +142,9 @@ class UserAdmin(ModelView, model=User):
         ``DetachedInstanceError``. Предзагружаются:
             - payments, role, vpn_configs, subscriptions;
             - invited_users/invited_by вместе с вложенными
-              invited/inviter (реферальный блок в user_details.html).
+              invited/inviter (реферальный блок в user_details.html);
+            - promo_usages вместе с promo_code (блок промокодов в
+              user_details.html).
 
         Returns
             Select: тот же запрос с настроенной предзагрузкой.
@@ -154,6 +157,7 @@ class UserAdmin(ModelView, model=User):
             selectinload(User.subscriptions),
             selectinload(User.invited_users).selectinload(Referral.invited),
             selectinload(User.invited_by).selectinload(Referral.inviter),
+            selectinload(User.promo_usages).selectinload(PromoCodeUsage.promo_code),
         )
 
     def list_query(self, request: Request) -> Select[tuple[User]]:

@@ -320,6 +320,65 @@ class PaymentInvalidSourceError(PaymentError):
         )
 
 
+class PromoCodeError(AppError):
+    """Базовое исключение промокодов."""
+
+    code = "promo_error"
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class PromoCodeNotFoundError(PromoCodeError):
+    """Ошибка отсутствия промокода с указанным кодом."""
+
+    code = "promo_code_not_found"
+    status_code = status.HTTP_404_NOT_FOUND
+
+    def __init__(self, code: str) -> None:
+        super().__init__(
+            message=f"Промокод «{code}» не найден.",
+            details={"code": code},
+        )
+
+
+class PromoCodeInactiveError(PromoCodeError):
+    """Промокод деактивирован администратором либо вне срока действия."""
+
+    code = "promo_code_inactive"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, code: str, reason: str) -> None:
+        super().__init__(
+            message=f"Промокод «{code}» сейчас недействителен ({reason}).",
+            details={"code": code, "reason": reason},
+        )
+
+
+class PromoCodeLimitReachedError(PromoCodeError):
+    """Промокод исчерпал лимит применений."""
+
+    code = "promo_code_limit_reached"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, code: str, max_uses: int) -> None:
+        super().__init__(
+            message=f"Промокод «{code}» уже использован максимальное число раз ({max_uses}).",
+            details={"code": code, "max_uses": max_uses},
+        )
+
+
+class PromoCodeAlreadyUsedError(PromoCodeError):
+    """Пользователь уже применял этот промокод ранее."""
+
+    code = "promo_code_already_used"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, code: str, user_id: int) -> None:
+        super().__init__(
+            message=f"Вы уже использовали промокод «{code}» ранее.",
+            details={"code": code, "user_id": user_id},
+        )
+
+
 class BotChannelUnavailableError(AppError):
     """Бот недоступен по внутреннему каналу api → bot.
 

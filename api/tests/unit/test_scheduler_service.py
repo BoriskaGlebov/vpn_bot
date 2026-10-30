@@ -182,10 +182,13 @@ async def test_handle_config_cleanup_deletes_when_no_valid_subscription(
 
     stats, events = await scheduler._handle_config_cleanup(session, user)
 
-    assert stats.configs_deleted == 1
+    # Метод теперь только помечает статус/причину — событие удаления и
+    # stats.configs_deleted строит единая точка `_handle_pending_delete_configs`
+    # (см. тесты ниже), а не этот метод.
+    assert stats.configs_deleted == 0
+    assert events == []
     assert vpn_config.status == VPNConfigStatus.PENDING_DELETE
-    assert any(isinstance(e, DeleteVPNConfigsEvent) for e in events)
-    assert any(isinstance(e, AdminNotifyEvent) for e in events)
+    assert vpn_config.status_reason == "Истекла подписка"
 
 
 @pytest.mark.asyncio
@@ -266,14 +269,16 @@ async def test_handle_active_limit_exceeded(
 
     stats, events = await scheduler._handle_active_limit_exceeded(session, user)
 
-    # Должно быть удалено 2 конфига (FIFO)
-    assert stats.configs_deleted == 2
-
-    delete_events = [e for e in events if isinstance(e, DeleteVPNConfigsEvent)]
-    admin_events = [e for e in events if isinstance(e, AdminNotifyEvent)]
-
-    assert len(delete_events) == 1
-    assert len(admin_events) == 2
+    # Метод теперь только помечает статус/причину (FIFO, 2 самых старых из
+    # 3) — событие удаления и stats.configs_deleted строит единая точка
+    # `_handle_pending_delete_configs` (см. тесты ниже), а не этот метод.
+    assert stats.configs_deleted == 0
+    assert events == []
+    marked_configs = [c for c in user.vpn_configs if c.status is not None]
+    assert len(marked_configs) == 2
+    assert all(
+        c.status_reason == "Превышен лимит устройств по тарифу" for c in marked_configs
+    )
 
 
 @pytest.mark.asyncio
@@ -410,3 +415,130 @@ async def test_check_all_subscriptions(scheduler, session, user, expired_subscri
     assert stats.expired == 1
     session.commit.assert_not_awaited()
     assert isinstance(events, list)
+
+
+@pytest.mark.asyncio
+async def test_handle_pending_delete_configs_picks_up_manually_marked_config(
+    scheduler, user
+):
+    """Конфиг, помеченный PENDING_DELETE ЛЮБЫМ способом (не только истечением
+    подписки — например, массовым действием администратора в админке),
+    подхватывается планировщиком и попадает в событие удаления.
+
+    Это регрессия на баг: раньше событие `DeleteVPNConfigsEvent` строилось
+    только внутри `_handle_config_cleanup`/`_handle_active_limit_exceeded`,
+    и конфиг, переведённый в `PENDING_DELETE` любым другим путём, никогда не
+    подхватывался — бот реально забирает файл только по событию, а не по
+    самому статусу в БД.
+    """
+    cfg = SimpleNamespace(
+        file_name="manual.conf",
+        pub_key="pubkey_manual",
+        node_name="fi",
+        backend="amnezia",
+        config_ids=None,
+        status=VPNConfigStatus.PENDING_DELETE,
+        status_reason="Нода/сервер выведен из эксплуатации",
+    )
+    user.vpn_configs = [cfg]
+
+    stats, events = await scheduler._handle_pending_delete_configs(
+        session=AsyncMock(), user=user
+    )
+
+    assert stats.configs_deleted == 1
+    delete_events = [e for e in events if isinstance(e, DeleteVPNConfigsEvent)]
+    admin_events = [e for e in events if isinstance(e, AdminNotifyEvent)]
+    assert len(delete_events) == 1
+    assert delete_events[0].configs[0].file_name == "manual.conf"
+    # Причина доходит до самой схемы события, а не только до текста для
+    # админов — именно это поле боту нужно, чтобы показать её пользователю.
+    assert delete_events[0].configs[0].reason == "Нода/сервер выведен из эксплуатации"
+    assert len(admin_events) == 1
+    assert "Нода/сервер выведен из эксплуатации" in admin_events[0].message
+
+
+@pytest.mark.asyncio
+async def test_handle_pending_delete_configs_no_pending_returns_nothing(
+    scheduler, user, vpn_config
+):
+    """Нет конфигов в PENDING_DELETE — ни статистики, ни событий."""
+    vpn_config.status = VPNConfigStatus.ACTIVE
+    user.vpn_configs = [vpn_config]
+
+    stats, events = await scheduler._handle_pending_delete_configs(
+        session=AsyncMock(), user=user
+    )
+
+    assert stats.configs_deleted == 0
+    assert events == []
+
+
+@pytest.mark.asyncio
+async def test_handle_pending_delete_configs_groups_multiple_in_one_delete_event(
+    scheduler, user
+):
+    """Несколько PENDING_DELETE конфигов -> одно DeleteVPNConfigsEvent на
+    пользователя (а не одно на конфиг) и по одному AdminNotifyEvent на конфиг.
+
+    Причины разные (одна истекла по подписке, другая вручную администратором)
+    — каждый конфиг в событии должен сохранить СВОЮ, а не получить общую.
+    """
+    reasons = ["Истекла подписка", "Истекла подписка", "Сменился протокол подключения"]
+    configs = [
+        SimpleNamespace(
+            file_name=f"cfg{i}.conf",
+            pub_key=f"key{i}",
+            node_name=None,
+            backend=None,
+            config_ids=None,
+            status=VPNConfigStatus.PENDING_DELETE,
+            status_reason=reasons[i],
+        )
+        for i in range(3)
+    ]
+    user.vpn_configs = configs
+
+    stats, events = await scheduler._handle_pending_delete_configs(
+        session=AsyncMock(), user=user
+    )
+
+    assert stats.configs_deleted == 3
+    delete_events = [e for e in events if isinstance(e, DeleteVPNConfigsEvent)]
+    admin_events = [e for e in events if isinstance(e, AdminNotifyEvent)]
+    assert len(delete_events) == 1
+    assert len(delete_events[0].configs) == 3
+    assert [c.reason for c in delete_events[0].configs] == reasons
+    assert len(admin_events) == 3
+
+
+@pytest.mark.asyncio
+async def test_process_user_deletes_manually_marked_config_with_active_subscription(
+    scheduler, session, user, active_subscription
+):
+    """Сквозной прогон через `_process_user`: подписка активна (не истекла),
+    но конфиг уже стоит в PENDING_DELETE (например, от прошлого ручного
+    действия администратора) — он всё равно попадает в событие удаления на
+    этом прогоне, а не игнорируется из-за того, что подписка в порядке.
+    """
+    user.current_subscription = active_subscription
+    user.subscriptions = [active_subscription]
+    cfg = SimpleNamespace(
+        file_name="manual.conf",
+        pub_key="pubkey_manual",
+        node_name="fi",
+        backend="amnezia",
+        config_ids=None,
+        status=VPNConfigStatus.PENDING_DELETE,
+        status_reason="Сменился протокол подключения",
+    )
+    user.vpn_configs = [cfg]
+
+    stats, events = await scheduler._process_user(session, user)
+
+    assert stats.configs_deleted == 1
+    assert any(isinstance(e, DeleteVPNConfigsEvent) for e in events)
+    assert any(
+        isinstance(e, AdminNotifyEvent) and "Сменился протокол" in e.message
+        for e in events
+    )
