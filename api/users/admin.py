@@ -258,7 +258,7 @@ class UserAdmin(ModelView, model=User):
         include_in_schema=False,
     )
     async def send_broadcast_form(self, request: Request) -> _TemplateResponse:
-        """Открывает форму рассылки для отмеченных в списке пользователей (#385).
+        """Открывает форму рассылки для отмеченных в списке пользователей.
 
         SQLAdmin передаёт выбранные pk строкой через query-параметр `pks`
         (см. `sqladmin.action`).
@@ -271,10 +271,10 @@ class UserAdmin(ModelView, model=User):
 
     @expose("/broadcast/send", methods=["POST"], include_in_schema=False)
     async def send_broadcast(self, request: Request) -> _TemplateResponse:
-        """Отправляет текст рассылки боту для отмеченных pk пользователей (#385).
+        """Отправляет текст рассылки боту для отмеченных pk пользователей.
 
         Доставка асинхронна — этот запрос только подтверждает приём команды
-        ботом (`BotChannelClient.send_broadcast`, канал #382); итог рассылки
+        ботом (`BotChannelClient.send_broadcast`, канал api→bot); итог рассылки
         (сколько доставлено) бот присылает в админ-чат отдельным сообщением.
         """
         form = await request.form()

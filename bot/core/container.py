@@ -82,7 +82,7 @@ class Container:
         payment_webhook_service (PaymentWebhookService)
         news_broadcast_service (BroadcastService): рассылка новостей (`/news`).
         admin_broadcast_service (BroadcastService): рассылка по выбранным
-            пользователям из админки (#385) — отдельный от новостей прогресс
+            пользователям из админки — отдельный от новостей прогресс
             в Redis, свой заголовок итогового отчёта.
 
         redis_admin_mess_storage (RedisAdminMessageStorage)
