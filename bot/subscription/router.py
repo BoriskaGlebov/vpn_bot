@@ -747,7 +747,7 @@ class SubscriptionRouter(BaseRouter):
             except APIClientError as e:
                 user_logger.info(f"Промокод не применён: {e.error.message}")
                 await message.answer(
-                    f"❌ {e.error.message}\n\n"
+                    text=f"❌ {e.error.message}\n\n"
                     "Попробуйте ввести другой код или нажмите «Отмена»."
                 )
                 return
