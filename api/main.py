@@ -26,6 +26,7 @@ from api.admin.badges import (
     VPN_PROTOCOL_LABELS,
 )
 from api.admin.dashboard import DashboardView
+from api.admin.navigation import resolve_back_url
 from api.admin.router import router as admin_router
 from api.app_error.api_error import (
     APIError,
@@ -313,6 +314,7 @@ app.mount(
     StaticFiles(directory="api/static"),
     name="admin_custom_static",
 )
+admin.templates.env.globals["back_url"] = resolve_back_url
 admin.templates.env.globals["role_badge_colors"] = ROLE_BADGE_COLORS
 admin.templates.env.globals["subscription_badge_colors"] = SUBSCRIPTION_BADGE_COLORS
 admin.templates.env.globals["payment_badge_colors"] = PAYMENT_BADGE_COLORS

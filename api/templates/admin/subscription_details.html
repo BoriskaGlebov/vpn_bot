@@ -17,7 +17,7 @@
         </h2>
 
         <div>
-            <a href="{{ url_for('admin:list', identity='subscription') }}" class="btn btn-secondary">⬅ Назад</a>
+            <a href="{{ back_url(request, url_for('admin:list', identity='subscription')) }}" class="btn btn-secondary">⬅ Назад</a>
             <a href="{{ url_for('admin:edit', identity='subscription', pk=model.id) }}" class="btn btn-primary">
                 ✏️ Редактировать
             </a>
