@@ -63,6 +63,60 @@ async def test_register_or_get_user_existing(
     mock_to_schema.assert_called_once_with(fake_user)
 
 
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
+@patch("api.users.services.UserDAO.update", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
+async def test_register_or_get_user_updates_changed_username(
+    mock_find_user,
+    mock_update,
+    mock_to_schema,
+    service,
+    session,
+):
+    """Существующий пользователь прислал новый непустой username -> обновляем."""
+    fake_user = MagicMock(username="old_name")
+    mock_find_user.return_value = fake_user
+    mock_to_schema.return_value = MagicMock(spec=SUserOut)
+
+    telegram_user = SUser(telegram_id=123, username="new_name")
+
+    await service.register_or_get_user(session=session, telegram_user=telegram_user)
+
+    mock_update.assert_awaited_once()
+    _, kwargs = mock_update.await_args
+    assert kwargs["values"].username == "new_name"
+
+
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
+@patch("api.users.services.UserDAO.update", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
+async def test_register_or_get_user_empty_username_does_not_clear_existing(
+    mock_find_user,
+    mock_update,
+    mock_to_schema,
+    service,
+    session,
+):
+    """Входящий username=None НЕ затирает сохранённый username (регрессия).
+
+    Часть вызовов `/users/register` (например, проверка лимита конфигов в
+    bot/vpn/services.py, фильтр IsPremium в bot/core/filters.py — до их
+    собственного фикса) передают только telegram_id, без профиля, и
+    `SUser.model_dump()` сериализует отсутствующий username как `null` в
+    JSON-теле. Без этой проверки такой вызов читался как "пользователь стёр
+    username в Telegram" и затирал реальное значение.
+    """
+    fake_user = MagicMock(username="real_username")
+    mock_find_user.return_value = fake_user
+    mock_to_schema.return_value = MagicMock(spec=SUserOut)
+
+    telegram_user = SUser(telegram_id=123, username=None)
+
+    await service.register_or_get_user(session=session, telegram_user=telegram_user)
+
+    mock_update.assert_not_awaited()
+
+
 @patch("api.users.services.settings_api")
 @patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
 @patch("api.users.services.UserDAO.add_role_subscription", new_callable=AsyncMock)

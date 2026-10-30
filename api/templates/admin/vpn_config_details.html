@@ -7,7 +7,7 @@
         <h2 class="mb-0">🔐 VPN конфиг «{{ model.file_name or "config" }}»</h2>
 
         <div>
-            <a href="{{ url_for('admin:list', identity='vpn-config') }}" class="btn btn-secondary">⬅ Назад</a>
+            <a href="{{ back_url(request, url_for('admin:list', identity='vpn-config')) }}" class="btn btn-secondary">⬅ Назад</a>
 
             <button type="button" class="btn btn-danger"
                     onclick="if(confirm('Удалить конфиг?')) {

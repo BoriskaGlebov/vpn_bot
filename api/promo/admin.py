@@ -47,7 +47,9 @@ def fmt_promo_code(m: PromoCodeUsage, _: str) -> str:
 
 def fmt_usage_user(m: PromoCodeUsage, _: str) -> str:
     """Форматер пользователя в списке применений промокода."""
-    return f"{m.user.username} ({m.user.telegram_id})" if m.user else "-"
+    if not m.user:
+        return "-"
+    return f"{m.user.username or '-'} ({m.user.telegram_id})"
 
 
 class PromoCodeAdmin(ModelView, model=PromoCode):

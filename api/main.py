@@ -10,6 +10,7 @@ from sqladmin import Admin
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse
+from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from api.admin.badges import (
@@ -25,6 +26,7 @@ from api.admin.badges import (
     VPN_PROTOCOL_LABELS,
 )
 from api.admin.dashboard import DashboardView
+from api.admin.navigation import resolve_back_url
 from api.admin.router import router as admin_router
 from api.app_error.api_error import (
     APIError,
@@ -300,6 +302,19 @@ admin = Admin(
     templates_dir="api/templates",
     authentication_backend=authentication_backend,
 )
+# SQLAdmin монтирует "/statics" под фиксированный StaticFiles(packages=["sqladmin"])
+# (см. sqladmin.application.Admin.__init__) — свою директорию туда не подставить.
+# Mount регистрируется на ВНЕШНЕМ app, а не на admin.admin: Starlette кладёт
+# в scope только САМЫЙ ПЕРВЫЙ встреченный router (routing.py: `if "router" not
+# in scope: scope["router"] = self"), им всегда оказывается router внешнего
+# FastAPI-приложения — url_for из шаблонов админки резолвит имена маршрутов
+# именно через него, независимо от вложенности Mount'ов.
+app.mount(
+    "/admin-static",
+    StaticFiles(directory="api/static"),
+    name="admin_custom_static",
+)
+admin.templates.env.globals["back_url"] = resolve_back_url
 admin.templates.env.globals["role_badge_colors"] = ROLE_BADGE_COLORS
 admin.templates.env.globals["subscription_badge_colors"] = SUBSCRIPTION_BADGE_COLORS
 admin.templates.env.globals["payment_badge_colors"] = PAYMENT_BADGE_COLORS
