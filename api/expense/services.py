@@ -124,12 +124,9 @@ class ExpenseService:
         """
         expense = await self.get_by_id(session=session, expense_id=expense_id)
         self._validate_node_name(data.node_name)
-        for field, value in data.model_dump(exclude_unset=True).items():
-            setattr(expense, field, value)
-        await session.flush()
-        await session.refresh(expense)
+        updated = await ExpenseDAO.patch(session=session, instance=expense, values=data)
         logger.info("[SERVICE] Обновлён расход id={}", expense_id)
-        return expense
+        return updated
 
     async def delete(self, session: AsyncSession, expense_id: int) -> None:
         """Удаляет запись о расходе.
