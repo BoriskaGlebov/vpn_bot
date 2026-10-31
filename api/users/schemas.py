@@ -26,20 +26,28 @@ class SUser(SUserTelegramID):
     )
 
 
-class SUsernameUpdate(BaseModel):
-    """Схема обновления username при повторном входе пользователя.
+class SProfileUpdate(BaseModel):
+    """Схема обновления профиля (username/first_name/last_name) при повторном входе.
 
-    Telegram-username изменяем и необязателен — хранимое значение иначе
-    тихо устаревает по сравнению с актуальным.
+    Telegram-профиль изменяем и необязателен — хранимые значения иначе тихо
+    устаревают по сравнению с актуальными. `BaseDAO.update` делает полный
+    `SET` по всем полям схемы (а не только по изменившимся), поэтому сервис
+    обязан передавать сюда для каждого поля либо новое значение, либо
+    текущее из БД — просто пропустить неизменившееся поле нельзя, иначе оно
+    затрётся `NULL`.
 
     Attributes
-        username (str | None): Текущее значение username из Telegram.
+        username (str | None): Актуальное значение username.
+        first_name (str | None): Актуальное значение имени.
+        last_name (str | None): Актуальное значение фамилии.
 
     """
 
     username: str | None = Field(
         None, description="Текущее имя пользователя в Telegram"
     )
+    first_name: str | None = Field(None, description="Текущее имя")
+    last_name: str | None = Field(None, description="Текущая фамилия")
 
     model_config = ConfigDict(from_attributes=True)
 

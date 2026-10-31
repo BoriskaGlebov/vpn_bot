@@ -38,7 +38,7 @@ async def test_register_or_get_user_existing(
     session,
 ):
     """Пользователь уже существует -> возвращается без создания, created=False."""
-    fake_user = MagicMock()
+    fake_user = MagicMock(username="existing_user", first_name="Test", last_name="User")
     mock_find_user.return_value = fake_user
 
     expected_schema = MagicMock(spec=SUserOut)
@@ -74,7 +74,7 @@ async def test_register_or_get_user_updates_changed_username(
     session,
 ):
     """Существующий пользователь прислал новый непустой username -> обновляем."""
-    fake_user = MagicMock(username="old_name")
+    fake_user = MagicMock(username="old_name", first_name=None, last_name=None)
     mock_find_user.return_value = fake_user
     mock_to_schema.return_value = MagicMock(spec=SUserOut)
 
@@ -85,6 +85,73 @@ async def test_register_or_get_user_updates_changed_username(
     mock_update.assert_awaited_once()
     _, kwargs = mock_update.await_args
     assert kwargs["values"].username == "new_name"
+
+
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
+@patch("api.users.services.UserDAO.update", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
+async def test_register_or_get_user_updates_changed_first_and_last_name(
+    mock_find_user,
+    mock_update,
+    mock_to_schema,
+    service,
+    session,
+):
+    """Существующий пользователь прислал новые first_name/last_name -> обновляем.
+
+    username при этом не меняется — в SET должно попасть текущее значение
+    из БД, а не None (полный SET по всем полям схемы, см. SProfileUpdate).
+    """
+    fake_user = MagicMock(
+        username="same_name", first_name="OldFirst", last_name="OldLast"
+    )
+    mock_find_user.return_value = fake_user
+    mock_to_schema.return_value = MagicMock(spec=SUserOut)
+
+    telegram_user = SUser(
+        telegram_id=123,
+        username="same_name",
+        first_name="NewFirst",
+        last_name="NewLast",
+    )
+
+    await service.register_or_get_user(session=session, telegram_user=telegram_user)
+
+    mock_update.assert_awaited_once()
+    _, kwargs = mock_update.await_args
+    assert kwargs["values"].username == "same_name"
+    assert kwargs["values"].first_name == "NewFirst"
+    assert kwargs["values"].last_name == "NewLast"
+
+
+@patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
+@patch("api.users.services.UserDAO.update", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
+async def test_register_or_get_user_empty_first_last_name_does_not_clear_existing(
+    mock_find_user,
+    mock_update,
+    mock_to_schema,
+    service,
+    session,
+):
+    """Входящие first_name/last_name=None НЕ затирают сохранённые значения.
+
+    Те же вызовы без полного профиля, что защищены для username (bot/vpn/
+    services.py, bot/core/filters.py), не должны затирать имя/фамилию.
+    """
+    fake_user = MagicMock(
+        username="real_username", first_name="RealFirst", last_name="RealLast"
+    )
+    mock_find_user.return_value = fake_user
+    mock_to_schema.return_value = MagicMock(spec=SUserOut)
+
+    telegram_user = SUser(
+        telegram_id=123, username=None, first_name=None, last_name=None
+    )
+
+    await service.register_or_get_user(session=session, telegram_user=telegram_user)
+
+    mock_update.assert_not_awaited()
 
 
 @patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
