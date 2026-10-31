@@ -383,7 +383,7 @@ class InvalidNodeNameError(AppError):
     """Указанное имя ноды отсутствует в конфигурации vpn.nodes."""
 
     code = "invalid_node_name"
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
 
     def __init__(self, node_name: str, known: frozenset[str]) -> None:
         super().__init__(

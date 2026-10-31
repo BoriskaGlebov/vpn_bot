@@ -122,15 +122,14 @@ class ExpenseService:
             ExpenseNotFoundError: Если запись с таким ID не существует.
 
         """
-        await self.get_by_id(session=session, expense_id=expense_id)
+        expense = await self.get_by_id(session=session, expense_id=expense_id)
         self._validate_node_name(data.node_name)
-        await ExpenseDAO.update(
-            session=session,
-            filters=SExpenseFilter(id=expense_id),
-            values=data,
-        )
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(expense, field, value)
+        await session.flush()
+        await session.refresh(expense)
         logger.info("[SERVICE] Обновлён расход id={}", expense_id)
-        return await self.get_by_id(session=session, expense_id=expense_id)
+        return expense
 
     async def delete(self, session: AsyncSession, expense_id: int) -> None:
         """Удаляет запись о расходе.

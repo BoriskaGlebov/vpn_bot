@@ -19,8 +19,6 @@ from shared.enums.expense_enum import ExpenseCategory
 
 router = APIRouter(prefix="/expenses", tags=["bot", "EXPENSES"])
 
-_CURRENT_YEAR = date.today().year
-
 
 @router.post(
     "",
@@ -64,7 +62,7 @@ async def create_expense(
     dependencies=[Depends(check_admin_role)],
 )
 async def get_expense_summary(
-    year: int = Query(default=_CURRENT_YEAR, ge=2000, le=2100),
+    year: int = Query(default_factory=lambda: date.today().year, ge=2000, le=2100),
     service: ExpenseService = Depends(get_expense_service),
     session: AsyncSession = Depends(get_session),
 ) -> list[SMonthlyExpenseSummary]:
@@ -92,7 +90,7 @@ async def get_expense_summary(
     dependencies=[Depends(check_admin_role)],
 )
 async def get_expenses(
-    category: str | None = Query(default=None),
+    category: ExpenseCategory | None = Query(default=None),
     node_name: str | None = Query(default=None),
     service: ExpenseService = Depends(get_expense_service),
     session: AsyncSession = Depends(get_session),
@@ -110,7 +108,7 @@ async def get_expenses(
 
     """
     filters = SExpenseFilter(
-        category=ExpenseCategory(category) if category else None,
+        category=category,
         node_name=node_name,
     )
     expenses = await service.get_all(session=session, filters=filters)
