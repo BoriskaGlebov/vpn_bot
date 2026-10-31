@@ -1,12 +1,16 @@
+from typing import Any
+
 from markupsafe import Markup
 from sqladmin import ModelView
 from sqladmin.filters import BooleanFilter, StaticValuesFilter
+from starlette.requests import Request
 
 from api.admin.badges import (
     EXPENSE_CATEGORY_BADGE_COLORS,
     EXPENSE_CATEGORY_LABELS,
     badge,
 )
+from api.core.config import settings_api
 from api.expense.models import Expense
 from shared.enums.expense_enum import ExpenseCategory
 
@@ -116,3 +120,36 @@ class ExpenseAdmin(ModelView, model=Expense):
     can_edit = True
     can_delete = True
     can_view_details = True
+
+    async def on_model_change(
+        self,
+        data: dict[str, Any],
+        model: Expense,
+        is_created: bool,
+        request: Request,
+    ) -> None:
+        """Валидирует имя ноды при создании и редактировании записи.
+
+        Если `vpn_node_names` пустое (тесты, минимальный конфиг), валидация
+        пропускается — поведение идентично `ExpenseService._validate_node_name`.
+
+        Args:
+            data: Данные формы.
+            model: Изменяемый объект модели.
+            is_created: True при создании, False при редактировании.
+            request: Текущий HTTP-запрос SQLAdmin.
+
+        Raises
+            ValueError: Имя ноды не найдено в конфигурации — SQLAdmin
+                показывает сообщение как ошибку формы.
+
+        """
+        node_name: str | None = data.get("node_name") or None
+        if node_name is None:
+            return
+        known = settings_api.vpn_node_names
+        if known and node_name not in known:
+            raise ValueError(
+                f"Нода «{node_name}» не найдена в конфигурации. "
+                f"Допустимые значения: {', '.join(sorted(known))}."
+            )
