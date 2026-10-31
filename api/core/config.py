@@ -1,9 +1,8 @@
 import os
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr
 
 from shared.config.app_config import (
     SettingsApp,
@@ -89,14 +88,6 @@ class SettingsAPI(SettingsCommon):
             продакшене. Пустое значение по умолчанию —
             вход в панель отключён, пока хеш не задан явно.
 
-        vpn_node_names (frozenset[str]):
-            Имена всех VPN-нод из секции `[vpn.nodes]` конфига. Заполняется
-            автоматически через `model_validator` из raw toml-словаря до того,
-            как `extra="ignore"` отбрасывает ключ `vpn`. Используется для
-            валидации `node_name` в `ExpenseService`. Пустое значение означает,
-            что секция `[vpn.nodes]` не задана (тесты, локальный минимальный
-            конфиг) — в таком случае валидация пропускается.
-
     """
 
     core: SettingsApp = Field(default_factory=SettingsApp)
@@ -108,17 +99,6 @@ class SettingsAPI(SettingsCommon):
 
     admin_panel_user: str = "admin"
     admin_panel_password_hash: SecretStr = SecretStr("")
-    vpn_node_names: frozenset[str] = frozenset()
-
-    @model_validator(mode="before")
-    @classmethod
-    def _extract_vpn_node_names(cls, values: Any) -> Any:
-        """Извлекает имена нод из секции vpn.nodes до discarding extra-ключей."""
-        if isinstance(values, dict):
-            nodes: dict[str, Any] = values.get("vpn", {}).get("nodes", {})
-            if nodes:
-                values.setdefault("vpn_node_names", frozenset(nodes.keys()))
-        return values
 
 
 load_dotenv(BASE_DIR / ".env.local")

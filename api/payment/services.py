@@ -447,7 +447,7 @@ class PaymentService:
                 session=session, transaction_id=data.id
             )
             self._ensure_pending(tx=tx)
-        await PaymentTransactionDAO.refresh(session=session, instance=tx)
+        await session.refresh(tx)
         logger.success(
             f"[SERVICE] Транзакция подтверждена администратором. Transaction ID={data.id}"
         )
@@ -496,7 +496,7 @@ class PaymentService:
                 session=session, transaction_id=data.id
             )
             self._ensure_pending(tx=tx)
-        await PaymentTransactionDAO.refresh(session=session, instance=tx)
+        await session.refresh(tx)
         logger.success(f"[SERVICE] Транзакция подтверждена. Transaction ID={data.id}")
         return SPaymentTransactionResponse.model_validate(tx)
 
@@ -541,7 +541,7 @@ class PaymentService:
                 session=session, transaction_id=data.id
             )
             self._ensure_pending(tx=tx)
-        await PaymentTransactionDAO.refresh(session=session, instance=tx)
+        await session.refresh(tx)
         logger.success(f"[SERVICE] Транзакция отменена. Transaction ID={data.id}")
         return SPaymentTransactionResponse.model_validate(tx)
 

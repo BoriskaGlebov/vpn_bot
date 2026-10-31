@@ -1,5 +1,3 @@
-import datetime
-
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -61,19 +59,6 @@ class GrantReferralBonusRequest(BaseModel):
 
     invited_user_id: int = Field(..., description="ID приглашенного пользователя")
     months: int = Field(1, ge=1, le=12)
-
-
-class SReferralBonusGiven(BaseModel):
-    """Схема отметки о выданном реферальном бонусе.
-
-    Attributes
-        bonus_given (bool): Признак выданного бонуса.
-        bonus_given_at (datetime.datetime): Дата и время выдачи бонуса.
-
-    """
-
-    bonus_given: bool
-    bonus_given_at: datetime.datetime
 
 
 class GrantReferralBonusResponse(BaseModel):

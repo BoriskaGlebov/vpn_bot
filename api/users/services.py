@@ -82,9 +82,12 @@ class UserService:
                     user.last_name,
                     telegram_user.last_name,
                 )
-                await UserDAO.patch(
+                # BaseDAO.update делает полный SET по всем полям схемы, а не
+                # только по изменившимся — для неизменившихся полей явно
+                # передаём текущее значение из БД, а не дефолт None.
+                await UserDAO.update(
                     session=session,
-                    instance=user,
+                    filters=SUserTelegramID(telegram_id=telegram_user.telegram_id),
                     values=SProfileUpdate(
                         username=(
                             telegram_user.username
@@ -103,6 +106,7 @@ class UserService:
                         ),
                     ),
                 )
+                await session.refresh(user)
             return UserMapper.to_schema(user), False
         logger.info("Пользователь не найден, создаём нового")
         is_admin = telegram_user.telegram_id in settings_api.core.admin_ids
