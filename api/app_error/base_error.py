@@ -379,6 +379,19 @@ class PromoCodeAlreadyUsedError(PromoCodeError):
         )
 
 
+class InvalidNodeNameError(AppError):
+    """Указанное имя ноды отсутствует в конфигурации vpn.nodes."""
+
+    code = "invalid_node_name"
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def __init__(self, node_name: str, known: frozenset[str]) -> None:
+        super().__init__(
+            message=f"Нода «{node_name}» не найдена в конфигурации.",
+            details={"node_name": node_name, "known_nodes": sorted(known)},
+        )
+
+
 class ExpenseNotFoundError(AppError):
     """Ошибка отсутствия записи о расходе."""
 

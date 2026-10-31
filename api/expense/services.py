@@ -1,7 +1,8 @@
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.app_error.base_error import ExpenseNotFoundError
+from api.app_error.base_error import ExpenseNotFoundError, InvalidNodeNameError
+from api.core.config import settings_api
 from api.expense.dao import ExpenseDAO
 from api.expense.models import Expense
 from api.expense.schemas import (
@@ -20,6 +21,26 @@ class ExpenseService:
     переданной сессии — коммит на вызывающей стороне.
     """
 
+    @staticmethod
+    def _validate_node_name(node_name: str | None) -> None:
+        """Проверяет, что имя ноды присутствует в конфиге vpn.nodes.
+
+        Если `vpn_node_names` пустое (тесты, минимальный конфиг без секции
+        [vpn.nodes]) — валидация пропускается.
+
+        Args:
+            node_name: Имя ноды для проверки, или None (проверка не нужна).
+
+        Raises
+            InvalidNodeNameError: Имя ноды не найдено в конфигурации.
+
+        """
+        if node_name is None:
+            return
+        known = settings_api.vpn_node_names
+        if known and node_name not in known:
+            raise InvalidNodeNameError(node_name=node_name, known=known)
+
     async def create(self, session: AsyncSession, data: SExpenseCreate) -> Expense:
         """Создаёт новую запись о расходе.
 
@@ -31,6 +52,7 @@ class ExpenseService:
             Expense: Созданная запись.
 
         """
+        self._validate_node_name(data.node_name)
         expense = await ExpenseDAO.add(session=session, values=data)
         logger.info(
             "[SERVICE] Создан расход id={} category={} amount={}",
@@ -101,6 +123,7 @@ class ExpenseService:
 
         """
         await self.get_by_id(session=session, expense_id=expense_id)
+        self._validate_node_name(data.node_name)
         await ExpenseDAO.update(
             session=session,
             filters=SExpenseFilter(id=expense_id),
