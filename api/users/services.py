@@ -11,9 +11,9 @@ from api.subscription.models import SubscriptionType
 from api.users.dao import UserDAO
 from api.users.models import User
 from api.users.schemas import (
+    SProfileUpdate,
     SRole,
     SUser,
-    SUsernameUpdate,
     SUserOut,
     SUserTelegramID,
     SUserWithReferralStats,
@@ -53,25 +53,58 @@ class UserService:
         )
         if user:
             logger.info("Пользователь найден в базе")
-            if telegram_user.username and telegram_user.username != user.username:
-                # username изменяем и переиспользуем — обновляем при
-                # каждом входе, чтобы хранимое значение не старело. Пустой
-                # username во входящих данных НЕ считается сменой: часть
-                # вызовов этого эндпоинта (bot/vpn/services.py,
-                # bot/core/filters.py — получить/создать пользователя по
-                # одному telegram_id, не полный профиль) всегда шлют
-                # username=None, иначе каждый такой вызов затирал бы
-                # сохранённый username пустым значением.
+            # username/first_name/last_name изменяемы и переиспользуемы —
+            # обновляем при каждом входе, чтобы хранимые значения не
+            # старели. Пустое значение во входящих данных НЕ считается
+            # сменой: часть вызовов этого эндпоинта (bot/vpn/services.py,
+            # bot/core/filters.py — получить/создать пользователя по
+            # одному telegram_id, не полный профиль) шлют эти поля как
+            # None, иначе каждый такой вызов затирал бы сохранённые
+            # значения пустотой.
+            username_changed = bool(
+                telegram_user.username and telegram_user.username != user.username
+            )
+            first_name_changed = bool(
+                telegram_user.first_name and telegram_user.first_name != user.first_name
+            )
+            last_name_changed = bool(
+                telegram_user.last_name and telegram_user.last_name != user.last_name
+            )
+            if username_changed or first_name_changed or last_name_changed:
                 logger.info(
-                    "Username изменился telegram_id={}: {!r} -> {!r}",
+                    "Профиль изменился telegram_id={}: username {!r} -> {!r}, "
+                    "first_name {!r} -> {!r}, last_name {!r} -> {!r}",
                     telegram_user.telegram_id,
                     user.username,
                     telegram_user.username,
+                    user.first_name,
+                    telegram_user.first_name,
+                    user.last_name,
+                    telegram_user.last_name,
                 )
+                # BaseDAO.update делает полный SET по всем полям схемы, а не
+                # только по изменившимся — для неизменившихся полей явно
+                # передаём текущее значение из БД, а не дефолт None.
                 await UserDAO.update(
                     session=session,
                     filters=SUserTelegramID(telegram_id=telegram_user.telegram_id),
-                    values=SUsernameUpdate(username=telegram_user.username),
+                    values=SProfileUpdate(
+                        username=(
+                            telegram_user.username
+                            if username_changed
+                            else user.username
+                        ),
+                        first_name=(
+                            telegram_user.first_name
+                            if first_name_changed
+                            else user.first_name
+                        ),
+                        last_name=(
+                            telegram_user.last_name
+                            if last_name_changed
+                            else user.last_name
+                        ),
+                    ),
                 )
                 await session.refresh(user)
             return UserMapper.to_schema(user), False
