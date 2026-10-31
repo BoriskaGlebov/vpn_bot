@@ -162,6 +162,13 @@
     Chart.defaults.color = '#94a3b8';
     Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
 
+    function fmtRub(v) {
+        var abs = Math.abs(v);
+        if (abs >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+        if (abs >= 1000)    return (v / 1000).toFixed(0) + 'k';
+        return v.toLocaleString('ru-RU');
+    }
+
     {% if pnl_months %}
     new Chart(document.getElementById('pnlChart'), {
         type: 'bar',
@@ -215,9 +222,7 @@
             scales: {
                 y: {
                     ticks: {
-                        callback: function(v) {
-                            return (v / 1000).toFixed(0) + 'k';
-                        }
+                        callback: function(v) { return fmtRub(v); }
                     }
                 }
             }
@@ -303,9 +308,7 @@
             scales: {
                 y: {
                     ticks: {
-                        callback: function(v) {
-                            return (v / 1000).toFixed(0) + 'k';
-                        }
+                        callback: function(v) { return fmtRub(v); }
                     }
                 }
             }
