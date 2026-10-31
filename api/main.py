@@ -45,6 +45,7 @@ from api.core.exceptions.handlers.http import (
     unhandled_exception_handler,
 )
 from api.core.schemas import SHealthResponse
+from api.expense.router import router as expense_router
 from api.middleware.auth_middleware import AuthMiddleware
 from api.middleware.exceptions_middleware import ExceptionLoggingMiddleware
 from api.middleware.logg_router_middleware import RequestLoggingMiddleware
@@ -99,6 +100,10 @@ tags_metadata: list[dict[str, Any]] = [
     {
         "name": "PROMO",
         "description": "Промокоды на скидку: проверка применимости и расчёт скидки",
+    },
+    {
+        "name": "EXPENSES",
+        "description": "Учёт расходов: создание, редактирование, удаление, агрегация по месяцам",
     },
     {
         "name": "NEWS",
@@ -199,6 +204,16 @@ app: FastAPI = FastAPI(
 - Периодические операции
 - Автоматизация процессов
 
+#### 🏷️ Промокоды (`/promo`)
+- Проверка применимости промокода
+- Расчёт скидки от базовой суммы
+
+#### 💸 Расходы (`/expenses`)
+- Учёт расходов на инфраструктуру (серверы, домены, IP, AI, реклама)
+- Фильтрация по категории и ноде
+- Агрегация расходов по месяцам за год
+- Доступ только для администраторов
+
 #### ⚙️ Системные эндпоинты
 - `/health` — проверка состояния сервиса
 - Мониторинг и диагностика
@@ -244,6 +259,8 @@ app: FastAPI = FastAPI(
 | `admin_access_denied` | 403 | У пользователя нет роли `admin`/`founder` |
 | `user_not_found` | 404 | Пользователь с указанным `X-Telegram-Id` не зарегистрирован |
 | `validation_error` | 422 | Некорректное тело запроса / параметры |
+| `expense_not_found` | 404 | Запись о расходе с указанным ID не найдена |
+| `invalid_node_name` | 422 | Имя ноды не найдено в конфигурации `vpn.nodes` |
 | `http_exception` | 404/405/... | Ошибка маршрутизации (несуществующий путь, неверный метод) |
 | `database_error` | 500 | Ошибка при обращении к базе данных |
 | `internal_error` | 500 | Любая другая непредвиденная ошибка |
@@ -265,6 +282,7 @@ app.include_router(news_router)
 app.include_router(scheduler_router)
 app.include_router(payment_router)
 app.include_router(promo_router)
+app.include_router(expense_router)
 
 
 app.add_exception_handler(APIError, api_error_handler)

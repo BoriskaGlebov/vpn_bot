@@ -11,7 +11,7 @@ from api.subscription.dao import SubscriptionDAO
 from api.subscription.models import SubscriptionType
 from api.subscription.schemas import SSubscriptionCheck, SSubscriptionInfo, SVPNConfig
 from api.users.dao import UserDAO
-from api.users.schemas import SUserOut, SUserTelegramID
+from api.users.schemas import SHasUsedTrial, SUserOut, SUserTelegramID
 from shared.enums.admin_enum import RoleEnum
 from shared.enums.subscription_enum import (
     SubscriptionInfoStatus,
@@ -113,8 +113,11 @@ class SubscriptionService:
             logger.debug("Продление trial через активную подписку: tg_id={}", tg_id)
 
             subscription.extend(days=days)
-            user_model.has_used_trial = True
-
+            await UserDAO.patch(
+                session=session,
+                instance=user_model,
+                values=SHasUsedTrial(has_used_trial=True),
+            )
             logger.info(
                 "Trial продлён через активную подписку: tg_id={}, days={}",
                 tg_id,
@@ -133,15 +136,21 @@ class SubscriptionService:
 
         # Правило «один раз» целиком в сервисе — Subscription.activate()
         # больше не проверяет и не выставляет has_used_trial сам.
-        user_model.has_used_trial = True
+        await UserDAO.patch(
+            session=session,
+            instance=user_model,
+            values=SHasUsedTrial(has_used_trial=True),
+        )
         await SubscriptionDAO.activate_subscription(
             session=session,
             stelegram_id=schema_user,
             days=days,
             sub_type=SubscriptionType.TRIAL,
         )
-        await session.refresh(
-            user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
+        await UserDAO.refresh(
+            session=session,
+            instance=user_model,
+            attribute_names=["subscriptions", "role", "vpn_configs"],
         )
         logger.debug("Trial подписка активирована: tg_id={}", tg_id)
         return TrialStatus.STARTED
@@ -246,8 +255,10 @@ class SubscriptionService:
             tg_id,
             months,
         )
-        await session.refresh(
-            user_model, attribute_names=["subscriptions", "role", "vpn_configs"]
+        await UserDAO.refresh(
+            session=session,
+            instance=user_model,
+            attribute_names=["subscriptions", "role", "vpn_configs"],
         )
         return UserMapper.to_schema(user=user_model)
 
