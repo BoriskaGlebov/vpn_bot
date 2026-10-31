@@ -240,6 +240,34 @@ class BaseDAO(Generic[T]):  # noqa: UP046
         return instance
 
     @classmethod
+    async def refresh(
+        cls,
+        session: AsyncSession,
+        instance: T,
+        attribute_names: list[str] | None = None,
+    ) -> T:
+        """Перезагружает атрибуты ORM-объекта из базы данных.
+
+        Используется после `update` (который возвращает rowcount, а не инстанс),
+        чтобы синхронизировать Python-объект с актуальным состоянием БД, не
+        выходя за пределы DAO-слоя.
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            instance: Уже загруженный ORM-объект для обновления.
+            attribute_names: Список атрибутов для перезагрузки; None — все.
+
+        Returns
+            T: Тот же объект с актуальными значениями.
+
+        """
+        await session.refresh(instance, attribute_names=attribute_names)
+        logger.debug(
+            f"[DAO] Перезагружен {cls.model.__name__} id={getattr(instance, 'id', '?')}."
+        )
+        return instance
+
+    @classmethod
     async def delete(cls, session: AsyncSession, filters: BaseModel) -> int:
         """Удаляет записи по фильтрам."""
         filter_dict = cls._to_dict(filters)
