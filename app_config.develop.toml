@@ -14,7 +14,7 @@ admin_ids = [439653349,]
 trial_period_days = 2
 
 # === LOGGER ===
-# *Уровни логирования по умолчанию INFO, INFO WARNING
+# Уровни логирования по умолчанию INFO, INFO WARNING
 logger_level_stdout = "DEBUG"
 logger_level_file = "DEBUG"
 logger_error_file = "WARNING"
