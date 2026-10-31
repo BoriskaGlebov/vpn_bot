@@ -5,7 +5,7 @@
 {% set role_name = model.role.name if model.role else None %}
 {% set role_badge = role_badge_colors.get(role_name, "secondary") %}
 
-{% set total_spent = model.payments | selectattr("status.value", "equalto", "PAID") | sum(attribute="amount") %}
+{% set total_spent = model.payments | selectattr("status.name", "equalto", "PAID") | sum(attribute="amount") %}
 {% set cur_sub = model.current_subscription %}
 
 <div class="col-12 mb-3">
@@ -318,14 +318,14 @@
                     <td>{{ p.id }}</td>
                     <td>{{ p.amount }} {{ p.currency }}</td>
                     <td>
-                        {% if p.status.value == "PAID" %}
+                        {% if p.status.name == "PAID" %}
                         <span class="badge bg-success">PAID</span>
-                        {% elif p.status.value == "PENDING" %}
+                        {% elif p.status.name == "PENDING" %}
                         <span class="badge bg-warning">PENDING</span>
-                        {% elif p.status.value == "FAILED" %}
+                        {% elif p.status.name == "FAILED" %}
                         <span class="badge bg-danger">FAILED</span>
                         {% else %}
-                        <span class="badge bg-secondary">{{ p.status.value }}</span>
+                        <span class="badge bg-secondary">{{ p.status.name }}</span>
                         {% endif %}
                     </td>
                     <td>{{ p.source.value if p.source else "-" }}</td>
