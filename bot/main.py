@@ -24,6 +24,7 @@ from bot.core.exceptions.handlers import (
     unhandled_exception_handler,
 )
 from bot.core.schemas import SHealthResponse
+from bot.expense.router import ExpenseRouter
 from bot.help.router import HelpRouter
 from bot.internal.router import router as internal_router
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
@@ -90,6 +91,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     dp.update.middleware(UserContextMiddleware())
 
+    expense_router = ExpenseRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        expense_service=container.expense_service,
+    )
+
     user_router = UserRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
@@ -97,6 +104,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         user_service=container.user_service,
         referral_service=container.referral_service,
         admin_service=container.admin_service,
+        expense_service=container.expense_service,
     )
 
     help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
@@ -132,6 +140,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         broadcast_service=container.news_broadcast_service,
     )
 
+    dp.include_router(expense_router.router)
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
     dp.include_router(admin_router.router)

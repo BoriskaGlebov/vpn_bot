@@ -3,6 +3,8 @@ from aiogram import Bot
 from bot.admin.adapter import AdminAPIAdapter
 from bot.admin.services import AdminService
 from bot.core.config import logger, settings_bot
+from bot.expense.adapter import ExpenseAPIAdapter
+from bot.expense.services import ExpenseService
 from bot.integrations.api_client import APIClient
 from bot.integrations.redis_client import RedisClient
 from bot.news.adapter import NewsAPIAdapter
@@ -112,6 +114,7 @@ class Container:
 
     user_adapter: UsersAPIAdapter
     admin_adapter: AdminAPIAdapter
+    expense_adapter: ExpenseAPIAdapter
     subscription_adapter: SubscriptionAPIAdapter
     payment_provider: BasePaymentProvider
     payment_adapter: PaymentAPIAdapter
@@ -125,6 +128,7 @@ class Container:
 
     user_service: UserService
     admin_service: AdminService
+    expense_service: ExpenseService
     subscription_service: SubscriptionService
     referral_service: ReferralService
     vpn_service: VPNService
@@ -165,6 +169,7 @@ class Container:
         )
         self.user_adapter = UsersAPIAdapter(client=self.api_client)
         self.admin_adapter = AdminAPIAdapter(client=self.api_client)
+        self.expense_adapter = ExpenseAPIAdapter(client=self.api_client)
         self.subscription_adapter = SubscriptionAPIAdapter(client=self.api_client)
         self.payment_provider = PlategaProvider(
             merchant_id=settings_bot.payment.merchant_id.get_secret_value(),
@@ -211,6 +216,7 @@ class Container:
 
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
+        self.expense_service = ExpenseService(adapter=self.expense_adapter)
         self.referral_service = ReferralService(adapter=self.referral_adapter)
         self.promo_service = PromoService(adapter=self.promo_adapter)
         self.payment_service = PaymentService(
