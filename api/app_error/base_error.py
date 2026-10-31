@@ -379,6 +379,19 @@ class PromoCodeAlreadyUsedError(PromoCodeError):
         )
 
 
+class ExpenseNotFoundError(AppError):
+    """Ошибка отсутствия записи о расходе."""
+
+    code = "expense_not_found"
+    status_code = status.HTTP_404_NOT_FOUND
+
+    def __init__(self, expense_id: int) -> None:
+        super().__init__(
+            message=f"Расход с ID {expense_id} не найден.",
+            details={"expense_id": expense_id},
+        )
+
+
 class BotChannelUnavailableError(AppError):
     """Бот недоступен по внутреннему каналу api → bot.
 
