@@ -45,6 +45,7 @@ from api.core.exceptions.handlers.http import (
     unhandled_exception_handler,
 )
 from api.core.schemas import SHealthResponse
+from api.expense.router import router as expense_router
 from api.middleware.auth_middleware import AuthMiddleware
 from api.middleware.exceptions_middleware import ExceptionLoggingMiddleware
 from api.middleware.logg_router_middleware import RequestLoggingMiddleware
@@ -99,6 +100,10 @@ tags_metadata: list[dict[str, Any]] = [
     {
         "name": "PROMO",
         "description": "Промокоды на скидку: проверка применимости и расчёт скидки",
+    },
+    {
+        "name": "EXPENSES",
+        "description": "Учёт расходов: создание, редактирование, удаление, агрегация по месяцам",
     },
     {
         "name": "NEWS",
@@ -265,6 +270,7 @@ app.include_router(news_router)
 app.include_router(scheduler_router)
 app.include_router(payment_router)
 app.include_router(promo_router)
+app.include_router(expense_router)
 
 
 app.add_exception_handler(APIError, api_error_handler)
