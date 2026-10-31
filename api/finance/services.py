@@ -98,11 +98,17 @@ class FinanceService:
             session=session,
             year=year,
         )
+        paid_transactions = await PaymentTransactionDAO.count_paid_transactions(
+            session=session,
+            year=year,
+        )
 
         count_result = await session.execute(select(func.count()).select_from(User))
         total_users: int = count_result.scalar_one()
 
-        avg_check = round(total_revenue / paying_users, 2) if paying_users else 0.0
+        avg_check = (
+            round(total_revenue / paid_transactions, 2) if paid_transactions else 0.0
+        )
         arpu = round(total_revenue / paying_users, 2) if paying_users else 0.0
         conversion = round(paying_users / total_users * 100, 2) if total_users else 0.0
 
@@ -154,11 +160,13 @@ class FinanceService:
             session=session,
             year=year,
         )
-        paying_users = await PaymentTransactionDAO.count_paying_users(
+        paid_transactions = await PaymentTransactionDAO.count_paid_transactions(
             session=session,
             year=year,
         )
-        avg_check = round(total_revenue / paying_users, 2) if paying_users else 0.0
+        avg_check = (
+            round(total_revenue / paid_transactions, 2) if paid_transactions else 0.0
+        )
 
         payments_needed = math.ceil(monthly_expenses / avg_check) if avg_check else 0
         current_payments = await PaymentTransactionDAO.count_monthly_payments(
@@ -202,10 +210,17 @@ class FinanceService:
         current_year = now.year
         current_month = now.month
 
-        years = {current_year}
-        m = current_month - months
-        if m <= 0:
-            years.add(current_year - 1)
+        all_months: list[str] = []
+        years: set[int] = set()
+        y, mo = current_year, current_month
+        for _ in range(months + 1):
+            all_months.append(f"{y:04d}-{mo:02d}")
+            years.add(y)
+            mo -= 1
+            if mo == 0:
+                mo = 12
+                y -= 1
+        all_months.reverse()
 
         revenue_map: dict[str, int] = {}
         for yr in sorted(years):
@@ -215,16 +230,6 @@ class FinanceService:
             )
             for month_str, total in rows:
                 revenue_map[month_str] = total
-
-        all_months: list[str] = []
-        y, mo = current_year, current_month
-        for _ in range(months + 1):
-            all_months.append(f"{y:04d}-{mo:02d}")
-            mo -= 1
-            if mo == 0:
-                mo = 12
-                y -= 1
-        all_months.reverse()
 
         result: list[SMonthlyTrend] = []
         for i in range(1, len(all_months)):

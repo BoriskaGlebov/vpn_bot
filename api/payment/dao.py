@@ -148,6 +148,37 @@ class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):
         return int(result.scalar_one())
 
     @classmethod
+    async def count_paid_transactions(
+        cls,
+        session: AsyncSession,
+        year: int,
+    ) -> int:
+        """Возвращает общее количество PAID-транзакций за год.
+
+        В отличие от `count_paying_users`, считает все платежи, включая повторные
+        от одного пользователя — знаменатель для среднего чека (avg_check).
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            year: Год.
+
+        Returns
+            int: Кол-во платежей.
+
+        """
+        tz = settings_api.core.tzinfo
+        start = datetime(year, 1, 1, tzinfo=tz)
+        end = datetime(year + 1, 1, 1, tzinfo=tz)
+
+        stmt = select(func.coalesce(func.count(), 0)).where(
+            cls.model.status == PaymentStatus.PAID,
+            cls.model.paid_at >= start,
+            cls.model.paid_at < end,
+        )
+        result = await session.execute(stmt)
+        return int(result.scalar_one())
+
+    @classmethod
     async def count_monthly_payments(
         cls,
         session: AsyncSession,
