@@ -201,6 +201,73 @@ class BaseDAO(Generic[T]):  # noqa: UP046
             raise
 
     @classmethod
+    async def patch(cls, session: AsyncSession, instance: T, values: BaseModel) -> T:
+        """Частично обновляет экземпляр модели — только явно переданные поля.
+
+        В отличие от `update` (который генерирует `UPDATE ... SET` по всем
+        полям схемы с `exclude_unset=False` и предназначен для PUT-семантики),
+        этот метод применяет только поля, реально переданные клиентом
+        (`exclude_unset=True`). Используется для PATCH-эндпоинтов, где
+        отсутствие поля в теле запроса означает «не менять», а не «записать NULL».
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            instance: Уже загруженный ORM-объект (из `find_one_or_none_by_id`
+                или аналогичного метода) — SQLAlchemy отслеживает изменения
+                атрибутов через identity map.
+            values: Pydantic-схема с изменяемыми полями; поля, не переданные
+                в конструктор, будут проигнорированы благодаря `exclude_unset`.
+
+        Returns
+            T: Тот же объект после `flush` и `refresh` — `updated_at` и
+            любые server-default-поля актуальны.
+
+        """
+        for field, value in values.model_dump(exclude_unset=True).items():
+            setattr(instance, field, value)
+        try:
+            await session.flush()
+            await session.refresh(instance)
+        except SQLAlchemyError as e:
+            logger.exception(
+                f"[DAO] Ошибка при частичном обновлении {cls.model.__name__} "
+                f"id={getattr(instance, 'id', '?')}: {type(e).__name__}"
+            )
+            raise
+        logger.info(
+            f"[DAO] Частично обновлён {cls.model.__name__} id={getattr(instance, 'id', '?')}."
+        )
+        return instance
+
+    @classmethod
+    async def refresh(
+        cls,
+        session: AsyncSession,
+        instance: T,
+        attribute_names: list[str] | None = None,
+    ) -> T:
+        """Перезагружает атрибуты ORM-объекта из базы данных.
+
+        Используется после `update` (который возвращает rowcount, а не инстанс),
+        чтобы синхронизировать Python-объект с актуальным состоянием БД, не
+        выходя за пределы DAO-слоя.
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            instance: Уже загруженный ORM-объект для обновления.
+            attribute_names: Список атрибутов для перезагрузки; None — все.
+
+        Returns
+            T: Тот же объект с актуальными значениями.
+
+        """
+        await session.refresh(instance, attribute_names=attribute_names)
+        logger.debug(
+            f"[DAO] Перезагружен {cls.model.__name__} id={getattr(instance, 'id', '?')}."
+        )
+        return instance
+
+    @classmethod
     async def delete(cls, session: AsyncSession, filters: BaseModel) -> int:
         """Удаляет записи по фильтрам."""
         filter_dict = cls._to_dict(filters)
