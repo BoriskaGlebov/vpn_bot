@@ -14,6 +14,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from api.admin.badges import (
+    EXPENSE_CATEGORY_BADGE_COLORS,
+    EXPENSE_CATEGORY_LABELS,
     PAYMENT_BADGE_COLORS,
     PROMO_DISCOUNT_TYPE_COLORS,
     PROMO_DISCOUNT_TYPE_LABELS,
@@ -45,6 +47,7 @@ from api.core.exceptions.handlers.http import (
     unhandled_exception_handler,
 )
 from api.core.schemas import SHealthResponse
+from api.expense.admin import ExpenseAdmin
 from api.expense.router import router as expense_router
 from api.middleware.auth_middleware import AuthMiddleware
 from api.middleware.exceptions_middleware import ExceptionLoggingMiddleware
@@ -343,6 +346,10 @@ admin.templates.env.globals["vpn_backend_labels"] = VPN_BACKEND_LABELS
 admin.templates.env.globals["vpn_protocol_labels"] = VPN_PROTOCOL_LABELS
 admin.templates.env.globals["promo_discount_type_colors"] = PROMO_DISCOUNT_TYPE_COLORS
 admin.templates.env.globals["promo_discount_type_labels"] = PROMO_DISCOUNT_TYPE_LABELS
+admin.templates.env.globals["expense_category_badge_colors"] = (
+    EXPENSE_CATEGORY_BADGE_COLORS
+)
+admin.templates.env.globals["expense_category_labels"] = EXPENSE_CATEGORY_LABELS
 admin.add_base_view(DashboardView)
 admin.add_view(UserAdmin)
 admin.add_view(RoleAdmin)
@@ -352,6 +359,7 @@ admin.add_view(ReferralAdmin)
 admin.add_view(PaymentTransactionAdmin)
 admin.add_view(PromoCodeAdmin)
 admin.add_view(PromoCodeUsageAdmin)
+admin.add_view(ExpenseAdmin)
 
 # SQLAdmin монтирует СОБСТВЕННОЕ Starlette-приложение (`admin.admin`) под
 # `/admin` со своим `exception_handlers` (по умолчанию — только

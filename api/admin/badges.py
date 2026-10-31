@@ -64,6 +64,24 @@ PROMO_DISCOUNT_TYPE_LABELS = {
     "fixed": "Фикс. сумма",
 }
 
+EXPENSE_CATEGORY_BADGE_COLORS = {
+    "server": "blue",
+    "domain": "teal",
+    "ip_address": "cyan",
+    "ai_llm": "purple",
+    "advertising": "orange",
+    "other": "secondary",
+}
+
+EXPENSE_CATEGORY_LABELS = {
+    "server": "Сервер",
+    "domain": "Домен",
+    "ip_address": "IP-адрес",
+    "ai_llm": "AI/LLM",
+    "advertising": "Реклама",
+    "other": "Прочее",
+}
+
 
 def badge(text: str, color: str) -> Markup:
     """Рендерит цветной Bootstrap/Tabler-бейдж.
