@@ -318,3 +318,134 @@ class PaymentInvalidSourceError(PaymentError):
                 "admin_id": admin_id,
             },
         )
+
+
+class PromoCodeError(AppError):
+    """Базовое исключение промокодов."""
+
+    code = "promo_error"
+    status_code = status.HTTP_400_BAD_REQUEST
+
+
+class PromoCodeNotFoundError(PromoCodeError):
+    """Ошибка отсутствия промокода с указанным кодом."""
+
+    code = "promo_code_not_found"
+    status_code = status.HTTP_404_NOT_FOUND
+
+    def __init__(self, code: str) -> None:
+        super().__init__(
+            message=f"Промокод «{code}» не найден.",
+            details={"code": code},
+        )
+
+
+class PromoCodeInactiveError(PromoCodeError):
+    """Промокод деактивирован администратором либо вне срока действия."""
+
+    code = "promo_code_inactive"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, code: str, reason: str) -> None:
+        super().__init__(
+            message=f"Промокод «{code}» сейчас недействителен ({reason}).",
+            details={"code": code, "reason": reason},
+        )
+
+
+class PromoCodeLimitReachedError(PromoCodeError):
+    """Промокод исчерпал лимит применений."""
+
+    code = "promo_code_limit_reached"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, code: str, max_uses: int) -> None:
+        super().__init__(
+            message=f"Промокод «{code}» уже использован максимальное число раз ({max_uses}).",
+            details={"code": code, "max_uses": max_uses},
+        )
+
+
+class PromoCodeAlreadyUsedError(PromoCodeError):
+    """Пользователь уже применял этот промокод ранее."""
+
+    code = "promo_code_already_used"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, code: str, user_id: int) -> None:
+        super().__init__(
+            message=f"Вы уже использовали промокод «{code}» ранее.",
+            details={"code": code, "user_id": user_id},
+        )
+
+
+class BotChannelUnavailableError(AppError):
+    """Бот недоступен по внутреннему каналу api → bot.
+
+    Поднимается при таймауте/обрыве соединения, ответе не-2xx (в т.ч.
+    401/403 при неверном или не заданном `BOT_INTERNAL_API_KEY`) и
+    нераспознаваемом теле ответа. Состояние нод при этом неизвестно, поэтому
+    вызывающий код не должен удалять записи в БД.
+    """
+
+    code = "bot_channel_unavailable"
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+    def __init__(self, reason: str, *, cause: Exception | None = None) -> None:
+        super().__init__(
+            message=f"Бот недоступен по внутреннему каналу: {reason}",
+            details={"reason": reason},
+            cause=cause,
+        )
+
+
+class VPNRevokeFailedError(AppError):
+    """Бот сообщил, что нода/панель не смогла отозвать доступ конфига.
+
+    Запись в БД намеренно не удаляется: конфиг может реально существовать
+    на сервере, и удаление записи лишило бы нас информации о нём.
+    """
+
+    code = "vpn_revoke_failed"
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+    def __init__(self, file_name: str, detail: str | None = None) -> None:
+        super().__init__(
+            message=(
+                f"Не удалось отозвать доступ конфига «{file_name}» на ноде, "
+                "запись в БД не удалена."
+            ),
+            details={"file_name": file_name, "detail": detail},
+        )
+
+
+class UserVPNRevokeIncompleteError(AppError):
+    """Не все VPN-конфиги пользователя удалось отозвать при удалении (#290).
+
+    Поднимается `UserAdmin.on_model_delete`, когда хотя бы один из конфигов
+    пользователя не подтвердил отзыв доступа (бот недоступен или нода
+    ответила ошибкой). Удаление пользователя прерывается целиком: частично
+    удалённый пользователь — ещё один источник расхождения между БД и
+    нодами, а не решение твоей проблемы. Конфиги, для которых отзыв уже прошёл
+    успешно, доступа на ноде больше не имеют — повторная попытка удаления
+    безопасна (бот вернёт `NOT_FOUND` для них снова).
+    """
+
+    code = "user_vpn_revoke_incomplete"
+    status_code = status.HTTP_502_BAD_GATEWAY
+
+    def __init__(
+        self, user_id: int, username: str | None, failed_configs: list[str]
+    ) -> None:
+        super().__init__(
+            message=(
+                f"Не удалось отозвать доступ всех VPN-конфигов пользователя "
+                f"@{username or user_id} на нодах, удаление прервано. "
+                f"Остались неотозванными: {', '.join(failed_configs)}."
+            ),
+            details={
+                "user_id": user_id,
+                "username": username,
+                "failed_configs": failed_configs,
+            },
+        )

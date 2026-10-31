@@ -1,0 +1,24 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">✅ Конфиги помечены на удаление</h3>
+        </div>
+        <div class="card-body">
+            <p>
+                Переведено в статус «Ожидает удаления»: <strong>{{ updated_count }}</strong>.
+            </p>
+            <p>
+                Причина: <strong>{{ reason }}</strong>
+            </p>
+            <p class="text-muted">
+                Доступ на нодах будет отозван, а записи удалены при
+                следующем прогоне планировщика подписок.
+            </p>
+            <a href="{{ list_url }}" class="btn btn-primary">⬅ К списку конфигов</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

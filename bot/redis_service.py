@@ -117,18 +117,28 @@ class RedisAdminMessageStorage:
 
 
 class RedisNewsBroadcastStorage:
-    """Хранит прогресс рассылки новости всем пользователям.
+    """Хранит прогресс рассылки сообщения списку получателей.
 
     Нужно, чтобы деплой или падение процесса в середине рассылки не терял
-    оставшихся получателей и не дублировал доставку тем, кто новость уже
-    получил (#285): раньше прогресс жил только в памяти цикла и пропадал
+    оставшихся получателей и не дублировал доставку тем, кто сообщение уже
+    получил: раньше прогресс жил только в памяти цикла и пропадал
     вместе с процессом.
+
+    Используется и рассылкой новостей (`/news`), и рассылкой по выбранным
+    пользователям из админки — у каждой свой `key`, иначе параллельные
+    рассылки затирали бы прогресс друг друга в одной записи Redis.
+
+    Args:
+        redis: Клиент Redis.
+        key: Ключ хранения прогресса. По умолчанию — ключ рассылки новостей.
+
     """
 
     _KEY = "news_broadcast:pending"
 
-    def __init__(self, redis: RedisClient) -> None:
+    def __init__(self, redis: RedisClient, key: str | None = None) -> None:
         self.redis = redis
+        self._key = key or self._KEY
 
     async def save(self, news: dict[str, Any], recipients: list[int]) -> None:
         """Сохраняет новость и список получателей, которым она ещё не отправлена.
@@ -139,7 +149,7 @@ class RedisNewsBroadcastStorage:
                 ещё не доставлена.
 
         """
-        await self.redis.set(self._KEY, {"news": news, "recipients": recipients})
+        await self.redis.set(self._key, {"news": news, "recipients": recipients})
 
     async def get(self) -> dict[str, Any] | None:
         """Возвращает сохранённую рассылку, если она не была завершена.
@@ -149,7 +159,7 @@ class RedisNewsBroadcastStorage:
             либо None, если незавершённой рассылки нет.
 
         """
-        data = await self.redis.get(self._KEY)
+        data = await self.redis.get(self._key)
         return data or None
 
     async def update_recipients(self, recipients: list[int]) -> None:
@@ -163,11 +173,11 @@ class RedisNewsBroadcastStorage:
         if data is None:
             return
         data["recipients"] = recipients
-        await self.redis.set(self._KEY, data)
+        await self.redis.set(self._key, data)
 
     async def clear(self) -> None:
         """Удаляет сохранённый прогресс — рассылка завершена."""
-        await self.redis.delete(self._KEY)
+        await self.redis.delete(self._key)
 
 
 class RedisEmbeddingCache:

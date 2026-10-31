@@ -33,6 +33,7 @@ class SCreateManualPaymentTransactionIn(BaseModel):
     is_founder: bool = False
 
     description: str | None = None
+    promo_code: str | None = None
 
     @model_validator(mode="after")
     def build_description(self) -> "SCreateManualPaymentTransactionIn":
@@ -130,6 +131,9 @@ class SPaymentTransactionResponse(BaseModel):
     confirmed_by_admin_id: int | None
 
     gateway_transaction_id: str | None
+
+    promo_code_id: int | None = None
+    discount_amount: int = 0
 
     confirmed_at: datetime | None
     paid_at: datetime | None

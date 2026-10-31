@@ -7,7 +7,7 @@
         <h2 class="mb-0">🔐 VPN конфиг «{{ model.file_name or "config" }}»</h2>
 
         <div>
-            <a href="{{ url_for('admin:list', identity='vpn-config') }}" class="btn btn-secondary">⬅ Назад</a>
+            <a href="{{ back_url(request, url_for('admin:list', identity='vpn-config')) }}" class="btn btn-secondary">⬅ Назад</a>
 
             <button type="button" class="btn btn-danger"
                     onclick="if(confirm('Удалить конфиг?')) {
@@ -56,6 +56,44 @@
                         <span class="badge bg-{{ vpn_config_badge_colors.get(model.status.value, 'dark') }}">
                             {{ vpn_config_status_labels.get(model.status.value, model.status.value) }}
                         </span>
+                    </td>
+                </tr>
+                {% if model.status_reason %}
+                <tr>
+                    <th>Причина</th>
+                    <td>{{ model.status_reason }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <th>Нода</th>
+                    <td>{{ model.node_name or "-" }}</td>
+                </tr>
+                <tr>
+                    <th>Страна</th>
+                    <td>{{ model.country }}</td>
+                </tr>
+                <tr>
+                    <th>Бэкенд</th>
+                    <td>
+                        {% if model.backend %}
+                        <span class="badge bg-{{ vpn_backend_badge_colors.get(model.backend, 'dark') }}">
+                            {{ vpn_backend_labels.get(model.backend, model.backend) }}
+                        </span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Протокол</th>
+                    <td>
+                        {% if model.protocol %}
+                        {% for item in model.protocol.split(",") %}
+                        {{ vpn_protocol_labels.get(item.strip(), item.strip()) }}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                        {% else %}
+                        -
+                        {% endif %}
                     </td>
                 </tr>
                 <tr>

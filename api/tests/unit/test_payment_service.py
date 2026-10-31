@@ -69,6 +69,8 @@ def make_transaction(**overrides) -> SimpleNamespace:
         "created_by_admin_id": None,
         "confirmed_by_admin_id": None,
         "gateway_transaction_id": None,
+        "promo_code_id": None,
+        "discount_amount": 0,
         "confirmed_at": None,
         "paid_at": None,
     }
@@ -81,6 +83,7 @@ def payment_service() -> PaymentService:
     return PaymentService(
         sub_service=AsyncMock(),
         ref_service=AsyncMock(),
+        promo_service=AsyncMock(),
     )
 
 
@@ -171,6 +174,7 @@ async def test_create_transaction_success(
     user.id = 10
 
     transaction_data = Mock()
+    transaction_data.promo_code = None
     transaction_data.model_dump.return_value = {
         "amount": 1000,
         "currency": "RUB",
@@ -242,6 +246,7 @@ async def test_create_transaction_cancels_previous_pending(
     user.id = 10
 
     transaction_data = Mock()
+    transaction_data.promo_code = None
     transaction_data.model_dump.return_value = {
         "amount": 1000,
         "currency": "RUB",
@@ -285,6 +290,99 @@ async def test_create_transaction_cancels_previous_pending(
     assert update_values.model_dump(exclude_unset=True) == {
         "status": PaymentStatus.CANCELED
     }
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_with_promo_code_uses_discounted_amount(
+    payment_service,
+    mock_session,
+):
+    """`amount` в переданной схеме — база до скидки; с кодом в БД попадает
+    итоговая (дисконтированная) сумма от PromoService, а не исходная.
+    """
+    user = Mock()
+    user.id = 10
+
+    transaction_data = Mock()
+    transaction_data.promo_code = "SALE10"
+    transaction_data.amount = 1000
+    transaction_data.model_dump.return_value = {
+        "amount": 1000,
+        "currency": "RUB",
+        "subscription_months": 3,
+        "is_premium": True,
+        "is_founder": False,
+        "description": "test",
+    }
+
+    validation = Mock(promo_code_id=5, discount_amount=100, final_amount=900)
+    db_result = make_transaction(user_id=10, amount=900, promo_code_id=5)
+
+    with (
+        patch.object(PaymentTransactionDAO, "find_all", new=AsyncMock(return_value=[])),
+        patch.object(
+            PaymentTransactionDAO, "add", new=AsyncMock(return_value=db_result)
+        ) as mock_add,
+    ):
+        payment_service.promo_service.validate_code = AsyncMock(return_value=validation)
+
+        await payment_service.create_transaction(
+            session=mock_session,
+            transaction=transaction_data,
+            user_auth=user,
+        )
+
+    payment_service.promo_service.validate_code.assert_awaited_once_with(
+        session=mock_session,
+        code="SALE10",
+        user_id=10,
+        base_amount=1000,
+    )
+    schema = mock_add.call_args.kwargs["values"]
+    assert schema.amount == 900
+    assert schema.promo_code_id == 5
+    assert schema.discount_amount == 100
+
+
+@pytest.mark.asyncio
+async def test_create_transaction_without_promo_code_skips_validation(
+    payment_service,
+    mock_session,
+):
+    """Без promo_code сервис не трогает PromoService вовсе."""
+    user = Mock()
+    user.id = 10
+
+    transaction_data = Mock()
+    transaction_data.promo_code = None
+    transaction_data.model_dump.return_value = {
+        "amount": 1000,
+        "currency": "RUB",
+        "subscription_months": 3,
+        "is_premium": False,
+        "is_founder": False,
+        "description": None,
+    }
+
+    db_result = make_transaction(user_id=10, amount=1000)
+
+    with (
+        patch.object(PaymentTransactionDAO, "find_all", new=AsyncMock(return_value=[])),
+        patch.object(
+            PaymentTransactionDAO, "add", new=AsyncMock(return_value=db_result)
+        ) as mock_add,
+    ):
+        await payment_service.create_transaction(
+            session=mock_session,
+            transaction=transaction_data,
+            user_auth=user,
+        )
+
+    payment_service.promo_service.validate_code.assert_not_called()
+    schema = mock_add.call_args.kwargs["values"]
+    assert schema.amount == 1000
+    assert schema.promo_code_id is None
+    assert schema.discount_amount == 0
 
 
 @pytest.mark.asyncio
@@ -1250,6 +1348,66 @@ async def test_confirm_payment_flow_gateway_success(
     assert result.subscription_res.id == 1
     assert result.referral_res.success is True
     assert result.referral_res.inviter_telegram_id == 999
+    # Промокод не был применён к транзакции (promo_code_id=None по умолчанию
+    # в make_transaction) — фиксация применения не должна вызываться вовсе.
+    payment_service.promo_service.redeem_usage.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_confirm_payment_flow_redeems_promo_when_applied(
+    payment_service,
+    mock_session,
+):
+    """Если к транзакции был применён промокод, подтверждение оплаты
+    фиксирует его применение — не раньше (отменённые транзакции не должны
+    "жечь" код впустую).
+    """
+    data = STransactionIDFilter(id=uuid4())
+    transaction_id = uuid4()
+
+    tx = make_transaction(
+        id=transaction_id,
+        user_id=42,
+        subscription_months=3,
+        is_premium=True,
+        source=PaymentSource.GATEWAY,
+        status=PaymentStatus.PAID,
+        promo_code_id=7,
+        discount_amount=100,
+    )
+    sub_res = DummyUser()
+    referral = (False, None, "нет приглашения")
+
+    with (
+        patch.object(
+            payment_service,
+            "webhook_confirm_transaction",
+            new=AsyncMock(return_value=tx),
+        ),
+        patch.object(
+            payment_service.sub_service,
+            "activate_paid_subscription",
+            new=AsyncMock(return_value=sub_res),
+        ),
+        patch.object(
+            payment_service.ref_service,
+            "grant_referral_bonus",
+            new=AsyncMock(return_value=referral),
+        ),
+    ):
+        await payment_service.confirm_payment_flow(
+            session=mock_session,
+            data=data,
+            payment_source=PaymentSource.GATEWAY,
+        )
+
+    payment_service.promo_service.redeem_usage.assert_awaited_once_with(
+        session=mock_session,
+        promo_code_id=7,
+        user_id=42,
+        transaction_id=transaction_id,
+        discount_amount=100,
+    )
 
 
 @pytest.mark.asyncio

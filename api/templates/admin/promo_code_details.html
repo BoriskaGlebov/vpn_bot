@@ -1,0 +1,121 @@
+{% extends "sqladmin/details.html" %}
+
+{% block content %}
+
+{% set total_discount_given = model.usages | sum(attribute="discount_amount") %}
+
+<div class="col-12 mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <h2 class="mb-0">
+            🎟 {{ model.code }}
+            <span class="badge bg-{{ promo_discount_type_colors.get(model.discount_type.value, 'secondary') }}">
+                {{ promo_discount_type_labels.get(model.discount_type.value, model.discount_type.value) }}
+            </span>
+            {% if model.is_active %}
+            <span class="badge bg-success">активен</span>
+            {% else %}
+            <span class="badge bg-secondary">отключён</span>
+            {% endif %}
+        </h2>
+
+        <div>
+            <a href="{{ back_url(request, url_for('admin:list', identity='promo-code')) }}" class="btn btn-secondary">⬅ Назад</a>
+            <a href="{{ url_for('admin:edit', identity='promo-code', pk=model.id) }}" class="btn btn-primary">
+                ✏️ Редактировать
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Скидка</div>
+            <div class="h1 mb-0">
+                {{ model.discount_value }}{{ "%" if model.discount_type.value == "percent" else "₽" }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Применений</div>
+            <div class="h1 mb-0">{{ model.used_count }}/{{ model.max_uses if model.max_uses is not none else "∞" }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Срок действия</div>
+            <div class="h3 mb-0">
+                {{ model.valid_from.strftime("%Y-%m-%d") if model.valid_from else "∞" }}
+                —
+                {{ model.valid_until.strftime("%Y-%m-%d") if model.valid_until else "∞" }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Выдано скидок всего</div>
+            <div class="h1 mb-0">{{ "{:,}".format(total_discount_given).replace(",", " ") }} ₽</div>
+        </div>
+    </div>
+</div>
+
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📋 Применения промокода</h3>
+        </div>
+        <div class="card-body">
+            <table class="table table-striped table-vcenter">
+                <thead>
+                <tr>
+                    <th>Пользователь</th>
+                    <th>Скидка</th>
+                    <th>Применён</th>
+                    <th>Транзакция</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for usage in model.usages %}
+                <tr>
+                    <td>
+                        {% if usage.user %}
+                        <a href="{{ url_for('admin:details', identity='user', pk=usage.user.id) }}">
+                            {{ usage.user.username or usage.user.telegram_id }}
+                        </a>
+                        {% else %}
+                        <span class="text-muted">пользователь удалён</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ usage.discount_amount }} ₽</td>
+                    <td>{{ usage.used_at.strftime("%Y-%m-%d %H:%M") if usage.used_at else "-" }}</td>
+                    <td>{{ usage.transaction_id }}</td>
+                    <td>
+                        <a href="{{ url_for('admin:details', identity='payment-transaction', pk=usage.transaction_id) }}"
+                           class="btn btn-sm btn-info">
+                            👁
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-muted">Промокод ещё не применялся</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

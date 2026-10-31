@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, pool
 from api.core.config import settings_api
 from api.core.database import Base
 from api.payment.model import PaymentTransaction
+from api.promo.models import PromoCode, PromoCodeUsage
 from api.referrals.models import Referral
 from api.subscription.models import Subscription
 from api.users.models import Role, User

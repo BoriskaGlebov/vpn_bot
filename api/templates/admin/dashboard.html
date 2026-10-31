@@ -41,7 +41,20 @@
     </div>
 </div>
 
-<div class="col-md-6">
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Промокоды</div>
+            <div class="h1 mb-0">{{ active_promo_codes | length }} активных</div>
+            <div class="text-muted">
+                {{ promo_usages_total }} применений ·
+                скидок на {{ "{:,}".format(promo_discount_total).replace(",", " ") }} ₽
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-md-6 col-lg-3">
     <div class="card">
         <div class="card-header">
             <h3 class="card-title">Активные подписки по типам</h3>
@@ -96,6 +109,53 @@
             </table>
             {% else %}
             <p class="text-muted">Платежей ещё нет</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Активные промокоды</h3>
+        </div>
+        <div class="card-body">
+            {% if active_promo_codes %}
+            <table class="table table-striped table-vcenter">
+                <thead>
+                <tr>
+                    <th>Код</th>
+                    <th>Тип</th>
+                    <th>Скидка</th>
+                    <th>Применений</th>
+                    <th>Действует до</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for promo in active_promo_codes %}
+                <tr>
+                    <td>{{ promo.code }}</td>
+                    <td>
+                        <span class="badge bg-{{ promo_discount_type_colors.get(promo.discount_type.value, 'secondary') }}">
+                            {{ promo_discount_type_labels.get(promo.discount_type.value, promo.discount_type.value) }}
+                        </span>
+                    </td>
+                    <td>{{ promo.discount_value }}{{ "%" if promo.discount_type.value == "percent" else "₽" }}</td>
+                    <td>{{ promo.used_count }}/{{ promo.max_uses if promo.max_uses is not none else "∞" }}</td>
+                    <td>{{ promo.valid_until.strftime("%Y-%m-%d") if promo.valid_until else "∞" }}</td>
+                    <td>
+                        <a href="{{ url_for('admin:details', identity='promo-code', pk=promo.id) }}"
+                           class="btn btn-sm btn-info">
+                            👁
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">Нет активных промокодов</p>
             {% endif %}
         </div>
     </div>

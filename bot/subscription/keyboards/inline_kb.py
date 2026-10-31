@@ -150,6 +150,7 @@ def payment_method_kb(
     founder: bool,
     transaction_id: UUID,
     has_card_option: bool,
+    promo_applied: bool = False,
 ) -> InlineKeyboardMarkup:
     """Создаёт inline-клавиатуру выбора способа оплаты.
 
@@ -159,10 +160,12 @@ def payment_method_kb(
         transaction_id (UUID): Идентификатор созданной транзакции.
         has_card_option (bool): Показывать ли оплату картой (платёжный шлюз
             вернул ссылку при создании транзакции). Перевод доступен всегда.
+        promo_applied (bool): Промокод уже применён к этой транзакции —
+            скрывает кнопку повторного ввода (один промокод на транзакцию).
 
     Returns
         InlineKeyboardMarkup: Клавиатура с кнопками "Оплата картой" (опционально),
-        "Оплата переводом" и "Отмена".
+        "Оплата переводом", "Промокод" (если ещё не применён) и "Отмена".
 
     """
     builder = InlineKeyboardBuilder()
@@ -185,6 +188,16 @@ def payment_method_kb(
             transaction_id=transaction_id,
         ),
     )
+    if not promo_applied:
+        builder.button(
+            text="🎁 У меня промокод",
+            callback_data=SubscriptionCB(
+                action=SubscriptionAction.ENTER_PROMO,
+                months=months,
+                founder=founder,
+                transaction_id=transaction_id,
+            ),
+        )
     builder.button(
         text="❌ Отмена",
         callback_data=SubscriptionCB(
@@ -194,6 +207,38 @@ def payment_method_kb(
         ),
     )
     builder.adjust(1)
+    return builder.as_markup()
+
+
+def promo_prompt_kb(
+    months: int,
+    founder: bool,
+    transaction_id: UUID,
+) -> InlineKeyboardMarkup:
+    """Создаёт inline-клавиатуру экрана ввода промокода (только "Отмена").
+
+    Сам код пользователь присылает текстовым сообщением — отдельной
+    кнопки подтверждения не требуется.
+
+    Args
+        months (int): Количество месяцев выбранной подписки.
+        founder (bool): Проверка на основателя.
+        transaction_id (UUID): Идентификатор текущей транзакции.
+
+    Returns
+        InlineKeyboardMarkup: Клавиатура с кнопкой "Отмена".
+
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="❌ Отмена",
+        callback_data=SubscriptionCB(
+            action=SubscriptionAction.CANCEL,
+            months=months,
+            transaction_id=transaction_id,
+            founder=founder,
+        ),
+    )
     return builder.as_markup()
 
 

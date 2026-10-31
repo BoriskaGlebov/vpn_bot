@@ -34,7 +34,9 @@ def fmt_active(m: Subscription, _: str) -> Markup:
 
 def fmt_user(m: Subscription, _: str) -> str:
     """Форматер для отображения пользователя."""
-    return f"{m.user.username} ({m.user.telegram_id})" if m.user else "-"
+    if not m.user:
+        return "-"
+    return f"{m.user.username or '-'} ({m.user.telegram_id})"
 
 
 class SubscriptionAdmin(ModelView, model=Subscription):

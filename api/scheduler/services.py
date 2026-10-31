@@ -19,6 +19,9 @@ from api.users.dao import UserDAO
 from api.users.models import User
 from api.vpn.models import VPNConfig, VPNConfigStatus
 
+REASON_SUBSCRIPTION_EXPIRED = "Истекла подписка"
+REASON_DEVICE_LIMIT_EXCEEDED = "Превышен лимит устройств по тарифу"
+
 
 class SubscriptionScheduler:
     """Сервис проверки подписок пользователей.
@@ -112,6 +115,14 @@ class SubscriptionScheduler:
         stats.add(s)
         events.extend(e)
 
+        # Единая точка после всех источников PENDING_DELETE выше (и после
+        # любого более раннего — например, ручного перевода администратором
+        # через массовое действие в админке): событие удаления строится по
+        # фактическому статусу в БД, а не по тому, кто и когда его выставил.
+        s, e = await self._handle_pending_delete_configs(session, user)
+        stats.add(s)
+        events.extend(e)
+
         return stats, events
 
     async def _handle_expired(
@@ -197,14 +208,18 @@ class SubscriptionScheduler:
         если все записи пользователя бессрочны, но деактивированы, точной
         даты потери доступа нет — удаление пропускается, как и раньше.
 
+        Только помечает конфиги статусом/причиной — события для бота/админов
+        строит отдельно `_handle_pending_delete_configs` (единая точка для
+        ЛЮБОГО источника `PENDING_DELETE`, не только истечения подписки).
+
         Args:
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
             user (User): Экземпляр пользователя.
 
         Returns
-            SubscriptionStats: Статистика с заполненным "configs_deleted".
-            list[SubscriptionEvent]: Событие удаления конфигов и уведомления
-                администраторов, если удаление произошло.
+            SubscriptionStats: Не используется этим методом (всегда пустая) —
+                оставлен для единообразия сигнатуры с остальными `_handle_*`.
+            list[SubscriptionEvent]: Всегда пустой список.
 
         """
         stats = SubscriptionStats()
@@ -224,50 +239,12 @@ class SubscriptionScheduler:
         if delta.days < 1:
             return stats, events
 
-        deleted_configs = await self._delete_configs(session, user, user.vpn_configs)
-        stats.configs_deleted += len(deleted_configs)
-
-        if not deleted_configs:
-            return stats, events
-
-        files = [
-            DeletedVPNConfigSchema(
-                file_name=c.file_name,
-                pub_key=c.pub_key,
-                node_name=c.node_name,
-                backend=c.backend,
-                config_ids=c.config_ids,
-            )
-            for c in deleted_configs
-        ]
-        events.append(
-            DeleteVPNConfigsEvent(
-                type=SubscriptionEventType.DELETE_VPN_CONFIGS,
-                user_id=user.telegram_id,
-                username=user.username or "undefined",
-                first_name=user.first_name or "undefined",
-                last_name=user.last_name or "undefined",
-                configs=files,
-            )
+        deleted_configs = await self._delete_configs(
+            session, user, user.vpn_configs, reason=REASON_SUBSCRIPTION_EXPIRED
         )
-        logger.warning(
-            f"Отмечено для удаления {len(deleted_configs)} VPN-конфигов пользователя {user.username}"
-        )
-        for file in files:
-            events.append(
-                AdminNotifyEvent(
-                    type=SubscriptionEventType.ADMIN_NOTIFY,
-                    user_id=user.telegram_id,
-                    username=user.username or "undefined",
-                    first_name=user.first_name or "undefined",
-                    last_name=user.last_name or "undefined",
-                    message=(
-                        f"⚠️ Удаляется VPN-конфиг\n"
-                        f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
-                        f"📄 Файл: {file}\n"
-                        f"⏳ Причина: истекла подписка"
-                    ),
-                )
+        if deleted_configs:
+            logger.warning(
+                f"Отмечено для удаления {len(deleted_configs)} VPN-конфигов пользователя {user.username}"
             )
 
         return stats, events
@@ -335,13 +312,18 @@ class SubscriptionScheduler:
 
         Стратегия удаления — FIFO (удаляются самые старые конфиги).
 
+        Только помечает конфиги статусом/причиной — события для бота/админов
+        строит отдельно `_handle_pending_delete_configs` (единая точка для
+        ЛЮБОГО источника `PENDING_DELETE`, не только превышения лимита).
+
         Args:
             session (AsyncSession): Асинхронная сессия SQLAlchemy.
             user (User): Экземпляр пользователя.
 
         Returns
-            SubscriptionStats: Статистика по удалённым конфигам.
-            list[SubscriptionEvent]: Список событий для обработки.
+            SubscriptionStats: Не используется этим методом (всегда пустая) —
+                оставлен для единообразия сигнатуры с остальными `_handle_*`.
+            list[SubscriptionEvent]: Всегда пустой список.
 
         """
         stats = SubscriptionStats()
@@ -366,28 +348,77 @@ class SubscriptionScheduler:
                 f"Пользователь {user.username} превысил лимит ({len(sorted_configs)}/{limit}). "
                 f"Будет отправлено на удаление {len(configs_to_delete)} конфигов."
             )
-        deleted_configs = await self._delete_configs(
+        await self._delete_configs(
             session=session,
             user=user,
             configs=configs_to_delete,
+            reason=REASON_DEVICE_LIMIT_EXCEEDED,
         )
 
-        if not deleted_configs:
+        return stats, events
+
+    async def _handle_pending_delete_configs(
+        self, session: AsyncSession, user: User
+    ) -> tuple[SubscriptionStats, list[SubscriptionEvent]]:
+        """Строит события удаления по ВСЕМ конфигам пользователя в `PENDING_DELETE`.
+
+        Единая точка, которая конвертирует персистентный статус БД в события
+        для бота/админов — независимо от того, кто и когда перевёл конфиг в
+        `PENDING_DELETE`: `_handle_config_cleanup` (истекла подписка),
+        `_handle_active_limit_exceeded` (превышен лимит устройств) или
+        администратор вручную через массовое действие в админке (сменился
+        протокол, нода выведена из эксплуатации и т.п.). Раньше события
+        строились только там, где статус выставлялся — конфиг, переведённый
+        в `PENDING_DELETE` любым другим путём, никогда не подхватывался
+        планировщиком: бот реально отзывает доступ и удаляет файл по событию
+        `DeleteVPNConfigsEvent`, а не по самому статусу в БД, который он
+        никогда не читает напрямую.
+
+        Конфиг, который бот не смог удалить в прошлый прогон (нода была
+        недоступна), останется `PENDING_DELETE` и попадёт сюда снова на
+        следующий день — это намеренно (так же работало и раньше для
+        истёкших подписок): лучше повторный алерт админам, чем забытый
+        навсегда недоступный конфиг.
+
+        Args:
+            session (AsyncSession): Асинхронная сессия SQLAlchemy (не
+                используется — метод только читает уже загруженные
+                `user.vpn_configs`, сигнатура единообразна с остальными
+                `_handle_*`).
+            user (User): Экземпляр пользователя.
+
+        Returns
+            SubscriptionStats: "configs_deleted" — количество конфигов,
+                отправленных на удаление в этом прогоне.
+            list[SubscriptionEvent]: `DeleteVPNConfigsEvent` + по одному
+                `AdminNotifyEvent` на конфиг, либо пустой список, если
+                конфигов в `PENDING_DELETE` нет.
+
+        """
+        stats = SubscriptionStats()
+        events: list[SubscriptionEvent] = []
+
+        pending = [
+            cfg
+            for cfg in user.vpn_configs
+            if cfg.status == VPNConfigStatus.PENDING_DELETE
+        ]
+        if not pending:
             return stats, events
 
-        stats.configs_deleted += len(deleted_configs)
+        stats.configs_deleted += len(pending)
 
         files = [
             DeletedVPNConfigSchema(
-                file_name=c.file_name,
-                pub_key=c.pub_key,
-                node_name=c.node_name,
-                backend=c.backend,
-                config_ids=c.config_ids,
+                file_name=cfg.file_name,
+                pub_key=cfg.pub_key,
+                node_name=cfg.node_name,
+                backend=cfg.backend,
+                config_ids=cfg.config_ids,
+                reason=cfg.status_reason,
             )
-            for c in deleted_configs
+            for cfg in pending
         ]
-
         events.append(
             DeleteVPNConfigsEvent(
                 type=SubscriptionEventType.DELETE_VPN_CONFIGS,
@@ -398,8 +429,7 @@ class SubscriptionScheduler:
                 configs=files,
             )
         )
-
-        for file in files:
+        for cfg in pending:
             events.append(
                 AdminNotifyEvent(
                     type=SubscriptionEventType.ADMIN_NOTIFY,
@@ -408,10 +438,10 @@ class SubscriptionScheduler:
                     first_name=user.first_name or "undefined",
                     last_name=user.last_name or "undefined",
                     message=(
-                        f"⚠️ Удаляется VPN-конфиг (превышение лимита)\n"
+                        f"⚠️ Удаляется VPN-конфиг\n"
                         f"👤 Пользователь: @{user.username or '—'} (ID: {user.telegram_id})\n"
-                        f"📄 Файл: {file.file_name}\n"
-                        f"📊 Лимит: {limit}, было: {len(configs)}"
+                        f"📄 Файл: {cfg.file_name}\n"
+                        f"⏳ Причина: {cfg.status_reason or 'не указана'}"
                     ),
                 )
             )
@@ -419,12 +449,17 @@ class SubscriptionScheduler:
         return stats, events
 
     async def _delete_configs(
-        self, session: AsyncSession, user: User, configs: list[VPNConfig]
+        self,
+        session: AsyncSession,
+        user: User,
+        configs: list[VPNConfig],
+        reason: str,
     ) -> list[DeletedVPNConfig]:
         deleted: list[DeletedVPNConfig] = []
 
         for cfg in configs:
             cfg.status = VPNConfigStatus.PENDING_DELETE
+            cfg.status_reason = reason
             deleted.append(
                 DeletedVPNConfig(
                     file_name=cfg.file_name,

@@ -1,0 +1,38 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📢 Рассылка выбранным пользователям</h3>
+        </div>
+        <div class="card-body">
+            {% if error %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endif %}
+
+            <p>Получателей: <strong>{{ recipients_count }}</strong></p>
+
+            {% if recipients_count == 0 %}
+            <p class="text-muted">
+                Среди отмеченных строк нет пользователей с известным Telegram ID.
+                Отметьте пользователей в списке и повторите.
+            </p>
+            <a href="{{ list_url }}" class="btn btn-secondary">⬅ Назад к списку</a>
+            {% else %}
+            <form method="post" action="{{ send_url }}">
+                <input type="hidden" name="pks" value="{{ pks }}">
+                <div class="mb-3">
+                    <label class="form-label">Текст сообщения</label>
+                    <textarea name="text" class="form-control" rows="6" required>{{ text or "" }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    Отправить {{ recipients_count }} получателям
+                </button>
+                <a href="{{ list_url }}" class="btn btn-secondary">Отмена</a>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

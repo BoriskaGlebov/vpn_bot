@@ -62,7 +62,12 @@ class IsPremium(BaseFilter):
         user = event.from_user
         if user is None:
             return False
-        suser = SUser(telegram_id=user.id)
+        suser = SUser(
+            telegram_id=user.id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+        )
         user_db, _ = await self.user_adapter.register(user=suser)
         if user_db is None:
             return False

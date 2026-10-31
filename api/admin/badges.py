@@ -33,6 +33,37 @@ VPN_CONFIG_STATUS_LABELS = {
     "deleted": "Удалён",
 }
 
+VPN_BACKEND_BADGE_COLORS = {
+    "amnezia": "teal",
+    "xray": "indigo",
+}
+
+VPN_BACKEND_LABELS = {
+    "amnezia": "AmneziaWG",
+    "xray": "XRay/VLESS",
+}
+
+# protocol хранит значения VPNProtocol (shared/enums/vpn_enum.py), для
+# XRay-подписки — несколько значений через запятую, см. VPNConfig.protocol.
+VPN_PROTOCOL_LABELS = {
+    "wg_v1": "WireGuard v1",
+    "wg_v2": "WireGuard v2",
+    "wg_v3": "WireGuard v3",
+    "vless_reality_tcp": "VLESS Reality TCP",
+    "vless_reality_xhttp": "VLESS Reality XHTTP",
+}
+
+
+PROMO_DISCOUNT_TYPE_COLORS = {
+    "percent": "teal",
+    "fixed": "indigo",
+}
+
+PROMO_DISCOUNT_TYPE_LABELS = {
+    "percent": "Процент",
+    "fixed": "Фикс. сумма",
+}
+
 
 def badge(text: str, color: str) -> Markup:
     """Рендерит цветной Bootstrap/Tabler-бейдж.
