@@ -28,6 +28,7 @@ from api.admin.badges import (
     VPN_PROTOCOL_LABELS,
 )
 from api.admin.dashboard import DashboardView
+from api.admin.finance_dashboard import FinanceDashboardView
 from api.admin.navigation import resolve_back_url
 from api.admin.router import router as admin_router
 from api.app_error.api_error import (
@@ -363,6 +364,7 @@ admin.templates.env.globals["expense_category_badge_colors"] = (
 )
 admin.templates.env.globals["expense_category_labels"] = EXPENSE_CATEGORY_LABELS
 admin.add_base_view(DashboardView)
+admin.add_base_view(FinanceDashboardView)
 admin.add_view(UserAdmin)
 admin.add_view(RoleAdmin)
 admin.add_view(SubscriptionAdmin)

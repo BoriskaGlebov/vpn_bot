@@ -70,3 +70,32 @@ class ExpenseDAO(BaseDAO[Expense]):
         )
         result = await session.execute(query)
         return [(row.month, int(row.total)) for row in result.all()]
+
+    @classmethod
+    async def get_yearly_by_category(
+        cls,
+        session: AsyncSession,
+        year: int,
+    ) -> list[tuple[str, int]]:
+        """Возвращает суммарные расходы по категориям за год.
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            year: Год агрегации.
+
+        Returns
+            list[tuple[str, int]]: Список пар (значение категории, сумма в рублях),
+            отсортированных по убыванию суммы.
+
+        """
+        query = (
+            select(
+                cls.model.category,
+                func.sum(cls.model.amount).label("total"),
+            )
+            .where(func.extract("year", cls.model.period_start) == year)
+            .group_by(cls.model.category)
+            .order_by(func.sum(cls.model.amount).desc())
+        )
+        result = await session.execute(query)
+        return [(row[0].value, int(row[1])) for row in result.all()]

@@ -1,0 +1,316 @@
+{% extends "sqladmin/layout.html" %}
+
+{% block content %}
+
+{# ── Ряд 1: карточки-итоги ─────────────────────────────────────────────── #}
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Доход за {{ year }}</div>
+            <div class="h1 mb-0">{{ "{:,}".format(summary.total_revenue).replace(",", " ") }} ₽</div>
+            <div class="text-muted">
+                Текущий месяц: {{ "{:,}".format(current_month_rev).replace(",", " ") }} ₽
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Расходы за {{ year }}</div>
+            <div class="h1 mb-0">{{ "{:,}".format(summary.total_expenses).replace(",", " ") }} ₽</div>
+            <div class="text-muted">
+                Текущий месяц: {{ "{:,}".format(current_month_exp).replace(",", " ") }} ₽
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Прибыль за {{ year }}</div>
+            <div class="h1 mb-0 {{ 'text-success' if summary.total_profit >= 0 else 'text-danger' }}">
+                {{ "{:,}".format(summary.total_profit).replace(",", " ") }} ₽
+            </div>
+            <div class="text-muted">
+                Маржа: {{ "%.1f"|format(summary.total_profit / summary.total_revenue * 100 if summary.total_revenue else 0) }}%
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">ARPU / Средний чек</div>
+            <div class="h1 mb-0">{{ "%.0f"|format(summary.arpu) }} ₽</div>
+            <div class="text-muted">Средний чек: {{ "%.0f"|format(summary.avg_check) }} ₽</div>
+        </div>
+    </div>
+</div>
+
+{# ── Ряд 1б: конверсия ────────────────────────────────────────────────── #}
+
+<div class="col-sm-6 col-lg-3">
+    <div class="card">
+        <div class="card-body">
+            <div class="subheader">Платящие / Всего</div>
+            <div class="h1 mb-0">{{ summary.paying_users }} / {{ summary.total_users }}</div>
+            <div class="text-muted">Конверсия: {{ "%.1f"|format(summary.conversion_pct) }}%</div>
+        </div>
+    </div>
+</div>
+
+{# ── Ряд 2: P&L chart + Pie chart ────────────────────────────────────── #}
+
+<div class="col-lg-8">
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">P&amp;L по месяцам ({{ year }})</h3></div>
+        <div class="card-body">
+            {% if pnl_months %}
+                <canvas id="pnlChart" height="300"></canvas>
+            {% else %}
+                <p class="text-muted">Нет данных</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="col-lg-4">
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">Расходы по категориям</h3></div>
+        <div class="card-body">
+            {% if cat_labels %}
+                <canvas id="expensePieChart" height="300"></canvas>
+            {% else %}
+                <p class="text-muted">Нет данных</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{# ── Ряд 3: Trend chart + Безубыточность ─────────────────────────────── #}
+
+<div class="col-lg-8">
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">Тренд выручки (6 мес)</h3></div>
+        <div class="card-body">
+            {% if trend_months %}
+                <canvas id="trendChart" height="280"></canvas>
+            {% else %}
+                <p class="text-muted">Нет данных</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="col-lg-4">
+    <div class="card">
+        <div class="card-header"><h3 class="card-title">Безубыточность</h3></div>
+        <div class="card-body">
+            <div class="mb-3">
+                <div class="subheader">Расходы / мес</div>
+                <div class="h3">{{ "{:,}".format(breakeven.monthly_expenses).replace(",", " ") }} ₽</div>
+            </div>
+            <div class="mb-3">
+                <div class="subheader">Средний чек</div>
+                <div class="h3">{{ "%.0f"|format(breakeven.avg_check) }} ₽</div>
+            </div>
+            <div class="mb-3">
+                <div class="subheader">Нужно платежей</div>
+                <div class="h3">{{ breakeven.payments_needed }}</div>
+            </div>
+            <div class="mb-3">
+                <div class="subheader">Сейчас за месяц</div>
+                <div class="h3">{{ breakeven.current_monthly_payments }}</div>
+            </div>
+            <div class="mb-3">
+                <div class="subheader">Разрыв</div>
+                <div class="h3 {{ 'text-danger' if breakeven.gap > 0 else 'text-success' }}">
+                    {{ breakeven.gap }}
+                </div>
+            </div>
+            <div class="progress mb-2" style="height: 1.2rem;">
+                <div class="progress-bar {{ 'bg-success' if breakeven_pct >= 100 else 'bg-warning' }}"
+                     style="width: {{ breakeven_pct }}%;"
+                     role="progressbar"
+                     aria-valuenow="{{ breakeven_pct }}"
+                     aria-valuemin="0"
+                     aria-valuemax="100">
+                    {{ breakeven_pct }}%
+                </div>
+            </div>
+            <div class="text-muted small">
+                {% if breakeven_pct >= 100 %}
+                    Безубыточность достигнута
+                {% else %}
+                    До безубыточности: {{ breakeven.gap }} платежей
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block tail %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+
+    {% if pnl_months %}
+    new Chart(document.getElementById('pnlChart'), {
+        type: 'bar',
+        data: {
+            labels: {{ pnl_months | tojson }},
+            datasets: [
+                {
+                    label: 'Доход',
+                    data: {{ pnl_revenue | tojson }},
+                    backgroundColor: 'rgba(47, 179, 68, 0.7)',
+                    borderColor: '#2fb344',
+                    borderWidth: 1,
+                    order: 2,
+                },
+                {
+                    label: 'Расход',
+                    data: {{ pnl_expenses | tojson }},
+                    backgroundColor: 'rgba(214, 57, 57, 0.7)',
+                    borderColor: '#d63939',
+                    borderWidth: 1,
+                    order: 2,
+                },
+                {
+                    label: 'Прибыль',
+                    data: {{ pnl_profit | tojson }},
+                    type: 'line',
+                    borderColor: '#4f46e5',
+                    backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#4f46e5',
+                    order: 1,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return ctx.dataset.label + ': ' +
+                                ctx.parsed.y.toLocaleString('ru-RU') + ' ₽';
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        callback: function(v) {
+                            return (v / 1000).toFixed(0) + 'k';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    {% if cat_labels %}
+    var catColorMap = {
+        'Сервер': '#206bc4',
+        'Домен': '#0ca678',
+        'IP-адрес': '#17a2b8',
+        'AI/LLM': '#ae3ec9',
+        'Реклама': '#f76707',
+        'Прочее': '#656d77',
+    };
+    var catLabels = {{ cat_labels | tojson }};
+    var bgColors = catLabels.map(function(l) { return catColorMap[l] || '#656d77'; });
+
+    new Chart(document.getElementById('expensePieChart'), {
+        type: 'doughnut',
+        data: {
+            labels: catLabels,
+            datasets: [{
+                data: {{ cat_values | tojson }},
+                backgroundColor: bgColors,
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            var total = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                            var pct = total ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                            return ctx.label + ': ' +
+                                ctx.parsed.toLocaleString('ru-RU') + ' ₽ (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+
+    {% if trend_months %}
+    new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+            labels: {{ trend_months | tojson }},
+            datasets: [{
+                label: 'Выручка',
+                data: {{ trend_revenue | tojson }},
+                borderColor: '#2fb344',
+                backgroundColor: 'rgba(47, 179, 68, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 5,
+                pointBackgroundColor: '#2fb344',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            var mom = {{ trend_mom | tojson }};
+                            var momStr = mom[ctx.dataIndex] !== null
+                                ? ' (MoM: ' + (mom[ctx.dataIndex] > 0 ? '+' : '') + mom[ctx.dataIndex] + '%)'
+                                : '';
+                            return ctx.parsed.y.toLocaleString('ru-RU') + ' ₽' + momStr;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        callback: function(v) {
+                            return (v / 1000).toFixed(0) + 'k';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    {% endif %}
+</script>
+{% endblock %}
