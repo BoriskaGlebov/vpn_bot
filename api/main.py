@@ -49,6 +49,7 @@ from api.core.exceptions.handlers.http import (
 from api.core.schemas import SHealthResponse
 from api.expense.admin import ExpenseAdmin
 from api.expense.router import router as expense_router
+from api.finance.router import router as finance_router
 from api.middleware.auth_middleware import AuthMiddleware
 from api.middleware.exceptions_middleware import ExceptionLoggingMiddleware
 from api.middleware.logg_router_middleware import RequestLoggingMiddleware
@@ -107,6 +108,10 @@ tags_metadata: list[dict[str, Any]] = [
     {
         "name": "EXPENSES",
         "description": "Учёт расходов: создание, редактирование, удаление, агрегация по месяцам",
+    },
+    {
+        "name": "FINANCE",
+        "description": "Финансовая аналитика: P&L, годовой итог, ARPU, безубыточность, тренд выручки",
     },
     {
         "name": "NEWS",
@@ -217,6 +222,12 @@ app: FastAPI = FastAPI(
 - Агрегация расходов по месяцам за год
 - Доступ только для администраторов
 
+#### 📊 Финансовая аналитика (`/finance`)
+- P&L по месяцам (выручка, расходы, прибыль, маржа)
+- Годовой итог: доход, расход, средний чек, ARPU, конверсия в платящих
+- Точка безубыточности: сколько платежей нужно в месяц
+- MoM-тренд выручки за последние N месяцев
+
 #### ⚙️ Системные эндпоинты
 - `/health` — проверка состояния сервиса
 - Мониторинг и диагностика
@@ -286,6 +297,7 @@ app.include_router(scheduler_router)
 app.include_router(payment_router)
 app.include_router(promo_router)
 app.include_router(expense_router)
+app.include_router(finance_router)
 
 
 app.add_exception_handler(APIError, api_error_handler)
