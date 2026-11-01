@@ -1029,6 +1029,15 @@ class SubscriptionRouter(BaseRouter):
             referral_result: GrantReferralBonusResponse = (
                 confirm_transaction.referral_res
             )
+            discount_amount = confirm_transaction.transaction_res.discount_amount
+            promo_info = (
+                m_subscription.accept_paid.promo_info_line.format(
+                    discount=discount_amount
+                )
+                + "\n"
+                if discount_amount > 0
+                else ""
+            )
             try:
                 await self.bot.send_message(
                     chat_id=user_id,
@@ -1039,6 +1048,7 @@ class SubscriptionRouter(BaseRouter):
                         end_date=format_subscription_end_date(
                             user_schema.current_subscription.end_date
                         ),
+                        promo_info=promo_info,
                     ),
                 )
             except (TelegramForbiddenError, TelegramBadRequest) as e:
@@ -1080,6 +1090,7 @@ class SubscriptionRouter(BaseRouter):
                         sub_type=sub_type,
                         username=user_schema.username or "-",
                         amount=confirm_transaction.transaction_res.amount,
+                        promo_info=promo_info,
                         info=ref_inf,
                     ),
                     admin_mess_storage=self.redis_service,
@@ -1097,6 +1108,7 @@ class SubscriptionRouter(BaseRouter):
                         sub_type=sub_type,
                         username=user_schema.username or "-",
                         amount=confirm_transaction.transaction_res.amount,
+                        promo_info=promo_info,
                         info=ref_inf,
                     ),
                 )

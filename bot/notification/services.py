@@ -101,6 +101,14 @@ class NotificationService:
             )
         sub_type = user.current_subscription.type.upper()
         end_date = format_subscription_end_date(user.current_subscription.end_date)
+        promo_info = (
+            m_subscription.accept_paid.promo_info_line.format(
+                discount=tx.discount_amount
+            )
+            + "\n"
+            if tx.discount_amount > 0
+            else ""
+        )
 
         try:
             await self._deliver_outcome_message(
@@ -111,6 +119,7 @@ class NotificationService:
                     months=tx.subscription_months,
                     amount=tx.amount,
                     end_date=end_date,
+                    promo_info=promo_info,
                 ),
             )
             referral = confirm.referral_res
@@ -138,6 +147,7 @@ class NotificationService:
                 sub_type=sub_type,
                 username=user.username or "-",
                 amount=tx.amount,
+                promo_info=promo_info,
                 info=m_subscription.gateway_alert.confirmed_info.format(
                     gateway=provider_name
                 ),
