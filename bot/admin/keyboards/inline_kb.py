@@ -6,6 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.admin.enums import ActionEnum
 from bot.core.config import settings_bot
+from bot.expense.keyboards.inline_kb import ExpenseAction, ExpenseCB
 from shared.enums.admin_enum import RoleEnum
 
 
@@ -194,6 +195,10 @@ def admin_main_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
 
+    builder.button(
+        text="💰 Расходы",
+        callback_data=ExpenseCB(action=ExpenseAction.MENU),
+    )
     builder.button(text="👑 Админы", callback_data=AdminCB(filter_type=RoleEnum.ADMIN))
     builder.button(
         text="🏗 Основатели", callback_data=AdminCB(filter_type=RoleEnum.FOUNDER)

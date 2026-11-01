@@ -66,6 +66,33 @@ bot:
 
         {user_card}
 
+    expense:
+      menu: |
+        📊 <b>Финансы за {year} год</b>
+
+        💰 Доход: <b>{revenue}</b> ₽
+        📉 Расходы: <b>{expenses}</b> ₽
+        📈 Прибыль: <b>{profit}</b> ₽
+      select_category: "Выберите категорию расхода:"
+      category_answer: "Категория: {label}"
+      enter_amount: "Категория: {label}\n\nВведите сумму расхода в рублях (целое число):"
+      amount_invalid: "⚠️ Введите целое положительное число (сумму в рублях)."
+      enter_description: "Сумма: <b>{amount}</b> ₽\n\nВведите описание расхода или нажмите «Пропустить»:"
+      select_period: "Выберите период расхода.\nНажмите «Текущий месяц» или введите дату в формате <b>YYYY-MM-DD</b>:"
+      date_invalid: "⚠️ Некорректная дата. Введите в формате <b>YYYY-MM-DD</b> (например, 2026-10-01)."
+      select_node: "Период: {period_start} — {period_end}\n\nВыберите VPN-ноду или «Без привязки»:"
+      confirm: |
+        📋 <b>Подтвердите расход:</b>
+
+        📂 Категория: {category}
+        💵 Сумма: <b>{amount}</b> ₽
+        📝 Описание: {description}
+        📅 Период: {period_start} — {period_end}
+        🖥 Нода: {node}
+      added: "✅ Расход добавлен: {amount} ₽ / {category} / {node} / {period}"
+      cancelled: "❌ Ввод расхода отменён."
+      cancelled_toast: "Отменено"
+
     id:
       start: |
         🆔 <b>Ваш ID:</b> <code>{user_id}</code>
