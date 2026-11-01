@@ -1,9 +1,8 @@
 from sqladmin import ModelView
-from sqladmin.filters import BooleanFilter, ForeignKeyFilter, OperationColumnFilter
+from sqladmin.filters import BooleanFilter, OperationColumnFilter
 
 from api.admin.badges import badge, fmt_dt
 from api.referrals.models import Referral
-from api.users.models import User
 
 
 class ReferralAdmin(ModelView, model=Referral):
@@ -40,8 +39,6 @@ class ReferralAdmin(ModelView, model=Referral):
 
     column_filters = [
         BooleanFilter(Referral.bonus_given, title="Бонус выдан"),
-        ForeignKeyFilter(Referral.inviter_id, User.username, title="Пригласил"),
-        ForeignKeyFilter(Referral.invited_id, User.username, title="Приглашён"),
         OperationColumnFilter(Referral.bonus_given_at),
     ]
 

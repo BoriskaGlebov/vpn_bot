@@ -14,7 +14,6 @@ from api.admin.badges import (
     fmt_dt,
 )
 from api.promo.models import PromoCode, PromoCodeUsage
-from api.users.models import User
 
 
 def fmt_discount_type(m: PromoCode, _: str) -> Markup:
@@ -192,7 +191,6 @@ class PromoCodeUsageAdmin(ModelView, model=PromoCodeUsage):
         ForeignKeyFilter(
             PromoCodeUsage.promo_code_id, PromoCode.code, title="Промокод"
         ),
-        ForeignKeyFilter(PromoCodeUsage.user_id, User.username, title="Пользователь"),
     ]
 
     column_labels = {

@@ -853,6 +853,9 @@ bot:
 
         🔥 Продолжайте приглашать друзей, чтобы увеличивать свои бонусы!
         🎁 Чем больше приглашений — тем больше преимуществ!
+      config_item: "📌 <b>{file_name}</b> <code>#{id}</code>\n   Локация: {location}\n   Создан: {created_at}"
+      config_item_pending: "⚠️ <b>{file_name}</b> <code>#{id}</code> — <i>будет удалён</i>\n   Локация: {location}\n   Создан: {created_at}"
+      config_item_pending_reason: "   Причина: {reason}"
       config_delete:
         confirm: |
           ❗ Удалить конфиг #{id} «{file_name}»?

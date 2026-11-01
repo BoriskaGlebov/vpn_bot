@@ -3,7 +3,7 @@ from typing import Any
 from loguru import logger
 from markupsafe import Markup
 from sqladmin import ModelView
-from sqladmin.filters import BooleanFilter, ForeignKeyFilter
+from sqladmin.filters import BooleanFilter
 from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
@@ -80,7 +80,6 @@ class SubscriptionAdmin(ModelView, model=Subscription):
 
     column_filters = [
         BooleanFilter(Subscription.is_active, title="Активна"),
-        ForeignKeyFilter(Subscription.user_id, User.username, title="Пользователь"),
     ]
 
     form_columns = [

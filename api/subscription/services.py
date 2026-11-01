@@ -12,6 +12,7 @@ from api.subscription.models import SubscriptionType
 from api.subscription.schemas import SSubscriptionCheck, SSubscriptionInfo, SVPNConfig
 from api.users.dao import UserDAO
 from api.users.schemas import SHasUsedTrial, SUserOut, SUserTelegramID
+from api.vpn.models import VPNConfigStatus
 from shared.enums.admin_enum import RoleEnum
 from shared.enums.subscription_enum import (
     SubscriptionInfoStatus,
@@ -327,7 +328,10 @@ class SubscriptionService:
                     file_name=c.file_name,
                     node_name=c.node_name,
                     created_at=c.created_at,
+                    status=c.status.value if c.status else None,
+                    status_reason=c.status_reason,
                 )
                 for c in user.vpn_configs
+                if c.status != VPNConfigStatus.DELETED
             ],
         )
