@@ -194,9 +194,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         misfire_grace_time=30,
         replace_existing=True,
     )
+    if scheduler_settings.interval_seconds is not None:
+        expense_trigger: IntervalTrigger | CronTrigger = IntervalTrigger(
+            seconds=scheduler_settings.interval_seconds * 2
+        )
+        expense_schedule_description = (
+            f"каждые {scheduler_settings.interval_seconds * 2} сек. (dev)"
+        )
+    else:
+        expense_trigger = CronTrigger(day=1, hour=10, minute=0)
+        expense_schedule_description = "1-го числа каждого месяца в 10:00"
     scheduler.add_job(
         expense_reminder,
-        trigger=CronTrigger(day=1, hour=10, minute=0),
+        trigger=expense_trigger,
         kwargs={"bot_instance": bot},
         id="expense_reminder",
         max_instances=1,
@@ -204,6 +214,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         misfire_grace_time=3600,
         replace_existing=True,
     )
+    logger.info("💸 Напоминание о расходах — {}", expense_schedule_description)
     scheduler.start()
     logger.info("🕒 Планировщик запущен — проверка {}", schedule_description)
     if settings_bot.bot.use_polling:
