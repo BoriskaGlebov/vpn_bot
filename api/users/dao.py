@@ -1,6 +1,7 @@
 import datetime
 
 from loguru import logger
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +15,10 @@ from api.users.schemas import SRole, SUser
 from shared.enums.admin_enum import RoleEnum
 
 
+class _EmptyFilter(BaseModel):
+    """Пустой фильтр — возвращает все строки без ограничений."""
+
+
 class UserDAO(BaseDAO[User]):
     """DAO для работы с пользователями."""
 
@@ -23,6 +28,11 @@ class UserDAO(BaseDAO[User]):
         selectinload(User.subscriptions),
         selectinload(User.vpn_configs),
     ]
+
+    @classmethod
+    async def count_all(cls, session: AsyncSession) -> int:
+        """Возвращает общее количество пользователей без каких-либо фильтров."""
+        return await cls.count(session, _EmptyFilter())
 
     @classmethod
     async def add_role_subscription(

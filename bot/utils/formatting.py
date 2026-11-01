@@ -50,6 +50,23 @@ def format_vpn_config_date(created_at: datetime) -> str:
     return created_at.strftime("%Y-%m-%d")
 
 
+def format_promo_info(discount_amount: int, template: str) -> str:
+    r"""Возвращает строку о применённом промокоде для подстановки в шаблон.
+
+    Args:
+        discount_amount (int): Размер скидки в рублях. 0 или меньше — скидки нет.
+        template (str): Шаблон строки с плейсхолдером ``{discount}``.
+
+    Returns
+        str: Отформатированная строка с финальным ``\n``, если скидка есть,
+        иначе пустая строка.
+
+    """
+    if discount_amount <= 0:
+        return ""
+    return template.format(discount=discount_amount) + "\n"
+
+
 def format_vpn_location(node_name: str | None, short: bool = False) -> str:
     """Возвращает человекочитаемую локацию конфига по имени ноды.
 

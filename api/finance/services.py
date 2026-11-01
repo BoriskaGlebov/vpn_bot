@@ -2,7 +2,6 @@ import math
 from datetime import datetime
 
 from loguru import logger
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.config import settings_api
@@ -14,7 +13,7 @@ from api.finance.schemas import (
     SYearlySummary,
 )
 from api.payment.dao import PaymentTransactionDAO
-from api.users.models import User
+from api.users.dao import UserDAO
 
 
 class FinanceService:
@@ -103,8 +102,7 @@ class FinanceService:
             year=year,
         )
 
-        count_result = await session.execute(select(func.count()).select_from(User))
-        total_users: int = count_result.scalar_one()
+        total_users = await UserDAO.count_all(session)
 
         avg_check = (
             round(total_revenue / paid_transactions, 2) if paid_transactions else 0.0

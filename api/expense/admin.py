@@ -9,6 +9,7 @@ from api.admin.badges import (
     EXPENSE_CATEGORY_BADGE_COLORS,
     EXPENSE_CATEGORY_LABELS,
     badge,
+    fmt_dt,
 )
 from api.core.config import settings_api
 from api.expense.models import Expense
@@ -114,6 +115,8 @@ class ExpenseAdmin(ModelView, model=Expense):
         "amount": fmt_amount,  # type: ignore[misc, dict-item]
         "is_recurring": fmt_recurring,  # type: ignore[misc, dict-item]
         "node_name": fmt_node,  # type: ignore[misc, dict-item]
+        "created_at": lambda m, a: fmt_dt(m.created_at),  # type: ignore[misc, dict-item, attr-defined]
+        "updated_at": lambda m, a: fmt_dt(m.updated_at),  # type: ignore[misc, dict-item, attr-defined]
     }
 
     can_create = True

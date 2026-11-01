@@ -53,6 +53,7 @@ from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.formatting import (
+    format_promo_info,
     format_subscription_end_date,
     format_username,
     format_vpn_config_date,
@@ -1029,6 +1030,10 @@ class SubscriptionRouter(BaseRouter):
             referral_result: GrantReferralBonusResponse = (
                 confirm_transaction.referral_res
             )
+            promo_info = format_promo_info(
+                confirm_transaction.transaction_res.discount_amount,
+                m_subscription.accept_paid.promo_info_line,
+            )
             try:
                 await self.bot.send_message(
                     chat_id=user_id,
@@ -1039,6 +1044,7 @@ class SubscriptionRouter(BaseRouter):
                         end_date=format_subscription_end_date(
                             user_schema.current_subscription.end_date
                         ),
+                        promo_info=promo_info,
                     ),
                 )
             except (TelegramForbiddenError, TelegramBadRequest) as e:
@@ -1080,6 +1086,7 @@ class SubscriptionRouter(BaseRouter):
                         sub_type=sub_type,
                         username=user_schema.username or "-",
                         amount=confirm_transaction.transaction_res.amount,
+                        promo_info=promo_info,
                         info=ref_inf,
                     ),
                     admin_mess_storage=self.redis_service,
@@ -1097,6 +1104,7 @@ class SubscriptionRouter(BaseRouter):
                         sub_type=sub_type,
                         username=user_schema.username or "-",
                         amount=confirm_transaction.transaction_res.amount,
+                        promo_info=promo_info,
                         info=ref_inf,
                     ),
                 )

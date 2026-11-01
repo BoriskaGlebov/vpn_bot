@@ -175,3 +175,22 @@ def confirm_kb() -> InlineKeyboardMarkup:
     )
     builder.adjust(2)
     return builder.as_markup()
+
+
+def expense_reminder_kb() -> InlineKeyboardMarkup:
+    """Клавиатура напоминания о внесении расходов.
+
+    Одна кнопка «💰 Внести расходы» — ведёт в меню расходов,
+    откуда администратор может добавить новую запись.
+
+    Returns
+        InlineKeyboardMarkup: Клавиатура с одной кнопкой.
+
+    """
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="💰 Внести расходы",
+        callback_data=ExpenseCB(action=ExpenseAction.MENU),
+    )
+    builder.adjust(1)
+    return builder.as_markup()
