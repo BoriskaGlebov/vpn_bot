@@ -8,11 +8,11 @@ from aiogram import Bot, F
 from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.core.config import bot, settings_bot
+from bot.core.config import settings_bot
 from bot.core.filters import IsAdmin
 from bot.expense.keyboards.inline_kb import (
     CATEGORY_LABELS,
@@ -88,6 +88,7 @@ class ExpenseRouter(BaseRouter):
         self.router.message.register(
             self.amount_entered,
             StateFilter(ExpenseStates.enter_amount),
+            ~F.text.startswith("/"),
             is_admin,
         )
         self.router.callback_query.register(
@@ -99,6 +100,7 @@ class ExpenseRouter(BaseRouter):
         self.router.message.register(
             self.description_entered,
             StateFilter(ExpenseStates.enter_description),
+            ~F.text.startswith("/"),
             is_admin,
         )
         self.router.callback_query.register(
@@ -110,6 +112,7 @@ class ExpenseRouter(BaseRouter):
         self.router.message.register(
             self.period_entered,
             StateFilter(ExpenseStates.select_period),
+            ~F.text.startswith("/"),
             is_admin,
         )
         self.router.callback_query.register(
@@ -129,6 +132,34 @@ class ExpenseRouter(BaseRouter):
             ExpenseCB.filter(F.action == ExpenseAction.CANCEL),
             is_admin,
         )
+
+    async def _edit_dialog(
+        self,
+        chat_id: int,
+        dialog_msg_id: int | None,
+        text: str,
+        reply_markup: InlineKeyboardMarkup | None = None,
+        fallback_message: Message | None = None,
+    ) -> None:
+        """Редактирует карточку диалога или создаёт новое сообщение как fallback.
+
+        Args:
+            chat_id: ID чата.
+            dialog_msg_id: ID сообщения-карточки диалога.
+            text: Новый текст карточки.
+            reply_markup: Новая клавиатура (опционально).
+            fallback_message: Сообщение для fallback-ответа, если карточка недоступна.
+
+        """
+        if dialog_msg_id:
+            await self.bot.edit_message_text(
+                text=text,
+                chat_id=chat_id,
+                message_id=dialog_msg_id,
+                reply_markup=reply_markup,
+            )
+        elif fallback_message:
+            await fallback_message.answer(text=text, reply_markup=reply_markup)
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -175,6 +206,7 @@ class ExpenseRouter(BaseRouter):
 
         """
         await state.set_state(ExpenseStates.select_category)
+        await state.update_data(dialog_msg_id=msg.message_id)
         await msg.edit_text(m_expense.select_category, reply_markup=category_kb())
 
     @BaseRouter.log_method
@@ -195,9 +227,11 @@ class ExpenseRouter(BaseRouter):
             state: Контекст FSM.
 
         """
-        await state.update_data(category=callback_data.category.value)
         label = CATEGORY_LABELS.get(
             callback_data.category, callback_data.category.value
+        )
+        await state.update_data(
+            category=callback_data.category.value, category_label=label
         )
         await query.answer(m_expense.category_answer.format(label=label))
         await state.set_state(ExpenseStates.enter_amount)
@@ -213,21 +247,36 @@ class ExpenseRouter(BaseRouter):
 
         """
         text = (message.text or "").strip()
+        data = await state.get_data()
+        dialog_msg_id: int | None = data.get("dialog_msg_id")
+        chat_id = message.chat.id
         try:
             amount = int(text)
             if amount <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer(m_expense.amount_invalid)
+            await message.delete()
+            label = data.get("category_label", "")
+            await self._edit_dialog(
+                chat_id=chat_id,
+                dialog_msg_id=dialog_msg_id,
+                text=m_expense.amount_invalid
+                + "\n\n"
+                + m_expense.enter_amount.format(label=label),
+                fallback_message=message,
+            )
             return
-        mess_id = message.message_id
-        await bot.delete_message(message.chat.id, mess_id)
-        await bot.delete_message(message.chat.id, mess_id - 1)
+        await message.delete()
         await state.update_data(amount=amount)
         await state.set_state(ExpenseStates.enter_description)
-        await message.answer(
-            m_expense.enter_description.format(amount=f"{amount:,}".replace(",", " ")),
+        await self._edit_dialog(
+            chat_id=chat_id,
+            dialog_msg_id=dialog_msg_id,
+            text=m_expense.enter_description.format(
+                amount=f"{amount:,}".replace(",", " ")
+            ),
             reply_markup=skip_kb(),
+            fallback_message=message,
         )
 
     @BaseRouter.log_method
@@ -262,9 +311,19 @@ class ExpenseRouter(BaseRouter):
 
         """
         desc = (message.text or "").strip()
+        data = await state.get_data()
+        dialog_msg_id: int | None = data.get("dialog_msg_id")
+        chat_id = message.chat.id
+        await message.delete()
         await state.update_data(description=desc if desc else None)
         await state.set_state(ExpenseStates.select_period)
-        await message.answer(m_expense.select_period, reply_markup=period_kb())
+        await self._edit_dialog(
+            chat_id=chat_id,
+            dialog_msg_id=dialog_msg_id,
+            text=m_expense.select_period,
+            reply_markup=period_kb(),
+            fallback_message=message,
+        )
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -311,25 +370,39 @@ class ExpenseRouter(BaseRouter):
             state: Контекст FSM.
 
         """
-        text = (message.text or "").strip()
+        text_input = (message.text or "").strip()
+        data = await state.get_data()
+        dialog_msg_id: int | None = data.get("dialog_msg_id")
+        chat_id = message.chat.id
         try:
-            period_start = date.fromisoformat(text)
+            period_start = date.fromisoformat(text_input)
         except ValueError:
-            await message.answer(m_expense.date_invalid)
+            await message.delete()
+            await self._edit_dialog(
+                chat_id=chat_id,
+                dialog_msg_id=dialog_msg_id,
+                text=m_expense.date_invalid + "\n\n" + m_expense.select_period,
+                reply_markup=period_kb(),
+                fallback_message=message,
+            )
             return
         last_day = calendar.monthrange(period_start.year, period_start.month)[1]
         period_end = date(period_start.year, period_start.month, last_day)
+        await message.delete()
         await state.update_data(
             period_start=period_start.isoformat(),
             period_end=period_end.isoformat(),
         )
         await state.set_state(ExpenseStates.select_node)
-        await message.answer(
-            m_expense.select_node.format(
+        await self._edit_dialog(
+            chat_id=chat_id,
+            dialog_msg_id=dialog_msg_id,
+            text=m_expense.select_node.format(
                 period_start=f"{period_start:%Y-%m-%d}",
                 period_end=f"{period_end:%Y-%m-%d}",
             ),
             reply_markup=node_kb(),
+            fallback_message=message,
         )
 
     @BaseRouter.log_method
