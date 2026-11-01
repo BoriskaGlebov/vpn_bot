@@ -92,6 +92,11 @@ bot:
       added: "✅ Расход добавлен: {amount} ₽ / {category} / {node} / {period}"
       cancelled: "❌ Ввод расхода отменён."
       cancelled_toast: "Отменено"
+      reminder: |
+        📅 <b>Напоминание</b>
+
+        Не забудьте внести расходы за прошлый месяц ({month_name} {year}).
+        Актуальные данные — по кнопке ниже.
 
     id:
       start: |

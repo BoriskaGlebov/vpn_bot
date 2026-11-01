@@ -33,7 +33,11 @@ from bot.middleware.user_context import UserContextMiddleware
 from bot.news.router import NewsRouter
 from bot.payment.router import router as payment_router
 from bot.referrals.router import ReferralRouter
-from bot.scheduler.utils.scheduler_cron import scheduled_check, scheduler
+from bot.scheduler.utils.scheduler_cron import (
+    expense_reminder,
+    scheduled_check,
+    scheduler,
+)
 from bot.subscription.router import SubscriptionRouter
 from bot.users.router import UserRouter
 from bot.utils.start_stop_bot import start_bot, stop_bot
@@ -188,6 +192,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         max_instances=1,
         coalesce=True,
         misfire_grace_time=30,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        expense_reminder,
+        trigger=CronTrigger(day=1, hour=10, minute=0),
+        kwargs={"bot_instance": bot},
+        id="expense_reminder",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
         replace_existing=True,
     )
     scheduler.start()
