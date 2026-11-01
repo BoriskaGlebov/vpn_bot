@@ -63,6 +63,7 @@ class Container:
 
         user_adapter (UsersAPIAdapter)
         admin_adapter (AdminAPIAdapter)
+        expense_adapter (ExpenseAPIAdapter)
         subscription_adapter (SubscriptionAPIAdapter)
         payment_provider: (BasePaymentProvider)
         payment_adapter (PaymentApiAdapter)
@@ -76,6 +77,7 @@ class Container:
 
         user_service (UserService)
         admin_service (AdminService)
+        expense_service (ExpenseService)
         subscription_service (SubscriptionService)
         referral_service (ReferralService)
         vpn_service (VPNService)

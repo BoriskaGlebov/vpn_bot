@@ -41,7 +41,6 @@ from shared.enums.subscription_enum import ToggleSubscriptionMode
 from shared.enums.vpn_enum import VPNBackend
 
 if TYPE_CHECKING:
-    from bot.admin.services import AdminService
     from bot.expense.services import ExpenseService
 m_admin = settings_bot.messages.modes.admin
 m_start = settings_bot.messages.modes.start
@@ -103,14 +102,12 @@ class UserRouter(BaseRouter):
         redis_manager: RedisClient,
         user_service: UserService,
         referral_service: ReferralService,
-        admin_service: AdminService,
         expense_service: ExpenseService,
     ) -> None:
         super().__init__(bot, logger)
         self.redis_manager = redis_manager
         self.user_service = user_service
         self.referral_service = referral_service
-        self.admin_service = admin_service
         self.expense_service = expense_service
 
     def _register_handlers(self) -> None:
