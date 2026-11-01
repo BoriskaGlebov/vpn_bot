@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.utils.chat_action import ChatActionSender
 from loguru._logger import Logger
 
-from bot.core.config import settings_bot
+from bot.core.config import bot, settings_bot
 from bot.core.filters import IsAdmin
 from bot.expense.keyboards.inline_kb import (
     CATEGORY_LABELS,
@@ -31,6 +31,8 @@ from bot.expense.schemas import SExpenseCreate
 from bot.expense.services import ExpenseService
 from bot.utils.base_router import BaseRouter
 from shared.enums.expense_enum import ExpenseCategory
+
+m_expense = settings_bot.messages.modes.expense
 
 
 class ExpenseStates(StatesGroup):  # type: ignore[misc]
@@ -146,12 +148,12 @@ class ExpenseRouter(BaseRouter):
         """
         async with ChatActionSender.typing(bot=self.bot, chat_id=query.from_user.id):
             summary = await self.expense_service.get_yearly_summary()
-            text = (
-                f"📊 <b>Финансы за {summary.year} год</b>\n\n"
-                f"💰 Доход: <b>{summary.total_revenue:,}</b> ₽\n"
-                f"📉 Расходы: <b>{summary.total_expenses:,}</b> ₽\n"
-                f"📈 Прибыль: <b>{summary.total_profit:,}</b> ₽"
-            ).replace(",", " ")
+            text = m_expense.menu.format(
+                year=summary.year,
+                revenue=f"{summary.total_revenue:,}".replace(",", " "),
+                expenses=f"{summary.total_expenses:,}".replace(",", " "),
+                profit=f"{summary.total_profit:,}".replace(",", " "),
+            )
             await msg.edit_text(text=text, reply_markup=expense_menu_kb())
 
     @BaseRouter.log_method
@@ -173,10 +175,7 @@ class ExpenseRouter(BaseRouter):
 
         """
         await state.set_state(ExpenseStates.select_category)
-        await msg.edit_text(
-            "Выберите категорию расхода:",
-            reply_markup=category_kb(),
-        )
+        await msg.edit_text(m_expense.select_category, reply_markup=category_kb())
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -200,11 +199,9 @@ class ExpenseRouter(BaseRouter):
         label = CATEGORY_LABELS.get(
             callback_data.category, callback_data.category.value
         )
-        await query.answer(f"Категория: {label}")
+        await query.answer(m_expense.category_answer.format(label=label))
         await state.set_state(ExpenseStates.enter_amount)
-        await msg.edit_text(
-            f"Категория: {label}\n\nВведите сумму расхода в рублях (целое число):"
-        )
+        await msg.edit_text(m_expense.enter_amount.format(label=label))
 
     @BaseRouter.log_method
     async def amount_entered(self, message: Message, state: FSMContext) -> None:
@@ -221,15 +218,15 @@ class ExpenseRouter(BaseRouter):
             if amount <= 0:
                 raise ValueError
         except ValueError:
-            await message.answer(
-                "⚠️ Введите целое положительное число (сумму в рублях)."
-            )
+            await message.answer(m_expense.amount_invalid)
             return
+        mess_id = message.message_id
+        await bot.delete_message(message.chat.id, mess_id)
+        await bot.delete_message(message.chat.id, mess_id - 1)
         await state.update_data(amount=amount)
         await state.set_state(ExpenseStates.enter_description)
         await message.answer(
-            f"Сумма: <b>{amount:,}</b> ₽\n\n"
-            "Введите описание расхода или нажмите «Пропустить»:".replace(",", " "),
+            m_expense.enter_description.format(amount=f"{amount:,}".replace(",", " ")),
             reply_markup=skip_kb(),
         )
 
@@ -253,11 +250,7 @@ class ExpenseRouter(BaseRouter):
         """
         await state.update_data(description=None)
         await state.set_state(ExpenseStates.select_period)
-        await msg.edit_text(
-            "Выберите период расхода.\n"
-            "Нажмите «Текущий месяц» или введите дату в формате <b>YYYY-MM-DD</b>:",
-            reply_markup=period_kb(),
-        )
+        await msg.edit_text(m_expense.select_period, reply_markup=period_kb())
 
     @BaseRouter.log_method
     async def description_entered(self, message: Message, state: FSMContext) -> None:
@@ -271,11 +264,7 @@ class ExpenseRouter(BaseRouter):
         desc = (message.text or "").strip()
         await state.update_data(description=desc if desc else None)
         await state.set_state(ExpenseStates.select_period)
-        await message.answer(
-            "Выберите период расхода.\n"
-            "Нажмите «Текущий месяц» или введите дату в формате <b>YYYY-MM-DD</b>:",
-            reply_markup=period_kb(),
-        )
+        await message.answer(m_expense.select_period, reply_markup=period_kb())
 
     @BaseRouter.log_method
     @BaseRouter.require_message
@@ -306,8 +295,10 @@ class ExpenseRouter(BaseRouter):
         )
         await state.set_state(ExpenseStates.select_node)
         await msg.edit_text(
-            f"Период: {period_start:%Y-%m-%d} — {period_end:%Y-%m-%d}\n\n"
-            "Выберите VPN-ноду или «Без привязки»:",
+            m_expense.select_node.format(
+                period_start=f"{period_start:%Y-%m-%d}",
+                period_end=f"{period_end:%Y-%m-%d}",
+            ),
             reply_markup=node_kb(),
         )
 
@@ -324,9 +315,7 @@ class ExpenseRouter(BaseRouter):
         try:
             period_start = date.fromisoformat(text)
         except ValueError:
-            await message.answer(
-                "⚠️ Некорректная дата. Введите в формате <b>YYYY-MM-DD</b> (например, 2026-10-01)."
-            )
+            await message.answer(m_expense.date_invalid)
             return
         last_day = calendar.monthrange(period_start.year, period_start.month)[1]
         period_end = date(period_start.year, period_start.month, last_day)
@@ -336,8 +325,10 @@ class ExpenseRouter(BaseRouter):
         )
         await state.set_state(ExpenseStates.select_node)
         await message.answer(
-            f"Период: {period_start:%Y-%m-%d} — {period_end:%Y-%m-%d}\n\n"
-            "Выберите VPN-ноду или «Без привязки»:",
+            m_expense.select_node.format(
+                period_start=f"{period_start:%Y-%m-%d}",
+                period_end=f"{period_end:%Y-%m-%d}",
+            ),
             reply_markup=node_kb(),
         )
 
@@ -365,14 +356,14 @@ class ExpenseRouter(BaseRouter):
 
         cat_enum = ExpenseCategory(data["category"])
         cat_label = CATEGORY_LABELS.get(cat_enum, data["category"])
-        text = (
-            "📋 <b>Подтвердите расход:</b>\n\n"
-            f"📂 Категория: {cat_label}\n"
-            f"💵 Сумма: <b>{data['amount']:,}</b> ₽\n"
-            f"📝 Описание: {data.get('description') or '—'}\n"
-            f"📅 Период: {data['period_start']} — {data.get('period_end', '—')}\n"
-            f"🖥 Нода: {node or '—'}"
-        ).replace(",", " ")
+        text = m_expense.confirm.format(
+            category=cat_label,
+            amount=f"{data['amount']:,}".replace(",", " "),
+            description=data.get("description") or "—",
+            period_start=data["period_start"],
+            period_end=data.get("period_end", "—"),
+            node=node or "—",
+        )
         await state.set_state(ExpenseStates.confirm)
         await msg.edit_text(text=text, reply_markup=confirm_kb())
 
@@ -413,9 +404,12 @@ class ExpenseRouter(BaseRouter):
             cat_label = CATEGORY_LABELS.get(result.category, result.category.value)
             await state.clear()
             await msg.edit_text(
-                f"✅ Расход добавлен: {result.amount:,} ₽ / "
-                f"{cat_label} / {result.node_name or '—'} / "
-                f"{result.period_start:%Y-%m}".replace(",", " ")
+                m_expense.added.format(
+                    amount=f"{result.amount:,}".replace(",", " "),
+                    category=cat_label,
+                    node=result.node_name or "—",
+                    period=f"{result.period_start:%Y-%m}",
+                )
             )
 
     @BaseRouter.log_method
@@ -437,5 +431,5 @@ class ExpenseRouter(BaseRouter):
 
         """
         await state.clear()
-        await query.answer("Отменено")
-        await msg.edit_text("❌ Ввод расхода отменён.")
+        await query.answer(m_expense.cancelled_toast)
+        await msg.edit_text(m_expense.cancelled)
