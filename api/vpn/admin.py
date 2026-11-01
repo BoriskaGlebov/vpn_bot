@@ -18,6 +18,7 @@ from api.admin.badges import (
     VPN_CONFIG_STATUS_LABELS,
     VPN_PROTOCOL_LABELS,
     badge,
+    fmt_dt,
 )
 from api.bot_channel.dependencies import get_bot_channel_client
 from api.core.database import async_session
@@ -207,6 +208,7 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "node_name": format_node_name,  # type: ignore[misc, dict-item]
         "backend": format_backend,  # type: ignore[misc, dict-item]
         "protocol": format_protocol,  # type: ignore[misc, dict-item]
+        "created_at": lambda m, a: fmt_dt(m.created_at),  # type: ignore[misc, dict-item, attr-defined]
     }
 
     # create/edit запрещены: SQLAdmin писал бы модель напрямую в БД, минуя

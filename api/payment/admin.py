@@ -1,9 +1,7 @@
-from datetime import datetime
-
 from markupsafe import Markup
 from sqladmin import ModelView
 
-from api.admin.badges import PAYMENT_BADGE_COLORS, badge
+from api.admin.badges import PAYMENT_BADGE_COLORS, badge, fmt_dt
 from api.payment.model import PaymentTransaction
 
 
@@ -40,18 +38,17 @@ def format_admin(obj: PaymentTransaction, name: str) -> str:
 
 
 def format_datetime(obj: PaymentTransaction, name: str) -> str:
-    """Форматирует datetime поля в читаемый вид.
+    """Форматирует datetime поле в московском времени.
 
     Args:
         obj: PaymentTransaction.
-        name: имя атрибута datetime поля.
+        name: Имя атрибута datetime поля.
 
     Returns
-        Отформатированная дата или '-'.
+        Отформатированная дата в московском времени или '—'.
 
     """
-    value: datetime | None = getattr(obj, name)
-    return value.strftime("%Y-%m-%d %H:%M:%S") if value else "-"
+    return fmt_dt(getattr(obj, name), "%d.%m.%Y %H:%M:%S")
 
 
 def format_amount(obj: PaymentTransaction, name: str) -> str:

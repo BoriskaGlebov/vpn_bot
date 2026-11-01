@@ -7,7 +7,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 
-from api.admin.badges import ROLE_BADGE_COLORS, SUBSCRIPTION_BADGE_COLORS, badge
+from api.admin.badges import ROLE_BADGE_COLORS, SUBSCRIPTION_BADGE_COLORS, badge, fmt_dt
 from api.app_error.base_error import (
     BotChannelUnavailableError,
     UserVPNRevokeIncompleteError,
@@ -46,7 +46,7 @@ def format_current_subscription(obj: User, name: str) -> Markup:
     if not sub or not sub.type:
         return Markup('<span class="text-muted">-</span>')
     color = SUBSCRIPTION_BADGE_COLORS.get(sub.type.value, "secondary")
-    until = sub.end_date.strftime("%Y-%m-%d") if sub.end_date else "∞"
+    until = fmt_dt(sub.end_date, "%d.%m.%Y") if sub.end_date else "∞"
     return Markup(f"{badge(sub.type.name, color)} до {until}")
 
 
