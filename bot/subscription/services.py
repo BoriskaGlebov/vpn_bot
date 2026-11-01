@@ -241,12 +241,24 @@ class SubscriptionService:
 
         remaining_text = f"{remaining_text_value} до ({end_date})"
 
-        conf_list = "\n\n".join(
-            f"📌 <b>{conf.file_name}</b> <code>#{conf.id}</code>\n"
-            f"   Локация: {format_vpn_location(conf.node_name)}\n"
-            f"   Создан: {format_vpn_config_date(conf.created_at)}"
-            for conf in data.configs
-        )
+        conf_lines = []
+        for conf in data.configs:
+            pending = conf.status == "pending_delete"
+            template = (
+                m_subscription_local.config_item_pending
+                if pending
+                else m_subscription_local.config_item
+            )
+            line = template.format(
+                file_name=conf.file_name,
+                id=conf.id,
+                location=format_vpn_location(conf.node_name),
+                created_at=format_vpn_config_date(conf.created_at),
+            )
+            if pending and conf.status_reason:
+                line += f"\n{m_subscription_local.config_item_pending_reason.format(reason=conf.status_reason)}"
+            conf_lines.append(line)
+        conf_list = "\n\n".join(conf_lines)
 
         return f"{status} {sbs_type} — {remaining_text}\n\n{conf_list}"
 

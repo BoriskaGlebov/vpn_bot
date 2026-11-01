@@ -70,3 +70,143 @@ class PaymentTransactionDAO(BaseDAO[PaymentTransaction]):
         )
 
         return income
+
+    @classmethod
+    async def get_monthly_revenue(
+        cls,
+        session: AsyncSession,
+        year: int,
+    ) -> list[tuple[str, int]]:
+        """Возвращает суммарную выручку по месяцам за указанный год.
+
+        Учитываются только транзакции со статусом PAID.
+        Месяц определяется по полю `paid_at` в таймзоне проекта.
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            year: Год агрегации.
+
+        Returns
+            list[tuple[str, int]]: Список пар (месяц 'YYYY-MM', выручка в руб),
+            отсортированных по месяцу.
+
+        """
+        tz = settings_api.core.tzinfo
+        start = datetime(year, 1, 1, tzinfo=tz)
+        end = datetime(year + 1, 1, 1, tzinfo=tz)
+
+        month_expr = func.to_char(
+            func.timezone(settings_api.core.timezone, cls.model.paid_at),
+            "YYYY-MM",
+        )
+        stmt = (
+            select(
+                month_expr.label("month"),
+                func.sum(cls.model.amount).label("total"),
+            )
+            .where(
+                cls.model.status == PaymentStatus.PAID,
+                cls.model.paid_at >= start,
+                cls.model.paid_at < end,
+            )
+            .group_by(month_expr)
+            .order_by(month_expr)
+        )
+        result = await session.execute(stmt)
+        return [(row.month, int(row.total)) for row in result.all()]
+
+    @classmethod
+    async def count_paying_users(
+        cls,
+        session: AsyncSession,
+        year: int,
+    ) -> int:
+        """Возвращает количество уникальных плательщиков за год.
+
+        Считает DISTINCT user_id из PAID-транзакций.
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            year: Год.
+
+        Returns
+            int: Кол-во уникальных user_id.
+
+        """
+        tz = settings_api.core.tzinfo
+        start = datetime(year, 1, 1, tzinfo=tz)
+        end = datetime(year + 1, 1, 1, tzinfo=tz)
+
+        stmt = select(
+            func.coalesce(func.count(func.distinct(cls.model.user_id)), 0)
+        ).where(
+            cls.model.status == PaymentStatus.PAID,
+            cls.model.paid_at >= start,
+            cls.model.paid_at < end,
+        )
+        result = await session.execute(stmt)
+        return int(result.scalar_one())
+
+    @classmethod
+    async def count_paid_transactions(
+        cls,
+        session: AsyncSession,
+        year: int,
+    ) -> int:
+        """Возвращает общее количество PAID-транзакций за год.
+
+        В отличие от `count_paying_users`, считает все платежи, включая повторные
+        от одного пользователя — знаменатель для среднего чека (avg_check).
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            year: Год.
+
+        Returns
+            int: Кол-во платежей.
+
+        """
+        tz = settings_api.core.tzinfo
+        start = datetime(year, 1, 1, tzinfo=tz)
+        end = datetime(year + 1, 1, 1, tzinfo=tz)
+
+        stmt = select(func.coalesce(func.count(), 0)).where(
+            cls.model.status == PaymentStatus.PAID,
+            cls.model.paid_at >= start,
+            cls.model.paid_at < end,
+        )
+        result = await session.execute(stmt)
+        return int(result.scalar_one())
+
+    @classmethod
+    async def count_monthly_payments(
+        cls,
+        session: AsyncSession,
+        year: int,
+        month: int,
+    ) -> int:
+        """Возвращает количество PAID-транзакций за конкретный месяц.
+
+        Args:
+            session: Асинхронная SQLAlchemy-сессия.
+            year: Год.
+            month: Номер месяца (1-12).
+
+        Returns
+            int: Количество платежей.
+
+        """
+        tz = settings_api.core.tzinfo
+        start = datetime(year, month, 1, tzinfo=tz)
+        if month == 12:
+            end = datetime(year + 1, 1, 1, tzinfo=tz)
+        else:
+            end = datetime(year, month + 1, 1, tzinfo=tz)
+
+        stmt = select(func.count()).where(
+            cls.model.status == PaymentStatus.PAID,
+            cls.model.paid_at >= start,
+            cls.model.paid_at < end,
+        )
+        result = await session.execute(stmt)
+        return int(result.scalar_one())

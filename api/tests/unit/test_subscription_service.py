@@ -121,11 +121,20 @@ async def test_start_trial_create_new(session, monkeypatch):
     )
 
     activate_mock = AsyncMock()
-
     monkeypatch.setattr(
         "api.subscription.services.SubscriptionDAO.activate_subscription",
         activate_mock,
     )
+
+    async def _patch_side_effect(session, instance, values):
+        instance.has_used_trial = values.has_used_trial
+        return instance
+
+    patch_mock = AsyncMock(side_effect=_patch_side_effect)
+    monkeypatch.setattr("api.subscription.services.UserDAO.patch", patch_mock)
+
+    refresh_mock = AsyncMock(return_value=user)
+    monkeypatch.setattr("api.subscription.services.UserDAO.refresh", refresh_mock)
 
     result = await SubscriptionService.start_trial_subscription(
         session,
@@ -139,8 +148,9 @@ async def test_start_trial_create_new(session, monkeypatch):
     # это делает сервис; создание (в отличие от продления) отвечает STARTED.
     assert result == TrialStatus.STARTED
 
-    session.refresh.assert_awaited_once_with(
-        user,
+    refresh_mock.assert_awaited_once_with(
+        session=session,
+        instance=user,
         attribute_names=["subscriptions", "role", "vpn_configs"],
     )
 

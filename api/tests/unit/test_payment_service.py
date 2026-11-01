@@ -668,9 +668,9 @@ async def test_admin_confirm_transaction_success(
             new=AsyncMock(return_value=1),
         ) as mock_update,
         patch.object(
-            mock_session,
+            PaymentTransactionDAO,
             "refresh",
-            new=AsyncMock(),
+            new=AsyncMock(return_value=tx),
         ) as mock_refresh,
     ):
 
@@ -695,7 +695,7 @@ async def test_admin_confirm_transaction_success(
     assert values.confirmed_by_admin_id == 99
     assert values.source == PaymentSource.MANUAL
 
-    mock_refresh.assert_awaited_once_with(tx)
+    mock_refresh.assert_awaited_once_with(session=mock_session, instance=tx)
 
     assert result is not None
 
@@ -864,9 +864,9 @@ async def test_webhook_confirm_transaction_success(
             new=AsyncMock(return_value=1),
         ) as mock_update,
         patch.object(
-            mock_session,
+            PaymentTransactionDAO,
             "refresh",
-            new=AsyncMock(),
+            new=AsyncMock(return_value=tx),
         ) as mock_refresh,
         patch(
             "api.payment.services.datetime",
@@ -899,7 +899,7 @@ async def test_webhook_confirm_transaction_success(
     assert values.paid_at == fixed_time
     assert values.confirmed_at == fixed_time
 
-    mock_refresh.assert_awaited_once_with(tx)
+    mock_refresh.assert_awaited_once_with(session=mock_session, instance=tx)
 
     assert result is not None
 
@@ -1069,9 +1069,9 @@ async def test_cancel_transaction_success(
             new=AsyncMock(return_value=1),
         ) as mock_update,
         patch.object(
-            mock_session,
+            PaymentTransactionDAO,
             "refresh",
-            new=AsyncMock(),
+            new=AsyncMock(return_value=tx),
         ) as mock_refresh,
     ):
 
@@ -1092,7 +1092,7 @@ async def test_cancel_transaction_success(
     assert isinstance(call_kwargs["values"], SPaymentStatusCancel)
     assert call_kwargs["values"].status == PaymentStatus.CANCELED
 
-    mock_refresh.assert_awaited_once_with(tx)
+    mock_refresh.assert_awaited_once_with(session=mock_session, instance=tx)
 
     assert result is not None
 

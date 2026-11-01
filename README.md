@@ -22,6 +22,7 @@
 - [Быстрый старт](#быстрый-старт)
 - [Конфигурация](#конфигурация)
   - [Переменные окружения (`.env`)](#переменные-окружения-env)
+  - [Не получается войти в админ-панель (SQLAdmin)](#не-получается-войти-в-админ-панель-sqladmin)
   - [Настройки приложения (`app_config*.toml`)](#настройки-приложения-app_configtoml)
 - [Запуск](#запуск)
 - [Миграции базы данных](#миграции-базы-данных)
@@ -181,11 +182,42 @@ python api/main.py      # http://localhost:8089/api/docs
 | Backup | `BACKUP_ENCRYPTION_KEY` | Fernet-ключ шифрования бэкапов конфигов VPN-контейнеров (`backup.sh` → `bot/vpn/utils/backup_containers.py`) перед загрузкой в S3; генерируется один раз `Fernet.generate_key()` |
 | AI (опционально) | `SECRET_KEY_AI`, `YANDEX_FOLDER_ID` | Yandex AI Studio; актуально только при локальной разработке AI-части |
 | API service | `SESSION_SECRET` | Ключ сессий админ-панели (SQLAdmin). Обязателен — без значения по умолчанию, `api/` не поднимется без него |
-| API service | `ADMIN_PANEL_USER`, `ADMIN_PANEL_PASSWORD_HASH` | Логин и хеш пароля входа в SQLAdmin — отдельные от учётных данных PostgreSQL. Хеш генерируется один раз: `python -c "from api.users.auth_admin import hash_password; print(hash_password('...'))"`. Пустой `ADMIN_PANEL_PASSWORD_HASH` отключает вход в панель (fail-closed) |
+| API service | `ADMIN_PANEL_USER`, `ADMIN_PANEL_PASSWORD_HASH` | Логин и хеш пароля входа в SQLAdmin — отдельные от учётных данных PostgreSQL (см. [«Не получается войти в админ-панель»](#не-получается-войти-в-админ-панель-sqladmin)) |
 | API service | `SKIP_INIT` (в `.env.example `) / `SKIP_AI_INIT` (в CI, `.github/workflows/ci.yml`) | Флаг пропуска тяжёлой инициализации AI-зависимостей при старте; имя в этих двух местах расходится — при добавлении в свой `.env` стоит свериться с тем, что реально читает код на момент использования |
 | Платежи | `MERCHANT_ID`, `API_KEY` | Учётные данные платёжного шлюза (Platega) |
 | Internal | `INTERNAL_API_SECRET` | Общий секрет для запросов `bot/` → `api/` (заголовок `X-Internal-Secret`). Обязателен — без значения по умолчанию, `api/` не поднимется без него; значение должно совпадать с тем, что использует `bot/` |
 | Internal (api → bot) | `BOT_INTERNAL_API_KEY` | Ключ обратного канала `api/` → `bot/` (заголовок `X-API-Key`, эндпоинты `bot/internal/router.py`, сейчас `POST /internal/vpn/revoke` — отзыв доступа конфига на нодах; `api/` сам к панелям не ходит). Одно значение в окружении обоих сервисов. Необязателен: пустой ключ выключает канал (бот отвечает 403, клиент в `api/` не шлёт запросов) — закрыто по умолчанию. Адрес бота для `api/` — `BotChannelSettings` (`api/core/config.py`, по умолчанию `vpn_bot:8088`) |
+
+### Не получается войти в админ-панель (SQLAdmin)
+
+Логин и пароль входа в SQLAdmin (`/api/admin`) не связаны с учётными данными
+PostgreSQL — это отдельная пара `ADMIN_PANEL_USER` / `ADMIN_PANEL_PASSWORD_HASH`
+(см. `api/users/auth_admin.py`). Хеш — не bcrypt и не «обычный» sha256, а
+PBKDF2-HMAC-SHA256 собственного формата: `pbkdf2_sha256.<iterations>.<salt_b64>.<hash_b64>`.
+
+Если вход не проходит ни с каким паролем — почти наверняка `ADMIN_PANEL_PASSWORD_HASH`
+не задан: по умолчанию это пустая строка, и при пустом хеше `login()` всегда
+возвращает `False` (fail-closed), независимо от введённого пароля.
+
+Чтобы задать или пересоздать пароль:
+
+```bash
+poetry run python -c "from api.users.auth_admin import hash_password; print(hash_password('НОВЫЙ_ПАРОЛЬ'))"
+```
+
+Команда выводит строку вида `pbkdf2_sha256.310000.<salt>.<hash>` — её целиком
+(без кавычек) нужно положить в переменную `ADMIN_PANEL_PASSWORD_HASH` там, где
+реально запущен сервис `api/`:
+
+- локально — в `.env`/`.env.local`, заодно проверить `ADMIN_PANEL_USER`
+  (по умолчанию `admin`);
+- на деплое — в GitHub Secret, из которого заполняется `env_file` для Docker
+  Compose. Разделитель полей хеша — `.`, а не `$`: Compose интерполирует
+  `$VAR`/`${VAR}` внутри значений из `env_file`, и при разделителе `$` часть
+  хеша после каждого `$` тихо обрезалась бы до пустой строки.
+
+После изменения переменной сервис `api/` нужно перезапустить — pydantic-settings
+читает `.env`/окружение только при старте процесса.
 
 ### Настройки приложения (`app_config*.toml`)
 

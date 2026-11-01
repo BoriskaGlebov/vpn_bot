@@ -3,7 +3,6 @@ from markupsafe import Markup
 from sqladmin import ModelView, action, expose
 from sqladmin.filters import (
     AllUniqueStringValuesFilter,
-    ForeignKeyFilter,
     OperationColumnFilter,
     StaticValuesFilter,
 )
@@ -18,10 +17,10 @@ from api.admin.badges import (
     VPN_CONFIG_STATUS_LABELS,
     VPN_PROTOCOL_LABELS,
     badge,
+    fmt_dt,
 )
 from api.bot_channel.dependencies import get_bot_channel_client
 from api.core.database import async_session
-from api.users.models import User
 from api.users.schemas import SVPNConfigOut
 from api.vpn.dao import VPNConfigDAO
 from api.vpn.models import VPNConfig, VPNConfigStatus
@@ -158,7 +157,6 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
     ]
 
     column_filters = [
-        ForeignKeyFilter(VPNConfig.user_id, User.username, title="Пользователь"),
         OperationColumnFilter(VPNConfig.file_name),
         # Статус/бэкенд — фиксированный набор значений (Python-enum), поэтому
         # выпадающий список задаётся явно, а не через OperationColumnFilter.
@@ -207,6 +205,7 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         "node_name": format_node_name,  # type: ignore[misc, dict-item]
         "backend": format_backend,  # type: ignore[misc, dict-item]
         "protocol": format_protocol,  # type: ignore[misc, dict-item]
+        "created_at": lambda m, a: fmt_dt(m.created_at),  # type: ignore[misc, dict-item, attr-defined]
     }
 
     # create/edit запрещены: SQLAdmin писал бы модель напрямую в БД, минуя
@@ -306,6 +305,9 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
         следующем прогоне (`bot/scheduler/services.py:_trigger_config_deletion`),
         так же, как для конфигов, помеченных автоматически по истечению
         подписки или превышению лимита устройств.
+
+        После коммита рассылает уведомление затронутым пользователям (best-effort:
+        недоступность бота не откатывает уже выполненный UPDATE).
         """
         form = await request.form()
         pks = _parse_pks(str(form.get("pks", "")))
@@ -322,6 +324,20 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
             )
 
         async with async_session() as session:
+            # Собираем telegram_id до UPDATE — VPNConfig.user lazy="selectin",
+            # загружается автоматически вместе с конфигами.
+            eligible = (
+                await session.scalars(
+                    select(VPNConfig).where(
+                        VPNConfig.id.in_(pks),
+                        VPNConfig.status == VPNConfigStatus.ACTIVE,
+                    )
+                )
+            ).all()
+            recipients = list(
+                {c.user.telegram_id for c in eligible if c.user is not None}
+            )
+
             updated = await VPNConfigDAO.mark_pending_delete(
                 session=session, config_ids=pks, reason=reason
             )
@@ -332,6 +348,26 @@ class VPNConfigAdmin(ModelView, model=VPNConfig):
             updated,
             reason,
         )
+
+        if recipients:
+            notification = (
+                "⚠️ Один или несколько ваших VPN-конфигов помечены на удаление.\n\n"
+                f"Причина: {reason}\n\n"
+                "При следующей автоматической проверке конфиги будут удалены — "
+                "оформите новый конфиг заранее."
+            )
+            try:
+                sent = await get_bot_channel_client().send_broadcast(
+                    text=notification, recipients=recipients
+                )
+                logger.info(
+                    "Уведомление о пометке на удаление разослано {} пользователям", sent
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Не удалось разослать уведомления о пометке на удаление: {}", exc
+                )
+
         return await self.templates.TemplateResponse(
             request,
             "admin/vpn_config_pending_delete_done.html",

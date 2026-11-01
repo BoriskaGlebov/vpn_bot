@@ -17,6 +17,7 @@ def make_confirm(
     sub_type: str = "premium",
     months: int = 3,
     amount: int = 990,
+    discount_amount: int = 0,
     username: str = "borya",
     referral_success: bool = False,
     inviter_telegram_id: int | None = None,
@@ -26,6 +27,7 @@ def make_confirm(
         tg_id=tg_id,
         subscription_months=months,
         amount=amount,
+        discount_amount=discount_amount,
     )
     subscription = SimpleNamespace(type=sub_type, end_date=None)
     user = SimpleNamespace(username=username, current_subscription=subscription)

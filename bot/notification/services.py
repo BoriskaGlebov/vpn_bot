@@ -8,7 +8,7 @@ from bot.app_error.base_error import SubscriptionActivationFailedError
 from bot.core.config import settings_bot
 from bot.payment.schemas import SConfirmPaymentResponse
 from bot.redis_service import RedisPaymentMessageStorage
-from bot.utils.formatting import format_subscription_end_date
+from bot.utils.formatting import format_promo_info, format_subscription_end_date
 from bot.utils.start_stop_bot import send_to_admins
 
 m_subscription = settings_bot.messages.modes.subscription
@@ -101,6 +101,9 @@ class NotificationService:
             )
         sub_type = user.current_subscription.type.upper()
         end_date = format_subscription_end_date(user.current_subscription.end_date)
+        promo_info = format_promo_info(
+            tx.discount_amount, m_subscription.accept_paid.promo_info_line
+        )
 
         try:
             await self._deliver_outcome_message(
@@ -111,6 +114,7 @@ class NotificationService:
                     months=tx.subscription_months,
                     amount=tx.amount,
                     end_date=end_date,
+                    promo_info=promo_info,
                 ),
             )
             referral = confirm.referral_res
@@ -138,6 +142,7 @@ class NotificationService:
                 sub_type=sub_type,
                 username=user.username or "-",
                 amount=tx.amount,
+                promo_info=promo_info,
                 info=m_subscription.gateway_alert.confirmed_info.format(
                     gateway=provider_name
                 ),

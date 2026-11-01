@@ -29,12 +29,8 @@ class SUser(SUserTelegramID):
 class SProfileUpdate(BaseModel):
     """Схема обновления профиля (username/first_name/last_name) при повторном входе.
 
-    Telegram-профиль изменяем и необязателен — хранимые значения иначе тихо
-    устаревают по сравнению с актуальными. `BaseDAO.update` делает полный
-    `SET` по всем полям схемы (а не только по изменившимся), поэтому сервис
-    обязан передавать сюда для каждого поля либо новое значение, либо
-    текущее из БД — просто пропустить неизменившееся поле нельзя, иначе оно
-    затрётся `NULL`.
+    Все три поля всегда передаются явно (либо новое значение, либо текущее из
+    БД), поэтому `BaseDAO.patch` применит все три через `setattr`.
 
     Attributes
         username (str | None): Актуальное значение username.
@@ -50,6 +46,17 @@ class SProfileUpdate(BaseModel):
     last_name: str | None = Field(None, description="Текущая фамилия")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SHasUsedTrial(BaseModel):
+    """Схема для обновления флага использования триал-периода.
+
+    Attributes
+        has_used_trial (bool): Новое значение флага.
+
+    """
+
+    has_used_trial: bool
 
 
 class SRole(BaseModel):
@@ -129,6 +136,12 @@ class SVPNConfigOut(BaseModel):
         None, description="Для XRay — uuid клиентов на панели"
     )
     created_at: datetime = Field(..., description="Дата и время создания конфига")
+    status: str | None = Field(
+        None, description="Статус конфига (active/pending_delete/deleted)"
+    )
+    status_reason: str | None = Field(
+        None, description="Причина перевода в PENDING_DELETE"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

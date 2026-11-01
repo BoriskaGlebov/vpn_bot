@@ -1,9 +1,8 @@
 from sqladmin import ModelView
-from sqladmin.filters import BooleanFilter, ForeignKeyFilter, OperationColumnFilter
+from sqladmin.filters import BooleanFilter, OperationColumnFilter
 
-from api.admin.badges import badge
+from api.admin.badges import badge, fmt_dt
 from api.referrals.models import Referral
-from api.users.models import User
 
 
 class ReferralAdmin(ModelView, model=Referral):
@@ -40,8 +39,6 @@ class ReferralAdmin(ModelView, model=Referral):
 
     column_filters = [
         BooleanFilter(Referral.bonus_given, title="Бонус выдан"),
-        ForeignKeyFilter(Referral.inviter_id, User.username, title="Пригласил"),
-        ForeignKeyFilter(Referral.invited_id, User.username, title="Приглашён"),
         OperationColumnFilter(Referral.bonus_given_at),
     ]
 
@@ -70,9 +67,7 @@ class ReferralAdmin(ModelView, model=Referral):
         "bonus_given": lambda m, a: (
             badge("да", "success") if m.bonus_given else badge("нет", "secondary")  # type: ignore[misc, attr-defined]
         ),
-        "bonus_given_at": lambda m, a: (  # type: ignore[misc, dict-item]
-            m.bonus_given_at.strftime("%Y-%m-%d %H:%M") if m.bonus_given_at else "-"  # type: ignore[misc, attr-defined]
-        ),
+        "bonus_given_at": lambda m, a: fmt_dt(m.bonus_given_at),  # type: ignore[misc, dict-item, attr-defined]
     }
 
     can_create = True

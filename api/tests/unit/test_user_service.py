@@ -64,11 +64,11 @@ async def test_register_or_get_user_existing(
 
 
 @patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
-@patch("api.users.services.UserDAO.update", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.patch", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_updates_changed_username(
     mock_find_user,
-    mock_update,
+    mock_patch,
     mock_to_schema,
     service,
     session,
@@ -82,17 +82,17 @@ async def test_register_or_get_user_updates_changed_username(
 
     await service.register_or_get_user(session=session, telegram_user=telegram_user)
 
-    mock_update.assert_awaited_once()
-    _, kwargs = mock_update.await_args
+    mock_patch.assert_awaited_once()
+    _, kwargs = mock_patch.await_args
     assert kwargs["values"].username == "new_name"
 
 
 @patch("api.users.services.UserMapper.to_schema", new_callable=MagicMock)
-@patch("api.users.services.UserDAO.update", new_callable=AsyncMock)
+@patch("api.users.services.UserDAO.patch", new_callable=AsyncMock)
 @patch("api.users.services.UserDAO.find_one_or_none", new_callable=AsyncMock)
 async def test_register_or_get_user_updates_changed_first_and_last_name(
     mock_find_user,
-    mock_update,
+    mock_patch,
     mock_to_schema,
     service,
     session,
@@ -100,7 +100,7 @@ async def test_register_or_get_user_updates_changed_first_and_last_name(
     """Существующий пользователь прислал новые first_name/last_name -> обновляем.
 
     username при этом не меняется — в SET должно попасть текущее значение
-    из БД, а не None (полный SET по всем полям схемы, см. SProfileUpdate).
+    из БД, а не None (все три поля всегда передаются явно в SProfileUpdate).
     """
     fake_user = MagicMock(
         username="same_name", first_name="OldFirst", last_name="OldLast"
@@ -117,8 +117,8 @@ async def test_register_or_get_user_updates_changed_first_and_last_name(
 
     await service.register_or_get_user(session=session, telegram_user=telegram_user)
 
-    mock_update.assert_awaited_once()
-    _, kwargs = mock_update.await_args
+    mock_patch.assert_awaited_once()
+    _, kwargs = mock_patch.await_args
     assert kwargs["values"].username == "same_name"
     assert kwargs["values"].first_name == "NewFirst"
     assert kwargs["values"].last_name == "NewLast"

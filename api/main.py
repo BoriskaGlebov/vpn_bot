@@ -14,6 +14,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 
 from api.admin.badges import (
+    EXPENSE_CATEGORY_BADGE_COLORS,
+    EXPENSE_CATEGORY_LABELS,
     PAYMENT_BADGE_COLORS,
     PROMO_DISCOUNT_TYPE_COLORS,
     PROMO_DISCOUNT_TYPE_LABELS,
@@ -26,6 +28,7 @@ from api.admin.badges import (
     VPN_PROTOCOL_LABELS,
 )
 from api.admin.dashboard import DashboardView
+from api.admin.finance_dashboard import FinanceDashboardView
 from api.admin.navigation import resolve_back_url
 from api.admin.router import router as admin_router
 from api.app_error.api_error import (
@@ -45,6 +48,9 @@ from api.core.exceptions.handlers.http import (
     unhandled_exception_handler,
 )
 from api.core.schemas import SHealthResponse
+from api.expense.admin import ExpenseAdmin
+from api.expense.router import router as expense_router
+from api.finance.router import router as finance_router
 from api.middleware.auth_middleware import AuthMiddleware
 from api.middleware.exceptions_middleware import ExceptionLoggingMiddleware
 from api.middleware.logg_router_middleware import RequestLoggingMiddleware
@@ -99,6 +105,14 @@ tags_metadata: list[dict[str, Any]] = [
     {
         "name": "PROMO",
         "description": "Промокоды на скидку: проверка применимости и расчёт скидки",
+    },
+    {
+        "name": "EXPENSES",
+        "description": "Учёт расходов: создание, редактирование, удаление, агрегация по месяцам",
+    },
+    {
+        "name": "FINANCE",
+        "description": "Финансовая аналитика: P&L, годовой итог, ARPU, безубыточность, тренд выручки",
     },
     {
         "name": "NEWS",
@@ -199,6 +213,22 @@ app: FastAPI = FastAPI(
 - Периодические операции
 - Автоматизация процессов
 
+#### 🏷️ Промокоды (`/promo`)
+- Проверка применимости промокода
+- Расчёт скидки от базовой суммы
+
+#### 💸 Расходы (`/expenses`)
+- Учёт расходов на инфраструктуру (серверы, домены, IP, AI, реклама)
+- Фильтрация по категории и ноде
+- Агрегация расходов по месяцам за год
+- Доступ только для администраторов
+
+#### 📊 Финансовая аналитика (`/finance`)
+- P&L по месяцам (выручка, расходы, прибыль, маржа)
+- Годовой итог: доход, расход, средний чек, ARPU, конверсия в платящих
+- Точка безубыточности: сколько платежей нужно в месяц
+- MoM-тренд выручки за последние N месяцев
+
 #### ⚙️ Системные эндпоинты
 - `/health` — проверка состояния сервиса
 - Мониторинг и диагностика
@@ -244,6 +274,8 @@ app: FastAPI = FastAPI(
 | `admin_access_denied` | 403 | У пользователя нет роли `admin`/`founder` |
 | `user_not_found` | 404 | Пользователь с указанным `X-Telegram-Id` не зарегистрирован |
 | `validation_error` | 422 | Некорректное тело запроса / параметры |
+| `expense_not_found` | 404 | Запись о расходе с указанным ID не найдена |
+| `invalid_node_name` | 422 | Имя ноды не найдено в конфигурации `vpn.nodes` |
 | `http_exception` | 404/405/... | Ошибка маршрутизации (несуществующий путь, неверный метод) |
 | `database_error` | 500 | Ошибка при обращении к базе данных |
 | `internal_error` | 500 | Любая другая непредвиденная ошибка |
@@ -265,6 +297,8 @@ app.include_router(news_router)
 app.include_router(scheduler_router)
 app.include_router(payment_router)
 app.include_router(promo_router)
+app.include_router(expense_router)
+app.include_router(finance_router)
 
 
 app.add_exception_handler(APIError, api_error_handler)
@@ -325,7 +359,12 @@ admin.templates.env.globals["vpn_backend_labels"] = VPN_BACKEND_LABELS
 admin.templates.env.globals["vpn_protocol_labels"] = VPN_PROTOCOL_LABELS
 admin.templates.env.globals["promo_discount_type_colors"] = PROMO_DISCOUNT_TYPE_COLORS
 admin.templates.env.globals["promo_discount_type_labels"] = PROMO_DISCOUNT_TYPE_LABELS
+admin.templates.env.globals["expense_category_badge_colors"] = (
+    EXPENSE_CATEGORY_BADGE_COLORS
+)
+admin.templates.env.globals["expense_category_labels"] = EXPENSE_CATEGORY_LABELS
 admin.add_base_view(DashboardView)
+admin.add_base_view(FinanceDashboardView)
 admin.add_view(UserAdmin)
 admin.add_view(RoleAdmin)
 admin.add_view(SubscriptionAdmin)
@@ -334,6 +373,7 @@ admin.add_view(ReferralAdmin)
 admin.add_view(PaymentTransactionAdmin)
 admin.add_view(PromoCodeAdmin)
 admin.add_view(PromoCodeUsageAdmin)
+admin.add_view(ExpenseAdmin)
 
 # SQLAdmin монтирует СОБСТВЕННОЕ Starlette-приложение (`admin.admin`) под
 # `/admin` со своим `exception_handlers` (по умолчанию — только

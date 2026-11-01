@@ -1,4 +1,8 @@
+from datetime import datetime
+
 from markupsafe import Markup, escape
+
+from api.core.config import settings_api
 
 ROLE_BADGE_COLORS = {
     "admin": "red",
@@ -63,6 +67,42 @@ PROMO_DISCOUNT_TYPE_LABELS = {
     "percent": "Процент",
     "fixed": "Фикс. сумма",
 }
+
+EXPENSE_CATEGORY_BADGE_COLORS = {
+    "server": "blue",
+    "domain": "teal",
+    "ip_address": "cyan",
+    "ai_llm": "purple",
+    "advertising": "orange",
+    "other": "secondary",
+}
+
+EXPENSE_CATEGORY_LABELS = {
+    "server": "Сервер",
+    "domain": "Домен",
+    "ip_address": "IP-адрес",
+    "ai_llm": "AI/LLM",
+    "advertising": "Реклама",
+    "other": "Прочее",
+}
+
+
+def fmt_dt(dt: datetime | None, fmt: str = "%d.%m.%Y %H:%M") -> str:
+    """Переводит timezone-aware UTC datetime в московское время и форматирует.
+
+    Args:
+        dt: datetime-значение из БД (timezone-aware UTC) или None.
+        fmt: Формат strftime. По умолчанию ``%d.%m.%Y %H:%M``.
+
+    Returns
+        str: Дата и время в московском часовом поясе, или «—» если значение None.
+
+    """
+    if dt is None:
+        return "—"
+    tz = settings_api.core.tzinfo
+    local = dt.astimezone(tz) if dt.tzinfo else dt.replace(tzinfo=tz)
+    return local.strftime(fmt)
 
 
 def badge(text: str, color: str) -> Markup:

@@ -105,6 +105,12 @@ class SVPNConfigOut(BaseModel):
         None, description="Для XRay — uuid клиентов на панели"
     )
     created_at: datetime = Field(..., description="Дата и время создания конфига")
+    status: str | None = Field(
+        None, description="Статус конфига (active/pending_delete/deleted)"
+    )
+    status_reason: str | None = Field(
+        None, description="Причина перевода в PENDING_DELETE"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 

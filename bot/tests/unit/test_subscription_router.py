@@ -608,7 +608,7 @@ async def test_admin_confirm_payment(mocker):
 
     confirm_transaction_mock = Mock(
         subscription_res=user_schema,
-        transaction_res=Mock(amount=1000),
+        transaction_res=Mock(amount=1000, discount_amount=0),
         referral_res=Mock(
             success=False,
             inviter_telegram_id=None,
@@ -704,7 +704,7 @@ async def test_admin_confirm_payment_user_blocked_bot_still_completes(mocker):
 
     confirm_transaction_mock = Mock(
         subscription_res=user_schema,
-        transaction_res=Mock(amount=1000),
+        transaction_res=Mock(amount=1000, discount_amount=0),
         referral_res=Mock(
             success=True,
             inviter_telegram_id=777,

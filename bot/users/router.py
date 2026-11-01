@@ -41,7 +41,7 @@ from shared.enums.subscription_enum import ToggleSubscriptionMode
 from shared.enums.vpn_enum import VPNBackend
 
 if TYPE_CHECKING:
-    from bot.admin.services import AdminService
+    from bot.expense.services import ExpenseService
 m_admin = settings_bot.messages.modes.admin
 m_start = settings_bot.messages.modes.start
 m_id = settings_bot.messages.modes.id
@@ -102,13 +102,13 @@ class UserRouter(BaseRouter):
         redis_manager: RedisClient,
         user_service: UserService,
         referral_service: ReferralService,
-        admin_service: AdminService,
+        expense_service: ExpenseService,
     ) -> None:
         super().__init__(bot, logger)
         self.redis_manager = redis_manager
         self.user_service = user_service
         self.referral_service = referral_service
-        self.admin_service = admin_service
+        self.expense_service = expense_service
 
     def _register_handlers(self) -> None:
         self.router.message.register(
@@ -353,16 +353,13 @@ class UserRouter(BaseRouter):
                 text=m_admin.on[0],
                 reply_markup=ReplyKeyboardRemove(),
             )
-            income = await self.admin_service.year_income()
-            # Годовые расходы захардкожены — переносятся в источник данных.
-            expense = 28358
-            profit = income.year_income - expense
+            summary = await self.expense_service.get_yearly_summary()
             await self.bot.send_message(
                 chat_id=user.id,
                 text=m_admin.on[1].format(
-                    income=f"{income.year_income:,}".replace(",", " "),
-                    expense=f"{expense:,}".replace(",", " "),
-                    profit=f"{profit:,}".replace(",", " "),
+                    income=f"{summary.total_revenue:,}".replace(",", " "),
+                    expense=f"{summary.total_expenses:,}".replace(",", " "),
+                    profit=f"{summary.total_profit:,}".replace(",", " "),
                 ),
                 reply_markup=admin_main_kb(),
             )

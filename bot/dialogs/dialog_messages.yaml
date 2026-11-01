@@ -66,6 +66,38 @@ bot:
 
         {user_card}
 
+    expense:
+      menu: |
+        📊 <b>Финансы за {year} год</b>
+
+        💰 Доход: <b>{revenue}</b> ₽
+        📉 Расходы: <b>{expenses}</b> ₽
+        📈 Прибыль: <b>{profit}</b> ₽
+      select_category: "Выберите категорию расхода:"
+      category_answer: "Категория: {label}"
+      enter_amount: "Категория: {label}\n\nВведите сумму расхода в рублях (целое число):"
+      amount_invalid: "⚠️ Введите целое положительное число (сумму в рублях)."
+      enter_description: "Сумма: <b>{amount}</b> ₽\n\nВведите описание расхода или нажмите «Пропустить»:"
+      select_period: "Выберите период расхода.\nНажмите «Текущий месяц» или введите дату в формате <b>YYYY-MM-DD</b>:"
+      date_invalid: "⚠️ Некорректная дата. Введите в формате <b>YYYY-MM-DD</b> (например, 2026-10-01)."
+      select_node: "Период: {period_start} — {period_end}\n\nВыберите VPN-ноду или «Без привязки»:"
+      confirm: |
+        📋 <b>Подтвердите расход:</b>
+
+        📂 Категория: {category}
+        💵 Сумма: <b>{amount}</b> ₽
+        📝 Описание: {description}
+        📅 Период: {period_start} — {period_end}
+        🖥 Нода: {node}
+      added: "✅ Расход добавлен: {amount} ₽ / {category} / {node} / {period}"
+      cancelled: "❌ Ввод расхода отменён."
+      cancelled_toast: "Отменено"
+      reminder: |
+        📅 <b>Напоминание</b>
+
+        Не забудьте внести расходы за прошлый месяц ({month_name} {year}).
+        Актуальные данные — по кнопке ниже.
+
     id:
       start: |
         🆔 <b>Ваш ID:</b> <code>{user_id}</code>
@@ -720,10 +752,11 @@ bot:
 
           🕒 Ожидает подтверждения оплаты
       accept_paid:
+        promo_info_line: "🎁 Промокод — скидка <b>{discount}₽</b>"
         user: |
           ✅ Ваша подписка на <b>{sub_type} {months} мес.</b> успешно активирована!
           💰 Оплачено: <b>{amount}₽</b>
-          📅 Действует до: <b>{end_date}</b>
+          {promo_info}📅 Действует до: <b>{end_date}</b>
 
           Спасибо за выбор нашего сервиса ❤️
 
@@ -735,7 +768,7 @@ bot:
         admin: |
           ✅ Оплата <b>{sub_type}</b> от пользователя <code>{user_id}</code>  @{username} подтверждена.
           💰 Сумма: <b>{amount}₽</b>
-          Подписка активирована.
+          {promo_info}Подписка активирована.
           [ДОП.Инф]
           <i>{info}</i>
 
@@ -820,6 +853,9 @@ bot:
 
         🔥 Продолжайте приглашать друзей, чтобы увеличивать свои бонусы!
         🎁 Чем больше приглашений — тем больше преимуществ!
+      config_item: "📌 <b>{file_name}</b> <code>#{id}</code>\n   Локация: {location}\n   Создан: {created_at}"
+      config_item_pending: "⚠️ <b>{file_name}</b> <code>#{id}</code> — <i>будет удалён</i>\n   Локация: {location}\n   Создан: {created_at}"
+      config_item_pending_reason: "   Причина: {reason}"
       config_delete:
         confirm: |
           ❗ Удалить конфиг #{id} «{file_name}»?

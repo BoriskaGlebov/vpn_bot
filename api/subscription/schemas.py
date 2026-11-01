@@ -77,6 +77,8 @@ class SVPNConfig(BaseModel):
         file_name (str): Имя файла конфигурации.
         node_name (str | None): Имя ноды/локации (ключ в settings_bot.vpn.nodes).
         created_at (datetime): Дата и время создания конфига.
+        status (str | None): Статус конфига (active/pending_delete/deleted).
+        status_reason (str | None): Причина перевода в PENDING_DELETE.
 
     """
 
@@ -84,6 +86,8 @@ class SVPNConfig(BaseModel):
     file_name: str
     node_name: str | None = None
     created_at: datetime
+    status: str | None = None
+    status_reason: str | None = None
 
 
 class SSubscriptionInfo(BaseModel):

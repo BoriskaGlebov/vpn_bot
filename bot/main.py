@@ -24,6 +24,7 @@ from bot.core.exceptions.handlers import (
     unhandled_exception_handler,
 )
 from bot.core.schemas import SHealthResponse
+from bot.expense.router import ExpenseRouter
 from bot.help.router import HelpRouter
 from bot.internal.router import router as internal_router
 from bot.middleware.exception_middleware import ErrorHandlerMiddleware
@@ -32,7 +33,11 @@ from bot.middleware.user_context import UserContextMiddleware
 from bot.news.router import NewsRouter
 from bot.payment.router import router as payment_router
 from bot.referrals.router import ReferralRouter
-from bot.scheduler.utils.scheduler_cron import scheduled_check, scheduler
+from bot.scheduler.utils.scheduler_cron import (
+    expense_reminder,
+    scheduled_check,
+    scheduler,
+)
 from bot.subscription.router import SubscriptionRouter
 from bot.users.router import UserRouter
 from bot.utils.start_stop_bot import start_bot, stop_bot
@@ -90,13 +95,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     dp.update.middleware(UserContextMiddleware())
 
+    expense_router = ExpenseRouter(
+        bot=bot,
+        logger=logger,  # type: ignore[arg-type]
+        expense_service=container.expense_service,
+    )
+
     user_router = UserRouter(
         bot=bot,
         logger=logger,  # type: ignore[arg-type]
         redis_manager=container.redis_manager,
         user_service=container.user_service,
         referral_service=container.referral_service,
-        admin_service=container.admin_service,
+        expense_service=container.expense_service,
     )
 
     help_router = HelpRouter(bot=bot, logger=logger, redis=container.redis_manager)  # type: ignore[arg-type]
@@ -132,6 +143,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         broadcast_service=container.news_broadcast_service,
     )
 
+    dp.include_router(expense_router.router)
     dp.include_router(user_router.router)
     dp.include_router(help_router.router)
     dp.include_router(admin_router.router)
@@ -182,6 +194,27 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         misfire_grace_time=30,
         replace_existing=True,
     )
+    if scheduler_settings.interval_seconds is not None:
+        expense_trigger: IntervalTrigger | CronTrigger = IntervalTrigger(
+            seconds=scheduler_settings.interval_seconds * 2
+        )
+        expense_schedule_description = (
+            f"каждые {scheduler_settings.interval_seconds * 2} сек. (dev)"
+        )
+    else:
+        expense_trigger = CronTrigger(day=1, hour=10, minute=0)
+        expense_schedule_description = "1-го числа каждого месяца в 10:00"
+    scheduler.add_job(
+        expense_reminder,
+        trigger=expense_trigger,
+        kwargs={"bot_instance": bot},
+        id="expense_reminder",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=3600,
+        replace_existing=True,
+    )
+    logger.info("💸 Напоминание о расходах — {}", expense_schedule_description)
     scheduler.start()
     logger.info("🕒 Планировщик запущен — проверка {}", schedule_description)
     if settings_bot.bot.use_polling:

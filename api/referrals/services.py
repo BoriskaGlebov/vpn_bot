@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.core.config import settings_api
 from api.referrals.dao import ReferralDAO
-from api.referrals.schemas import SReferralByInvite
+from api.referrals.schemas import SReferralBonusGiven, SReferralByInvite
 from api.subscription.dao import SubscriptionDAO
 from api.subscription.models import SubscriptionType
 from api.users.dao import UserDAO
@@ -171,12 +171,15 @@ class ReferralService:
                 months,
             )
             current_sub.extend(months=months)
-            await session.flush()
 
-        referral.bonus_given = True
-        referral.bonus_given_at = datetime.datetime.now(settings_api.core.tzinfo)
-
-        await session.flush()
+        await ReferralDAO.patch(
+            session=session,
+            instance=referral,
+            values=SReferralBonusGiven(
+                bonus_given=True,
+                bonus_given_at=datetime.datetime.now(settings_api.core.tzinfo),
+            ),
+        )
         logger.info(
             f"Бонус за подписчика предоставлен: inviter={inviter.telegram_id}, invited={invited_user.telegram_id}, months={months}"
         )

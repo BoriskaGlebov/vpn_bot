@@ -11,9 +11,9 @@ from api.admin.badges import (
     PROMO_DISCOUNT_TYPE_COLORS,
     PROMO_DISCOUNT_TYPE_LABELS,
     badge,
+    fmt_dt,
 )
 from api.promo.models import PromoCode, PromoCodeUsage
-from api.users.models import User
 
 
 def fmt_discount_type(m: PromoCode, _: str) -> Markup:
@@ -114,6 +114,8 @@ class PromoCodeAdmin(ModelView, model=PromoCode):
         "discount_type": fmt_discount_type,  # type: ignore[misc, dict-item]
         "discount_value": fmt_discount_value,  # type: ignore[misc, dict-item]
         "used_count": fmt_usage_limit,  # type: ignore[misc, dict-item]
+        "valid_from": lambda m, a: fmt_dt(m.valid_from) if m.valid_from else "—",  # type: ignore[misc, dict-item, attr-defined]
+        "valid_until": lambda m, a: fmt_dt(m.valid_until) if m.valid_until else "—",  # type: ignore[misc, dict-item, attr-defined]
     }
 
     can_create = True
@@ -189,7 +191,6 @@ class PromoCodeUsageAdmin(ModelView, model=PromoCodeUsage):
         ForeignKeyFilter(
             PromoCodeUsage.promo_code_id, PromoCode.code, title="Промокод"
         ),
-        ForeignKeyFilter(PromoCodeUsage.user_id, User.username, title="Пользователь"),
     ]
 
     column_labels = {
@@ -203,6 +204,7 @@ class PromoCodeUsageAdmin(ModelView, model=PromoCodeUsage):
     column_formatters = {
         "promo_code": fmt_promo_code,  # type: ignore[misc, dict-item]
         "user": fmt_usage_user,  # type: ignore[misc, dict-item]
+        "used_at": lambda m, a: fmt_dt(m.used_at),  # type: ignore[misc, dict-item, attr-defined]
     }
 
     can_create = False

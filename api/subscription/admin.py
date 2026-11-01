@@ -3,12 +3,12 @@ from typing import Any
 from loguru import logger
 from markupsafe import Markup
 from sqladmin import ModelView
-from sqladmin.filters import BooleanFilter, ForeignKeyFilter
+from sqladmin.filters import BooleanFilter
 from sqlalchemy import Select, select
 from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 
-from api.admin.badges import SUBSCRIPTION_BADGE_COLORS, badge
+from api.admin.badges import SUBSCRIPTION_BADGE_COLORS, badge, fmt_dt
 from api.app_error.base_error import TrialAlreadyUsedError
 from api.subscription.models import Subscription, SubscriptionType
 from api.users.models import User
@@ -37,6 +37,16 @@ def fmt_user(m: Subscription, _: str) -> str:
     if not m.user:
         return "-"
     return f"{m.user.username or '-'} ({m.user.telegram_id})"
+
+
+def fmt_start_date(m: Subscription, _: str) -> str:
+    """Форматер для даты начала подписки в московском времени."""
+    return fmt_dt(m.start_date, "%d.%m.%Y %H:%M")
+
+
+def fmt_end_date(m: Subscription, _: str) -> str:
+    """Форматер для даты окончания подписки в московском времени."""
+    return fmt_dt(m.end_date, "%d.%m.%Y %H:%M") if m.end_date else "∞"
 
 
 class SubscriptionAdmin(ModelView, model=Subscription):
@@ -70,7 +80,6 @@ class SubscriptionAdmin(ModelView, model=Subscription):
 
     column_filters = [
         BooleanFilter(Subscription.is_active, title="Активна"),
-        ForeignKeyFilter(Subscription.user_id, User.username, title="Пользователь"),
     ]
 
     form_columns = [
@@ -96,6 +105,8 @@ class SubscriptionAdmin(ModelView, model=Subscription):
         "type": fmt_type,  # type: ignore[misc, dict-item]
         "is_active": fmt_active,  # type: ignore[misc, dict-item]
         "user": fmt_user,  # type: ignore[misc, dict-item]
+        "start_date": fmt_start_date,  # type: ignore[misc, dict-item]
+        "end_date": fmt_end_date,  # type: ignore[misc, dict-item]
     }  # type: ignore[misc, assignment]
 
     can_create = True
