@@ -53,6 +53,7 @@ from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
 from bot.utils.base_router import BaseRouter
 from bot.utils.formatting import (
+    format_promo_info,
     format_subscription_end_date,
     format_username,
     format_vpn_config_date,
@@ -1029,14 +1030,9 @@ class SubscriptionRouter(BaseRouter):
             referral_result: GrantReferralBonusResponse = (
                 confirm_transaction.referral_res
             )
-            discount_amount = confirm_transaction.transaction_res.discount_amount
-            promo_info = (
-                m_subscription.accept_paid.promo_info_line.format(
-                    discount=discount_amount
-                )
-                + "\n"
-                if discount_amount > 0
-                else ""
+            promo_info = format_promo_info(
+                confirm_transaction.transaction_res.discount_amount,
+                m_subscription.accept_paid.promo_info_line,
             )
             try:
                 await self.bot.send_message(

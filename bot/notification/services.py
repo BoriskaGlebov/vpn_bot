@@ -8,7 +8,7 @@ from bot.app_error.base_error import SubscriptionActivationFailedError
 from bot.core.config import settings_bot
 from bot.payment.schemas import SConfirmPaymentResponse
 from bot.redis_service import RedisPaymentMessageStorage
-from bot.utils.formatting import format_subscription_end_date
+from bot.utils.formatting import format_promo_info, format_subscription_end_date
 from bot.utils.start_stop_bot import send_to_admins
 
 m_subscription = settings_bot.messages.modes.subscription
@@ -101,13 +101,8 @@ class NotificationService:
             )
         sub_type = user.current_subscription.type.upper()
         end_date = format_subscription_end_date(user.current_subscription.end_date)
-        promo_info = (
-            m_subscription.accept_paid.promo_info_line.format(
-                discount=tx.discount_amount
-            )
-            + "\n"
-            if tx.discount_amount > 0
-            else ""
+        promo_info = format_promo_info(
+            tx.discount_amount, m_subscription.accept_paid.promo_info_line
         )
 
         try:

@@ -63,18 +63,16 @@ async def test_get_monthly_pnl_different_months(service, mock_session):
 @pytest.mark.asyncio
 async def test_get_yearly_summary_calculates_metrics(service, mock_session):
     """Годовой итог: avg_check, arpu и conversion вычисляются правильно."""
-    count_result = MagicMock()
-    count_result.scalar_one.return_value = 200
-    mock_session.execute = AsyncMock(return_value=count_result)
-
     with (
         patch("api.finance.services.PaymentTransactionDAO") as pay_dao,
         patch("api.finance.services.ExpenseDAO") as exp_dao,
+        patch("api.finance.services.UserDAO") as user_dao,
     ):
         pay_dao.get_year_income = AsyncMock(return_value=100000)
         exp_dao.get_monthly_totals = AsyncMock(return_value=[("2026-10", 30000)])
         pay_dao.count_paying_users = AsyncMock(return_value=50)
         pay_dao.count_paid_transactions = AsyncMock(return_value=200)
+        user_dao.count_all = AsyncMock(return_value=200)
 
         result = await service.get_yearly_summary(session=mock_session, year=2026)
 
@@ -86,18 +84,16 @@ async def test_get_yearly_summary_calculates_metrics(service, mock_session):
 @pytest.mark.asyncio
 async def test_get_yearly_summary_zero_division(service, mock_session):
     """Нулевые paying_users и total_users не вызывают ZeroDivisionError."""
-    count_result = MagicMock()
-    count_result.scalar_one.return_value = 0
-    mock_session.execute = AsyncMock(return_value=count_result)
-
     with (
         patch("api.finance.services.PaymentTransactionDAO") as pay_dao,
         patch("api.finance.services.ExpenseDAO") as exp_dao,
+        patch("api.finance.services.UserDAO") as user_dao,
     ):
         pay_dao.get_year_income = AsyncMock(return_value=0)
         exp_dao.get_monthly_totals = AsyncMock(return_value=[])
         pay_dao.count_paying_users = AsyncMock(return_value=0)
         pay_dao.count_paid_transactions = AsyncMock(return_value=0)
+        user_dao.count_all = AsyncMock(return_value=0)
 
         result = await service.get_yearly_summary(session=mock_session, year=2026)
 
