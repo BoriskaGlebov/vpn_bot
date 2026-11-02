@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 
 from shared.config.app_config import (
     SettingsApp,
@@ -27,7 +27,8 @@ class BotChannelSettings(SettingsCommon):
         port (int): Порт FastAPI-приложения бота.
         api_key (SecretStr): Ключ в заголовке X-API-Key (env
             `BOT_INTERNAL_API_KEY`, должен совпадать со значением бота).
-            Пустое значение — канал не настроен, клиент не отправляет запросы.
+            Обязательный — отсутствие или пустое значение приводит к ошибке
+            при старте приложения.
         timeout (float): Таймаут ответа бота, сек. Отзыв доступа ходит на
             ноды по SSH/HTTPS, поэтому заметно больше обычного.
         connect_timeout (float): Таймаут установки соединения, сек.
@@ -37,11 +38,18 @@ class BotChannelSettings(SettingsCommon):
     url: str = "vpn_bot"
     port: int = 8088
     api_key: SecretStr = Field(
-        default=SecretStr(""),
         validation_alias="BOT_INTERNAL_API_KEY",
     )
     timeout: float = 60.0
     connect_timeout: float = 3.0
+
+    @field_validator("api_key", mode="after")
+    @classmethod
+    def _require_non_empty(cls, v: SecretStr) -> SecretStr:
+        """Запрещает пустое значение ключа."""
+        if not v.get_secret_value():
+            raise ValueError("BOT_INTERNAL_API_KEY не может быть пустым")
+        return v
 
 
 class SettingsAPI(SettingsCommon):

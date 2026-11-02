@@ -93,6 +93,7 @@ jobs:
           API_KEY: "test-api-key"
           SESSION_SECRET: "test-session-secret"
           INTERNAL_API_SECRET: "test-internal-secret"
+          BOT_INTERNAL_API_KEY: "test-bot-internal-api-key"
         run: poetry run pytest -vs -m "not integration" .
 
   integration-test:
@@ -133,6 +134,7 @@ jobs:
           API_KEY: "test-api-key"
           SESSION_SECRET: "test-session-secret"
           INTERNAL_API_SECRET: "test-internal-secret"
+          BOT_INTERNAL_API_KEY: "test-bot-internal-api-key"
         run: poetry run pytest -vs -m integration .
 
   deploy_develop:
@@ -266,6 +268,9 @@ jobs:
           # == ADMIN PANEL ==
           ADMIN_PANEL_USER=${{secrets.ADMIN_PANEL_USER}}
           ADMIN_PANEL_PASSWORD_HASH=${{secrets.ADMIN_PANEL_PASSWORD_HASH}}
+
+          # == INTERNAL CHANNEL ==
+          BOT_INTERNAL_API_KEY=${{ secrets.BOT_INTERNAL_API_KEY }}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env.dev"
@@ -442,6 +447,9 @@ jobs:
           # == ADMIN PANEL ==
           ADMIN_PANEL_USER=${{secrets.ADMIN_PANEL_USER}}
           ADMIN_PANEL_PASSWORD_HASH=${{secrets.ADMIN_PANEL_PASSWORD_HASH}}
+
+          # == INTERNAL CHANNEL ==
+          BOT_INTERNAL_API_KEY=${{ secrets.BOT_INTERNAL_API_KEY }}
           ENV_EOF
 
             echo "SSH_AUTH_SOCK добавляю в .env"
