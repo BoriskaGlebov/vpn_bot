@@ -167,7 +167,10 @@ class XRaySettings(SettingsCommon):
     """Настройки XRay (3x-ui панель и подписки).
 
     Attributes
-        host (str): Домен XRay.
+        host (str): Домен XRay (используется как домен для subscription-ссылок).
+        panel_host (str | None): Отдельный домен панели, если он не укладывается
+            в схему "panel.{host}" (например, домен панели и домен подписки —
+            независимые поддомены). Если не задан, используется "panel.{host}".
         panel_prefix (str): Префикс панели управления.
         subscription_prefix (str): Префикс подписок.
         panel_port (int): Порт панели.
@@ -177,11 +180,12 @@ class XRaySettings(SettingsCommon):
         inbounds (list[SInbound]): Список inbound-конфигураций.
 
     Properties
-        url_panel (str): Домен панели (panel.{host}).
+        url_panel (str): Домен панели (panel_host, либо "panel.{host}" по умолчанию).
 
     """
 
     host: str = "undefined"
+    panel_host: str | None = None
     panel_prefix: str = "undefined"
     subscription_prefix: str = "undefined"
 
@@ -198,10 +202,10 @@ class XRaySettings(SettingsCommon):
         """Возвращает домен панели XRay.
 
         Returns
-            str: Домен вида "panel.{host}".
+            str: `panel_host`, если задан явно, иначе "panel.{host}".
 
         """
-        return f"panel.{self.host}"
+        return self.panel_host or f"panel.{self.host}"
 
     @field_validator("inbounds", mode="before")
     @classmethod
