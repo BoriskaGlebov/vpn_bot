@@ -90,7 +90,7 @@ flag= "🇩🇪"
 #flag= "🇫🇮"
 
 [vpn.nodes.sof]
-host = "vps01.boris-guard.pro"
+host = "vps03.boris-guard.pro"
 username = "xray"
 container = "amnezia-awg2"
 protocol_version = "v2"
