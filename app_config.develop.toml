@@ -31,7 +31,7 @@ reload_fast_api = false
 # === BOT ===
 [bot]
 # ! Базовый URL сайта (например, для webhook)
-base_site = "https://vpn-bot.amn-boris.ru/bot"
+base_site = "https://vpn-bot.dev.boris-guard.pro/bot"
 # *Использовать webhook или polling по умолчанию polling false
 use_polling = false
 
@@ -71,9 +71,9 @@ url = "vpn_bot"
 # === VPN SERVERS ===
 [vpn.nodes.de]
 #Сервер на котором крутится бот потому для него он локально может подключиться
-host = "amn-boris.ru"
-username = "prod_server"
-container_old="amnezia-awg"
+host = "vps01.boris-guard.pro"
+username = "boris01"
+#container_old="amnezia-awg"
 container = "amnezia-awg2"
 protocol_version = "v3"
 use_local = true
@@ -90,7 +90,7 @@ flag= "🇩🇪"
 #flag= "🇫🇮"
 
 [vpn.nodes.sof]
-host = "x-ray-boriska.pro"
+host = "vps03-awg.boris-guard.pro"
 username = "xray"
 container = "amnezia-awg2"
 protocol_version = "v2"
@@ -123,7 +123,8 @@ premium = true
 # === X-RAY ===
 
 [vpn.nodes.de.xray]
-host = "amn-boris.ru"
+host = "vps01-sub.boris-guard.pro"
+panel_host = "vps01-panel.boris-guard.pro"
 panel_prefix = "panel-45gh65"
 subscription_prefix = "sub-45gh45"
 panel_port = 5443

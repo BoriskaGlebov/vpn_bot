@@ -408,7 +408,10 @@ openssl rand -hex 16
 | Хост | Пользователь | Путь репозитория | SSH-ключи (без passphrase) |
 |---|---|---|---|
 | develop (vps-01, amn-boris.ru) | `prod_server` | `/opt/vpn_bot` | `~/.ssh/xray_boriska` (main-нода — `use_local`, отдельный ключ не нужен) |
-| prod (vps-05, boris-guard.pro) | `vpn_user` | `/opt/vpn_bot` | `~/.ssh/vpn_boriska`, `~/.ssh/xray_boriska`, `~/.ssh/guard_boriska` |
+| prod (vps-05, boris-guard.pro) | `vpn_user` | `/opt/vpn_bot` | `~/.ssh/vps05-to-vps02`, `~/.ssh/vps05-to-vps03`, `~/.ssh/vps05-to-vps04` |
+
+Единый формат имён ключей: `<src>-to-<dst>` (приватный) / `<src>-to-<dst>.pub` (публичный),
+комментарий в `.pub` — `<src>-><dst>`, например `vps05-to-vps02` / `vps05->vps02`.
 
 Ключи должны быть **без passphrase** — автозагрузка ключей при старте агента (`ExecStartPost` в unit-файле) выполняется неинтерактивно; ключ с паролем будет молча пропущен и не подхватится после ребута до ручного `ssh-add`.
 
