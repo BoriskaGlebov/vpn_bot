@@ -230,6 +230,7 @@ db = 0
 default_expire = 43200
 user = "vpn_user_prod"
 
+
 # === STORAGE ===
 [bucket]
 #Bucket настройки
