@@ -133,7 +133,7 @@ flag= "🇵🇱"
 # === X-RAY ===
 
 [vpn.nodes.fr.xray]
-host = "vps02-sub.boris-guard.pro"
+host = "help-blcoks.ru"
 panel_host = "vps02-panel.boris-guard.pro"
 panel_prefix = "panel-45gh65"
 subscription_prefix = "sub-45gh45"
