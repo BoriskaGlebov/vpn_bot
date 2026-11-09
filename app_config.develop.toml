@@ -123,7 +123,7 @@ premium = true
 # === X-RAY ===
 
 [vpn.nodes.de.xray]
-host = "vps01-sub.boris-guard.pro"
+host = "x-ray-boriska.pro"
 panel_host = "vps01-panel.boris-guard.pro"
 panel_prefix = "panel-45gh65"
 subscription_prefix = "sub-45gh45"

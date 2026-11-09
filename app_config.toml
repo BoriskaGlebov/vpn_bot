@@ -70,8 +70,8 @@ url = "vpn_bot"
 [vpn.nodes.fr]
 #Бот переехал на отдельный сервер (vps-05, boris-guard.pro), эта нода теперь
 #доступна только по ssh, как и остальные
-host = "help-blocks.ru"
-username = "vpn_user"
+host = "vps02.boris-guard.pro"
+username = "boris02"
 container_old="amnezia-awg"
 container = "amnezia-awg2"
 protocol_version = "v2"
@@ -89,7 +89,7 @@ flag="🇫🇷"
 #flag= "🇫🇮"
 
 [vpn.nodes.sof]
-host = "x-ray-boriska.pro"
+host = "vps03-awg.boris-guard.pro"
 username = "xray"
 container = "amnezia-awg2"
 protocol_version = "v2"
@@ -133,7 +133,8 @@ flag= "🇵🇱"
 # === X-RAY ===
 
 [vpn.nodes.fr.xray]
-host = "help-blocks.ru"
+host = "vps02-sub.boris-guard.pro"
+panel_host = "vps02-panel.boris-guard.pro"
 panel_prefix = "panel-45gh65"
 subscription_prefix = "sub-45gh45"
 panel_port = 5443
@@ -170,6 +171,7 @@ protocol = "vless_reality_tcp"
 
 [vpn.nodes.sof.xray]
 host = "x-ray-boriska.pro"
+panel_host = "vps03-panel.boris-guard.pro"
 panel_prefix = "panel-df06dg"
 subscription_prefix = "sub-dk-34gs"
 panel_port = 5443
