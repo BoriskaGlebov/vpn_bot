@@ -162,7 +162,8 @@ protocol = "vless_reality_tcp"
 
 
 [vpn.nodes.sof.xray]
-host = "x-ray-boriska.pro"
+host = "vps03-sub.boris-guard.pro"
+panel_host = "vps03-panel.boris-guard.pro"
 panel_prefix = "panel-df06dg"
 subscription_prefix = "sub-dk-34gs"
 panel_port = 5443
