@@ -100,8 +100,8 @@ flag= "🇧🇬"
 premium = true
 
 [vpn.nodes.waw]
-host = "boris-guard.space"
-username = "boris_user"
+host = "vps04-awg.boris-guard.pro"
+username = "boris04"
 container_old="amnezia-awg"
 container = "amnezia-awg2"
 protocol_version = "v3"
