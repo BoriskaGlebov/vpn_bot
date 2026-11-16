@@ -30,14 +30,18 @@ def main_kb(
             KeyboardButton(text=MainMenuText.PREMIUM.value),
         )
         for location in settings_bot.vpn.standard_nodes():
-            buttons = [
-                KeyboardButton(text=vpn_button_text(VPNBackend.AMNEZIA, location)),
-            ]
-            if settings_bot.vpn.get(location).xray is not None:
+            node = settings_bot.vpn.get(location)
+            buttons = []
+            if node.amnezia_available:
+                buttons.append(
+                    KeyboardButton(text=vpn_button_text(VPNBackend.AMNEZIA, location)),
+                )
+            if node.xray_available:
                 buttons.append(
                     KeyboardButton(text=vpn_button_text(VPNBackend.XRAY, location))
                 )
-            builder.add(*buttons)
+            if buttons:
+                builder.add(*buttons)
         builder.adjust(1, 2)
     subscription_button_text = (
         MainMenuText.MY_SUBSCRIPTION.value

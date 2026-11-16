@@ -189,7 +189,7 @@ class Container:
         xray_adapters: dict[str, ThreeXUIAdapter] = {}
         xray_clients: list[APIClient] = []
         for name, node in settings_bot.vpn.nodes.items():
-            if node.xray is None:
+            if not node.enabled or not node.xray_available:
                 continue
 
             xray = node.require_xray()

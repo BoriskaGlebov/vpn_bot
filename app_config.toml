@@ -78,6 +78,8 @@ protocol_version = "v2"
 use_local = false
 location_prefix= "FR"
 flag="🇫🇷"
+enabled=true
+amnezia_enabled=true
 
 #[vpn.nodes.fi]
 #host = "vpn-boriska.ru"
@@ -97,6 +99,8 @@ protocol_version = "v2"
 use_local = false
 location_prefix= "SOF"
 flag= "🇧🇬"
+enabled=true
+amnezia_enabled=true
 premium = true
 
 [vpn.nodes.waw]
@@ -109,6 +113,8 @@ protocol_version = "v3"
 use_local = false
 location_prefix= "WAW"
 flag= "🇵🇱"
+enabled=true
+amnezia_enabled=true
 
 
 ## === PROXY ===
@@ -199,7 +205,7 @@ subscription_port = 2096
 username = "admin"
 
 [[vpn.nodes.waw.xray.inbounds]]
-port = 443
+port = 6443
 name = "🇵🇱 | XHTTP"
 protocol = "vless_reality_xhttp"
 
