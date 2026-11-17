@@ -79,6 +79,8 @@ protocol_version = "v3"
 use_local = true
 location_prefix= "DE"
 flag= "🇩🇪"
+enabled=true
+amnezia_enabled=true
 #
 #[vpn.nodes.fi]
 #host = "vpn-boriska.ru"
@@ -91,6 +93,8 @@ flag= "🇩🇪"
 
 [vpn.nodes.sof]
 host = "vps03-awg.boris-guard.pro"
+enabled=true
+amnezia_enabled=true
 username = "boris03"
 container = "amnezia-awg2"
 protocol_version = "v2"

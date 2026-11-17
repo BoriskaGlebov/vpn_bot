@@ -90,16 +90,19 @@ class VPNRouter(BaseRouter):
         self.router.message.middleware(LocationFlagMiddleware())
 
         for location in settings_bot.vpn.standard_nodes():
-            self.router.message.register(
-                self.get_config_amnezia_wg,
-                F.text == vpn_button_text(VPNBackend.AMNEZIA, location),
-                flags={"location": location},
-            )
-            self.router.message.register(
-                self.generate_subscription,
-                F.text == vpn_button_text(VPNBackend.XRAY, location),
-                flags={"location": location},
-            )
+            node = settings_bot.vpn.get(location)
+            if node.amnezia_available:
+                self.router.message.register(
+                    self.get_config_amnezia_wg,
+                    F.text == vpn_button_text(VPNBackend.AMNEZIA, location),
+                    flags={"location": location},
+                )
+            if node.xray_available:
+                self.router.message.register(
+                    self.generate_subscription,
+                    F.text == vpn_button_text(VPNBackend.XRAY, location),
+                    flags={"location": location},
+                )
         self.router.message.register(
             self.three_x_ui_locations, F.text == MainMenuText.PREMIUM, is_premium
         )
@@ -109,18 +112,21 @@ class VPNRouter(BaseRouter):
         )
 
         for prem_location in settings_bot.vpn.premium_nodes():
-            self.router.message.register(
-                self.get_config_amnezia_wg,
-                F.text == vpn_button_text(VPNBackend.AMNEZIA, prem_location),
-                is_premium,
-                flags={"location": prem_location},
-            )
-            self.router.message.register(
-                self.generate_subscription,
-                F.text == vpn_button_text(VPNBackend.XRAY, prem_location),
-                is_premium,
-                flags={"location": prem_location},
-            )
+            node = settings_bot.vpn.get(prem_location)
+            if node.amnezia_available:
+                self.router.message.register(
+                    self.get_config_amnezia_wg,
+                    F.text == vpn_button_text(VPNBackend.AMNEZIA, prem_location),
+                    is_premium,
+                    flags={"location": prem_location},
+                )
+            if node.xray_available:
+                self.router.message.register(
+                    self.generate_subscription,
+                    F.text == vpn_button_text(VPNBackend.XRAY, prem_location),
+                    is_premium,
+                    flags={"location": prem_location},
+                )
 
     async def _check_acquired(self, redis_key: str, message: Message) -> bool:
         """Проверка от повторного создания конфиг файла.

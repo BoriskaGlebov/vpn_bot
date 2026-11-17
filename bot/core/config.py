@@ -185,6 +185,7 @@ class XRaySettings(SettingsCommon):
     """
 
     host: str = "undefined"
+    enabled: bool = True
     panel_host: str | None = None
     panel_prefix: str = "undefined"
     subscription_prefix: str = "undefined"
@@ -238,6 +239,13 @@ class VPNNode(SettingsCommon):
     """Конфигурация VPN-ноды.
 
     Attributes
+        enabled (bool): Нода включена. При `False` исключается из
+            `standard_nodes()`/`premium_nodes()` и из XRayRegistry — нода
+            присутствует в `nodes`, доступна через `get()`/`get_optional()`,
+            но не показывается пользователям. По умолчанию `True`.
+        amnezia_enabled (bool): Протокол Amnezia доступен для этой ноды.
+            При `False` кнопка Amnezia не добавляется в клавиатуру и хендлер
+            не регистрируется. По умолчанию `True`.
         host (str): Хост ноды.
         username (str): Пользователь для подключения.
         container (str): Имя Docker-контейнера.
@@ -257,10 +265,12 @@ class VPNNode(SettingsCommon):
             добавление новой ноды в конфиг автоматически делает её доступной
             без правок кода (см. `VPNRegistry.standard_nodes`/`.premium_nodes`).
         proxy (ProxySettings | None): Настройки прокси.
-        xray (XRaySettingsSOF | None): Настройки XRay.
+        xray (XRaySettings | None): Настройки XRay.
 
     """
 
+    enabled: bool = True
+    amnezia_enabled: bool = True
     host: str
     username: str
     container: str
@@ -300,6 +310,16 @@ class VPNNode(SettingsCommon):
         if self.proxy is None:
             raise ProxyNotConfiguredError(self.host)
         return self.proxy
+
+    @property
+    def xray_available(self) -> bool:
+        """Xray сконфигурирован и включён."""
+        return self.xray is not None and self.xray.enabled
+
+    @property
+    def amnezia_available(self) -> bool:
+        """Amnezia включена для этой ноды."""
+        return self.amnezia_enabled
 
 
 class VPNRegistry(SettingsCommon):
@@ -368,7 +388,11 @@ class VPNRegistry(SettingsCommon):
             dict[str, VPNNode]: Ноды по ключу, без премиум-нод.
 
         """
-        return {key: node for key, node in self.nodes.items() if not node.premium}
+        return {
+            key: node
+            for key, node in self.nodes.items()
+            if not node.premium and node.enabled
+        }
 
     def premium_nodes(self) -> dict[str, VPNNode]:
         """Ноды, доступные только премиум-пользователям (`premium=True`).
@@ -377,7 +401,11 @@ class VPNRegistry(SettingsCommon):
             dict[str, VPNNode]: Премиум-ноды по ключу.
 
         """
-        return {key: node for key, node in self.nodes.items() if node.premium}
+        return {
+            key: node
+            for key, node in self.nodes.items()
+            if node.premium and node.enabled
+        }
 
     @model_validator(mode="after")
     def _ensure_standard_node_configured(self) -> "VPNRegistry":
@@ -395,10 +423,27 @@ class VPNRegistry(SettingsCommon):
         """
         if not self.standard_nodes():
             raise ValueError(
-                "Должна быть сконфигурирована хотя бы одна VPN-нода без "
+                "Должна быть сконфигурирована хотя бы одна ВКЛЮЧЁННАЯ VPN-нода без "
                 "premium=true — иначе у обычных пользователей не будет ни "
-                "одной доступной локации."
+                "одной доступной локации. Проверьте, что хотя бы у одной ноды "
+                "enabled=true и premium=false (или не заданы)."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _warn_enabled_node_no_protocols(self) -> "VPNRegistry":
+        """Предупреждает, если нода включена, но оба протокола выключены."""
+        import warnings
+
+        for name, node in self.nodes.items():
+            if node.enabled and not node.amnezia_available and not node.xray_available:
+                warnings.warn(
+                    f"VPN-нода '{name}' включена (enabled=true), но оба протокола "
+                    f"недоступны (amnezia_enabled={node.amnezia_enabled}, "
+                    f"xray={'не сконфигурирован' if node.xray is None else f'enabled={node.xray.enabled}'}) "
+                    f"— нода будет видна в списке, но кнопки не появятся.",
+                    stacklevel=2,
+                )
         return self
 
 

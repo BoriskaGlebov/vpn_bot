@@ -20,6 +20,8 @@ NODE_FLAGS: dict[str, str] = {
     "sof": "🇧🇬",
     "waw": "🇵🇱",
     "fi": "🇫🇮",
+    "dk": "🇩🇰",
+    "sto": "🇸🇪",
 }
 
 
