@@ -73,17 +73,18 @@ url = "vpn_bot"
 
 # ── 🇫🇷  FR — Франция │ vps02 │ DISABLED ──────────────────────────────────
 # Бот переехал на vps-05; нода остаётся для ssh-доступа к серверу
-#[vpn.nodes.fr]
-#host             = "vps02.boris-guard.pro"
-#username         = "boris02"
+[vpn.nodes.fr]
+host             = "vps02.boris-guard.pro"
+username         = "boris02"
 #container_old    = "amnezia-awg"
-#container        = "amnezia-awg2"
-#protocol_version = "v2"
-#use_local        = false
-#location_prefix  = "FR"
-#flag             = "🇫🇷"
-#enabled          = false
-#amnezia_enabled  = false
+container        = "amnezia-awg2"
+protocol_version = "v2"
+use_local        = false
+location_prefix  = "FR"
+flag             = "🇫🇷"
+enabled          = false
+amnezia_enabled  = true
+premium          = true
 #
 #[vpn.nodes.fr.xray]
 #host                = "help-blocks.ru"
