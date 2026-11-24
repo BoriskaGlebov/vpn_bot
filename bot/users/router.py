@@ -58,6 +58,7 @@ INVALID_FOR_USER = [
     MainMenuText.HELP.value,
     MainMenuText.PREMIUM.value,
     MainMenuText.BACK.value,
+    MainMenuText.VPN_PRO.value,
 ]
 INVALID_FOR_USER.extend(location_buttons_text)
 INVALID_FOR_ADMIN = [
