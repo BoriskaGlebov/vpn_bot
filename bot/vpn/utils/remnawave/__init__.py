@@ -1,3 +1,4 @@
+from bot.vpn.utils.remnawave.adapter import RemnawaveAdapter
 from bot.vpn.utils.remnawave.exceptions import (
     RemnawaveAuthError,
     RemnawaveError,
@@ -12,6 +13,7 @@ from bot.vpn.utils.remnawave.schemas import (
 )
 
 __all__ = [
+    "RemnawaveAdapter",
     "RemnawaveAuthError",
     "RemnawaveError",
     "RemnawaveInvalidExpiryError",
