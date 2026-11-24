@@ -22,7 +22,8 @@ from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import ssh_client_factory_for, ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
-from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
+from bot.vpn.utils.panel_protocol import PanelAdapter
+from bot.vpn.utils.x_ray_config import XRayRegistry
 from shared.enums.vpn_enum import VPNBackend
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -195,22 +196,22 @@ class SchedulerBotService:
 
     async def _handle_panel_error(
         self,
-        client_cls: ThreeXUIAdapter,
+        client_cls: PanelAdapter,
         error: Exception,
         config_id: str,
         serv_loc: str,
     ) -> None:
-        """Логирует и уведомляет админов об ошибке запроса к 3x-ui панели.
+        """Логирует и уведомляет админов об ошибке запроса к панели управления.
 
         Args:
-            client_cls: Адаптер `ThreeXUIAdapter`, на котором произошла ошибка.
+            client_cls: Адаптер панели (`PanelAdapter`), на котором произошла ошибка.
             error: Исходное исключение (`APIClientError`).
             config_id: Идентификатор конфига, который пытались удалить.
             serv_loc: Локация/сервер, на котором произошла ошибка.
 
         """
         logger.error(
-            "Ошибка при осуществлении запроса к XRAY панели: ({}): {}",
+            "Ошибка при осуществлении запроса к панели управления: ({}): {}",
             str(client_cls),
             error,
         )
@@ -219,7 +220,7 @@ class SchedulerBotService:
             bot=self.bot,
             message_text=(
                 f"⚠️ Ошибка удаления config_id={config_id} в {serv_loc}: {error}\n\n"
-                f"ThreeXUIAdapter - {client_cls}"
+                f"PanelAdapter - {client_cls}"
             ),
         )
 

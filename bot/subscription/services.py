@@ -3,6 +3,7 @@ from uuid import UUID
 from loguru import logger
 
 from bot.app_error.api_error import APIClientError
+from bot.app_error.base_error import PanelError
 from bot.core.config import settings_bot
 from bot.payment.schemas import (
     SConfirmPaymentResponse,
@@ -18,7 +19,6 @@ from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
 from bot.utils.formatting import format_vpn_config_date, format_vpn_location
 from bot.vpn.services import VPNService
-from bot.vpn.utils.x_ray_exceptions import ThreeXUIError
 from shared.enums.subscription_enum import SubscriptionInfoStatus
 
 m_subscription_local = settings_bot.messages.modes.subscription
@@ -130,7 +130,7 @@ class SubscriptionService:
         """
         try:
             await self.vpn_service.extend_user_xray_subscription(user=user)
-        except ThreeXUIError as exc:
+        except PanelError as exc:
             logger.error(
                 "Не удалось продлить XRay-конфиги на панели tg_id={}: {}",
                 user.telegram_id,
