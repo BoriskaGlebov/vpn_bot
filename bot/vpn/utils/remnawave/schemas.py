@@ -125,26 +125,3 @@ class RemnawaveUserEnvelope(RemnawaveBaseModel):
     """
 
     response: RemnawaveUserResponse
-
-
-class RemnawaveUsersStreamResult(RemnawaveBaseModel):
-    """Содержимое `response` в ответе `GET /api/users/stream`.
-
-    Attributes
-        users (list[RemnawaveUserResponse]): Пользователи, подходящие под
-            фильтр запроса.
-        next_cursor (str | None): Курсор для следующей страницы, либо
-            `None`, если результатов больше нет.
-        has_more (bool): Есть ли ещё результаты.
-
-    """
-
-    users: list[RemnawaveUserResponse]
-    next_cursor: str | None
-    has_more: bool
-
-
-class RemnawaveUsersStreamEnvelope(RemnawaveBaseModel):
-    """Обёртка `{"response": {...}}` для ответа `GET /api/users/stream`."""
-
-    response: RemnawaveUsersStreamResult

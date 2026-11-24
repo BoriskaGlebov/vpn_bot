@@ -23,7 +23,6 @@ from bot.subscription.router import SubscriptionStates
 from bot.subscription.services import SubscriptionService
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.enums import MainMenuText
-from bot.users.schemas import SUser
 from bot.users.utils.text_generator import vpn_button_text
 from bot.utils.base_router import BaseRouter
 from bot.vpn.keyboards.inline_kb import xray_url_kb
@@ -367,16 +366,16 @@ class VPNRouter(BaseRouter):
         user: TgUser,
         state: FSMContext,
     ) -> None:
-        """Выдаёт пользователю Remnawave-подписку (один subscription URL).
+        """Выдаёт пользователю новый Remnawave-конфиг (один клик = один URL).
 
         Flow:
             1. Очистка FSM-состояния.
-            2. Redis-лок от повторного нажатия кнопки (ключ `vpn:config:<id>:remnawave`).
-            3. Получение актуального пользователя из `api/`
-               (`current_subscription` нужен сервису для определения
-               `sub_type`/`expires_at`).
-            4. Вызов `vpn_service.generate_remnawave_subscription`.
-            5. Отправка `subscription_url` с инструкцией.
+            2. Redis-лок от повторного нажатия кнопки
+               (ключ `vpn:config:<id>:remnawave`).
+            3. Вызов `vpn_service.generate_remnawave_subscription` —
+               внутри `check_limit`, регистрация пользователя,
+               создание нового юзера на панели и запись VPNConfig.
+            4. Отправка `subscription_url` с инструкцией.
 
         Args:
             message: Входящее сообщение.
@@ -398,16 +397,8 @@ class VPNRouter(BaseRouter):
                 await message.answer(
                     x_ray_messages.start_generate, reply_markup=ReplyKeyboardRemove()
                 )
-                db_user, _ = await self.user_adapter.register(
-                    SUser(
-                        telegram_id=user.id,
-                        username=user.username,
-                        first_name=user.first_name,
-                        last_name=user.last_name,
-                    )
-                )
                 url = await self.vpn_service.generate_remnawave_subscription(
-                    tg_user=db_user
+                    tg_user=user
                 )
                 await message.answer(
                     text=x_ray_messages.ready_config, reply_markup=xray_url_kb(url=url)

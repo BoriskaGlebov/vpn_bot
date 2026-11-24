@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from loguru import logger
 
@@ -17,7 +17,6 @@ from bot.vpn.utils.remnawave.schemas import (
     RemnawaveUserCreate,
     RemnawaveUserEnvelope,
     RemnawaveUserResponse,
-    RemnawaveUsersStreamEnvelope,
     RemnawaveUserUpdate,
 )
 
@@ -146,30 +145,6 @@ class RemnawaveAdapter:
                 action=f"{method} {path}", reason=str(exc), status_code=502
             ) from exc
 
-    async def _get_user_by_tg_id(self, tg_id: int) -> RemnawaveUserResponse | None:
-        """Находит пользователя панели по Telegram ID.
-
-        Панель не отдаёт 404 для фильтра без совпадений — `GET
-        /users/stream` всегда отвечает 200 с (возможно пустым) списком,
-        поэтому "не найден" определяется по пустому `users`, а не по
-        перехвату `RemnawaveUserNotFoundError`.
-
-        Args:
-            tg_id: Telegram ID пользователя.
-
-        Returns
-            RemnawaveUserResponse | None: Данные пользователя, либо `None`,
-                если пользователь не найден.
-
-        """
-        data, _ = await self._request(
-            "GET",
-            f"{self.prefix}/users/stream",
-            params={"telegramId": tg_id, "size": 1},
-        )
-        users = RemnawaveUsersStreamEnvelope.model_validate(data).response.users
-        return users[0] if users else None
-
     async def _get_user_by_id(self, user_id: int) -> RemnawaveUserResponse | None:
         """Находит пользователя панели по его числовому `id`.
 
@@ -229,17 +204,25 @@ class RemnawaveAdapter:
         sub_type: str,
         device_limit: int,
     ) -> tuple[dict[str, list[str]], str]:
-        """Выдаёт пользователю доступ на панели Remnawave.
+        """Создаёт нового пользователя на панели Remnawave.
 
-        Если пользователь с данным `tg_id` уже существует на панели —
-        обновляет его (`PATCH`), иначе создаёт нового (`POST`).
+        Один клик пользователя по кнопке «VPN Pro» = один новый пользователь
+        на панели = одна строка `VPNConfig` в БД = один subscription URL,
+        привязанный к `device_limit` устройствам через HWID. Поиск уже
+        существующего пользователя по `telegramId` не производится — для
+        одного Telegram-пользователя на панели может быть сколько угодно
+        записей (по числу его кликов), квотой управляет `check_limit` на
+        стороне `api/`, а не сам адаптер.
+
+        Username генерируется уникальным (`u{tg_id}_{uuid4[:8]}`), чтобы
+        панель не отклонила повторный `POST` конфликтом по `username`.
 
         Args:
             tg_id: Telegram ID пользователя.
             expires_at: Момент окончания действия доступа. `None` —
                 бессрочный доступ (`UNLIMITED_EXPIRE_AT`).
             sub_type: Уровень подписки — определяет squad'ы (см. `tier_map`).
-            device_limit: Лимит устройств (HWID).
+            device_limit: Лимит устройств (HWID) на эту конкретную выдачу.
 
         Returns
             tuple: ({"remnawave": [id пользователя]}, ссылка на подписку).
@@ -257,28 +240,23 @@ class RemnawaveAdapter:
             raise RemnawaveInvalidExpiryError(expires_at=expire_at)
 
         squads = self._squads_for_tier(sub_type)
-        logger.info("Выдача доступа Remnawave tg_id={} до {}", tg_id, expire_at)
+        username = f"u{tg_id}_{uuid4().hex[:8]}"
+        logger.info(
+            "Создание пользователя Remnawave tg_id={} username={} до {}",
+            tg_id,
+            username,
+            expire_at,
+        )
 
-        existing = await self._get_user_by_tg_id(tg_id)
-        if existing is not None:
-            user = await self._patch_user(
-                RemnawaveUserUpdate(
-                    id=existing.id,
-                    expire_at=expire_at,
-                    hwid_device_limit=device_limit,
-                    active_internal_squads=squads,
-                )
+        user = await self._create_user(
+            RemnawaveUserCreate(
+                username=username,
+                telegram_id=tg_id,
+                expire_at=expire_at,
+                hwid_device_limit=device_limit,
+                active_internal_squads=squads,
             )
-        else:
-            user = await self._create_user(
-                RemnawaveUserCreate(
-                    username=f"u{tg_id}",
-                    telegram_id=tg_id,
-                    expire_at=expire_at,
-                    hwid_device_limit=device_limit,
-                    active_internal_squads=squads,
-                )
-            )
+        )
 
         logger.info("Доступ Remnawave выдан tg_id={} id={}", tg_id, user.id)
         return {"remnawave": [str(user.id)]}, user.subscription_url
