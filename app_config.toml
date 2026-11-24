@@ -97,7 +97,7 @@ username            = "admin"
 enabled             = true
 
 [[vpn.nodes.fr.xray.inbounds]]
-port     = 8443
+port     = 6443
 name     = "🇫🇷 | XHTTP"
 protocol = "vless_reality_xhttp"
 
