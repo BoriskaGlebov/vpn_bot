@@ -144,3 +144,20 @@ async def test_non_json_error_body_keeps_status_code() -> None:
 def test_max_retries_must_be_positive() -> None:
     with pytest.raises(ValueError):
         APIClient(base_url="test", port=8000, max_retries=0)
+
+
+@pytest.mark.asyncio
+async def test_delete_204_no_content_does_not_raise() -> None:
+    """204 No Content (например, DELETE у Remnawave) не несёт тела — не JSON-ошибка."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(204)
+
+    client = _make_client(handler)
+    try:
+        data, status = await client.delete("/users/1")
+    finally:
+        await client.close()
+
+    assert data == {}
+    assert status == 204

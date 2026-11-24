@@ -553,6 +553,11 @@ class RemnawaveSettings(SettingsCommon):
         api_prefix (str): Префикс пути API панели.
         token (SecretStr): Bearer-токен для аутентификации запросов к панели.
             По умолчанию пуст — обязателен только при `enabled=True`.
+        extra_headers (dict[str, str]): Дополнительные заголовки к каждому
+            запросу (помимо `Authorization`). Нужны, когда перед панелью
+            стоит forward-auth reverse-proxy (например, TinyAuth) —
+            байпас-заголовок (`X-Api-Key: Basic <base64>` и т.п.) кладётся
+            сюда. Пусто, если панель не за таким проксированием.
         squads (dict[str, list[UUID]]): Наборы squad-идентификаторов панели
             по ключу уровня подписки (например, "standard"/"premium").
         tier_map (dict[str, str]): Соответствие значения `SubscriptionType`
@@ -568,6 +573,7 @@ class RemnawaveSettings(SettingsCommon):
     api_scheme: str = "https"
     api_prefix: str = "/api"
     token: SecretStr = SecretStr("")
+    extra_headers: dict[str, str] = {}
     squads: dict[str, list[UUID]]
     tier_map: dict[str, str]
     enabled: bool = False

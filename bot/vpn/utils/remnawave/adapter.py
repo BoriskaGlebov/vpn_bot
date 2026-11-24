@@ -1,4 +1,6 @@
-from datetime import UTC, datetime
+import asyncio
+import os
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -15,7 +17,9 @@ from bot.vpn.utils.remnawave.exceptions import (
 )
 from bot.vpn.utils.remnawave.schemas import (
     RemnawaveUserCreate,
+    RemnawaveUserEnvelope,
     RemnawaveUserResponse,
+    RemnawaveUsersStreamEnvelope,
     RemnawaveUserUpdate,
 )
 
@@ -26,6 +30,10 @@ class RemnawaveAdapter:
     Инкапсулирует HTTP-взаимодействие с API панели (авторизация по
     Bearer-токену, без cookie-сессии в отличие от `ThreeXUIAdapter`) и
     предоставляет высокоуровневые операции управления пользователями.
+
+    Пользователь на панели идентифицируется числовым `id` — начиная с
+    v3.x панели у пользователей нет поля `uuid` (см. `UsersSchema` в
+    `remnawave/backend`), только `id`/`shortUuid`.
 
     Attributes
         api_client: HTTP-клиент для работы с API панели.
@@ -44,6 +52,7 @@ class RemnawaveAdapter:
         squads: dict[str, list[UUID]],
         tier_map: dict[str, str],
         prefix: str = "/api",
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         """Инициализирует адаптер Remnawave.
 
@@ -55,6 +64,13 @@ class RemnawaveAdapter:
             tier_map: Соответствие значения подписки (`sub_type`) ключу
                 в `squads`.
             prefix: Префикс API панели.
+            extra_headers: Дополнительные заголовки, добавляемые к каждому
+                запросу вместе с `Authorization`. Нужны, когда перед
+                панелью стоит forward-auth reverse-proxy (TinyAuth и
+                подобные) — такой proxy перехватывает запрос и уводит на
+                страницу логина раньше, чем Bearer-токен Remnawave успевает
+                сработать, если не передать его собственный байпас-заголовок
+                (например, `X-Api-Key`).
 
         """
         self.api_client = api_client
@@ -62,6 +78,7 @@ class RemnawaveAdapter:
         self.squads = squads
         self.tier_map = tier_map
         self.prefix = prefix
+        self._extra_headers = extra_headers or {}
 
     def _squads_for_tier(self, sub_type: str) -> list[UUID]:
         """Возвращает squad-идентификаторы, соответствующие уровню подписки.
@@ -107,6 +124,7 @@ class RemnawaveAdapter:
 
         """
         headers = {
+            **self._extra_headers,
             **kwargs.pop("headers", {}),
             "Authorization": f"Bearer {self._token}",
         }
@@ -133,6 +151,11 @@ class RemnawaveAdapter:
     async def _get_user_by_tg_id(self, tg_id: int) -> RemnawaveUserResponse | None:
         """Находит пользователя панели по Telegram ID.
 
+        Панель не отдаёт 404 для фильтра без совпадений — `GET
+        /users/stream` всегда отвечает 200 с (возможно пустым) списком,
+        поэтому "не найден" определяется по пустому `users`, а не по
+        перехвату `RemnawaveUserNotFoundError`.
+
         Args:
             tg_id: Telegram ID пользователя.
 
@@ -141,19 +164,19 @@ class RemnawaveAdapter:
                 если пользователь не найден.
 
         """
-        try:
-            data, _ = await self._request(
-                "GET", f"{self.prefix}/users/by-telegram-id/{tg_id}"
-            )
-        except RemnawaveUserNotFoundError:
-            return None
-        return RemnawaveUserResponse.model_validate(data)
+        data, _ = await self._request(
+            "GET",
+            f"{self.prefix}/users/stream",
+            params={"telegramId": tg_id, "size": 1},
+        )
+        users = RemnawaveUsersStreamEnvelope.model_validate(data).response.users
+        return users[0] if users else None
 
-    async def _get_user_by_uuid(self, config_id: str) -> RemnawaveUserResponse | None:
-        """Находит пользователя панели по UUID.
+    async def _get_user_by_id(self, user_id: int) -> RemnawaveUserResponse | None:
+        """Находит пользователя панели по его числовому `id`.
 
         Args:
-            config_id: UUID пользователя на панели.
+            user_id: Идентификатор пользователя на панели.
 
         Returns
             RemnawaveUserResponse | None: Данные пользователя, либо `None`,
@@ -161,10 +184,10 @@ class RemnawaveAdapter:
 
         """
         try:
-            data, _ = await self._request("GET", f"{self.prefix}/users/{config_id}")
+            data, _ = await self._request("GET", f"{self.prefix}/users/{user_id}")
         except RemnawaveUserNotFoundError:
             return None
-        return RemnawaveUserResponse.model_validate(data)
+        return RemnawaveUserEnvelope.model_validate(data).response
 
     async def _create_user(self, payload: RemnawaveUserCreate) -> RemnawaveUserResponse:
         """Создаёт пользователя на панели.
@@ -181,7 +204,7 @@ class RemnawaveAdapter:
             f"{self.prefix}/users",
             json=payload.model_dump(mode="json", by_alias=True),
         )
-        return RemnawaveUserResponse.model_validate(data)
+        return RemnawaveUserEnvelope.model_validate(data).response
 
     async def _patch_user(self, payload: RemnawaveUserUpdate) -> RemnawaveUserResponse:
         """Обновляет пользователя на панели.
@@ -199,7 +222,7 @@ class RemnawaveAdapter:
             f"{self.prefix}/users",
             json=payload.model_dump(mode="json", by_alias=True, exclude_none=True),
         )
-        return RemnawaveUserResponse.model_validate(data)
+        return RemnawaveUserEnvelope.model_validate(data).response
 
     async def add_new_config(
         self,
@@ -221,7 +244,7 @@ class RemnawaveAdapter:
             device_limit: Лимит устройств (HWID).
 
         Returns
-            tuple: ({"remnawave": [uuid пользователя]}, ссылка на подписку).
+            tuple: ({"remnawave": [id пользователя]}, ссылка на подписку).
 
         Raises
             RemnawaveInvalidExpiryError: Если `expires_at` не в будущем.
@@ -242,7 +265,7 @@ class RemnawaveAdapter:
         if existing is not None:
             user = await self._patch_user(
                 RemnawaveUserUpdate(
-                    uuid=existing.uuid,
+                    id=existing.id,
                     expire_at=expire_at,
                     hwid_device_limit=device_limit,
                     active_internal_squads=squads,
@@ -252,15 +275,15 @@ class RemnawaveAdapter:
             user = await self._create_user(
                 RemnawaveUserCreate(
                     username=f"u{tg_id}",
-                    telegramId=tg_id,
-                    expireAt=expire_at,
-                    hwidDeviceLimit=device_limit,
-                    activeInternalSquads=squads,
+                    telegram_id=tg_id,
+                    expire_at=expire_at,
+                    hwid_device_limit=device_limit,
+                    active_internal_squads=squads,
                 )
             )
 
-        logger.info("Доступ Remnawave выдан tg_id={} uuid={}", tg_id, user.uuid)
-        return {"remnawave": [str(user.uuid)]}, user.subscription_url
+        logger.info("Доступ Remnawave выдан tg_id={} id={}", tg_id, user.id)
+        return {"remnawave": [str(user.id)]}, user.subscription_url
 
     async def extend_config(
         self,
@@ -270,7 +293,8 @@ class RemnawaveAdapter:
         """Продлевает срок действия уже существующих конфигураций.
 
         Args:
-            config_ids: UUID пользователей панели, которых нужно продлить.
+            config_ids: Числовые id пользователей панели, которых нужно
+                продлить (в виде строк).
             expires_at: Новый момент окончания действия.
 
         Returns
@@ -290,7 +314,7 @@ class RemnawaveAdapter:
         """Снимает срок действия у уже существующих конфигураций.
 
         Args:
-            config_ids: UUID пользователей панели.
+            config_ids: Числовые id пользователей панели (в виде строк).
 
         Returns
             list[str]: `config_id`, которые реально были найдены и обновлены.
@@ -301,19 +325,17 @@ class RemnawaveAdapter:
     async def _set_users_expiry(
         self, config_ids: list[str], expire_at: datetime
     ) -> list[str]:
-        """Находит пользователей по UUID и проставляет им `expireAt`.
+        """Находит пользователей по `id` и проставляет им `expireAt`.
 
         Общая часть `extend_config` и `set_unlimited_config`, различающихся
         только значением `expireAt`.
         """
         updated: list[str] = []
         for config_id in config_ids:
-            user = await self._get_user_by_uuid(config_id)
+            user = await self._get_user_by_id(int(config_id))
             if user is None:
                 continue
-            await self._patch_user(
-                RemnawaveUserUpdate(uuid=user.uuid, expireAt=expire_at)
-            )
+            await self._patch_user(RemnawaveUserUpdate(id=user.id, expire_at=expire_at))
             updated.append(config_id)
 
         logger.info(
@@ -328,7 +350,7 @@ class RemnawaveAdapter:
         """Переключает пользователя на squad'ы другого уровня подписки.
 
         Args:
-            config_id: UUID пользователя на панели.
+            config_id: Числовой id пользователя на панели (в виде строки).
             sub_type: Новый уровень подписки (см. `tier_map`).
 
         Raises
@@ -338,14 +360,14 @@ class RemnawaveAdapter:
         """
         squads = self._squads_for_tier(sub_type)
         await self._patch_user(
-            RemnawaveUserUpdate(uuid=UUID(config_id), activeInternalSquads=squads)
+            RemnawaveUserUpdate(id=int(config_id), active_internal_squads=squads)
         )
 
     async def delete_config(self, config_id: str) -> bool:
         """Удаляет пользователя с панели.
 
         Args:
-            config_id: UUID пользователя на панели.
+            config_id: Числовой id пользователя на панели (в виде строки).
 
         Returns
             bool: `True`, если пользователь был найден и удалён. `False`,
@@ -361,3 +383,122 @@ class RemnawaveAdapter:
     def __repr__(self) -> str:
         """Строковое представление экземпляра класса (без токена)."""
         return f"RemnawaveAdapter(prefix={self.prefix}, squads={list(self.squads)})"
+
+
+def _build_adapter() -> tuple[APIClient, RemnawaveAdapter]:
+    """Собирает `APIClient` + `RemnawaveAdapter` из `settings_bot.remnawave`.
+
+    Только для ручного прогона этого файла (`python -m
+    bot.vpn.utils.remnawave.adapter`) — не используется в проде, там сборка
+    через `Container`.
+
+    Returns
+        tuple[APIClient, RemnawaveAdapter]: Клиент (чтобы закрыть его по
+            завершении) и собранный адаптер.
+
+    Байпас-заголовок для forward-auth reverse-proxy перед панелью (TinyAuth
+    и т.п., если он есть) берётся из `settings_bot.remnawave.extra_headers`
+    (`REMNAWAVE_EXTRA_HEADERS` в `.env`, JSON-объект) — тот же конфиг,
+    которым будет пользоваться `Container` в проде.
+
+    Raises
+        SystemExit: Если секция `[remnawave]` не настроена, либо
+            `enabled=false`.
+
+    """
+    from bot.core.config import settings_bot
+
+    cfg = settings_bot.remnawave
+    if cfg is None or not cfg.enabled:
+        raise SystemExit(
+            "settings_bot.remnawave не настроен (нет секции [remnawave] "
+            "или remnawave.enabled=false)"
+        )
+    api_client = APIClient(
+        base_url=cfg.api_url, port=cfg.api_port, scheme=cfg.api_scheme
+    )
+
+    adapter = RemnawaveAdapter(
+        api_client=api_client,
+        token=cfg.token.get_secret_value(),
+        squads=cfg.squads,
+        tier_map=cfg.tier_map,
+        prefix=cfg.api_prefix,
+        extra_headers=cfg.extra_headers or None,
+    )
+    return api_client, adapter
+
+
+async def _smoke_test() -> None:
+    """Прогоняет полный цикл методов `RemnawaveAdapter` на реальной панели.
+
+    Создаёт тестового пользователя под синтетическим `tg_id`, продлевает
+    его, снимает срок действия, переключает squad и в конце удаляет — не
+    оставляет мусора на панели независимо от того, на каком шаге что-то
+    пошло не так (удаление в `finally`).
+
+    `tg_id` берётся из `REMNAWAVE_TEST_TG_ID` (по умолчанию 999000111),
+    уровни подписки — из `REMNAWAVE_TEST_TIER_A`/`REMNAWAVE_TEST_TIER_B`
+    (по умолчанию первый/последний из `REMNAWAVE_SUBSCRIPTION_TIERS`) —
+    чтобы не задеть реальных пользователей и настоящие squad'ы без явного
+    намерения.
+    """
+    from bot.core.config import REMNAWAVE_SUBSCRIPTION_TIERS
+
+    tg_id = int(os.environ.get("REMNAWAVE_TEST_TG_ID", "999000111"))
+    tier_a = os.environ.get("REMNAWAVE_TEST_TIER_A", REMNAWAVE_SUBSCRIPTION_TIERS[0])
+    tier_b = os.environ.get("REMNAWAVE_TEST_TIER_B", REMNAWAVE_SUBSCRIPTION_TIERS[-1])
+
+    api_client, adapter = _build_adapter()
+    print(f"prefix: {adapter.prefix}")
+    print(f"squads (settings_bot.remnawave.squads): {adapter.squads}")
+    print(f"tier_map (settings_bot.remnawave.tier_map): {adapter.tier_map}")
+    print(
+        f"extra_headers заданы для: {list(adapter._extra_headers)} (пусто — не загрузились)"
+    )
+    print(f"tg_id тестового пользователя: {tg_id}")
+    input()
+    config_id: str | None = None
+    try:
+        print(f"\n== add_new_config(sub_type={tier_a!r}) ==")
+        ids, sub_url = await adapter.add_new_config(
+            tg_id=tg_id,
+            expires_at=datetime.now(UTC) + timedelta(minutes=10),
+            sub_type=tier_a,
+            device_limit=1,
+        )
+        input()
+        config_id = ids["remnawave"][0]
+        print(f"config_id (id на панели): {config_id}")
+        print(f"subscription_url: {sub_url}")
+        input()
+        print("\n== extend_config(+1 час) ==")
+        extended = await adapter.extend_config(
+            [config_id], datetime.now(UTC) + timedelta(hours=1)
+        )
+        print(f"продлены: {extended}")
+        input()
+        print("\n== set_unlimited_config ==")
+        unlimited = await adapter.set_unlimited_config([config_id])
+        print(f"сняли срок действия: {unlimited}")
+        input()
+        print(f"\n== set_tier(sub_type={tier_b!r}) ==")
+        await adapter.set_tier(config_id, tier_b)
+        print(f"squad переключён на {adapter.tier_map[tier_b]!r}")
+        input()
+    finally:
+        if config_id is not None:
+            print(f"\n== delete_config({config_id}) ==")
+            deleted = await adapter.delete_config(config_id)
+            print(f"удалён: {deleted}")
+            input()
+        await api_client.close()
+
+
+def _run() -> None:
+    """Точка входа для `python -m bot.vpn.utils.remnawave.adapter`."""
+    asyncio.run(_smoke_test())
+
+
+if __name__ == "__main__":
+    _run()
