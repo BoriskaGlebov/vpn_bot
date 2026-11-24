@@ -193,7 +193,7 @@ class SchedulerBotService:
             error,
         )
 
-    async def _handle_xray_error(
+    async def _handle_panel_error(
         self,
         client_cls: ThreeXUIAdapter,
         error: Exception,
@@ -332,7 +332,7 @@ class SchedulerBotService:
                     )
                     results.append(False)
                     deletion_statistic.append(DeleteStatus.ERROR)
-                    await self._handle_xray_error(
+                    await self._handle_panel_error(
                         client_cls=adapter,
                         error=e,
                         config_id=config_id,

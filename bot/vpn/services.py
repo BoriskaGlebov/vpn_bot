@@ -11,6 +11,7 @@ from loguru import logger
 from bot.app_error.api_error import APIClientError
 from bot.app_error.base_error import (
     AppError,
+    PanelError,
     SubscriptionNotFoundError,
     VPNConfigDeletionFailedError,
     VPNLimitError,
@@ -27,7 +28,7 @@ from bot.vpn.utils.amnezia_wg import (
 )
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
-from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError, ThreeXUIError
+from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError
 from shared.enums.vpn_enum import VPNBackend, VPNProtocol
 
 ssh_lock = asyncio.Lock()
@@ -427,7 +428,7 @@ class VPNService:
                 XRay-конфигов — это не ошибка.
 
         Raises
-            ThreeXUIError: Если у пользователя есть XRay-конфиги, но продлить
+            PanelError: Если у пользователя есть XRay-конфиги, но продлить
                 их не удалось ни на одной из зарегистрированных нод.
 
         """
@@ -495,7 +496,7 @@ class VPNService:
 
         extended: list[str] = []
         pending: set[str] = set()
-        last_error: ThreeXUIError | None = None
+        last_error: PanelError | None = None
 
         async with xray_lock:
             for node_name, ids in by_node.items():
@@ -510,7 +511,7 @@ class VPNService:
                 except ThreeXUIConfigNotFoundError:
                     pending.update(ids)
                     continue
-                except ThreeXUIError as exc:
+                except PanelError as exc:
                     logger.warning(
                         "Ошибка продления XRay-конфигов tg_id={} на {}: {}",
                         user.telegram_id,
@@ -530,7 +531,7 @@ class VPNService:
                     done = await extend_fn(adapter, legacy)
                 except ThreeXUIConfigNotFoundError:
                     continue
-                except ThreeXUIError as exc:
+                except PanelError as exc:
                     logger.warning(
                         "Ошибка продления XRay-конфигов tg_id={} на {}: {}",
                         user.telegram_id,
@@ -675,7 +676,7 @@ class VPNService:
                 try:
                     if await adapter.delete_config(config_id=config_id):
                         deleted_any = True
-                except (APIClientError, ThreeXUIError) as e:
+                except (APIClientError, PanelError) as e:
                     logger.warning(
                         "Ошибка удаления config_id={} в {}: {}",
                         config_id,
