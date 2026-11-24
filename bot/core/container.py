@@ -32,6 +32,7 @@ from bot.users.adapter import UsersAPIAdapter
 from bot.users.services import UserService
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.services import VPNService
+from bot.vpn.utils.remnawave.adapter import RemnawaveAdapter
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 
 
@@ -74,6 +75,11 @@ class Container:
 
         _xray_clients (list[APIClient]): HTTP-клиенты XRay (для shutdown).
         xray_adapters (XRayRegistry): реестр VPN/XRay нод.
+        remnawave (RemnawaveAdapter | None): адаптер панели Remnawave.
+            `None`, если секция `[remnawave]` отсутствует в конфиге либо
+            `settings_bot.remnawave.enabled=False`.
+        _remnawave_client (APIClient | None): HTTP-клиент панели Remnawave
+            (для shutdown). `None` синхронно с `remnawave`.
 
         user_service (UserService)
         admin_service (AdminService)
@@ -127,6 +133,8 @@ class Container:
     scheduler_adapter: SchedulerAPIAdapter
     _xray_clients: list[APIClient]
     xray_adapters: XRayRegistry
+    remnawave: RemnawaveAdapter | None
+    _remnawave_client: APIClient | None
 
     user_service: UserService
     admin_service: AdminService
@@ -216,6 +224,29 @@ class Container:
         self._xray_clients = xray_clients
         self.xray_adapters = XRayRegistry(xray_adapters)
 
+        # 4. REMNAWAVE
+        # Секция `[remnawave]` опциональна. Если её нет или `enabled=false` —
+        # адаптер не создаётся, зависимые сервисы получают `None` и просто
+        # не предлагают пользователю соответствующий сценарий.
+        remnawave_settings = settings_bot.remnawave
+        if remnawave_settings is not None and remnawave_settings.enabled:
+            self._remnawave_client = APIClient(
+                base_url=remnawave_settings.api_url,
+                port=remnawave_settings.api_port,
+                scheme=remnawave_settings.api_scheme,
+            )
+            self.remnawave = RemnawaveAdapter(
+                api_client=self._remnawave_client,
+                token=remnawave_settings.token.get_secret_value(),
+                squads=remnawave_settings.squads,
+                tier_map=remnawave_settings.tier_map,
+                prefix=remnawave_settings.api_prefix,
+                extra_headers=remnawave_settings.extra_headers,
+            )
+        else:
+            self._remnawave_client = None
+            self.remnawave = None
+
         self.user_service = UserService(adapter=self.user_adapter)
         self.admin_service = AdminService(adapter=self.admin_adapter)
         self.expense_service = ExpenseService(adapter=self.expense_adapter)
@@ -228,6 +259,7 @@ class Container:
             adapter=self.vpn_adapter,
             user_adapter=self.user_adapter,
             xray_registry=self.xray_adapters,
+            remnawave=self.remnawave,
         )
         self.subscription_service = SubscriptionService(
             adapter=self.subscription_adapter,
@@ -262,6 +294,7 @@ class Container:
             adapter=self.scheduler_adapter,
             vpn_adapter=self.vpn_adapter,
             xray_registry=self.xray_adapters,
+            remnawave=self.remnawave,
         )
 
     async def init(self) -> None:
@@ -274,3 +307,5 @@ class Container:
         await self.api_client.close()
         for client in self._xray_clients:
             await client.close()
+        if self._remnawave_client is not None:
+            await self._remnawave_client.close()

@@ -27,12 +27,30 @@ from bot.vpn.utils.amnezia_wg import (
     AsyncSSHClientWG3,
 )
 from bot.vpn.utils.mtproto import HostDockerSSHClient, MTProtoProxy
+from bot.vpn.utils.remnawave.adapter import RemnawaveAdapter
 from bot.vpn.utils.x_ray_config import ThreeXUIAdapter, XRayRegistry
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIConfigNotFoundError
 from shared.enums.vpn_enum import VPNBackend, VPNProtocol
 
 ssh_lock = asyncio.Lock()
 xray_lock = asyncio.Lock()
+remnawave_lock = asyncio.Lock()
+
+# Соответствие `SubscriptionType` → лимит устройств для панели Remnawave
+# (поле `hwidDeviceLimit`). Продублировано строками, а не импортом
+# `DEVICE_LIMITS` из `api/`: пакет `bot/` не должен тянуть зависимость на
+# SQLAlchemy-модели api. Значения совпадают с `api.subscription.models.DEVICE_LIMITS`
+# для текущей базовой квоты (`max_configs_per_user=3`); для ULTIMATE взят
+# скромный верхний предел панели (10), а не `DEVICE_LIMIT_UNLIMITED=10_000` —
+# в Remnawave лимит реально принудителен на уровне HWID, и выдавать
+# фактически безлимит на уровне панели пока преждевременно.
+REMNAWAVE_DEVICE_LIMITS: dict[str, int] = {
+    "trial": 1,
+    "standard": 3,
+    "premium": 5,
+    "founder": 5,
+    "ultimate": 10,
+}
 
 SSHClientFactory = Callable[
     ...,
@@ -82,6 +100,7 @@ class VPNService:
         adapter: VPNAPIAdapter,
         user_adapter: UsersAPIAdapter,
         xray_registry: XRayRegistry,
+        remnawave: RemnawaveAdapter | None = None,
     ) -> None:
         """Инициализирует сервис управления VPN-конфигурациями.
 
@@ -89,11 +108,16 @@ class VPNService:
             adapter: Адаптер для взаимодействия с VPN API.
             user_adapter: Адаптер для работы с пользователями.
             xray_registry: Реестр XRay-адаптеров.
+            remnawave: Адаптер панели Remnawave. `None`, если интеграция
+                не включена — выдача Remnawave-подписки в этом случае
+                недоступна (`generate_remnawave_subscription` поднимет
+                `AppError`), а кнопка в клавиатуре не появляется.
 
         """
         self.api_adapter = adapter
         self.user_adapter = user_adapter
         self.xray_registry = xray_registry
+        self.remnawave = remnawave
 
     async def _limit_and_user_inf(self, tg_user: TGUser) -> SUserOut:
         """Проверяет лимит пользователя и возвращает пользователя из БД.
@@ -362,6 +386,151 @@ class VPNService:
             raise
 
         return sub_url
+
+    async def generate_remnawave_subscription(self, tg_user: SUserOut) -> str:
+        """Создаёт/обновляет Remnawave-подписку и сохраняет её в БД.
+
+        В отличие от `generate_xray_subscription` лимит устройств обеспечивает
+        сама панель (поле `hwidDeviceLimit`), поэтому `check_limit` на
+        стороне `api/` здесь не вызывается — передаём лимит по типу подписки
+        в сам RemnawaveAdapter.
+
+        Алгоритм работы:
+            1. Проверяет, что интеграция Remnawave включена (`remnawave` есть).
+            2. Проверяет наличие активной подписки у пользователя.
+            3. Берёт `sub_type` из `current_subscription.type`, `expires_at` —
+               из `end_date` (`None` → бессрочная).
+            4. Вызывает `RemnawaveAdapter.add_new_config(...)` — создаёт или
+               обновляет пользователя на панели.
+            5. Сохраняет VPN-конфиг в БД через `vpn_adapter.add_config`
+               (backend=remnawave, protocol=remnawave_sub).
+            6. При ошибке записи в БД откатывает запись на панели
+               (`delete_config`), чтобы не оставить "осиротевшего"
+               пользователя Remnawave.
+
+        Args:
+            tg_user: Пользователь из `api/` (`SUserOut`) — нужен
+                `current_subscription` и `telegram_id`.
+
+        Returns
+            str: Ссылка на Remnawave-подписку (`subscription_url`).
+
+        Raises
+            AppError: Если Remnawave не настроен (`remnawave=None`).
+            SubscriptionNotFoundError: Если у пользователя нет активной
+                подписки или её срок уже истёк.
+            APIClientError: При ошибке сохранения конфигурации в БД
+                (после попытки отката на панели).
+            RemnawaveError: При ошибке работы с панелью Remnawave.
+
+        """
+        if self.remnawave is None:
+            raise AppError("Интеграция Remnawave не настроена")
+
+        logger.info("Генерация Remnawave tg_id={}", tg_user.telegram_id)
+
+        sub = tg_user.current_subscription
+        if sub is None or not sub.is_active:
+            raise SubscriptionNotFoundError(tg_id=tg_user.telegram_id)
+
+        now = datetime.now(settings_bot.core.tzinfo)
+        end = sub.end_date
+        if end and end.tzinfo is None:
+            end = end.replace(tzinfo=settings_bot.core.tzinfo)
+
+        if end is not None and end <= now:
+            # is_active мог устареть (обновляется только планировщиком) —
+            # если срок уже прошёл, бессрочный доступ выдавать нельзя.
+            raise SubscriptionNotFoundError(tg_id=tg_user.telegram_id)
+
+        sub_type = sub.type or "standard"
+        device_limit = REMNAWAVE_DEVICE_LIMITS.get(
+            sub_type, REMNAWAVE_DEVICE_LIMITS["standard"]
+        )
+
+        logger.debug(
+            "Remnawave tg_id={} sub_type={} device_limit={} до {}",
+            tg_user.telegram_id,
+            sub_type,
+            device_limit,
+            end,
+        )
+
+        async with remnawave_lock:
+            ids, subscription_url = await self.remnawave.add_new_config(
+                tg_id=tg_user.telegram_id,
+                expires_at=end,
+                sub_type=sub_type,
+                device_limit=device_limit,
+            )
+
+        config_ids = ids.get("remnawave", [])
+        if not config_ids:
+            raise RuntimeError("RemnawaveAdapter не вернул идентификатор пользователя")
+
+        file_name = config_ids[0]
+
+        try:
+            await self.api_adapter.add_config(
+                tg_id=tg_user.telegram_id,
+                file_name=file_name,
+                pub_key=subscription_url,
+                node_name=None,
+                backend=VPNBackend.REMNAWAVE,
+                protocol=VPNProtocol.REMNAWAVE_SUB,
+                config_ids=config_ids,
+            )
+        except APIClientError:
+            logger.error(
+                "Ошибка сохранения Remnawave-конфига в БД tg_id={} — откат на панели",
+                tg_user.telegram_id,
+            )
+            async with remnawave_lock:
+                for cid in config_ids:
+                    try:
+                        await self.remnawave.delete_config(config_id=cid)
+                    except PanelError as exc:
+                        # Запись в БД не сохранилась, но пользователь на
+                        # панели остался — админ должен удалить вручную.
+                        logger.critical(
+                            "Откат Remnawave-пользователя не удался tg_id={} id={}: {}",
+                            tg_user.telegram_id,
+                            cid,
+                            exc,
+                        )
+            raise
+
+        return subscription_url
+
+    def _adapter_for(
+        self, cfg: SVPNConfigOut
+    ) -> ThreeXUIAdapter | RemnawaveAdapter | None:
+        """Возвращает адаптер панели для конкретной VPN-конфигурации.
+
+        Выбор идёт по `cfg.backend`:
+            - `REMNAWAVE` → `self.remnawave` (может быть `None`, если
+              интеграция отключена/удалена — вызывающий код должен
+              деградировать до "пропустить этот конфиг");
+            - прочие бэкенды с `node_name` → XRay-адаптер соответствующей
+              ноды (через `xray_registry.get_optional`).
+
+        AmneziaWG сюда не маршрутизируется (управляется по SSH, не
+        через панель) — для него возвращается `None`.
+
+        Args:
+            cfg: VPN-конфиг из БД.
+
+        Returns
+            ThreeXUIAdapter | RemnawaveAdapter | None: Адаптер панели,
+                либо `None`, если бэкенд не управляется через панель или
+                соответствующая нода/интеграция недоступна.
+
+        """
+        if cfg.backend == VPNBackend.REMNAWAVE:
+            return self.remnawave
+        if cfg.node_name is None:
+            return None
+        return self.xray_registry.get_optional(cfg.node_name)
 
     @staticmethod
     def _group_xray_config_ids(
