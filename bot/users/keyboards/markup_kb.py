@@ -29,6 +29,15 @@ def main_kb(
         builder.row(
             KeyboardButton(text=MainMenuText.PREMIUM.value),
         )
+        # Remnawave-подписка (один subscription-URL на все устройства)
+        # показывается перед XRay-локациями — это новый "флагманский"
+        # сценарий, который пользователь выбирает по умолчанию, а старые
+        # кнопки по странам остаются как запасной путь.
+        remnawave_enabled = (
+            settings_bot.remnawave is not None and settings_bot.remnawave.enabled
+        )
+        if remnawave_enabled:
+            builder.row(KeyboardButton(text=MainMenuText.VPN_PRO.value))
         for location in settings_bot.vpn.standard_nodes():
             node = settings_bot.vpn.get(location)
             buttons = []
@@ -42,7 +51,13 @@ def main_kb(
                 )
             if buttons:
                 builder.add(*buttons)
-        builder.adjust(1, 2)
+        # `adjust` переразмечает ВСЕ ранее добавленные кнопки, поэтому
+        # количество первых "одиночных" строк зависит от того, была ли
+        # добавлена кнопка `VPN Pro` (`PREMIUM` — всегда).
+        if remnawave_enabled:
+            builder.adjust(1, 1, 2)
+        else:
+            builder.adjust(1, 2)
     subscription_button_text = (
         MainMenuText.MY_SUBSCRIPTION.value
         if active_subscription

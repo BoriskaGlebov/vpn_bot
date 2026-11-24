@@ -23,6 +23,7 @@ from bot.vpn.services import ssh_client_factory_for, ssh_lock
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 from bot.vpn.utils.panel_protocol import PanelAdapter
+from bot.vpn.utils.remnawave.adapter import RemnawaveAdapter
 from bot.vpn.utils.x_ray_config import XRayRegistry
 from shared.enums.vpn_enum import VPNBackend
 
@@ -90,6 +91,7 @@ class SchedulerBotService:
         bot: Bot,
         vpn_adapter: VPNAPIAdapter,
         xray_registry: XRayRegistry,
+        remnawave: RemnawaveAdapter | None = None,
     ) -> None:
         """Инициализация класса планировщика.
 
@@ -98,11 +100,15 @@ class SchedulerBotService:
             bot: Telegram bot instance для отправки сообщений.
             vpn_adapter: Клиента для обращения к API VPN
             xray_registry: Адаптеры для работы с 3xui панелью.
+            remnawave: Адаптер панели Remnawave. `None`, если интеграция
+                не настроена — удаление Remnawave-конфигов в этом случае
+                пропускается (обрабатывается в отдельной задаче).
 
         """
         self.api_adapter = adapter
         self.vpn_adapter = vpn_adapter
         self.xray_registry = xray_registry
+        self.remnawave = remnawave
         self.bot = bot
 
     async def _run_check_all(self) -> CheckAllSubscriptionsResponse | None:

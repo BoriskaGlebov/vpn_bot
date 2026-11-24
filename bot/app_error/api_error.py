@@ -108,12 +108,19 @@ class APIClientConflictError(APIClientHTTPError):
 
 
 def parse_api_error(body: dict[str, Any]) -> ErrorDetail:
-    """Проверка/валидация ответа API."""
+    """Проверка/валидация ответа API.
+
+    Наш `api/` всегда отвечает ошибкой в формате `ErrorEnvelope`, но
+    `APIClient` используется и для сторонних HTTP-сервисов (панелей VPN
+    и т.п.), у которых свой формат ошибки — в этом случае строим
+    `ErrorDetail` из сырого тела ответа вместо падения с `ValidationError`
+    при разборе неизвестного формата.
+    """
     try:
         envelope = ErrorEnvelope.model_validate(body)
         return envelope.error
     except ValidationError:
-        raise
+        return ErrorDetail(code="external_error", message=str(body)[:500])
 
 
 def map_http_error(

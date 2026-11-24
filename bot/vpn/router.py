@@ -89,6 +89,16 @@ class VPNRouter(BaseRouter):
         is_premium = IsPremium(user_adapter=self.user_adapter)
         self.router.message.middleware(LocationFlagMiddleware())
 
+        # Remnawave-подписка — выдаётся всем пользователям с активной
+        # подпиской. Регистрируем, только если интеграция реально включена:
+        # иначе у хендлера нет адаптера, а кнопки `VPN_PRO` всё равно нет в
+        # клавиатуре (см. `main_kb`).
+        if settings_bot.remnawave is not None and settings_bot.remnawave.enabled:
+            self.router.message.register(
+                self.generate_remnawave_subscription,
+                F.text == MainMenuText.VPN_PRO,
+            )
+
         for location in settings_bot.vpn.standard_nodes():
             node = settings_bot.vpn.get(location)
             if node.amnezia_available:
@@ -342,6 +352,54 @@ class VPNRouter(BaseRouter):
                     tg_user=user, location=xray_location
                 )
 
+                await message.answer(
+                    text=x_ray_messages.ready_config, reply_markup=xray_url_kb(url=url)
+                )
+            finally:
+                await self.redis.delete(redis_key)
+
+    @BaseRouter.log_method
+    @BaseRouter.require_user
+    async def generate_remnawave_subscription(
+        self,
+        message: Message,
+        user: TgUser,
+        state: FSMContext,
+    ) -> None:
+        """Выдаёт пользователю новый Remnawave-конфиг (один клик = один URL).
+
+        Flow:
+            1. Очистка FSM-состояния.
+            2. Redis-лок от повторного нажатия кнопки
+               (ключ `vpn:config:<id>:remnawave`).
+            3. Вызов `vpn_service.generate_remnawave_subscription` —
+               внутри `check_limit`, регистрация пользователя,
+               создание нового юзера на панели и запись VPNConfig.
+            4. Отправка `subscription_url` с инструкцией.
+
+        Args:
+            message: Входящее сообщение.
+            user: Telegram-пользователь.
+            state: FSM-контекст.
+
+        Returns
+            None
+
+        """
+        async with ChatActionSender.typing(bot=self.bot, chat_id=message.chat.id):
+            await state.clear()
+
+            redis_key = f"vpn:config:{user.id}:remnawave"
+            if not await self._check_acquired(redis_key, message):
+                return
+
+            try:
+                await message.answer(
+                    x_ray_messages.start_generate, reply_markup=ReplyKeyboardRemove()
+                )
+                url = await self.vpn_service.generate_remnawave_subscription(
+                    tg_user=user
+                )
                 await message.answer(
                     text=x_ray_messages.ready_config, reply_markup=xray_url_kb(url=url)
                 )

@@ -315,7 +315,14 @@ class APIClient:
         raise APIClientConnectionError() from last_exc
 
     async def _parse_json(self, response: httpx.Response) -> dict[str, Any]:
-        """Парсит JSON с обработкой ошибок."""
+        """Парсит JSON с обработкой ошибок.
+
+        `204 No Content` по стандарту REST не несёт тела (так отвечает,
+        например, `DELETE` у Remnawave) — пытаться распарсить его как JSON
+        бессмысленно и всегда приводило бы к `APIClientInvalidJSONError`.
+        """
+        if response.status_code == 204:
+            return {}
         try:
             data = response.json()
         except ValueError as exc:

@@ -58,6 +58,16 @@ def test_map_http_error_message_format(response_body, expected_message):
     assert str(err) == expected_message
 
 
+def test_map_http_error_falls_back_on_foreign_body_shape():
+    """Тело ошибки стороннего API (не наш `ErrorEnvelope`) не роняет парсинг."""
+    response_body = {"message": "Unauthorized", "statusCode": 401}
+    err = map_http_error(401, response_body)
+
+    assert isinstance(err, APIClientUnauthorizedError)
+    assert err.error.code == "external_error"
+    assert "Unauthorized" in err.error.message
+
+
 # =========================
 # APIClientError.__str__
 # =========================
