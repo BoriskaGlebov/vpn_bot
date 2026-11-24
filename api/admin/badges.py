@@ -57,6 +57,7 @@ VPN_PROTOCOL_LABELS = {
     "wg_v3": "WireGuard v3",
     "vless_reality_tcp": "VLESS Reality TCP",
     "vless_reality_xhttp": "VLESS Reality XHTTP",
+    "remnawave_sub": "Remnawave",
 }
 
 
