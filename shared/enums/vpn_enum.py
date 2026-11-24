@@ -10,11 +10,13 @@ class VPNBackend(StrEnum):
     Attributes
         AMNEZIA: WireGuard/AmneziaWG, управление через SSH.
         XRAY: XRay/VLESS через панель 3x-ui.
+        REMNAWAVE: Remnawave, управление через панель Remnawave.
 
     """
 
     AMNEZIA = "amnezia"
     XRAY = "xray"
+    REMNAWAVE = "remnawave"
 
 
 class VPNProtocol(StrEnum):
@@ -32,6 +34,7 @@ class VPNProtocol(StrEnum):
         WG_V3: AmneziaWG, третья версия протокола.
         VLESS_REALITY_TCP: VLESS Reality поверх TCP (с flow xtls-rprx-vision).
         VLESS_REALITY_XHTTP: VLESS Reality поверх XHTTP (без flow).
+        REMNAWAVE_SUB: Подписка Remnawave (ссылка на панель Remnawave).
 
     """
 
@@ -40,6 +43,7 @@ class VPNProtocol(StrEnum):
     WG_V3 = "wg_v3"
     VLESS_REALITY_TCP = "vless_reality_tcp"
     VLESS_REALITY_XHTTP = "vless_reality_xhttp"
+    REMNAWAVE_SUB = "remnawave_sub"
 
     @classmethod
     def for_wg(cls, protocol_version: str) -> "VPNProtocol":

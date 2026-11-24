@@ -40,11 +40,13 @@ VPN_CONFIG_STATUS_LABELS = {
 VPN_BACKEND_BADGE_COLORS = {
     "amnezia": "teal",
     "xray": "indigo",
+    "remnawave": "purple",
 }
 
 VPN_BACKEND_LABELS = {
     "amnezia": "AmneziaWG",
     "xray": "XRay/VLESS",
+    "remnawave": "Remnawave",
 }
 
 # protocol хранит значения VPNProtocol (shared/enums/vpn_enum.py), для

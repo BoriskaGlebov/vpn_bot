@@ -8,6 +8,7 @@ from shared.enums.vpn_enum import VPNBackend
 BACKEND_LABELS: dict[VPNBackend, str] = {
     VPNBackend.AMNEZIA: "AmneziaVPN",
     VPNBackend.XRAY: "⚡ XRay Pro",
+    VPNBackend.REMNAWAVE: "🚀 VPN Pro",
 }
 
 
