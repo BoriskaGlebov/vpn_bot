@@ -1,13 +1,14 @@
 from datetime import datetime
 from typing import Any
 
-from bot.app_error.base_error import AppError
+from bot.app_error.base_error import PanelError
 
 
-class ThreeXUIError(AppError):
+class ThreeXUIError(PanelError):
     """Базовая ошибка при работе с панелью 3x-ui.
 
-    Наследуется от `AppError`, чтобы попадать в общий `ErrorHandlerMiddleware`
+    Наследуется от `PanelError` (который в свою очередь наследуется от
+    `AppError`), чтобы попадать в общий `ErrorHandlerMiddleware`
     (который распознаёт только `AppError`/`APIClientError`) и корректно
     превращаться в `ErrorEnvelope` вместо generic "unexpected_error".
 
