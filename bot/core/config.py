@@ -4,6 +4,7 @@ from decimal import Decimal
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal
+from uuid import UUID
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -529,6 +530,93 @@ class PaymentSettings(SettingsCommon):
     )
 
 
+# Значения `SubscriptionType` (`api.subscription.models.SubscriptionType`).
+# Продублированы строками, а не импортом enum из `api/`, чтобы не тянуть в
+# `bot/` зависимость на пакет с SQLAlchemy-моделями — bot никогда не
+# импортирует `api/` (общаться с ним можно только через `APIClient`).
+REMNAWAVE_SUBSCRIPTION_TIERS: tuple[str, ...] = (
+    "trial",
+    "standard",
+    "premium",
+    "founder",
+    "ultimate",
+)
+
+
+class RemnawaveSettings(SettingsCommon):
+    """Настройки интеграции с панелью Remnawave.
+
+    Attributes
+        api_url (str): Хост панели Remnawave.
+        api_port (int): Порт панели.
+        api_scheme (str): Схема запросов к панели ("http"/"https").
+        api_prefix (str): Префикс пути API панели.
+        token (SecretStr): Bearer-токен для аутентификации запросов к панели.
+            По умолчанию пуст — обязателен только при `enabled=True`.
+        squads (dict[str, list[UUID]]): Наборы squad-идентификаторов панели
+            по ключу уровня подписки (например, "standard"/"premium").
+        tier_map (dict[str, str]): Соответствие значения `SubscriptionType`
+            (см. `REMNAWAVE_SUBSCRIPTION_TIERS`) ключу в `squads`.
+        enabled (bool): Интеграция включена. При `False` (или отсутствии
+            секции `[remnawave]` в конфиге — тогда `Settings.remnawave`
+            равен `None`) бот стартует без Remnawave.
+
+    """
+
+    api_url: str
+    api_port: int = 443
+    api_scheme: str = "https"
+    api_prefix: str = "/api"
+    token: SecretStr = SecretStr("")
+    squads: dict[str, list[UUID]]
+    tier_map: dict[str, str]
+    enabled: bool = False
+
+    model_config = SettingsConfigDict(env_prefix="REMNAWAVE_")
+
+    @model_validator(mode="after")
+    def _validate_tier_map(self) -> "RemnawaveSettings":
+        """Проверяет согласованность `tier_map`/`squads` и наличие токена.
+
+        Returns
+            RemnawaveSettings: Валидированный экземпляр.
+
+        Raises
+            ValueError: Если какой-либо тип подписки не замаплен в
+                `tier_map`, значение `tier_map` указывает на отсутствующий
+                в `squads` ключ, какой-либо список в `squads` пуст, либо
+                интеграция включена (`enabled=True`), а `token` пуст.
+
+        """
+        missing_types = [
+            t for t in REMNAWAVE_SUBSCRIPTION_TIERS if t not in self.tier_map
+        ]
+        if missing_types:
+            raise ValueError(
+                f"remnawave.tier_map не содержит типы подписок: {missing_types}"
+            )
+
+        unknown_keys = sorted(
+            {v for v in self.tier_map.values() if v not in self.squads}
+        )
+        if unknown_keys:
+            raise ValueError(
+                f"remnawave.tier_map ссылается на отсутствующие в squads "
+                f"ключи: {unknown_keys}"
+            )
+
+        empty_squads = [key for key, ids in self.squads.items() if not ids]
+        if empty_squads:
+            raise ValueError(f"remnawave.squads содержит пустые списки: {empty_squads}")
+
+        if self.enabled and not self.token.get_secret_value():
+            raise ValueError(
+                "remnawave.token не может быть пустым при remnawave.enabled=true"
+            )
+
+        return self
+
+
 class Settings(SettingsCommon):
     """Агрегированная конфигурация приложения.
 
@@ -550,6 +638,10 @@ class Settings(SettingsCommon):
 
         vpn (VPNRegistry): Реестр VPN-нод.
             Содержит именованные конфигурации серверов (main, sof, fi и др.).
+
+        remnawave (RemnawaveSettings | None): Настройки интеграции с панелью
+            Remnawave. `None`, если секции `[remnawave]` нет в конфиге —
+            бот стартует без Remnawave.
 
         pricing (PricingSettings): Настройки тарифов и цен.
 
@@ -580,6 +672,8 @@ class Settings(SettingsCommon):
     api: ApiSettings = Field(default_factory=ApiSettings)
 
     vpn: VPNRegistry = Field(default_factory=VPNRegistry)
+
+    remnawave: RemnawaveSettings | None = None
 
     pricing: PricingSettings = Field(default_factory=PricingSettings)
 
