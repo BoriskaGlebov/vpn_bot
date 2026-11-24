@@ -127,6 +127,7 @@ subscription_prefix = "sub-dk-34gs"
 panel_port          = 5443
 subscription_port   = 2096
 username            = "admin"
+enabled             = true
 
 [[vpn.nodes.sof.xray.inbounds]]
 port     = 443
@@ -158,6 +159,7 @@ subscription_prefix = "sub-dk-34gs"
 panel_port          = 5443
 subscription_port   = 2096
 username            = "admin"
+enabled             = true
 
 [[vpn.nodes.sto.xray.inbounds]]
 port     = 6443
@@ -190,6 +192,7 @@ subscription_prefix = "sub-dk-34gs"
 panel_port          = 5443
 subscription_port   = 2096
 username            = "admin"
+enabled             = true
 
 [[vpn.nodes.waw.xray.inbounds]]
 port     = 6443
@@ -222,6 +225,7 @@ protocol = "vless_reality_tcp"
 #panel_port          = 5443
 #subscription_port   = 2096
 #username            = "admin"
+#enabled             = true
 #
 #[[vpn.nodes.dk.xray.inbounds]]
 #port     = 6443
