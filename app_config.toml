@@ -94,7 +94,7 @@ subscription_prefix = "sub-45gh45"
 panel_port          = 5443
 subscription_port   = 2096
 username            = "admin"
-enabled             = false
+enabled             = true
 
 [[vpn.nodes.fr.xray.inbounds]]
 port     = 8443
