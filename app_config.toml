@@ -76,27 +76,28 @@ url = "vpn_bot"
 [vpn.nodes.fr]
 host             = "vps02.boris-guard.pro"
 username         = "boris02"
-container_old    = "amnezia-awg"
+#container_old    = "amnezia-awg"
 container        = "amnezia-awg2"
-protocol_version = "v2"
+protocol_version = "v3"
 use_local        = false
 location_prefix  = "FR"
 flag             = "🇫🇷"
-enabled          = false
-amnezia_enabled  = false
-
+enabled          = true
+amnezia_enabled  = true
+premium          = true
+#
 [vpn.nodes.fr.xray]
-host                = "help-blocks.ru"
+host                = "vps02-sub.boris-guard.pro"
 panel_host          = "vps02-panel.boris-guard.pro"
 panel_prefix        = "panel-45gh65"
 subscription_prefix = "sub-45gh45"
 panel_port          = 5443
 subscription_port   = 2096
 username            = "admin"
-enabled             = false
+enabled             = true
 
 [[vpn.nodes.fr.xray.inbounds]]
-port     = 8443
+port     = 6443
 name     = "🇫🇷 | XHTTP"
 protocol = "vless_reality_xhttp"
 
@@ -201,36 +202,36 @@ name     = "🇵🇱 | TCP Reality"
 protocol = "vless_reality_tcp"
 
 # ── 🇩🇰  DK — Дания (Копенгаген) │ vps07 │ premium ─────────────────────────
-[vpn.nodes.dk]
-host             = "vps07.boris-guard.pro"
-username         = "boris07"
-container        = "amnezia-awg2"
-protocol_version = "v3"
-use_local        = false
-location_prefix  = "DK"
-flag             = "🇩🇰"
-enabled          = true
-amnezia_enabled  = true
-premium          = true
-
-[vpn.nodes.dk.xray]
-host                = "vps07-sub.boris-guard.pro"
-panel_host          = "vps07-panel.boris-guard.pro"
-panel_prefix        = "panel-df06dg"
-subscription_prefix = "sub-dk-34gs"
-panel_port          = 5443
-subscription_port   = 2096
-username            = "admin"
-
-[[vpn.nodes.dk.xray.inbounds]]
-port     = 6443
-name     = "🇩🇰 | XHTTP Test"
-protocol = "vless_reality_xhttp"
-
-[[vpn.nodes.dk.xray.inbounds]]
-port     = 9443
-name     = "🇩🇰 | TCP Reality Test"
-protocol = "vless_reality_tcp"
+#[vpn.nodes.dk]
+#host             = "vps07.boris-guard.pro"
+#username         = "boris07"
+#container        = "amnezia-awg2"
+#protocol_version = "v3"
+#use_local        = false
+#location_prefix  = "DK"
+#flag             = "🇩🇰"
+#enabled          = true
+#amnezia_enabled  = true
+#premium          = true
+#
+#[vpn.nodes.dk.xray]
+#host                = "vps07-sub.boris-guard.pro"
+#panel_host          = "vps07-panel.boris-guard.pro"
+#panel_prefix        = "panel-df06dg"
+#subscription_prefix = "sub-dk-34gs"
+#panel_port          = 5443
+#subscription_port   = 2096
+#username            = "admin"
+#
+#[[vpn.nodes.dk.xray.inbounds]]
+#port     = 6443
+#name     = "🇩🇰 | XHTTP Test"
+#protocol = "vless_reality_xhttp"
+#
+#[[vpn.nodes.dk.xray.inbounds]]
+#port     = 9443
+#name     = "🇩🇰 | TCP Reality Test"
+#protocol = "vless_reality_tcp"
 
 # === DB ===
 [db]
