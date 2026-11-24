@@ -86,25 +86,25 @@ enabled          = true
 amnezia_enabled  = true
 premium          = true
 #
-#[vpn.nodes.fr.xray]
-#host                = "help-blocks.ru"
-#panel_host          = "vps02-panel.boris-guard.pro"
-#panel_prefix        = "panel-45gh65"
-#subscription_prefix = "sub-45gh45"
-#panel_port          = 5443
-#subscription_port   = 2096
-#username            = "admin"
-#enabled             = false
-#
-#[[vpn.nodes.fr.xray.inbounds]]
-#port     = 8443
-#name     = "🇫🇷 | XHTTP"
-#protocol = "vless_reality_xhttp"
-#
-#[[vpn.nodes.fr.xray.inbounds]]
-#port     = 9443
-#name     = "🇫🇷 | TCP Reality"
-#protocol = "vless_reality_tcp"
+[vpn.nodes.fr.xray]
+host                = "vps02-sub.boris-guard.pro"
+panel_host          = "vps02-panel.boris-guard.pro"
+panel_prefix        = "panel-45gh65"
+subscription_prefix = "sub-45gh45"
+panel_port          = 5443
+subscription_port   = 2096
+username            = "admin"
+enabled             = false
+
+[[vpn.nodes.fr.xray.inbounds]]
+port     = 8443
+name     = "🇫🇷 | XHTTP"
+protocol = "vless_reality_xhttp"
+
+[[vpn.nodes.fr.xray.inbounds]]
+port     = 9443
+name     = "🇫🇷 | TCP Reality"
+protocol = "vless_reality_tcp"
 
 # ── 🇧🇬  SOF — Болгария (София) │ vps03 │ premium ──────────────────────────
 [vpn.nodes.sof]
