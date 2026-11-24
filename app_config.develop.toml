@@ -140,6 +140,25 @@ port     = 2055
 name     = "🇧🇬 | TCP Reality Test"
 protocol = "vless_reality_tcp"
 
+# === REMNAWAVE ===
+[remnawave]
+api_url = "remnawave-panel.boris-guard.pro"
+api_port = 443
+api_scheme = "https"
+api_prefix = "/api"
+enabled = true
+
+[remnawave.squads]
+standard = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37"]
+premium = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37", "e64fe59d-e4f6-493f-9ed5-f63d836ea771"]
+
+[remnawave.tier_map]
+trial = "standard"
+standard = "standard"
+premium = "premium"
+founder = "premium"
+ultimate = "premium"
+
 # === DB ===
 [db]
 # * Настройки базы данных PostgreSQL по умолчанию postgres
