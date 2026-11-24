@@ -67,124 +67,205 @@ port = 8089
 [bot_channel]
 url = "vpn_bot"
 
-
 # === VPN SERVERS ===
+# Формат каждой секции: [base] → [xray] → [[xray.inbounds]]
+# premium = true  → нода доступна только премиум-пользователям
+# enabled = false → нода скрыта из бота, но остаётся в конфиге
+
+# ── 🇩🇪  DE — Германия │ vps01 │ dev (бот) ────────────────────────────────
+# Сервер, на котором крутится бот — для него доступно локальное подключение
 [vpn.nodes.de]
-#Сервер на котором крутится бот потому для него он локально может подключиться
-host = "vps01.boris-guard.pro"
-username = "boris01"
-#container_old="amnezia-awg"
-container = "amnezia-awg2"
+host             = "vps01.boris-guard.pro"
+username         = "boris01"
+#container_old    = "amnezia-awg"
+container        = "amnezia-awg2"
 protocol_version = "v3"
-use_local = true
-location_prefix= "DE"
-flag= "🇩🇪"
-enabled=true
-amnezia_enabled=true
-#
-#[vpn.nodes.fi]
-#host = "vpn-boriska.ru"
-#username = "prod_server"
-#container = "amnezia-awg2"
-##Сервер с допольнительным ВПН только подключение через ssh
-#use_local = true
-#location_prefix= "FI"
-#flag= "🇫🇮"
-
-[vpn.nodes.sof]
-host = "vps03-awg.boris-guard.pro"
-enabled=true
-amnezia_enabled=true
-username = "boris03"
-container = "amnezia-awg2"
-protocol_version = "v2"
-#Сервер с допольнительным ВПН только подключение через ssh
-use_local = false
-location_prefix= "SOF"
-flag= "🇧🇬"
-premium = true
-
-
-# === PROXY ===
-#[vpn.nodes.main.proxy]
-#prefix = "proxy-boriska"
-#container = "telemt"
-## по умолчанию порт 443 налр испльзовать его
-#port = 443
-#
-#[vpn.nodes.fi.proxy]
-#prefix = "proxy-boriska"
-#container = "telemt"
-## по умолчанию порт 443 налр испльзовать его
-#port = 443
-
-#[vpn.nodes.sof.proxy]
-#prefix = "proxy-boriska"
-#container = "telemt"
-## по умолчанию порт 443 налр испльзовать его
-#port = 443
-
-# === X-RAY ===
+use_local        = true
+location_prefix  = "DE"
+flag             = "🇩🇪"
+enabled          = true
+amnezia_enabled  = true
 
 [vpn.nodes.de.xray]
-host = "vps01-sub.boris-guard.pro"
-panel_host = "vps01-panel.boris-guard.pro"
-panel_prefix = "panel-45gh65"
+host                = "vps01-sub.boris-guard.pro"
+panel_host          = "vps01-panel.boris-guard.pro"
+panel_prefix        = "panel-45gh65"
 subscription_prefix = "sub-45gh45"
-panel_port = 5443
-subscription_port = 2096
-username = "admin"
+panel_port          = 5443
+subscription_port   = 2096
+username            = "admin"
 
 [[vpn.nodes.de.xray.inbounds]]
-port = 2054
-name = "🇩🇪 | XHTTP Test"
+port     = 2054
+name     = "🇩🇪 | XHTTP Test"
 protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.de.xray.inbounds]]
-port = 2055
-name = "🇩🇪 | TCP Reality Test"
+port     = 2055
+name     = "🇩🇪 | TCP Reality Test"
 protocol = "vless_reality_tcp"
 
+# ── 🇫🇷  FR — Франция │ vps02 │ DISABLED ──────────────────────────────────
+# Бот переехал на vps-05; нода остаётся для ssh-доступа к серверу
+[vpn.nodes.fr]
+host             = "vps02.boris-guard.pro"
+username         = "boris02"
+#container_old    = "amnezia-awg"
+container        = "amnezia-awg2"
+protocol_version = "v3"
+use_local        = false
+location_prefix  = "FR"
+flag             = "🇫🇷"
+enabled          = true
+amnezia_enabled  = true
+premium          = true
 #
-#[vpn.nodes.fi.xray]
-#host = "vpn-boriska.ru"
-#panel_prefix = "panel-78gh98"
-#subscription_prefix = "sub-45gh45"
-#panel_port = 5443
-#subscription_port = 2096
-#username = "admin"
-#
-#[[vpn.nodes.fi.xray.inbounds]]
-#port = 2054
-#name = "🇫🇮 | XHTTP Test"
-#protocol = "vless_reality_xhttp"
-#
-#[[vpn.nodes.fi.xray.inbounds]]
-#port = 2055
-#name = "🇫🇮 | TCP Reality Test"
-#protocol = "vless_reality_tcp"
+[vpn.nodes.fr.xray]
+host                = "vps02-sub.boris-guard.pro"
+panel_host          = "vps02-panel.boris-guard.pro"
+panel_prefix        = "panel-45gh65"
+subscription_prefix = "sub-45gh45"
+panel_port          = 5443
+subscription_port   = 2096
+username            = "admin"
+enabled             = true
 
+[[vpn.nodes.fr.xray.inbounds]]
+port     = 6443
+name     = "🇫🇷 | XHTTP"
+protocol = "vless_reality_xhttp"
+
+[[vpn.nodes.fr.xray.inbounds]]
+port     = 9443
+name     = "🇫🇷 | TCP Reality"
+protocol = "vless_reality_tcp"
+
+# ── 🇧🇬  SOF — Болгария (София) │ vps03 │ premium ──────────────────────────
+[vpn.nodes.sof]
+host             = "vps03-awg.boris-guard.pro"
+username         = "boris03"
+container        = "amnezia-awg2"
+protocol_version = "v2"
+use_local        = false
+location_prefix  = "SOF"
+flag             = "🇧🇬"
+enabled          = true
+amnezia_enabled  = true
+premium          = true
 
 [vpn.nodes.sof.xray]
-host = "x-ray-boriska.pro"
-panel_host = "vps03-panel.boris-guard.pro"
-panel_prefix = "panel-df06dg"
+host                = "x-ray-boriska.pro"
+panel_host          = "vps03-panel.boris-guard.pro"
+panel_prefix        = "panel-df06dg"
 subscription_prefix = "sub-dk-34gs"
-panel_port = 5443
-subscription_port = 2096
-username = "admin"
+panel_port          = 5443
+subscription_port   = 2096
+username            = "admin"
 
 [[vpn.nodes.sof.xray.inbounds]]
-port = 2054
-name = "🇧🇬 | XHTTP Test"
+port     = 2054
+name     = "🇧🇬 | XHTTP Test"
 protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.sof.xray.inbounds]]
-port = 2055
-name = "🇧🇬 | TCP Reality Test"
+port     = 2055
+name     = "🇧🇬 | TCP Reality Test"
 protocol = "vless_reality_tcp"
 
+# ── 🇸🇪  STO — Швеция (Стокгольм) │ vps06 │ standard ──────────────────────
+[vpn.nodes.sto]
+host             = "vps06.boris-guard.pro"
+username         = "boris06"
+container        = "amnezia-awg2"
+protocol_version = "v3"
+use_local        = false
+location_prefix  = "STO"
+flag             = "🇸🇪"
+enabled          = true
+amnezia_enabled  = true
 
+[vpn.nodes.sto.xray]
+host                = "vps06-sub.boris-guard.pro"
+panel_host          = "vps06-panel.boris-guard.pro"
+panel_prefix        = "panel-df06dg"
+subscription_prefix = "sub-dk-34gs"
+panel_port          = 5443
+subscription_port   = 2096
+username            = "admin"
+
+[[vpn.nodes.sto.xray.inbounds]]
+port     = 6443
+name     = "🇸🇪 | XHTTP"
+protocol = "vless_reality_xhttp"
+
+[[vpn.nodes.sto.xray.inbounds]]
+port     = 9443
+name     = "🇸🇪 | TCP Reality"
+protocol = "vless_reality_tcp"
+
+# ── 🇵🇱  WAW — Польша (Варшава) │ vps04 │ standard ────────────────────────
+[vpn.nodes.waw]
+host             = "vps04-awg.boris-guard.pro"
+username         = "boris04"
+container_old    = "amnezia-awg"
+container        = "amnezia-awg2"
+protocol_version = "v3"
+use_local        = false
+location_prefix  = "WAW"
+flag             = "🇵🇱"
+enabled          = true
+amnezia_enabled  = true
+
+[vpn.nodes.waw.xray]
+host                = "boris-guard.space"
+panel_host          = "vps04-panel.boris-guard.pro"
+panel_prefix        = "panel-df06dg"
+subscription_prefix = "sub-dk-34gs"
+panel_port          = 5443
+subscription_port   = 2096
+username            = "admin"
+
+[[vpn.nodes.waw.xray.inbounds]]
+port     = 6443
+name     = "🇵🇱 | XHTTP"
+protocol = "vless_reality_xhttp"
+
+[[vpn.nodes.waw.xray.inbounds]]
+port     = 8443
+name     = "🇵🇱 | TCP Reality"
+protocol = "vless_reality_tcp"
+
+# ── 🇩🇰  DK — Дания (Копенгаген) │ vps07 │ premium ─────────────────────────
+#[vpn.nodes.dk]
+#host             = "vps07.boris-guard.pro"
+#username         = "boris07"
+#container        = "amnezia-awg2"
+#protocol_version = "v3"
+#use_local        = false
+#location_prefix  = "DK"
+#flag             = "🇩🇰"
+#enabled          = true
+#amnezia_enabled  = true
+#premium          = true
+#
+#[vpn.nodes.dk.xray]
+#host                = "vps07-sub.boris-guard.pro"
+#panel_host          = "vps07-panel.boris-guard.pro"
+#panel_prefix        = "panel-df06dg"
+#subscription_prefix = "sub-dk-34gs"
+#panel_port          = 5443
+#subscription_port   = 2096
+#username            = "admin"
+#
+#[[vpn.nodes.dk.xray.inbounds]]
+#port     = 6443
+#name     = "🇩🇰 | XHTTP Test"
+#protocol = "vless_reality_xhttp"
+#
+#[[vpn.nodes.dk.xray.inbounds]]
+#port     = 9443
+#name     = "🇩🇰 | TCP Reality Test"
+#protocol = "vless_reality_tcp"
 
 # === DB ===
 [db]
