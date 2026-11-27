@@ -8,6 +8,7 @@ from bot.app_error.base_error import PanelError
 from bot.subscription.schemas import SSubscriptionCheck, SSubscriptionInfo, SVPNConfig
 from bot.subscription.services import SubscriptionService
 from bot.users.schemas import SUserOut
+from bot.utils.formatting import format_vpn_location
 from bot.vpn.utils.x_ray_exceptions import ThreeXUIRequestError
 from shared.enums.admin_enum import RoleEnum
 from shared.enums.subscription_enum import TrialStatus
@@ -269,6 +270,78 @@ async def test_get_subscription_info_inactive_no_end_date(mocker):
 
 
 @pytest.mark.asyncio
+async def test_get_subscription_info_remnawave_config_shows_backend_label(mocker):
+    """Remnawave-конфиг (node_name=None) -> в тексте значок "🚀 VPN Pro",
+    а не "❔ неизвестно" (#425).
+    """
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    payment_adapter = mocker.AsyncMock()
+    vpn_service = mocker.AsyncMock()
+
+    api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
+        status="active",
+        subscription_type="premium",
+        remaining=10,
+        configs=[
+            SVPNConfig(
+                id=1,
+                file_name="conf1",
+                node_name=None,
+                created_at=datetime(2026, 1, 1),
+                backend="remnawave",
+            ),
+        ],
+        end_date=datetime(2026, 1, 1),
+    )
+
+    service = SubscriptionService(
+        api_adapter, user_adapter, payment_adapter, vpn_service
+    )
+
+    result = await service.get_subscription_info(123)
+
+    assert "🚀 VPN Pro" in result
+    assert "❔ неизвестно" not in result
+
+
+@pytest.mark.asyncio
+async def test_get_subscription_info_non_remnawave_config_shows_node_location(mocker):
+    """Конфиг с backend="xray" и реальной нодой -> локация рендерится как раньше
+    (через format_vpn_location), а не фирменной подписью бэкенда (#425).
+    """
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    payment_adapter = mocker.AsyncMock()
+    vpn_service = mocker.AsyncMock()
+
+    api_adapter.get_subscription_info.return_value = SSubscriptionInfo(
+        status="active",
+        subscription_type="premium",
+        remaining=10,
+        configs=[
+            SVPNConfig(
+                id=1,
+                file_name="conf1",
+                node_name="sof",
+                created_at=datetime(2026, 1, 1),
+                backend="xray",
+            ),
+        ],
+        end_date=datetime(2026, 1, 1),
+    )
+
+    service = SubscriptionService(
+        api_adapter, user_adapter, payment_adapter, vpn_service
+    )
+
+    result = await service.get_subscription_info(123)
+
+    assert format_vpn_location("sof") in result
+    assert "🚀 VPN Pro" not in result
+
+
+@pytest.mark.asyncio
 async def test_is_subscription_active_true(mocker):
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
@@ -310,3 +383,16 @@ async def test_is_subscription_active_false(mocker):
     )
 
     assert await service.is_subscription_active(123) is False
+
+
+def test_svpn_config_backend_field_contract():
+    """Контракт bot<->api (#425): SVPNConfig на стороне бота несёт `backend`."""
+    config = SVPNConfig(
+        id=1,
+        file_name="conf1",
+        node_name=None,
+        created_at=datetime(2026, 1, 1),
+        backend="remnawave",
+    )
+
+    assert config.backend == "remnawave"

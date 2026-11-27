@@ -330,6 +330,7 @@ class SubscriptionService:
                     created_at=c.created_at,
                     status=c.status.value if c.status else None,
                     status_reason=c.status_reason,
+                    backend=c.backend,
                 )
                 for c in user.vpn_configs
                 if c.status != VPNConfigStatus.DELETED

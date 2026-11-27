@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -7,8 +8,10 @@ from api.app_error.base_error import (
     UserNotFoundError,
 )
 from api.subscription.models import Subscription, SubscriptionType
+from api.subscription.schemas import SVPNConfig
 from api.subscription.services import SubscriptionService
 from api.users.models import User
+from api.vpn.models import VPNConfigStatus
 from shared.enums.admin_enum import RoleEnum
 from shared.enums.subscription_enum import TrialStatus
 
@@ -291,3 +294,46 @@ async def test_get_subscription_info_empty(session, monkeypatch):
     result = await SubscriptionService().get_subscription_info(session, 123)
 
     assert result.status == "no_subscription"
+
+
+@pytest.mark.asyncio
+async def test_get_subscription_info_propagates_remnawave_backend(
+    user, session, monkeypatch
+):
+    """VPNConfig с backend="remnawave" -> SVPNConfig в ответе несёт тот же
+    backend (#425: бот использует его, чтобы показать значок "🚀 VPN Pro"
+    вместо "❔ неизвестно" у конфигов без node_name).
+    """
+    vpn_config = MagicMock()
+    vpn_config.id = 1
+    vpn_config.file_name = "conf1"
+    vpn_config.node_name = None
+    vpn_config.created_at = datetime(2026, 1, 1)
+    vpn_config.status = VPNConfigStatus.ACTIVE
+    vpn_config.status_reason = None
+    vpn_config.backend = "remnawave"
+
+    user.vpn_configs = [vpn_config]
+
+    monkeypatch.setattr(
+        "api.subscription.services.UserDAO.find_one_or_none",
+        AsyncMock(return_value=user),
+    )
+
+    result = await SubscriptionService().get_subscription_info(session, 123)
+
+    assert len(result.configs) == 1
+    assert result.configs[0].backend == "remnawave"
+
+
+def test_svpn_config_backend_field_contract():
+    """Контракт bot<->api (#425): SVPNConfig на стороне api несёт `backend`."""
+    config = SVPNConfig(
+        id=1,
+        file_name="conf1",
+        node_name=None,
+        created_at=datetime(2026, 1, 1),
+        backend="remnawave",
+    )
+
+    assert config.backend == "remnawave"
