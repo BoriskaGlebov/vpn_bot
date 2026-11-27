@@ -247,6 +247,9 @@ jobs:
           # == REMNAWAVE ==
 
           REMNAWAVE_TOKEN=${{ secrets.REMNAWAVE_TOKEN }}
+          # Необязателен: при незаданном секрете подставляем {}, иначе пустая
+          # строка ломает парсинг dict на старте.
+          REMNAWAVE_EXTRA_HEADERS=${{ secrets.REMNAWAVE_EXTRA_HEADERS || '{}' }}
 
 
           # == DATABASE ==
@@ -429,6 +432,9 @@ jobs:
           # == REMNAWAVE ==
 
           REMNAWAVE_TOKEN=${{ secrets.REMNAWAVE_TOKEN }}
+          # Необязателен: при незаданном секрете подставляем {}, иначе пустая
+          # строка ломает парсинг dict на старте.
+          REMNAWAVE_EXTRA_HEADERS=${{ secrets.REMNAWAVE_EXTRA_HEADERS || '{}' }}
 
 
           # == DATABASE ==
