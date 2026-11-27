@@ -146,7 +146,7 @@ api_url = "remnawave-panel.boris-guard.pro"
 api_port = 443
 api_scheme = "https"
 api_prefix = "/api"
-enabled = true
+enabled = false
 
 [remnawave.squads]
 standard = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37"]
