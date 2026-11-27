@@ -176,6 +176,7 @@ python api/main.py      # http://localhost:8089/api/docs
 | Core / Bot | `BOT_TOKEN` | Токен Telegram-бота |
 | Telemt | `TELEMT_SECRET_HELLO` | Секрет MTProto-прокси |
 | XRay | `SOF_X_RAY_USERNAME`, `SOF_X_RAY_PASSWORD` | Учётные данные панели 3x-ui (нода `sof`) |
+| Remnawave | `REMNAWAVE_TOKEN` | Bearer-токен панели Remnawave (хост/порт/squads/`tier_map` — в `app_config*.toml`, `[remnawave]`; обязателен при `[remnawave] enabled=true`) |
 | Database | `DB_PASSWORD` | Пароль PostgreSQL (хост/порт/юзер/имя БД — в `app_config*.toml`, `[db]`) |
 | Redis | `REDIS_PASSWORD` | Пароль Redis (хост/порт/БД — в `app_config*.toml`, `[redis]`) |
 | Object Storage | `ACCESS_KEY`, `SECRET_KEY` | Доступ к S3-совместимому бакету для медиа справки |
