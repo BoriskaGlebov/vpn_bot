@@ -152,7 +152,7 @@ enabled = true
 admin = ["e64fe59d-e4f6-493f-9ed5-f63d836ea771"]
 standard = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37"]
 premium = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37", "43536187-6bab-4477-bf3f-44c31531118e"]
-founder = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37", "43536187-6bab-4477-bf3f-44c31531118e"]
+founder = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37", "0ee70061-5194-4f6a-91f7-18e6333510bf"]
 
 [remnawave.tier_map]
 trial = "standard"
