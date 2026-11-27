@@ -6,17 +6,22 @@ import pytest
 
 from bot.app_error.api_error import APIClientError
 from bot.app_error.base_error import (
+    AppError,
     SubscriptionNotFoundError,
     VPNConfigDeletionFailedError,
     VPNLimitError,
 )
 from bot.app_error.schema import ErrorDetail
+from bot.core.config import settings_bot
 from bot.users.schemas import SVPNConfigOut
 from bot.vpn.schemas import (
     SVPNCheckLimitResponse,
 )
 from bot.vpn.services import VPNService
 from bot.vpn.utils.amnezia_exceptions import AmneziaSSHError
+from shared.enums.vpn_enum import VPNBackend, VPNProtocol
+
+pytestmark = pytest.mark.vpn
 
 
 @pytest.mark.asyncio
@@ -1149,3 +1154,213 @@ async def test_extend_user_xray_subscription_not_found_anywhere_raises(
 
     with pytest.raises(ThreeXUIConfigNotFoundError):
         await service.extend_user_xray_subscription(user=user)
+
+
+@pytest.mark.asyncio
+async def test_generate_remnawave_subscription_success(mocker, tg_user):
+    """Активная подписка и успешный ответ панели -> возвращается subscription_url, конфиг сохранён в БД."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(
+        is_active=True,
+        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
+        type="standard",
+    )
+    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+
+    remnawave.add_new_config.return_value = ({"remnawave": ["42"]}, "https://sub/x")
+
+    url = await service.generate_remnawave_subscription(tg_user=tg_user)
+
+    assert url == "https://sub/x"
+    api_adapter.add_config.assert_awaited_once_with(
+        tg_id=123,
+        file_name="42",
+        pub_key="https://sub/x",
+        node_name=None,
+        backend=VPNBackend.REMNAWAVE,
+        protocol=VPNProtocol.REMNAWAVE_SUB,
+        config_ids=["42"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_generate_remnawave_subscription_not_configured_raises(mocker, tg_user):
+    """remnawave=None у сервиса -> AppError, лимиты/регистрация пользователя не проверяются."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    spy = mocker.patch.object(service, "_limit_and_user_inf", mocker.AsyncMock())
+
+    with pytest.raises(AppError):
+        await service.generate_remnawave_subscription(tg_user=tg_user)
+
+    spy.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_generate_remnawave_subscription_no_subscription_raises(mocker, tg_user):
+    """current_subscription is None -> SubscriptionNotFoundError, add_new_config не вызывается."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = None
+    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await service.generate_remnawave_subscription(tg_user=tg_user)
+
+    remnawave.add_new_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_generate_remnawave_subscription_inactive_subscription_raises(
+    mocker, tg_user
+):
+    """current_subscription.is_active=False -> SubscriptionNotFoundError."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(
+        is_active=False,
+        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
+        type="standard",
+    )
+    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await service.generate_remnawave_subscription(tg_user=tg_user)
+
+    remnawave.add_new_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_generate_remnawave_subscription_expired_end_date_raises(mocker, tg_user):
+    """is_active=True, но end_date в прошлом -> SubscriptionNotFoundError (устаревший is_active не даёт доступ)."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(
+        is_active=True,
+        end_date=datetime.now(settings_bot.core.tzinfo) - timedelta(days=1),
+        type="standard",
+    )
+    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await service.generate_remnawave_subscription(tg_user=tg_user)
+
+    remnawave.add_new_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_generate_remnawave_subscription_defaults_sub_type_to_standard(
+    mocker, tg_user
+):
+    """sub.type is None -> в add_new_config уходит sub_type='standard'."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(
+        is_active=True,
+        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
+        type=None,
+    )
+    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+
+    remnawave.add_new_config.return_value = ({"remnawave": ["42"]}, "https://sub/x")
+
+    await service.generate_remnawave_subscription(tg_user=tg_user)
+
+    assert remnawave.add_new_config.call_args.kwargs["sub_type"] == "standard"
+
+
+@pytest.mark.asyncio
+async def test_generate_remnawave_subscription_empty_config_ids_raises(mocker, tg_user):
+    """add_new_config вернул пустой список id -> RuntimeError, add_config не вызывается."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(
+        is_active=True,
+        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
+        type="standard",
+    )
+    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+
+    remnawave.add_new_config.return_value = ({"remnawave": []}, "https://sub/x")
+
+    with pytest.raises(RuntimeError):
+        await service.generate_remnawave_subscription(tg_user=tg_user)
+
+    api_adapter.add_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_generate_remnawave_subscription_db_error_rolls_back_panel_user(
+    mocker, tg_user
+):
+    """Ошибка сохранения конфига в БД -> исключение пробрасывается, панельный юзер удаляется по каждому config_id."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(
+        is_active=True,
+        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
+        type="standard",
+    )
+    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+
+    remnawave.add_new_config.return_value = (
+        {"remnawave": ["42", "43"]},
+        "https://sub/x",
+    )
+    api_adapter.add_config.side_effect = APIClientError(
+        ErrorDetail(code="db_error", message="DB error")
+    )
+
+    with pytest.raises(APIClientError):
+        await service.generate_remnawave_subscription(tg_user=tg_user)
+
+    remnawave.delete_config.assert_any_await(config_id="42")
+    remnawave.delete_config.assert_any_await(config_id="43")
+    assert remnawave.delete_config.await_count == 2
