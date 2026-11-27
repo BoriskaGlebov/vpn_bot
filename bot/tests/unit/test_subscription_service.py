@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+from bot.app_error.base_error import PanelError
 from bot.subscription.schemas import SSubscriptionCheck, SSubscriptionInfo, SVPNConfig
 from bot.subscription.services import SubscriptionService
 from bot.users.schemas import SUserOut
@@ -131,6 +132,28 @@ async def test_confirm_transaction_xray_error_does_not_break_payment_flow(
     result = await service.confirm_transaction(transaction_id="tx-1")
 
     assert result is confirm_result
+
+
+@pytest.mark.asyncio
+async def test_sync_remnawave_tier_after_payment_success(
+    service, mock_vpn_service, user_out
+):
+    """sync_remnawave_tier отрабатывает успешно -> вызывается с тем же user, без ошибок."""
+    await service._sync_remnawave_tier_after_payment(user=user_out)
+
+    mock_vpn_service.sync_remnawave_tier.assert_awaited_once_with(user=user_out)
+
+
+@pytest.mark.asyncio
+async def test_sync_remnawave_tier_after_payment_panel_error_does_not_raise(
+    service, mock_vpn_service, user_out
+):
+    """Ошибка панели Remnawave -> не пробрасывается (оплата не блокируется), только логируется."""
+    mock_vpn_service.sync_remnawave_tier.side_effect = PanelError("boom")
+
+    await service._sync_remnawave_tier_after_payment(user=user_out)
+
+    mock_vpn_service.sync_remnawave_tier.assert_awaited_once_with(user=user_out)
 
 
 @pytest.mark.asyncio

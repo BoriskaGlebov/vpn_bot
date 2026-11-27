@@ -221,3 +221,76 @@ async def test_upgrade_subscription_success(
     assert kwargs["text"]
 
     assert kwargs["reply_markup"] is not None
+
+
+def _has_vpn_pro_handler(vpn_router: VPNRouter) -> bool:
+    """Проверяет, зарегистрирован ли хендлер generate_remnawave_subscription."""
+    return any(
+        handler_object.callback.__name__ == "generate_remnawave_subscription"
+        for handler_object in vpn_router.router.message.handlers
+    )
+
+
+@pytest.mark.asyncio
+async def test_remnawave_handler_registered_when_enabled(
+    monkeypatch, fake_bot, fake_logger, fake_redis, mocker
+):
+    """settings_bot.remnawave.enabled=True -> среди message-хендлеров есть обработчик VPN_PRO."""
+    monkeypatch.setattr(
+        settings_bot.remnawave,
+        "enabled",
+        True,
+    )
+
+    vpn_router = VPNRouter(
+        fake_bot,
+        fake_logger,
+        mocker.AsyncMock(),
+        fake_redis,
+        mocker.AsyncMock(),
+        mocker.AsyncMock(),
+    )
+
+    assert _has_vpn_pro_handler(vpn_router) is True
+
+
+@pytest.mark.asyncio
+async def test_remnawave_handler_not_registered_when_disabled(
+    monkeypatch, fake_bot, fake_logger, fake_redis, mocker
+):
+    """settings_bot.remnawave.enabled=False -> обработчика VPN_PRO нет среди message-хендлеров."""
+    monkeypatch.setattr(
+        settings_bot.remnawave,
+        "enabled",
+        False,
+    )
+
+    vpn_router = VPNRouter(
+        fake_bot,
+        fake_logger,
+        mocker.AsyncMock(),
+        fake_redis,
+        mocker.AsyncMock(),
+        mocker.AsyncMock(),
+    )
+
+    assert _has_vpn_pro_handler(vpn_router) is False
+
+
+@pytest.mark.asyncio
+async def test_remnawave_handler_not_registered_when_remnawave_none(
+    monkeypatch, fake_bot, fake_logger, fake_redis, mocker
+):
+    """settings_bot.remnawave=None -> обработчика VPN_PRO нет среди message-хендлеров."""
+    monkeypatch.setattr(settings_bot, "remnawave", None)
+
+    vpn_router = VPNRouter(
+        fake_bot,
+        fake_logger,
+        mocker.AsyncMock(),
+        fake_redis,
+        mocker.AsyncMock(),
+        mocker.AsyncMock(),
+    )
+
+    assert _has_vpn_pro_handler(vpn_router) is False

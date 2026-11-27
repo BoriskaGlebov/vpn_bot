@@ -721,6 +721,44 @@ class VPNService:
         )
         return extended
 
+    async def sync_remnawave_tier(self, user: SUserOut) -> None:
+        """Синхронизирует squad'ы Remnawave-конфигов пользователя с его тарифом.
+
+        Вызывается после оплаты/смены подписки: тариф в БД `api/` уже
+        обновлён, но выданные ранее Remnawave-пользователи на панели
+        остаются в squad'ах того уровня, с которым были созданы — без
+        синхронизации смена тарифа (например, standard -> premium) не
+        открывала бы доступ к новым squad'ам. Если интеграция Remnawave
+        отключена (`self.remnawave is None`) или у пользователя нет
+        подписки — no-op.
+
+        Args:
+            user: Пользователь с уже применённой (продлённой/изменённой)
+                подпиской.
+
+        Raises
+            RemnawaveError: Если `sub.type` не замаплен в `tier_map` на
+                панели — вызывающий код логирует и не поднимает выше, чтобы
+                не откатывать уже прошедшую оплату.
+            PanelError: При ошибке работы с панелью Remnawave — тот же
+                принцип, пробрасывается вызывающему коду для логирования.
+
+        """
+        if self.remnawave is None:
+            return
+
+        sub = user.current_subscription
+        if sub is None:
+            return
+
+        sub_type = sub.type or "standard"
+
+        for cfg in user.vpn_configs:
+            if cfg.backend != VPNBackend.REMNAWAVE:
+                continue
+            for config_id in cfg.config_ids or []:
+                await self.remnawave.set_tier(config_id, sub_type)
+
     async def _delete_from_ssh_nodes(
         self, pub_key: str, file_name: str, node_name: str | None = None
     ) -> tuple[bool, bool]:
