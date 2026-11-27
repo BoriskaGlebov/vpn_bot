@@ -1364,3 +1364,129 @@ async def test_generate_remnawave_subscription_db_error_rolls_back_panel_user(
     remnawave.delete_config.assert_any_await(config_id="42")
     remnawave.delete_config.assert_any_await(config_id="43")
     assert remnawave.delete_config.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_sync_remnawave_tier_single_config(mocker):
+    """Один remnawave-конфиг с одним config_id -> set_tier вызван один раз с его тарифом."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(type="premium")
+    user.vpn_configs = [
+        mocker.Mock(backend=VPNBackend.REMNAWAVE, config_ids=["42"]),
+    ]
+
+    await service.sync_remnawave_tier(user=user)
+
+    remnawave.set_tier.assert_awaited_once_with("42", "premium")
+
+
+@pytest.mark.asyncio
+async def test_sync_remnawave_tier_multiple_config_ids(mocker):
+    """Несколько config_ids в одном конфиге -> set_tier вызван по разу на каждый id."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(type="premium")
+    user.vpn_configs = [
+        mocker.Mock(backend=VPNBackend.REMNAWAVE, config_ids=["42", "43"]),
+    ]
+
+    await service.sync_remnawave_tier(user=user)
+
+    assert remnawave.set_tier.await_count == 2
+    remnawave.set_tier.assert_any_await("42", "premium")
+    remnawave.set_tier.assert_any_await("43", "premium")
+
+
+@pytest.mark.asyncio
+async def test_sync_remnawave_tier_skips_non_remnawave_configs(mocker):
+    """Смешанные конфиги -> set_tier только для remnawave, xray-конфиг пропускается."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(type="premium")
+    user.vpn_configs = [
+        mocker.Mock(backend=VPNBackend.REMNAWAVE, config_ids=["42"]),
+        mocker.Mock(backend=VPNBackend.XRAY, config_ids=["99"]),
+    ]
+
+    await service.sync_remnawave_tier(user=user)
+
+    remnawave.set_tier.assert_awaited_once_with("42", "premium")
+
+
+@pytest.mark.asyncio
+async def test_sync_remnawave_tier_disabled_integration_is_noop(mocker):
+    """remnawave=None у сервиса -> ничего не падает, set_tier не вызывается."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(type="premium")
+    user.vpn_configs = [
+        mocker.Mock(backend=VPNBackend.REMNAWAVE, config_ids=["42"]),
+    ]
+
+    await service.sync_remnawave_tier(user=user)
+
+
+@pytest.mark.asyncio
+async def test_sync_remnawave_tier_no_subscription_is_noop(mocker):
+    """current_subscription=None -> no-op, set_tier не вызывается."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = None
+    user.vpn_configs = [
+        mocker.Mock(backend=VPNBackend.REMNAWAVE, config_ids=["42"]),
+    ]
+
+    await service.sync_remnawave_tier(user=user)
+
+    remnawave.set_tier.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_sync_remnawave_tier_defaults_type_to_standard(mocker):
+    """sub.type=None -> set_tier вызван с sub_type='standard'."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+    remnawave = mocker.AsyncMock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
+
+    user = mocker.Mock(telegram_id=123)
+    user.current_subscription = SimpleNamespace(type=None)
+    user.vpn_configs = [
+        mocker.Mock(backend=VPNBackend.REMNAWAVE, config_ids=["42"]),
+    ]
+
+    await service.sync_remnawave_tier(user=user)
+
+    remnawave.set_tier.assert_awaited_once_with("42", "standard")

@@ -88,9 +88,11 @@ class SubscriptionService:
 
         После продления подписки в БД дополнительно продлевает уже выданные
         пользователю XRay-конфиги на панелях 3x-ui (см. `VPNService.
-        extend_user_xray_subscription`) — иначе срок действия в БД обновится,
-        а реальный доступ на панели останется со старой датой. Ошибка
-        продления на панели не должна откатывать уже прошедшую оплату и
+        extend_user_xray_subscription`) и синхронизирует squad'ы его
+        Remnawave-конфигов с новым тарифом (см. `VPNService.
+        sync_remnawave_tier`) — иначе срок действия/уровень доступа в БД
+        обновится, а реальный доступ на панелях останется со старыми.
+        Ошибка на панели не должна откатывать уже прошедшую оплату и
         обновление подписки в БД, поэтому она только логируется.
 
         Args:
@@ -111,6 +113,7 @@ class SubscriptionService:
         )
 
         await self._extend_xray_after_payment(user=res)
+        await self._sync_remnawave_tier_after_payment(user=res)
 
         return res
 
@@ -133,6 +136,31 @@ class SubscriptionService:
         except PanelError as exc:
             logger.error(
                 "Не удалось продлить XRay-конфиги на панели tg_id={}: {}",
+                user.telegram_id,
+                exc,
+            )
+
+    async def _sync_remnawave_tier_after_payment(self, user: SUserOut) -> None:
+        """Синхронизирует squad'ы Remnawave-конфигов пользователя после оплаты.
+
+        Общий шаг для всех точек, где подписка продлевается/меняется в БД по
+        факту оплаты (`activate_paid_subscription`, `confirm_transaction`,
+        `webhook_confirm_transaction`) — без него тариф в БД обновляется, а
+        выданные ранее Remnawave-пользователи на панели остаются в squad'ах
+        старого уровня. Ошибка панели не должна откатывать уже прошедшую
+        оплату, поэтому она только логируется — тир пересчитывается при
+        каждом следующем продлении.
+
+        Args:
+            user: Пользователь с уже применённой (продлённой/изменённой)
+                подпиской.
+
+        """
+        try:
+            await self.vpn_service.sync_remnawave_tier(user=user)
+        except PanelError as exc:
+            logger.error(
+                "Не удалось синхронизировать тир Remnawave tg_id={}: {}",
                 user.telegram_id,
                 exc,
             )
@@ -352,7 +380,9 @@ class SubscriptionService:
 
         После подтверждения подписка пользователя продлевается в БД `api/`
         (см. `SConfirmPaymentResponse.subscription_res`) — следом продлеваются
-        и его XRay-конфиги на панелях 3x-ui (см. `_extend_xray_after_payment`).
+        его XRay-конфиги на панелях 3x-ui (см. `_extend_xray_after_payment`)
+        и синхронизируются squad'ы его Remnawave-конфигов (см.
+        `_sync_remnawave_tier_after_payment`).
 
         Args:
             transaction_id: UUID транзакции.
@@ -365,6 +395,7 @@ class SubscriptionService:
             transaction_id=transaction_id
         )
         await self._extend_xray_after_payment(user=tx_res.subscription_res)
+        await self._sync_remnawave_tier_after_payment(user=tx_res.subscription_res)
         return tx_res
 
     async def webhook_confirm_transaction(
@@ -375,7 +406,8 @@ class SubscriptionService:
 
         Аналог `confirm_transaction`, но для автоматического подтверждения
         оплаты картой (см. `PaymentWebhookService.handle_event`) — так же
-        продлевает XRay-конфиги на панелях 3x-ui после продления подписки в БД.
+        продлевает XRay-конфиги на панелях 3x-ui и синхронизирует squad'ы
+        Remnawave-конфигов после продления подписки в БД.
 
         Args:
             transaction_id: UUID транзакции.
@@ -388,4 +420,5 @@ class SubscriptionService:
             transaction_id=transaction_id
         )
         await self._extend_xray_after_payment(user=tx_res.subscription_res)
+        await self._sync_remnawave_tier_after_payment(user=tx_res.subscription_res)
         return tx_res
