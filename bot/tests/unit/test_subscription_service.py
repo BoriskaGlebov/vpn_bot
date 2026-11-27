@@ -135,24 +135,44 @@ async def test_confirm_transaction_xray_error_does_not_break_payment_flow(
 
 
 @pytest.mark.asyncio
-async def test_sync_remnawave_tier_after_payment_success(
+async def test_apply_remnawave_after_payment_success(
     service, mock_vpn_service, user_out
 ):
-    """sync_remnawave_tier отрабатывает успешно -> вызывается с тем же user, без ошибок."""
-    await service._sync_remnawave_tier_after_payment(user=user_out)
+    """Оба шага (extend + sync tier) отрабатывают успешно -> вызваны с тем же user, без ошибок."""
+    await service._apply_remnawave_after_payment(user=user_out)
 
+    mock_vpn_service.extend_user_remnawave_subscription.assert_awaited_once_with(
+        user=user_out
+    )
     mock_vpn_service.sync_remnawave_tier.assert_awaited_once_with(user=user_out)
 
 
 @pytest.mark.asyncio
-async def test_sync_remnawave_tier_after_payment_panel_error_does_not_raise(
+async def test_apply_remnawave_after_payment_extend_panel_error_does_not_raise(
     service, mock_vpn_service, user_out
 ):
-    """Ошибка панели Remnawave -> не пробрасывается (оплата не блокируется), только логируется."""
+    """Ошибка продления Remnawave-конфигов -> не пробрасывается (оплата не блокируется)."""
+    mock_vpn_service.extend_user_remnawave_subscription.side_effect = PanelError("boom")
+
+    await service._apply_remnawave_after_payment(user=user_out)
+
+    mock_vpn_service.extend_user_remnawave_subscription.assert_awaited_once_with(
+        user=user_out
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_remnawave_after_payment_sync_tier_panel_error_does_not_raise(
+    service, mock_vpn_service, user_out
+):
+    """Ошибка панели Remnawave при синхронизации тира -> не пробрасывается, только логируется."""
     mock_vpn_service.sync_remnawave_tier.side_effect = PanelError("boom")
 
-    await service._sync_remnawave_tier_after_payment(user=user_out)
+    await service._apply_remnawave_after_payment(user=user_out)
 
+    mock_vpn_service.extend_user_remnawave_subscription.assert_awaited_once_with(
+        user=user_out
+    )
     mock_vpn_service.sync_remnawave_tier.assert_awaited_once_with(user=user_out)
 
 

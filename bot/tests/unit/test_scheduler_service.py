@@ -6,6 +6,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError
 
 from bot.app_error.api_error import APIClientError
+from bot.app_error.base_error import PanelError
 from bot.app_error.schema import ErrorDetail
 from bot.core.config import settings_bot
 from bot.integrations.api_client import APIClient
@@ -23,6 +24,7 @@ from bot.scheduler.schemas import (
 from bot.scheduler.services import SchedulerBotService
 from bot.vpn.utils.amnezia_wg import AsyncSSHClientWG
 from bot.vpn.utils.x_ray_config import XRayRegistry
+from shared.enums.vpn_enum import VPNBackend
 
 
 @pytest.fixture
@@ -418,6 +420,122 @@ async def test_fallback_delete_3xui_no_config_ids(service):
 
     assert result == DeleteStatus.NOT_FOUND
     service.xray_registry.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_from_remnawave_disabled_integration_returns_error(service):
+    """remnawave=None -> ERROR, подтвердить удаление на панели нечем."""
+    service.remnawave = None
+    cfg = MagicMock(config_ids=["42"], file_name="rw_user_123")
+
+    result = await service._delete_from_remnawave(cfg)
+
+    assert result == DeleteStatus.ERROR
+
+
+@pytest.mark.asyncio
+async def test_delete_from_remnawave_empty_config_ids_returns_not_found(service):
+    """config_ids пуст/None -> NOT_FOUND, удалять нечего."""
+    service.remnawave = AsyncMock()
+    cfg = MagicMock(config_ids=[], file_name="rw_user_123")
+
+    result = await service._delete_from_remnawave(cfg)
+
+    assert result == DeleteStatus.NOT_FOUND
+    service.remnawave.delete_config.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_from_remnawave_all_deleted_returns_deleted(service):
+    """Все delete_config вернули True -> DELETED."""
+    service.remnawave = AsyncMock()
+    service.remnawave.delete_config.return_value = True
+    cfg = MagicMock(config_ids=["42", "43"], file_name="rw_user_123")
+
+    result = await service._delete_from_remnawave(cfg)
+
+    assert result == DeleteStatus.DELETED
+    assert service.remnawave.delete_config.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_from_remnawave_none_found_returns_not_found(service):
+    """Все delete_config вернули False -> NOT_FOUND."""
+    service.remnawave = AsyncMock()
+    service.remnawave.delete_config.return_value = False
+    cfg = MagicMock(config_ids=["42", "43"], file_name="rw_user_123")
+
+    result = await service._delete_from_remnawave(cfg)
+
+    assert result == DeleteStatus.NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_delete_from_remnawave_panel_error_returns_error(service):
+    """delete_config кинул PanelError -> ERROR."""
+    service.remnawave = AsyncMock()
+    service.remnawave.delete_config.side_effect = PanelError("boom")
+    cfg = MagicMock(config_ids=["42"], file_name="rw_user_123")
+
+    result = await service._delete_from_remnawave(cfg)
+
+    assert result == DeleteStatus.ERROR
+
+
+@pytest.mark.asyncio
+async def test_trigger_config_deletion_remnawave_deleted_cleans_db_skips_ssh(
+    service, mocker
+):
+    """Remnawave-конфиг, статус DELETED -> _delete_from_db вызван, SSH не задействован."""
+    cfg = MagicMock(
+        backend=VPNBackend.REMNAWAVE,
+        config_ids=["42"],
+        file_name="rw_user_123",
+    )
+    mocker.patch.object(
+        service,
+        "_delete_from_remnawave",
+        new=AsyncMock(return_value=DeleteStatus.DELETED),
+    )
+    mock_delete_db = mocker.patch.object(service, "_delete_from_db", new=AsyncMock())
+    mock_delete_ssh = mocker.patch.object(service, "_delete_from_ssh", new=AsyncMock())
+    mock_notify = mocker.patch.object(
+        service, "_notify_deletion_failed", new=AsyncMock()
+    )
+
+    count = await service._trigger_config_deletion(tg_id=123, configs=[cfg])
+
+    assert count == 1
+    mock_delete_db.assert_awaited_once_with(cfg)
+    mock_delete_ssh.assert_not_called()
+    mock_notify.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_trigger_config_deletion_remnawave_error_notifies_skips_db(
+    service, mocker
+):
+    """Remnawave-конфиг, статус ERROR -> уведомление админов, _delete_from_db не вызван."""
+    cfg = MagicMock(
+        backend=VPNBackend.REMNAWAVE,
+        config_ids=["42"],
+        file_name="rw_user_123",
+    )
+    mocker.patch.object(
+        service,
+        "_delete_from_remnawave",
+        new=AsyncMock(return_value=DeleteStatus.ERROR),
+    )
+    mock_delete_db = mocker.patch.object(service, "_delete_from_db", new=AsyncMock())
+    mock_notify = mocker.patch.object(
+        service, "_notify_deletion_failed", new=AsyncMock()
+    )
+
+    count = await service._trigger_config_deletion(tg_id=123, configs=[cfg])
+
+    assert count == 0
+    mock_delete_db.assert_not_called()
+    mock_notify.assert_awaited_once_with(cfg)
 
 
 @pytest.mark.asyncio
