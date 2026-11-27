@@ -114,7 +114,7 @@ vpn_bot/
 ├── app_config.toml,
 │   app_config.develop.toml,
 │   app_config.local.toml    # Несекретные настройки приложения (см. "Конфигурация")
-├── .env.example              # Шаблон секретов (обратите внимание — с пробелом в конце имени файла)
+├── .env.example              # Шаблон секретов
 ├── docker-compose.*.yml      # common / develop / local / prod
 ├── nginx.conf, nginx_test.conf
 ├── makefile                  # Частые команды (см. ниже)
@@ -143,7 +143,7 @@ poetry install --with dev        # с dev-инструментами (тесты
 # poetry install --without dev   # только рантайм, для прод-образа
 
 # Секреты — скопировать шаблон (обратите внимание на пробел в оригинальном имени)
-cp ".env.example " .env
+cp .env.example .env
 # Заполнить BOT_TOKEN, DB_PASSWORD, REDIS_PASSWORD, INTERNAL_API_SECRET и т.д. — см. ниже
 
 # Несекретные настройки — свериться с app_config.toml / app_config.develop.toml
@@ -163,7 +163,7 @@ python api/main.py      # http://localhost:8089/api/docs
 
 Настройки собираются `pydantic-settings` из **двух источников**, и это важно не путать:
 
-1. **`.env` / `.env.dev` / `.env.local`** — только секреты и то, что меняется от инстанса к инстансу (токены, пароли, ключи API). Более специфичный файл переопределяет более общий. Актуальный список — в `.env.example ` (да, с пробелом в конце имени файла).
+1. **`.env` / `.env.dev` / `.env.local`** — только секреты и то, что меняется от инстанса к инстансу (токены, пароли, ключи API). Более специфичный файл переопределяет более общий. Актуальный список — в `.env.example`.
 2. **`app_config.toml` / `app_config.develop.toml`** — все остальные настройки: хосты VPN-нод, тарифы, лимиты, cron-расписание, уровни логирования и т.д. Переменная `STAGE` выбирает **ровно один** из этих файлов как полный конфиг окружения — `app_config.toml` при `STAGE=prod` (по умолчанию), иначе `app_config.develop.toml`. Это разные физические окружения (разные сервера, учётные данные, VPN-ноды), поэтому файлы не объединяются между собой: настройка, добавленная только в `app_config.toml`, на develop не появляется сама по себе. Поверх выбранного файла, независимо от `STAGE`, всегда дополнительно мёрджится `app_config.local.toml`, если он существует, — это личные оверрайды разработчика.
 
 Незнакомые ключи в `.env`-файлах молча игнорируются (`extra="ignore"`).
@@ -176,6 +176,8 @@ python api/main.py      # http://localhost:8089/api/docs
 | Core / Bot | `BOT_TOKEN` | Токен Telegram-бота |
 | Telemt | `TELEMT_SECRET_HELLO` | Секрет MTProto-прокси |
 | XRay | `SOF_X_RAY_USERNAME`, `SOF_X_RAY_PASSWORD` | Учётные данные панели 3x-ui (нода `sof`) |
+| Remnawave | `REMNAWAVE_TOKEN` | Bearer-токен панели Remnawave (хост/порт/squads/`tier_map` — в `app_config*.toml`, `[remnawave]`; обязателен при `[remnawave] enabled=true`) |
+| Remnawave | `REMNAWAVE_EXTRA_HEADERS` | Доп. заголовки к запросам панели (JSON-объект) — байпас forward-auth reverse-proxy перед панелью (TinyAuth). Необязательно; значение — валидный JSON (**пустая строка ломает старт** — если не нужен, не задавай переменную или `{}`) |
 | Database | `DB_PASSWORD` | Пароль PostgreSQL (хост/порт/юзер/имя БД — в `app_config*.toml`, `[db]`) |
 | Redis | `REDIS_PASSWORD` | Пароль Redis (хост/порт/БД — в `app_config*.toml`, `[redis]`) |
 | Object Storage | `ACCESS_KEY`, `SECRET_KEY` | Доступ к S3-совместимому бакету для медиа справки |
@@ -183,7 +185,7 @@ python api/main.py      # http://localhost:8089/api/docs
 | AI (опционально) | `SECRET_KEY_AI`, `YANDEX_FOLDER_ID` | Yandex AI Studio; актуально только при локальной разработке AI-части |
 | API service | `SESSION_SECRET` | Ключ сессий админ-панели (SQLAdmin). Обязателен — без значения по умолчанию, `api/` не поднимется без него |
 | API service | `ADMIN_PANEL_USER`, `ADMIN_PANEL_PASSWORD_HASH` | Логин и хеш пароля входа в SQLAdmin — отдельные от учётных данных PostgreSQL (см. [«Не получается войти в админ-панель»](#не-получается-войти-в-админ-панель-sqladmin)) |
-| API service | `SKIP_INIT` (в `.env.example `) / `SKIP_AI_INIT` (в CI, `.github/workflows/ci.yml`) | Флаг пропуска тяжёлой инициализации AI-зависимостей при старте; имя в этих двух местах расходится — при добавлении в свой `.env` стоит свериться с тем, что реально читает код на момент использования |
+| API service | `SKIP_INIT` (в `.env.example`) / `SKIP_AI_INIT` (в CI, `.github/workflows/ci.yml`) | Флаг пропуска тяжёлой инициализации AI-зависимостей при старте; имя в этих двух местах расходится — при добавлении в свой `.env` стоит свериться с тем, что реально читает код на момент использования |
 | Платежи | `MERCHANT_ID`, `API_KEY` | Учётные данные платёжного шлюза (Platega) |
 | Internal | `INTERNAL_API_SECRET` | Общий секрет для запросов `bot/` → `api/` (заголовок `X-Internal-Secret`). Обязателен — без значения по умолчанию, `api/` не поднимется без него; значение должно совпадать с тем, что использует `bot/` |
 | Internal (api → bot) | `BOT_INTERNAL_API_KEY` | Ключ обратного канала `api/` → `bot/` (заголовок `X-API-Key`, эндпоинты `bot/internal/router.py`, сейчас `POST /internal/vpn/revoke` — отзыв доступа конфига на нодах; `api/` сам к панелям не ходит). Одно значение в окружении обоих сервисов. Необязателен: пустой ключ выключает канал (бот отвечает 403, клиент в `api/` не шлёт запросов) — закрыто по умолчанию. Адрес бота для `api/` — `BotChannelSettings` (`api/core/config.py`, по умолчанию `vpn_bot:8088`) |

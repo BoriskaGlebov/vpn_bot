@@ -5,7 +5,7 @@ from aiogram.exceptions import TelegramForbiddenError
 from loguru import logger
 
 from bot.app_error.api_error import APIClientError
-from bot.app_error.base_error import VPNConfigDeletionFailedError
+from bot.app_error.base_error import PanelError, VPNConfigDeletionFailedError
 from bot.core.config import settings_bot
 from bot.scheduler.adapter import SchedulerAPIAdapter
 from bot.scheduler.enums import DeleteStatus
@@ -433,6 +433,51 @@ class SchedulerBotService:
             else DeleteStatus.ERROR
         )
 
+    async def _delete_from_remnawave(self, cfg: DeletedVPNConfigSchema) -> DeleteStatus:
+        """Удаляет Remnawave-конфиг на единственной панели по `config_ids`.
+
+        В отличие от 3x-ui, перебора нод нет — панель одна. Если интеграция
+        выключена (`remnawave=None`) — подтвердить удаление нечем, возвращаем
+        `ERROR` (запись в БД не трогаем).
+
+        Args:
+            cfg: Данные remnawave-конфига на удаление.
+
+        Returns
+            DeleteStatus: `DELETED` — хотя бы один `config_id` удалён;
+                `NOT_FOUND` — удалять нечего (нет `config_ids`) либо
+                пользователь уже отсутствует на панели; `ERROR` — ошибка
+                панели или интеграция выключена.
+
+        """
+        if self.remnawave is None:
+            logger.error(
+                "Remnawave-конфиг {}, но интеграция выключена — удаление невозможно",
+                cfg.file_name,
+            )
+            return DeleteStatus.ERROR
+        if not cfg.config_ids:
+            return DeleteStatus.NOT_FOUND
+
+        statuses: list[DeleteStatus] = []
+        for config_id in cfg.config_ids:
+            try:
+                found = await self.remnawave.delete_config(config_id=config_id)
+                statuses.append(
+                    DeleteStatus.DELETED if found else DeleteStatus.NOT_FOUND
+                )
+            except PanelError as exc:
+                logger.warning(
+                    "Ошибка удаления Remnawave config_id={}: {}", config_id, exc
+                )
+                statuses.append(DeleteStatus.ERROR)
+
+        if DeleteStatus.ERROR in statuses:
+            return DeleteStatus.ERROR
+        if DeleteStatus.DELETED in statuses:
+            return DeleteStatus.DELETED
+        return DeleteStatus.NOT_FOUND
+
     async def _trigger_config_deletion(
         self,
         tg_id: int,
@@ -440,11 +485,12 @@ class SchedulerBotService:
     ) -> int:
         """Оркестрирует последовательное удаление VPN-конфигов пользователя.
 
-        Для каждого конфига сначала пробует удалить его через SSH (Amnezia),
-        затем, если там не нашлось или произошла ошибка — через панель 3x-ui.
-        Из БД конфиг удаляется только если он реально удалён (или точно
-        не найден) хотя бы в одном из внешних сервисов; если оба сервиса
-        вернули ошибку — запись в БД намеренно не трогается, а админы
+        Remnawave-конфиг (`backend=remnawave`) удаляется на единственной
+        панели по `config_ids` (`_delete_from_remnawave`), без SSH/3x-ui.
+        Для прочих — сначала SSH (Amnezia), затем, если там не нашлось или
+        произошла ошибка — панель 3x-ui. Из БД конфиг удаляется только если
+        он реально удалён (или точно не найден) на нужном бэкенде; если
+        бэкенд вернул ошибку — запись в БД намеренно не трогается, а админы
         получают уведомление (см. `_notify_deletion_failed`).
 
         Args:
@@ -460,6 +506,18 @@ class SchedulerBotService:
         count_deleted = 0
         async with ssh_lock:
             for cfg in configs:
+                if cfg.backend == VPNBackend.REMNAWAVE:
+                    rw_status = await self._delete_from_remnawave(cfg)
+                    if rw_status in (DeleteStatus.DELETED, DeleteStatus.NOT_FOUND):
+                        await self._delete_from_db(cfg)
+                        count_deleted += 1
+                    else:
+                        logger.error(
+                            "Remnawave ошибка → НЕ удаляю из БД {}", cfg.file_name
+                        )
+                        await self._notify_deletion_failed(cfg)
+                    continue
+
                 ssh_status = await self._delete_from_ssh(cfg)
 
                 if ssh_status == DeleteStatus.DELETED:

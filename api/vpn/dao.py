@@ -14,6 +14,7 @@ from api.subscription.models import DEVICE_LIMITS
 from api.users.models import User
 from api.vpn.models import VPNConfig, VPNConfigStatus
 from api.vpn.schemas import SVPNUserConfigsFilter
+from shared.enums.vpn_enum import VPNBackend
 
 
 @dataclass(frozen=True)
@@ -112,7 +113,9 @@ class VPNConfigDAO(BaseDAO[VPNConfig]):
         )
         try:
             status = await cls.get_limit_status(session=session, user=user)
-            if not status.can_add:
+            # TODO(#426): временный обход слотового лимита для Remnawave на
+            # период переезда — убрать после вывода 3x-ui/Amnezia-нод.
+            if backend != VPNBackend.REMNAWAVE and not status.can_add:
                 # Ожидаемое бизнес-ограничение (превышен лимит устройств),
                 # а не системная ошибка. limit — именно тот, что применялся
                 # в сравнении выше, а не настройка по умолчанию.

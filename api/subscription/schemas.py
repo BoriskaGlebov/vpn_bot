@@ -79,6 +79,9 @@ class SVPNConfig(BaseModel):
         created_at (datetime): Дата и время создания конфига.
         status (str | None): Статус конфига (active/pending_delete/deleted).
         status_reason (str | None): Причина перевода в PENDING_DELETE.
+        backend (str | None): Бэкенд конфига ("amnezia"/"xray"/"remnawave") —
+            нужен боту, чтобы показать значок: у Remnawave нет `node_name`
+            (одна панель), поэтому локация выводится по бэкенду.
 
     """
 
@@ -88,6 +91,7 @@ class SVPNConfig(BaseModel):
     created_at: datetime
     status: str | None = None
     status_reason: str | None = None
+    backend: str | None = None
 
 
 class SSubscriptionInfo(BaseModel):

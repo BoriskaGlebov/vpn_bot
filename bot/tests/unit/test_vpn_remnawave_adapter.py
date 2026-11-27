@@ -1,3 +1,4 @@
+import inspect
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -6,6 +7,7 @@ import pytest
 from bot.app_error.api_error import APIClientConnectionError, APIClientHTTPError
 from bot.app_error.schema import ErrorDetail
 from bot.core.config import REMNAWAVE_SUBSCRIPTION_TIERS
+from bot.vpn.utils.panel_protocol import PanelAdapter
 from bot.vpn.utils.remnawave.adapter import RemnawaveAdapter
 from bot.vpn.utils.remnawave.exceptions import (
     RemnawaveAuthError,
@@ -297,3 +299,24 @@ async def test_request_connection_error_maps_to_502(mocker):
         await adapter._request("GET", "/api/users/1")
 
     assert exc.value.status_code == 502
+
+
+def test_remnawave_adapter_satisfies_panel_protocol():
+    """RemnawaveAdapter реализует все методы PanelAdapter как корутины с теми же параметрами."""
+    panel_methods = {
+        name
+        for name in dir(PanelAdapter)
+        if not name.startswith("_") and inspect.isfunction(getattr(PanelAdapter, name))
+    }
+    # PanelAdapter — обычный Protocol (не runtime_checkable), поэтому isinstance
+    # невозможен; сверяем структурно по сигнатурам. Пустое множество означало бы,
+    # что Protocol отрефакторили и тест молча перестал что-либо проверять.
+    assert panel_methods == {"extend_config", "set_unlimited_config", "delete_config"}
+
+    for name in panel_methods:
+        impl = getattr(RemnawaveAdapter, name, None)
+        assert impl is not None, f"RemnawaveAdapter не реализует {name}"
+        assert inspect.iscoroutinefunction(impl), f"{name} должен быть async"
+        proto_params = list(inspect.signature(getattr(PanelAdapter, name)).parameters)
+        impl_params = list(inspect.signature(impl).parameters)
+        assert impl_params == proto_params, f"сигнатура {name} разошлась с Protocol"

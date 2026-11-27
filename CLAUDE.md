@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project overview
 
 VPN Boriska Bot — a Telegram bot + internal HTTP API for selling/managing VPN access
-(Amnezia/WireGuard and XRay/3x-ui), subscriptions, referrals, and an MTProto proxy (telemt).
+(Amnezia/WireGuard, XRay/3x-ui and Remnawave), subscriptions, referrals, and an MTProto proxy (telemt).
 Comments, docstrings, and commit messages in this repo are written in Russian; match that
 convention when editing existing files.
 
@@ -158,8 +158,13 @@ via `bot/scheduler/utils/scheduler_cron.py`; it drives subscription expiry remin
 
 ### VPN backends
 
-Two VPN backends are supported side by side: Amnezia/WireGuard (config generation and SSH-based
-management in `bot/vpn/utils/amnezia_*.py`) and XRay/3x-ui (panel automation in
-`bot/vpn/utils/x_ray_config.py`, `ThreeXUIAdapter` + `XRayRegistry`). `XRayRegistry` is built once
+Three VPN backends are supported side by side: Amnezia/WireGuard (config generation and SSH-based
+management in `bot/vpn/utils/amnezia_*.py`), XRay/3x-ui (panel automation in
+`bot/vpn/utils/x_ray_config.py`, `ThreeXUIAdapter` + `XRayRegistry`), and Remnawave
+(`RemnawaveAdapter` in `bot/vpn/utils/remnawave/`). `XRayRegistry` is built once
 in `Container.__init__` from `settings_bot.vpn.nodes` (one `APIClient`+adapter per configured
-node/panel).
+node/panel); the Remnawave adapter is built once (a single panel, not a registry) behind the
+`settings_bot.remnawave.enabled` flag. Unlike 3x-ui (a panel per node, inbound-based), Remnawave is
+one panel whose access unit is a single panel user (`id`/`shortUuid`): locations are expressed as
+`activeInternalSquads` (squads by tier, see `[remnawave]` `tier_map`), auth is a persistent Bearer
+token, and the panel returns a ready `subscriptionUrl` instead of the bot assembling the link.

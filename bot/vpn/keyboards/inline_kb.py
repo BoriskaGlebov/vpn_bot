@@ -5,7 +5,8 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.users.schemas import SVPNConfigOut
-from bot.utils.formatting import format_vpn_config_date, format_vpn_location
+from bot.users.utils.text_generator import format_config_location
+from bot.utils.formatting import format_vpn_config_date
 
 
 class ConfigDeleteAction(StrEnum):
@@ -54,7 +55,7 @@ def my_configs_kb(configs: list[SVPNConfigOut]) -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     for config in configs:
-        location = format_vpn_location(config.node_name, short=True)
+        location = format_config_location(config.backend, config.node_name, short=True)
         created_at = format_vpn_config_date(config.created_at)
         builder.button(
             text=f"🗑 {location} · {created_at} · #{config.id}",

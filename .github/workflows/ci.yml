@@ -89,6 +89,7 @@ jobs:
           SECRET_KEY: "test-secret-key"
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
           SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
+          REMNAWAVE_TOKEN: ${{ vars.REMNAWAVE_TOKEN }}
           MERCHANT_ID: "test-merchant-id"
           API_KEY: "test-api-key"
           SESSION_SECRET: "test-session-secret"
@@ -130,6 +131,7 @@ jobs:
           SECRET_KEY: "test-secret-key"
           SKIP_AI_INIT: ${{ vars.SKIP_AI_INIT }}
           SOF_X_RAY_PASSWORD: ${{ vars.SOF_X_RAY_PASSWORD }}
+          REMNAWAVE_TOKEN: ${{ vars.REMNAWAVE_TOKEN }}
           MERCHANT_ID: "test-merchant-id"
           API_KEY: "test-api-key"
           SESSION_SECRET: "test-session-secret"
@@ -241,6 +243,13 @@ jobs:
           # ==X-RAY ==
 
           SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
+
+          # == REMNAWAVE ==
+
+          REMNAWAVE_TOKEN=${{ secrets.REMNAWAVE_TOKEN }}
+          # Необязателен: при незаданном секрете подставляем {}, иначе пустая
+          # строка ломает парсинг dict на старте.
+          REMNAWAVE_EXTRA_HEADERS=${{ secrets.REMNAWAVE_EXTRA_HEADERS || '{}' }}
 
 
           # == DATABASE ==
@@ -419,6 +428,13 @@ jobs:
           # ==X-RAY ==
 
           SOF_X_RAY_PASSWORD=${{ secrets.SOF_X_RAY_PASSWORD }}
+
+          # == REMNAWAVE ==
+
+          REMNAWAVE_TOKEN=${{ secrets.REMNAWAVE_TOKEN }}
+          # Необязателен: при незаданном секрете подставляем {}, иначе пустая
+          # строка ломает парсинг dict на старте.
+          REMNAWAVE_EXTRA_HEADERS=${{ secrets.REMNAWAVE_EXTRA_HEADERS || '{}' }}
 
 
           # == DATABASE ==
