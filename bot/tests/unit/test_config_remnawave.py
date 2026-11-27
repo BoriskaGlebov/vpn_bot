@@ -69,3 +69,13 @@ async def test_enabled_true_with_empty_token_raises():
 
     with pytest.raises(ValidationError):
         RemnawaveSettings(**kwargs)
+
+
+def test_tiers_match_subscription_type_enum():
+    """REMNAWAVE_SUBSCRIPTION_TIERS совпадает со значениями SubscriptionType -> ручной дубликат не разъехался."""
+    # bot/ не импортирует api/ в рантайме (только через APIClient); здесь это
+    # тест-only guard на синхронизацию ручного дубликата из bot/core/config.py
+    # со значениями SubscriptionType — см. TODO в плане Remnawave.
+    from api.subscription.models import SubscriptionType
+
+    assert set(REMNAWAVE_SUBSCRIPTION_TIERS) == {t.value for t in SubscriptionType}
