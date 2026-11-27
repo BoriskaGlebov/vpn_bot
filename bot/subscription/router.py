@@ -51,13 +51,13 @@ from bot.subscription.services import SubscriptionService
 from bot.subscription.utils.sub_utils import get_correct_price_map, get_correct_sub_type
 from bot.users.enums import MainMenuText
 from bot.users.keyboards.markup_kb import main_kb
+from bot.users.utils.text_generator import format_config_location
 from bot.utils.base_router import BaseRouter
 from bot.utils.formatting import (
     format_promo_info,
     format_subscription_end_date,
     format_username,
     format_vpn_config_date,
-    format_vpn_location,
 )
 from bot.utils.start_stop_bot import edit_admin_messages, send_to_admins
 from bot.vpn.keyboards.inline_kb import (
@@ -328,7 +328,7 @@ class SubscriptionRouter(BaseRouter):
             text=m_subscription.config_delete.confirm.format(
                 id=config.id,
                 file_name=config.file_name,
-                location=format_vpn_location(config.node_name),
+                location=format_config_location(config.backend, config.node_name),
                 created_at=format_vpn_config_date(config.created_at),
             ),
             reply_markup=confirm_delete_config_kb(config_id=config.id),
@@ -366,7 +366,7 @@ class SubscriptionRouter(BaseRouter):
         success_text = m_subscription.config_delete.success.format(
             id=config.id,
             file_name=config.file_name,
-            location=format_vpn_location(config.node_name),
+            location=format_config_location(config.backend, config.node_name),
             created_at=format_vpn_config_date(config.created_at),
         )
         await msg.edit_text(

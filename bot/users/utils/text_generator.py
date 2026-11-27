@@ -1,4 +1,5 @@
 from bot.core.config import settings_bot
+from bot.utils.formatting import format_vpn_location
 from shared.enums.vpn_enum import VPNBackend
 
 # Подписи кнопок для бэкенда — текст для пользователя, а не значения enum.
@@ -10,6 +11,32 @@ BACKEND_LABELS: dict[VPNBackend, str] = {
     VPNBackend.XRAY: "⚡ XRay Pro",
     VPNBackend.REMNAWAVE: "🚀 VPN Pro",
 }
+
+
+def format_config_location(
+    backend: str | None, node_name: str | None, short: bool = False
+) -> str:
+    """Метка локации конфига для кнопок удаления и списка подписки.
+
+    У Remnawave локации нет (одна панель, `node_name=None`) — показываем
+    фирменную подпись бэкенда (`BACKEND_LABELS`) вместо «❔ неизвестно»,
+    которое отдаёт `format_vpn_location` для пустой ноды. Для прочих
+    бэкендов — страна по ноде, как раньше.
+
+    Args:
+        backend: Бэкенд конфига ("amnezia"/"xray"/"remnawave" или `None`
+            у старых записей).
+        node_name: Имя ноды/локации конфига.
+        short: Компактный вид для кнопок (прокидывается в
+            `format_vpn_location`); для Remnawave не влияет.
+
+    Returns
+        str: Метка локации конфига.
+
+    """
+    if backend == VPNBackend.REMNAWAVE:
+        return BACKEND_LABELS[VPNBackend.REMNAWAVE]
+    return format_vpn_location(node_name, short=short)
 
 
 def vpn_button_text(backend: VPNBackend, location: str) -> str:

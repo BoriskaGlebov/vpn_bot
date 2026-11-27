@@ -17,11 +17,10 @@ from bot.subscription.adapter import (
 from bot.subscription.schemas import SSubscriptionCheck
 from bot.users.adapter import UsersAPIAdapter
 from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
-from bot.users.utils.text_generator import BACKEND_LABELS
-from bot.utils.formatting import format_vpn_config_date, format_vpn_location
+from bot.users.utils.text_generator import format_config_location
+from bot.utils.formatting import format_vpn_config_date
 from bot.vpn.services import VPNService
 from shared.enums.subscription_enum import SubscriptionInfoStatus
-from shared.enums.vpn_enum import VPNBackend
 
 m_subscription_local = settings_bot.messages.modes.subscription
 
@@ -281,16 +280,10 @@ class SubscriptionService:
                 if pending
                 else m_subscription_local.config_item
             )
-            # У Remnawave локации нет (одна панель, node_name=None) — вместо
-            # «❔ неизвестно» показываем фирменную подпись бэкенда.
-            if conf.backend == VPNBackend.REMNAWAVE:
-                location = BACKEND_LABELS[VPNBackend.REMNAWAVE]
-            else:
-                location = format_vpn_location(conf.node_name)
             line = template.format(
                 file_name=conf.file_name,
                 id=conf.id,
-                location=location,
+                location=format_config_location(conf.backend, conf.node_name),
                 created_at=format_vpn_config_date(conf.created_at),
             )
             if pending and conf.status_reason:
