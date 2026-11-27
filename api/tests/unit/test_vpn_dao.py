@@ -145,3 +145,45 @@ async def test_add_config_creates_when_under_limit(session, monkeypatch, user):
     assert config.user_id == user.id
     assert config.file_name == "test.conf"
     session.add.assert_called_once_with(config)
+
+
+@pytest.mark.asyncio
+async def test_add_config_remnawave_skips_limit_when_over(session, monkeypatch, user):
+    """Лимит исчерпан, но backend=remnawave -> конфиг создаётся без VPNLimitError (#373).
+
+    Девайс-лимит для Remnawave обеспечивает панель (hwidDeviceLimit), а слотовый
+    учёт считает все бэкенды вперемешку и в окне миграции блокировал бы перевыпуск
+    ссылки у пользователя со старыми 3x-ui/Amnezia-конфигами. Проверка активной
+    подписки при этом сохраняется (её делает get_limit_status выше по коду).
+    """
+    monkeypatch.setattr("api.vpn.dao.DEVICE_LIMITS", {"pro": 1})
+    monkeypatch.setattr(VPNConfigDAO, "count", AsyncMock(return_value=1))
+
+    config = await VPNConfigDAO.add_config(
+        session=session,
+        user=user,
+        file_name="rw.conf",
+        pub_key="url",
+        backend="remnawave",
+    )
+
+    assert config.backend == "remnawave"
+    session.add.assert_called_once_with(config)
+
+
+@pytest.mark.asyncio
+async def test_add_config_non_remnawave_still_raises_over_limit(
+    session, monkeypatch, user
+):
+    """Лимит исчерпан, backend=xray -> VPNLimitError (обход лимита только для remnawave)."""
+    monkeypatch.setattr("api.vpn.dao.DEVICE_LIMITS", {"pro": 1})
+    monkeypatch.setattr(VPNConfigDAO, "count", AsyncMock(return_value=1))
+
+    with pytest.raises(VPNLimitError):
+        await VPNConfigDAO.add_config(
+            session=session,
+            user=user,
+            file_name="x.conf",
+            pub_key="key",
+            backend="xray",
+        )

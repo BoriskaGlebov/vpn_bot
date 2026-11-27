@@ -152,6 +152,8 @@ class VPNService:
         logger.debug("Лимит ок tg_id={}", tg_user.id)
         return user
 
+    # TODO(#426): временный метод на период переезда — убрать/переосмыслить
+    # после вывода 3x-ui/Amnezia-нод.
     async def _require_active_subscription(
         self, tg_user: TGUser
     ) -> tuple[SUserOut, SSubscriptionOut]:
