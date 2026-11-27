@@ -10,7 +10,7 @@ common_timeout = 10
 timezone = "Europe/Moscow"
 
 
-admin_ids = [439653349,]
+admin_ids = [439653349, ]
 trial_period_days = 2
 
 # === LOGGER ===
@@ -45,9 +45,9 @@ use_polling = false
 # === PRICING ===
 [pricing]
 # Цена за тарифы 1, 3, 6, 12 месяцев и триал период на 7 дней
-price_map = {1 = 149, 3 = 399, 6 = 749, 12 = 1390}
-price_map_premium = {1 = 249, 3 = 699, 6 = 1290, 12 = 2490}
-price_map_founder = {1 = 199, 3 = 549, 6 = 1049, 12 = 1990}
+price_map = { 1 = 149, 3 = 399, 6 = 749, 12 = 1390 }
+price_map_premium = { 1 = 249, 3 = 699, 6 = 1290, 12 = 2490 }
+price_map_founder = { 1 = 199, 3 = 549, 6 = 1049, 12 = 1990 }
 
 # === PAYMENT ===
 [payment]
@@ -75,69 +75,69 @@ url = "vpn_bot"
 # ── 🇩🇪  DE — Германия │ vps01 │ dev (бот) ────────────────────────────────
 # Сервер, на котором крутится бот — для него доступно локальное подключение
 [vpn.nodes.de]
-host             = "vps01.boris-guard.pro"
-username         = "boris01"
+host = "vps01.boris-guard.pro"
+username = "boris01"
 #container_old    = "amnezia-awg"
-container        = "amnezia-awg2"
+container = "amnezia-awg2"
 protocol_version = "v3"
-use_local        = true
-location_prefix  = "DE"
-flag             = "🇩🇪"
-enabled          = true
-amnezia_enabled  = true
+use_local = true
+location_prefix = "DE"
+flag = "🇩🇪"
+enabled = true
+amnezia_enabled = true
 
 [vpn.nodes.de.xray]
-host                = "vps01-sub.boris-guard.pro"
-panel_host          = "vps01-panel.boris-guard.pro"
-panel_prefix        = "panel-45gh65"
+host = "vps01-sub.boris-guard.pro"
+panel_host = "vps01-panel.boris-guard.pro"
+panel_prefix = "panel-45gh65"
 subscription_prefix = "sub-45gh45"
-panel_port          = 5443
-subscription_port   = 2096
-username            = "admin"
-enabled          = true
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+enabled = true
 
 [[vpn.nodes.de.xray.inbounds]]
-port     = 2054
-name     = "🇩🇪 | XHTTP Test"
+port = 2054
+name = "🇩🇪 | XHTTP Test"
 protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.de.xray.inbounds]]
-port     = 2055
-name     = "🇩🇪 | TCP Reality Test"
+port = 2055
+name = "🇩🇪 | TCP Reality Test"
 protocol = "vless_reality_tcp"
 
 
 # ── 🇧🇬  SOF — Болгария (София) │ vps03 │ premium ──────────────────────────
 [vpn.nodes.sof]
-host             = "vps03-awg.boris-guard.pro"
-username         = "boris03"
-container        = "amnezia-awg2"
+host = "vps03-awg.boris-guard.pro"
+username = "boris03"
+container = "amnezia-awg2"
 protocol_version = "v2"
-use_local        = false
-location_prefix  = "SOF"
-flag             = "🇧🇬"
-enabled          = true
-amnezia_enabled  = true
-premium          = true
+use_local = false
+location_prefix = "SOF"
+flag = "🇧🇬"
+enabled = true
+amnezia_enabled = true
+premium = true
 
 [vpn.nodes.sof.xray]
-host                = "x-ray-boriska.pro"
-panel_host          = "vps03-panel.boris-guard.pro"
-panel_prefix        = "panel-df06dg"
+host = "x-ray-boriska.pro"
+panel_host = "vps03-panel.boris-guard.pro"
+panel_prefix = "panel-df06dg"
 subscription_prefix = "sub-dk-34gs"
-panel_port          = 5443
-subscription_port   = 2096
-username            = "admin"
-enabled             = true
+panel_port = 5443
+subscription_port = 2096
+username = "admin"
+enabled = true
 
 [[vpn.nodes.sof.xray.inbounds]]
-port     = 2054
-name     = "🇧🇬 | XHTTP Test"
+port = 2054
+name = "🇧🇬 | XHTTP Test"
 protocol = "vless_reality_xhttp"
 
 [[vpn.nodes.sof.xray.inbounds]]
-port     = 2055
-name     = "🇧🇬 | TCP Reality Test"
+port = 2055
+name = "🇧🇬 | TCP Reality Test"
 protocol = "vless_reality_tcp"
 
 # === REMNAWAVE ===
@@ -146,18 +146,21 @@ api_url = "remnawave-panel.boris-guard.pro"
 api_port = 443
 api_scheme = "https"
 api_prefix = "/api"
-enabled = false
+enabled = true
 
 [remnawave.squads]
+admin = ["e64fe59d-e4f6-493f-9ed5-f63d836ea771"]
 standard = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37"]
-premium = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37", "e64fe59d-e4f6-493f-9ed5-f63d836ea771"]
+premium = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37", "43536187-6bab-4477-bf3f-44c31531118e"]
+founder = ["9f4ef83d-bea5-4801-abc6-19bfac67dd37", "43536187-6bab-4477-bf3f-44c31531118e"]
 
 [remnawave.tier_map]
 trial = "standard"
 standard = "standard"
 premium = "premium"
-founder = "premium"
+founder = "founder"
 ultimate = "premium"
+admin = "admin"
 
 # === DB ===
 [db]
