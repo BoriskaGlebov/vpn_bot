@@ -1173,7 +1173,11 @@ async def test_generate_remnawave_subscription_success(mocker, tg_user):
         end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
         type="standard",
     )
-    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+    mocker.patch.object(
+        service,
+        "_require_active_subscription",
+        return_value=(user, user.current_subscription),
+    )
 
     remnawave.add_new_config.return_value = ({"remnawave": ["42"]}, "https://sub/x")
 
@@ -1210,7 +1214,13 @@ async def test_generate_remnawave_subscription_not_configured_raises(mocker, tg_
 
 @pytest.mark.asyncio
 async def test_generate_remnawave_subscription_no_subscription_raises(mocker, tg_user):
-    """current_subscription is None -> SubscriptionNotFoundError, add_new_config не вызывается."""
+    """_require_active_subscription поднял SubscriptionNotFoundError -> generate пробрасывает его, add_new_config не вызывается.
+
+    Сама логика "нет подписки / неактивна / истекла" теперь живёт в
+    `_require_active_subscription` и покрыта отдельными тестами на этот
+    метод — здесь проверяем только то, что `generate_remnawave_subscription`
+    корректно делегирует валидацию и ничего не глушит.
+    """
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
     xray_registry = mocker.Mock()
@@ -1218,9 +1228,11 @@ async def test_generate_remnawave_subscription_no_subscription_raises(mocker, tg
 
     service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
 
-    user = mocker.Mock(telegram_id=123)
-    user.current_subscription = None
-    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+    mocker.patch.object(
+        service,
+        "_require_active_subscription",
+        side_effect=SubscriptionNotFoundError(tg_id=tg_user.id),
+    )
 
     with pytest.raises(SubscriptionNotFoundError):
         await service.generate_remnawave_subscription(tg_user=tg_user)
@@ -1232,7 +1244,7 @@ async def test_generate_remnawave_subscription_no_subscription_raises(mocker, tg
 async def test_generate_remnawave_subscription_inactive_subscription_raises(
     mocker, tg_user
 ):
-    """current_subscription.is_active=False -> SubscriptionNotFoundError."""
+    """_require_active_subscription поднял SubscriptionNotFoundError (неактивная подписка) -> generate пробрасывает его."""
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
     xray_registry = mocker.Mock()
@@ -1240,13 +1252,11 @@ async def test_generate_remnawave_subscription_inactive_subscription_raises(
 
     service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
 
-    user = mocker.Mock(telegram_id=123)
-    user.current_subscription = SimpleNamespace(
-        is_active=False,
-        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
-        type="standard",
+    mocker.patch.object(
+        service,
+        "_require_active_subscription",
+        side_effect=SubscriptionNotFoundError(tg_id=tg_user.id),
     )
-    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
 
     with pytest.raises(SubscriptionNotFoundError):
         await service.generate_remnawave_subscription(tg_user=tg_user)
@@ -1256,7 +1266,7 @@ async def test_generate_remnawave_subscription_inactive_subscription_raises(
 
 @pytest.mark.asyncio
 async def test_generate_remnawave_subscription_expired_end_date_raises(mocker, tg_user):
-    """is_active=True, но end_date в прошлом -> SubscriptionNotFoundError (устаревший is_active не даёт доступ)."""
+    """_require_active_subscription поднял SubscriptionNotFoundError (истёкшая подписка) -> generate пробрасывает его."""
     api_adapter = mocker.AsyncMock()
     user_adapter = mocker.AsyncMock()
     xray_registry = mocker.Mock()
@@ -1264,13 +1274,11 @@ async def test_generate_remnawave_subscription_expired_end_date_raises(mocker, t
 
     service = VPNService(api_adapter, user_adapter, xray_registry, remnawave)
 
-    user = mocker.Mock(telegram_id=123)
-    user.current_subscription = SimpleNamespace(
-        is_active=True,
-        end_date=datetime.now(settings_bot.core.tzinfo) - timedelta(days=1),
-        type="standard",
+    mocker.patch.object(
+        service,
+        "_require_active_subscription",
+        side_effect=SubscriptionNotFoundError(tg_id=tg_user.id),
     )
-    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
 
     with pytest.raises(SubscriptionNotFoundError):
         await service.generate_remnawave_subscription(tg_user=tg_user)
@@ -1296,7 +1304,11 @@ async def test_generate_remnawave_subscription_defaults_sub_type_to_standard(
         end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
         type=None,
     )
-    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+    mocker.patch.object(
+        service,
+        "_require_active_subscription",
+        return_value=(user, user.current_subscription),
+    )
 
     remnawave.add_new_config.return_value = ({"remnawave": ["42"]}, "https://sub/x")
 
@@ -1321,7 +1333,11 @@ async def test_generate_remnawave_subscription_empty_config_ids_raises(mocker, t
         end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
         type="standard",
     )
-    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+    mocker.patch.object(
+        service,
+        "_require_active_subscription",
+        return_value=(user, user.current_subscription),
+    )
 
     remnawave.add_new_config.return_value = ({"remnawave": []}, "https://sub/x")
 
@@ -1349,7 +1365,11 @@ async def test_generate_remnawave_subscription_db_error_rolls_back_panel_user(
         end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
         type="standard",
     )
-    mocker.patch.object(service, "_limit_and_user_inf", return_value=user)
+    mocker.patch.object(
+        service,
+        "_require_active_subscription",
+        return_value=(user, user.current_subscription),
+    )
 
     remnawave.add_new_config.return_value = (
         {"remnawave": ["42", "43"]},
@@ -1365,6 +1385,148 @@ async def test_generate_remnawave_subscription_db_error_rolls_back_panel_user(
     remnawave.delete_config.assert_any_await(config_id="42")
     remnawave.delete_config.assert_any_await(config_id="43")
     assert remnawave.delete_config.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_require_active_subscription_active_returns_user_and_sub_without_limit_check(
+    mocker, tg_user
+):
+    """Активная не истёкшая подписка -> (user, sub), check_limit вообще не вызывается (суть #373)."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = mocker.Mock(telegram_id=tg_user.id)
+    user.username = tg_user.username
+    user.first_name = tg_user.first_name
+    user.last_name = tg_user.last_name
+    sub = SimpleNamespace(
+        is_active=True,
+        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
+        type="standard",
+    )
+    user.current_subscription = sub
+    user_adapter.register.return_value = (user, False)
+
+    result_user, result_sub = await service._require_active_subscription(tg_user)
+
+    assert result_user is user
+    assert result_sub is sub
+    api_adapter.check_limit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_require_active_subscription_can_add_false_does_not_block(
+    mocker, tg_user
+):
+    """can_add=False в check_limit никак не влияет: метод всё равно отдаёт подписку, check_limit не вызван."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = mocker.Mock(telegram_id=tg_user.id)
+    user.username = tg_user.username
+    user.first_name = tg_user.first_name
+    user.last_name = tg_user.last_name
+    sub = SimpleNamespace(
+        is_active=True,
+        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
+        type="standard",
+    )
+    user.current_subscription = sub
+    user_adapter.register.return_value = (user, False)
+
+    # Даже если лимит слотов забит до отказа, он не должен иметь значения —
+    # панельная выдача не завязана на check_limit.
+    api_adapter.check_limit.return_value = SVPNCheckLimitResponse(
+        can_add=False,
+        limit=1,
+        current=1,
+    )
+
+    result_user, result_sub = await service._require_active_subscription(tg_user)
+
+    assert result_user is user
+    assert result_sub is sub
+    api_adapter.check_limit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_require_active_subscription_no_subscription_raises(mocker, tg_user):
+    """current_subscription is None -> SubscriptionNotFoundError."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = mocker.Mock(telegram_id=tg_user.id)
+    user.username = tg_user.username
+    user.first_name = tg_user.first_name
+    user.last_name = tg_user.last_name
+    user.current_subscription = None
+    user_adapter.register.return_value = (user, False)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await service._require_active_subscription(tg_user)
+
+    api_adapter.check_limit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_require_active_subscription_inactive_raises(mocker, tg_user):
+    """current_subscription.is_active=False -> SubscriptionNotFoundError."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = mocker.Mock(telegram_id=tg_user.id)
+    user.username = tg_user.username
+    user.first_name = tg_user.first_name
+    user.last_name = tg_user.last_name
+    user.current_subscription = SimpleNamespace(
+        is_active=False,
+        end_date=datetime.now(settings_bot.core.tzinfo) + timedelta(days=5),
+        type="standard",
+    )
+    user_adapter.register.return_value = (user, False)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await service._require_active_subscription(tg_user)
+
+    api_adapter.check_limit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_require_active_subscription_expired_end_date_raises(mocker, tg_user):
+    """is_active=True, но end_date в прошлом (tz-aware) -> SubscriptionNotFoundError."""
+    api_adapter = mocker.AsyncMock()
+    user_adapter = mocker.AsyncMock()
+    xray_registry = mocker.Mock()
+
+    service = VPNService(api_adapter, user_adapter, xray_registry)
+
+    user = mocker.Mock(telegram_id=tg_user.id)
+    user.username = tg_user.username
+    user.first_name = tg_user.first_name
+    user.last_name = tg_user.last_name
+    user.current_subscription = SimpleNamespace(
+        is_active=True,
+        end_date=datetime.now(settings_bot.core.tzinfo) - timedelta(days=1),
+        type="standard",
+    )
+    user_adapter.register.return_value = (user, False)
+
+    with pytest.raises(SubscriptionNotFoundError):
+        await service._require_active_subscription(tg_user)
+
+    api_adapter.check_limit.assert_not_called()
 
 
 @pytest.mark.asyncio

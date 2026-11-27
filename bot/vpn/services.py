@@ -18,7 +18,7 @@ from bot.app_error.base_error import (
 )
 from bot.core.config import VPNNode, settings_bot
 from bot.users.adapter import UsersAPIAdapter
-from bot.users.schemas import SUser, SUserOut, SVPNConfigOut
+from bot.users.schemas import SSubscriptionOut, SUser, SUserOut, SVPNConfigOut
 from bot.vpn.adapter import VPNAPIAdapter
 from bot.vpn.utils.amnezia_exceptions import AmneziaError
 from bot.vpn.utils.amnezia_wg import (
@@ -151,6 +151,56 @@ class VPNService:
 
         logger.debug("Лимит ок tg_id={}", tg_user.id)
         return user
+
+    async def _require_active_subscription(
+        self, tg_user: TGUser
+    ) -> tuple[SUserOut, SSubscriptionOut]:
+        """Регистрирует пользователя и требует действующую подписку — БЕЗ лимита слотов.
+
+        Панельная (Remnawave) выдача, в отличие от `_limit_and_user_inf`,
+        НАМЕРЕННО не вызывает `check_limit`: девайс-лимит обеспечивает сама
+        панель через `hwidDeviceLimit` (по HWID), а слотовый учёт в окне
+        миграции только мешал бы — пользователь с уже забитыми 3x-ui/Amnezia-
+        слотами иначе не смог бы перевыпустить Remnawave-ссылку и остался бы
+        на ноде, которую гасим (#373). Поэтому единственный гейт здесь —
+        наличие действующей (активной и не истёкшей) подписки: доступ
+        неоплатившему всё равно не выдаём.
+
+        Args:
+            tg_user: Telegram-пользователь.
+
+        Returns
+            tuple[SUserOut, SSubscriptionOut]: Пользователь из БД и его
+                действующая подписка.
+
+        Raises
+            SubscriptionNotFoundError: Нет активной подписки либо её срок
+                уже истёк.
+
+        """
+        user, _ = await self.user_adapter.register(
+            SUser(
+                telegram_id=tg_user.id,
+                username=tg_user.username,
+                first_name=tg_user.first_name,
+                last_name=tg_user.last_name,
+            )
+        )
+
+        sub = user.current_subscription
+        if sub is None or not sub.is_active:
+            raise SubscriptionNotFoundError(tg_id=tg_user.id)
+
+        now = datetime.now(settings_bot.core.tzinfo)
+        end = sub.end_date
+        if end and end.tzinfo is None:
+            end = end.replace(tzinfo=settings_bot.core.tzinfo)
+        if end is not None and end <= now:
+            # is_active мог устареть (обновляется только планировщиком) —
+            # если срок уже прошёл, бессрочный доступ выдавать нельзя.
+            raise SubscriptionNotFoundError(tg_id=tg_user.id)
+
+        return user, sub
 
     async def generate_user_config(
         self,
@@ -386,13 +436,15 @@ class VPNService:
         строка `VPNConfig` в БД. Повторное нажатие кнопки даёт **новый**
         subscription URL под новое устройство — переиспользования URL между
         устройствами нет, лимит HWID на каждом конфиге — `REMNAWAVE_DEVICE_LIMIT`.
-        Квоту "сколько конфигов может быть у пользователя" обеспечивает
-        `check_limit` на стороне `api/` — тот же механизм, что для XRay.
+        Слотовый `check_limit` здесь НЕ применяется (в отличие от XRay):
+        девайс-лимит обеспечивает сама панель по HWID, а слотовый учёт в окне
+        миграции мешал бы перевыпуску ссылки — см. `_require_active_subscription`
+        и #373.
 
         Алгоритм работы:
             1. Проверяет, что интеграция Remnawave включена.
-            2. Через `_limit_and_user_inf` регистрирует пользователя и
-               проверяет лимит конфигов.
+            2. Через `_require_active_subscription` регистрирует пользователя и
+               требует действующую подписку (БЕЗ проверки лимита слотов).
             3. Берёт `sub_type` из `current_subscription.type`, `expires_at`
                из `end_date` (`None` → бессрочная).
             4. Создаёт нового юзера на панели (`add_new_config` → POST).
@@ -410,7 +462,6 @@ class VPNService:
 
         Raises
             AppError: Если Remnawave не настроен (`remnawave=None`).
-            VPNLimitError: Если пользователь достиг лимита конфигов.
             SubscriptionNotFoundError: Если у пользователя нет активной
                 подписки или её срок уже истёк.
             APIClientError: При ошибке сохранения конфигурации в БД
@@ -423,21 +474,11 @@ class VPNService:
 
         logger.info("Генерация Remnawave tg_id={}", tg_user.id)
 
-        user: SUserOut = await self._limit_and_user_inf(tg_user)
+        user, sub = await self._require_active_subscription(tg_user)
 
-        sub = user.current_subscription
-        if sub is None or not sub.is_active:
-            raise SubscriptionNotFoundError(tg_id=tg_user.id)
-
-        now = datetime.now(settings_bot.core.tzinfo)
         end = sub.end_date
         if end and end.tzinfo is None:
             end = end.replace(tzinfo=settings_bot.core.tzinfo)
-
-        if end is not None and end <= now:
-            # is_active мог устареть (обновляется только планировщиком) —
-            # если срок уже прошёл, бессрочный доступ выдавать нельзя.
-            raise SubscriptionNotFoundError(tg_id=tg_user.id)
 
         sub_type = sub.type or "standard"
 
